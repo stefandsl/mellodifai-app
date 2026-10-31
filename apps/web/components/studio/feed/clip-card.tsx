@@ -32,6 +32,7 @@ import { initialForm, useCreateForm } from "@/store/create-form";
 import { type Track, usePlayer } from "@/store/player";
 import { modelLabel } from "../create/model-select";
 import { IconButton } from "../ui";
+import { hasNextStep, NextStep } from "./next-step";
 
 const GENERATING = new Set([
   "drafting",
@@ -349,7 +350,11 @@ export function ClipCard({
           </p>
           <div className="mt-1.5 flex min-h-5 flex-wrap items-center gap-1.5">
             <StatusBadge clip={clip} />
-            <StageLine clip={clip} />
+            {hasNextStep(clip) ? (
+              <NextStep clip={clip} />
+            ) : (
+              <StageLine clip={clip} />
+            )}
           </div>
         </div>
       </article>
@@ -386,9 +391,13 @@ export function ClipCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
             <Actions clip={clip} />
-            <span className="truncate">
-              <StageLine clip={clip} />
-            </span>
+            {hasNextStep(clip) ? (
+              <NextStep clip={clip} />
+            ) : (
+              <span className="truncate">
+                <StageLine clip={clip} />
+              </span>
+            )}
           </div>
           <MoreMenu clip={clip} />
         </div>

@@ -21,6 +21,8 @@ export type Clip = {
   // CSS background: the pipeline thumbnail when there is one, else a generated gradient.
   art: string;
   settings: Record<string, unknown>;
+  // The drafted lyric pack as stored, sent back unchanged when lyrics are approved from the feed.
+  pack: unknown;
 };
 
 type Row = {
@@ -178,6 +180,7 @@ export async function loadClips(
         row.id,
       ),
       settings,
+      pack: row.lyric_pack,
     };
   });
 }
