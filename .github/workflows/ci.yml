@@ -44,3 +44,13 @@ jobs:
       - uses: supabase/setup-cli@v1
       - run: supabase start
       - run: pnpm test:db
+      - name: Export local Supabase environment
+        run: |
+          eval "$(supabase status -o env)"
+          {
+            echo "SUPABASE_URL=${SUPABASE_URL:-$API_URL}"
+            echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-$ANON_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-$SERVICE_ROLE_KEY}"
+          } >> "$GITHUB_ENV"
+      - run: pnpm --filter @mellodifai/web exec playwright install --with-deps chromium
+      - run: pnpm e2e

@@ -14,10 +14,14 @@ beforeEach(() => {
 it("redirects only a successful exchange to the protected library", async () => {
   exchange.mockResolvedValue({ error: null });
   const response = await GET(
-    new NextRequest("http://localhost/auth/confirm?code=valid"),
+    new NextRequest("http://localhost/auth/confirm?code=valid", {
+      headers: { host: "127.0.0.1:3000" },
+    }),
   );
   expect(exchange).toHaveBeenCalledWith("valid");
-  expect(response.headers.get("location")).toBe("http://localhost/library");
+  expect(response.headers.get("location")).toBe(
+    "http://127.0.0.1:3000/library",
+  );
 });
 it.each(["missing", "refused", "transport"])(
   "handles %s code exchange without throwing",
@@ -28,10 +32,11 @@ it.each(["missing", "refused", "transport"])(
     const response = await GET(
       new NextRequest(
         `http://localhost/auth/confirm${outcome === "missing" ? "" : "?code=bad"}`,
+        { headers: { host: "127.0.0.1:3000" } },
       ),
     );
     expect(response.headers.get("location")).toBe(
-      "http://localhost/login?message=invalid-link",
+      "http://127.0.0.1:3000/login?message=invalid-link",
     );
   },
 );

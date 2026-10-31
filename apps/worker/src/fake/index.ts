@@ -8,7 +8,7 @@ import {
   type Stage,
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
-import { ENGINE_ROOT, key, upload, writePack } from "../stages/utils.js";
+import { key, upload, writePack } from "../stages/utils.js";
 
 export const fakePack: LyricPack = {
   title: "A little brighter",
@@ -43,7 +43,7 @@ export async function createFakeMedia(
     const result = await context.engine.run(
       "ffmpeg",
       ["-hide_banner", "-loglevel", "error", "-y", ...args],
-      { cwd: ENGINE_ROOT },
+      { cwd: process.cwd() },
     );
     if (result.code !== 0) throw new Error("Fake media generation failed");
   };

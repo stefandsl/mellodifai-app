@@ -1,7 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { redirectUrl } from "@/lib/redirect-url";
 
 export async function proxy(request: NextRequest) {
+  const code = request.nextUrl.searchParams.get("code");
+  if (code && request.nextUrl.pathname !== "/auth/confirm") {
+    // Recover codes sent to Site URL when the auth redirect allowlist is incomplete.
+    const callback = redirectUrl(request, "/auth/confirm");
+    callback.searchParams.set("code", code);
+    return NextResponse.redirect(callback);
+  }
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",

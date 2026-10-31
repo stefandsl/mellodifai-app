@@ -33,7 +33,9 @@ export class WorkspaceFactory {
     try {
       await stat(fontsDestination);
     } catch {
-      await cp(this.fontsSource, fontsDestination, { recursive: true });
+      if (process.env.WORKER_FAKE === "1")
+        await mkdir(fontsDestination, { recursive: true });
+      else await cp(this.fontsSource, fontsDestination, { recursive: true });
     }
     return { root, versionsDir, outDir, publicDir, renderDir };
   }

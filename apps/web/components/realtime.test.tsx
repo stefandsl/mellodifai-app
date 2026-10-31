@@ -8,6 +8,9 @@ const mock = vi.hoisted(() => ({
   }[],
   refresh: vi.fn(),
   remove: vi.fn(),
+  subscribed: [] as ((status: string) => void)[],
+  readVersion: vi.fn(),
+  readJobs: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mock.refresh }),
@@ -16,9 +19,15 @@ vi.mock("@/lib/supabase/browser", () => ({
   createClient: () => {
     const query = {
       select: () => query,
+      eq: () => query,
       in: () => query,
-      order: () => query,
+      order: () => ({
+        ...query,
+        // biome-ignore lint/suspicious/noThenProperty: PostgREST builders are awaitable queries.
+        then: (resolve: (value: unknown) => void) => resolve(mock.readJobs()),
+      }),
       limit: () => Promise.resolve({ data: [] }),
+      single: () => Promise.resolve(mock.readVersion()),
     };
     return {
       from: () => query,
@@ -33,7 +42,10 @@ vi.mock("@/lib/supabase/browser", () => ({
             mock.handlers.push({ filter, callback });
             return channel;
           },
-          subscribe: () => channel,
+          subscribe: (callback?: (status: string) => void) => {
+            if (callback) mock.subscribed.push(callback);
+            return channel;
+          },
         };
         return channel;
       },
@@ -47,9 +59,108 @@ import { WorkerBadge } from "./worker-badge";
 
 beforeEach(() => {
   mock.handlers.length = 0;
+  mock.subscribed.length = 0;
   vi.clearAllMocks();
+  mock.readVersion.mockReturnValue({ data: { status: "drafting" } });
+  mock.readJobs.mockReturnValue({ data: [] });
 });
 afterEach(() => vi.useRealTimers());
+function timeline() {
+  return render(
+    <LocaleProvider value="en">
+      <LiveTimeline
+        versionId="v1"
+        status="drafting"
+        initialJobs={[
+          {
+            id: "j1",
+            version_id: "v1",
+            stage: "draft_lyrics",
+            status: "queued",
+            created_at: "2026-01-01",
+          },
+        ]}
+        initialEvents={[]}
+      />
+    </LocaleProvider>,
+  );
+}
+it("catches a completed job and version change that occurred before SUBSCRIBED", async () => {
+  mock.readVersion.mockReturnValue({ data: { status: "lyrics_review" } });
+  mock.readJobs.mockReturnValue({
+    data: [
+      {
+        id: "j1",
+        version_id: "v1",
+        stage: "draft_lyrics",
+        status: "done",
+        created_at: "2026-01-01",
+      },
+    ],
+  });
+  timeline();
+  await act(async () => mock.subscribed[0]?.("SUBSCRIBED"));
+  expect(mock.readVersion).toHaveBeenCalled();
+  expect(mock.refresh).toHaveBeenCalledOnce();
+  expect(screen.getByText("done")).toBeInTheDocument();
+});
+it("polls active jobs every five seconds and stops once none remain", async () => {
+  vi.useFakeTimers();
+  mock.readJobs.mockReturnValue({
+    data: [
+      {
+        id: "j1",
+        version_id: "v1",
+        stage: "draft_lyrics",
+        status: "running",
+        created_at: "2026-01-01",
+      },
+    ],
+  });
+  const view = timeline();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(mock.readJobs).toHaveBeenCalledOnce();
+  mock.readJobs.mockReturnValue({ data: [] });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(mock.readJobs).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15000);
+  });
+  expect(mock.readJobs).toHaveBeenCalledTimes(2);
+  view.unmount();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(mock.readJobs).toHaveBeenCalledTimes(2);
+});
+it.each(["CHANNEL_ERROR", "TIMED_OUT"])(
+  "refetches and resubscribes after %s, and cleans up on unmount",
+  async (state) => {
+    vi.useFakeTimers();
+    const view = timeline();
+    const count = mock.subscribed.length;
+    await act(async () => mock.subscribed[0]?.(state));
+    expect(mock.readVersion).toHaveBeenCalledOnce();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(mock.remove).toHaveBeenCalled();
+    expect(mock.subscribed.length).toBe(count + 1);
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(mock.readVersion).toHaveBeenCalledTimes(2);
+    view.unmount();
+    const reads = mock.readVersion.mock.calls.length;
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(mock.readVersion).toHaveBeenCalledTimes(reads);
+  },
+);
 it("scopes subscriptions and refreshes only when version status changes", async () => {
   const view = render(
     <LocaleProvider value="en">
