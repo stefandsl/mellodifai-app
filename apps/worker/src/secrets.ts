@@ -12,15 +12,27 @@ export async function loadSecrets(
   for (const file of environment.WORKER_ENV_FILES?.split(";").filter(Boolean) ??
     []) {
     for (const rawLine of (await readFile(file, "utf8")).split(/\r?\n/u)) {
-      const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/u.exec(rawLine);
-      if (match?.[1] && match[2] !== undefined) values[match[1]] = match[2];
+      const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/u.exec(
+        rawLine.trim(),
+      );
+      if (match?.[1] && match[2] !== undefined) {
+        const value = match[2].trim();
+        values[match[1]] = /^(".*"|'.*')$/u.test(value)
+          ? value.slice(1, -1)
+          : value;
+      }
     }
   }
+  const protectedValues = [
+    ...new Set(
+      [
+        ...Object.values(values),
+        environment.SUPABASE_SERVICE_ROLE_KEY ?? "",
+      ].filter((value) => value.length >= 8),
+    ),
+  ].sort((a, b) => b.length - a.length);
   for (const [key, value] of Object.entries(environment))
     if (value !== undefined && !(key in values)) values[key] = value;
-  const protectedValues = [
-    ...new Set(Object.values(values).filter((value) => value.length >= 8)),
-  ].sort((a, b) => b.length - a.length);
   return {
     values,
     redact: (text) =>

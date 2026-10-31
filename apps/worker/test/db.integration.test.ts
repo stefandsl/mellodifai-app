@@ -13,6 +13,6 @@ describe.skipIf(!enabled)("Supabase queue integration", () => {
     const job = await db.claim(`integration-${crypto.randomUUID()}`);
     if (!job) return;
     expect(await db.heartbeat(job.id, job.worker_id ?? "")).toBe(true);
-    await db.finishJob(job.id, { integration: true });
+    await db.finishJob(job.id, { integration: true }, job.worker_id ?? "");
   });
 });

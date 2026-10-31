@@ -1,0 +1,89 @@
+import { EventEmitter } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { PassThrough } from "node:stream";
+import { expect, it, vi } from "vitest";
+import { Engine, type Spawn } from "../src/engine.js";
+import { loadSecrets } from "../src/secrets.js";
+
+it("parses exported quoted CRLF values and redacts only file values and the service key", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "worker-secrets-"));
+  try {
+    const file = join(dir, "fixture.env");
+    await writeFile(
+      file,
+      "export TOKEN=\"long-file-secret\"\r\nOTHER='other-file-secret'\r\nSHORT=abc\r\n",
+    );
+    const secrets = await loadSecrets({
+      WORKER_ENV_FILES: file,
+      PATH: "ordinary-path-value",
+      SUPABASE_SERVICE_ROLE_KEY: "service-key-value",
+    });
+    expect(secrets.values.TOKEN).toBe("long-file-secret");
+    expect(
+      secrets.redact(
+        "long-file-secret other-file-secret ordinary-path-value service-key-value abc",
+      ),
+    ).toBe("*** *** ordinary-path-value *** abc");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it.each(["python", "python.exe", "py", "C:\\Python\\python.exe"])(
+  "enforces isolated UTF-8 Python arguments for %s",
+  async (command) => {
+    const spawn = vi.fn<Spawn>(() => {
+      const child = new EventEmitter();
+      queueMicrotask(() => child.emit("close", 0));
+      return child;
+    });
+    await new Engine({ spawn, log: async () => {} })
+      .withWorkspace("workspace")
+      .run(command, ["-I", "script.py"], {
+        env: { TMP: "wrong", PYTHONIOENCODING: "wrong" },
+      });
+    expect(spawn.mock.calls[0]?.[1]).toEqual(["-I", "-X", "utf8", "script.py"]);
+    expect(spawn.mock.calls[0]?.[2]).toMatchObject({
+      shell: false,
+      env: {
+        ENGINE_WORKSPACE: "workspace",
+        TMP: "E:\\mellodifai\\tmp",
+        TEMP: "E:\\mellodifai\\tmp",
+        PYTHONIOENCODING: "utf-8",
+      },
+    });
+  },
+);
+
+it.each(["npx", "npx.cmd", "C:\\tools\\npm.cmd"])(
+  "rejects shell-dependent command %s before spawn",
+  async (command) => {
+    const spawn = vi.fn<Spawn>();
+    await expect(
+      new Engine({ spawn, log: async () => {} }).run(command, ["remotion"]),
+    ).rejects.toThrow("CLI js");
+    expect(spawn).not.toHaveBeenCalled();
+  },
+);
+
+it("catches failed async log delivery and drains trailing output", async () => {
+  const report = vi.fn();
+  const log = vi.fn().mockRejectedValue(new Error("offline"));
+  const spawn: Spawn = () => {
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+    });
+    queueMicrotask(() => {
+      child.stdout.write("line\nlast");
+      child.emit("close", 0);
+    });
+    return child;
+  };
+  await expect(
+    new Engine({ spawn, log, report }).run("tool", []),
+  ).rejects.toThrow("log delivery");
+  expect(log.mock.calls).toEqual([["line"], ["last"]]);
+  expect(report).toHaveBeenCalled();
+});

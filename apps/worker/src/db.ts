@@ -41,8 +41,8 @@ export interface Db {
   claim(workerId: string): Promise<Job | null>;
   heartbeat(jobId: string, workerId: string): Promise<boolean>;
   requeueStale(seconds: number): Promise<number>;
-  finishJob(jobId: string, result?: unknown): Promise<void>;
-  failJob(jobId: string, error: string): Promise<void>;
+  finishJob(jobId: string, result: unknown, workerId: string): Promise<void>;
+  failJob(jobId: string, error: string, workerId: string): Promise<void>;
   appendEvent(jobId: string, message: string, progress?: number): Promise<void>;
   upsertWorker(worker: WorkerUpdate): Promise<void>;
   getVersion(id: string): Promise<Version | null>;
@@ -53,7 +53,7 @@ export interface Db {
     stage: Stage,
     idempotencyKey: string,
   ): Promise<void>;
-  requeue(jobId: string): Promise<void>;
+  requeue(jobId: string, workerId: string): Promise<void>;
 }
 
 function requireData<T>(data: T | null, error: { message: string } | null): T {
@@ -91,7 +91,11 @@ export class SupabaseDb implements Db {
     });
     return requireData(data, error);
   }
-  async finishJob(jobId: string, result?: unknown): Promise<void> {
+  async finishJob(
+    jobId: string,
+    result: unknown,
+    workerId: string,
+  ): Promise<void> {
     const { error } = await this.client
       .from("jobs")
       .update({
@@ -100,10 +104,16 @@ export class SupabaseDb implements Db {
         finished_at: new Date().toISOString(),
         heartbeat_at: null,
       })
-      .eq("id", jobId);
+      .eq("id", jobId)
+      .eq("worker_id", workerId)
+      .eq("status", "running");
     if (error) throw new Error(error.message);
   }
-  async failJob(jobId: string, errorMessage: string): Promise<void> {
+  async failJob(
+    jobId: string,
+    errorMessage: string,
+    workerId: string,
+  ): Promise<void> {
     const { error } = await this.client
       .from("jobs")
       .update({
@@ -112,7 +122,9 @@ export class SupabaseDb implements Db {
         finished_at: new Date().toISOString(),
         heartbeat_at: null,
       })
-      .eq("id", jobId);
+      .eq("id", jobId)
+      .eq("worker_id", workerId)
+      .eq("status", "running");
     if (error) throw new Error(error.message);
   }
   async appendEvent(
@@ -175,7 +187,7 @@ export class SupabaseDb implements Db {
     });
     if (error) throw new Error(error.message);
   }
-  async requeue(jobId: string): Promise<void> {
+  async requeue(jobId: string, workerId: string): Promise<void> {
     const { error } = await this.client
       .from("jobs")
       .update({
@@ -184,7 +196,9 @@ export class SupabaseDb implements Db {
         heartbeat_at: null,
         started_at: null,
       })
-      .eq("id", jobId);
+      .eq("id", jobId)
+      .eq("worker_id", workerId)
+      .eq("status", "running");
     if (error) throw new Error(error.message);
   }
 }
@@ -232,12 +246,14 @@ export class InMemoryDb implements Db {
       }
     return count;
   }
-  async finishJob(jobId: string) {
+  async finishJob(jobId: string, _result: unknown, workerId: string) {
     const job = this.findJob(jobId);
+    if (job.worker_id !== workerId || job.status !== "running") return;
     job.status = "done";
   }
-  async failJob(jobId: string, error: string) {
+  async failJob(jobId: string, error: string, workerId: string) {
     const job = this.findJob(jobId);
+    if (job.worker_id !== workerId || job.status !== "running") return;
     job.status = "failed";
     job.error = error;
   }
@@ -267,8 +283,9 @@ export class InMemoryDb implements Db {
       idempotency_key: idempotencyKey,
     });
   }
-  async requeue(jobId: string) {
+  async requeue(jobId: string, workerId: string) {
     const job = this.findJob(jobId);
+    if (job.worker_id !== workerId || job.status !== "running") return;
     job.status = "queued";
     job.worker_id = null;
     job.heartbeat_at = null;
