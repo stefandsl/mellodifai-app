@@ -7,6 +7,11 @@
     "start": "tsx src/main.ts",
     "test": "vitest run"
   },
+  "vitest": {
+    "include": [
+      "test/**/*.test.ts"
+    ]
+  },
   "dependencies": {
     "@mellodifai/shared": "workspace:^",
     "@supabase/supabase-js": "^2.118.0",
