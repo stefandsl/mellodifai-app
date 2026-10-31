@@ -8,3 +8,5 @@ playwright-report/
 .superpowers/
 coverage/
 *.log
+dist/
+*.tsbuildinfo

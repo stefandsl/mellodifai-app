@@ -1,0 +1,16 @@
+{
+  "name": "mellodifai",
+  "private": true,
+  "packageManager": "pnpm@10.2.1",
+  "scripts": {
+    "lint": "biome check .",
+    "typecheck": "tsc -b",
+    "test": "pnpm --filter @mellodifai/shared test",
+    "test:db": "node -e \"process.exit(0)\""
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
