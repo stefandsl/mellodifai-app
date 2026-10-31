@@ -10,7 +10,7 @@
     "typecheck": "tsc -b",
     "test": "pnpm -r --if-present test",
     "e2e": "pnpm -r --if-present e2e",
-    "test:db": "node -e \"process.exit(0)\""
+    "test:db": "vitest run --no-file-parallelism supabase/tests"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.4",
