@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import frPack from "../test/fixtures/fr-pack.json" with { type: "json" };
 
-import { validateLyricPack } from "./lyric-pack.js";
+import { LyricPackSchema, validateLyricPack } from "./lyric-pack.js";
 
 describe("validateLyricPack", () => {
   it("rejects an em dash and names the affected field", () => {
@@ -32,5 +32,33 @@ describe("validateLyricPack", () => {
 
   it("accepts the shipped French pack", () => {
     expect(validateLyricPack(frPack, "vbp")).toEqual({ ok: true });
+  });
+
+  it("accepts every studio model, a variety step, Auto duration and no vocal preference", () => {
+    const { vocalGender: _omit, ...settings } = frPack.settings as Record<
+      string,
+      unknown
+    >;
+    const parsed = LyricPackSchema.parse({
+      ...frPack,
+      settings: { ...settings, model: "V6_WILD", variety: 3, duration: null },
+    });
+    expect(parsed.settings).toMatchObject({
+      model: "V6_WILD",
+      variety: 3,
+      duration: null,
+    });
+    expect(parsed.settings.vocalGender).toBeUndefined();
+  });
+
+  it("keeps the legacy defaults for packs written before the studio", () => {
+    const parsed = LyricPackSchema.parse(frPack);
+    expect(parsed.settings).toMatchObject({ variety: 1 });
+    expect(
+      LyricPackSchema.parse({
+        ...frPack,
+        settings: { model: "V6", vocalGender: "f" },
+      }).settings.duration,
+    ).toBe(310);
   });
 });

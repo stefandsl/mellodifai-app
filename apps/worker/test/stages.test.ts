@@ -598,6 +598,30 @@ describe("round 2 hardening", () => {
     for (const key of ['"title"', '"lyrics"', '"style"', '"exclude"', '"l10n"'])
       expect(body.messages[0]?.content).toContain(key);
   });
+  it("asks for the user's topic and uses the reference only as a format", async () => {
+    // Live test 2026-10-31: "office coffee machine" came back as another VBP song about AI approvals.
+    const { ctx } = await setup();
+    ctx.project.topic = "la macchinetta del caffe in ufficio";
+    ctx.project.style = "italo disco";
+    const fetch = vi.fn(async () => respond(pack));
+    vi.stubGlobal("fetch", fetch);
+    await stages.draft_lyrics?.(ctx);
+    const request = (fetch.mock.calls as unknown[][])[0]?.[1] as RequestInit;
+    const [system, user] = (
+      JSON.parse(String(request.body)) as { messages: { content: string }[] }
+    ).messages;
+    expect(system?.content).not.toContain("VBP lyric pack");
+    expect(system?.content).toMatch(/format only/u);
+    expect(system?.content).toMatch(
+      /never reuse the reference's (topic|title)/iu,
+    );
+    expect(user?.content).toContain(
+      "Topic: la macchinetta del caffe in ufficio",
+    );
+    expect(user?.content.indexOf("Topic:")).toBeLessThan(
+      user?.content.indexOf("Reference") ?? 0,
+    );
+  });
   it("builds a full pack from a realistic reply with only the creative fields", async () => {
     // Real models answer with the creative fields only (observed 2026-10-31);
     // settings come from the project and the display map from the reference.
@@ -621,6 +645,60 @@ describe("round 2 hardening", () => {
       settings: { model: "V6", vocalGender: "m" },
       displayMap: {},
       l10n: {},
+    });
+  });
+  it("applies the studio form settings stored on the project", async () => {
+    const { ctx } = await setup();
+    ctx.project.vocal_gender = null;
+    ctx.project.song_settings = {
+      model: "V6_WILD",
+      title: "Lunedi",
+      exclude: "metal",
+      weirdness: 0.6,
+      styleWeight: 0.4,
+      variety: 3,
+      duration: null,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond(pack)),
+    );
+    const result = await stages.draft_lyrics?.(ctx);
+    const drafted = result?.patch?.lyric_pack as
+      | { settings: Record<string, unknown> }
+      | undefined;
+    const settings = drafted?.settings;
+    expect(result?.patch?.lyric_pack).toMatchObject({
+      title: "Lunedi",
+      exclude: "metal",
+    });
+    expect(settings).toEqual({
+      model: "V6_WILD",
+      styleWeight: 0.4,
+      weirdness: 0.6,
+      variety: 3,
+      duration: null,
+    });
+  });
+  it("omits Auto duration and an unset vocal gender from the kie settings", async () => {
+    const { ctx } = await setup();
+    const { vocalGender: _v, ...rest } = pack.settings;
+    await writePack(
+      ctx,
+      LyricPackSchema.parse({
+        ...pack,
+        settings: { ...rest, variety: 4, duration: null },
+      }),
+    );
+    expect(
+      JSON.parse(
+        await readFile(join(ctx.ws.versionsDir, "settings.json"), "utf8"),
+      ),
+    ).toEqual({
+      model: "V6",
+      style_weight: 0.7,
+      weirdness_constraint: 0.35,
+      variety: 4,
     });
   });
   it("writes the setting names kie.mjs reads", async () => {

@@ -1,16 +1,21 @@
 import { z } from "zod";
 
+import { SONG_MODELS } from "./song-settings.js";
+
 export const LyricPackSchema = z.object({
   title: z.string().min(1).max(100),
   lyrics: z.string(),
   style: z.string().min(1).max(1000),
   exclude: z.string(),
   settings: z.object({
-    model: z.literal("V6"),
-    vocalGender: z.enum(["m", "f"]),
+    model: z.enum(SONG_MODELS),
+    // Absent means no preference.
+    vocalGender: z.enum(["m", "f"]).optional(),
     styleWeight: z.number().min(0).max(1).default(0.7),
     weirdness: z.number().min(0).max(1).default(0.35),
-    duration: z.number().int().min(60).max(320).default(310),
+    variety: z.number().int().min(0).max(4).default(1),
+    // null means Auto: no target length is sent to kie.
+    duration: z.number().int().min(10).max(360).nullable().default(310),
   }),
   displayMap: z.record(z.string(), z.string()),
   l10n: z.record(z.string(), z.unknown()),

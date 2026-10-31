@@ -68,7 +68,6 @@ vi.mock("@/components/project-workspace", () => ({
 vi.mock("@/components/live-timeline", () => ({ LiveTimeline: () => null }));
 vi.mock("@/components/worker-badge", () => ({ WorkerBadge: () => null }));
 
-import LibraryPage from "@/app/(app)/library/page";
 import ProjectPage from "@/app/(app)/projects/[id]/page";
 
 beforeEach(() => {
@@ -81,7 +80,7 @@ beforeEach(() => {
     render_attempt: 1,
   }));
 });
-it("renders ordered tabs, a mint active language and exactly one status badge", async () => {
+it("renders ordered tabs, a brand-red active language and exactly one status badge", async () => {
   render(
     await ProjectPage({
       params: Promise.resolve({ id: "p" }),
@@ -94,8 +93,8 @@ it("renders ordered tabs, a mint active language and exactly one status badge", 
   );
   expect(links[0]).toHaveAttribute("aria-current", "page");
   expect(links[0].firstElementChild).toHaveClass(
-    "bg-[#2BD9A0]",
-    "text-slate-950",
+    "bg-[var(--brand)]",
+    "text-white",
   );
   expect(links[1]).not.toHaveAttribute("aria-current");
   expect(links[1].firstElementChild).toHaveAttribute("data-variant", "outline");
@@ -124,19 +123,5 @@ it("honors the requested project language", async () => {
   expect(screen.getByRole("link", { name: "FR" })).toHaveAttribute(
     "aria-current",
     "page",
-  );
-});
-it("makes the full library card a focusable link with ordered chips", async () => {
-  render(await LibraryPage());
-  const card = screen.getByRole("link", { name: /Va bene, passa/ });
-  expect(card).toHaveAttribute("href", "/projects/p");
-  expect(card).toHaveClass("block", "focus-visible:ring-2");
-  expect(
-    [...card.querySelectorAll('[data-slot="badge"]')].map(
-      (chip) => chip.textContent?.split(" ")[0],
-    ),
-  ).toEqual(LANGS.map((lang) => lang.toUpperCase()));
-  expect(card.querySelector('[data-slot="card"]')).toHaveClass(
-    "hover:shadow-md",
   );
 });

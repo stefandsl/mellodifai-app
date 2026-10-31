@@ -1,4 +1,4 @@
-import { LANGS, LyricPackSchema } from "@mellodifai/shared";
+import { LANGS, LyricPackSchema, SongSettingsSchema } from "@mellodifai/shared";
 import { z } from "zod";
 
 const Id = z.string().uuid();
@@ -11,6 +11,24 @@ export const CreateProjectInput = z.object({
   mood: z.string().trim().max(250).optional().default(""),
   vocalGender: z.enum(["m", "f"]),
 });
+
+export const CreateSongInput = z
+  .object({
+    mode: z.enum(["simple", "advanced"]),
+    prompt: z.string().trim().max(500),
+    lyrics: z.string().trim().max(5000),
+    styles: z.string().trim().max(1000),
+    languages: z.array(z.enum(LANGS)).min(1),
+    vocalGender: z.enum(["m", "f"]).nullable(),
+    settings: SongSettingsSchema,
+  })
+  .refine(
+    (v) =>
+      v.mode === "simple"
+        ? v.prompt.length > 0
+        : Boolean(v.prompt || v.lyrics || v.styles || v.settings.title),
+    { message: "Describe the song or add lyrics, styles or a title" },
+  );
 
 export const UpdateLyricsInput = z.object({
   versionId: Id,

@@ -1,6 +1,7 @@
 import { t } from "@mellodifai/shared";
 
 import { LoginForm } from "@/components/login-form";
+import { Logo } from "@/components/studio/sidebar";
 import { getLocale } from "@/lib/locale";
 
 // The local Supabase stack delivers auth mail to Mailpit, never to a real inbox.
@@ -19,13 +20,14 @@ export default async function LoginPage({
   const lang = await getLocale();
   const params = await searchParams;
   return (
-    <main className="grid min-h-screen place-items-center bg-[#fbfdfc] p-5">
-      <section className="w-full max-w-md rounded-2xl border bg-white p-7 shadow-sm">
-        <p className="text-lg font-semibold">
-          {t(lang, "app.name")}
-          <span className="text-[#7C5CFF]">.</span>
-        </p>
-        <h1 className="mt-8 text-2xl font-semibold">
+    <main className="relative grid min-h-dvh place-items-center overflow-hidden bg-[var(--bg)] p-5">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-40 left-1/2 h-80 w-[36rem] -translate-x-1/2 rounded-full bg-[var(--brand)] opacity-[0.12] blur-3xl"
+      />
+      <section className="relative w-full max-w-md rounded-3xl bg-[var(--surface-1)] p-7 ring-1 ring-[var(--hairline)] sm:p-8">
+        <Logo />
+        <h1 className="mt-8 text-2xl font-medium tracking-tight">
           {t(lang, "auth.sendLink")}
         </h1>
         {params.message && (
@@ -40,7 +42,7 @@ export default async function LoginPage({
         )}
         <LoginForm lang={lang} />
         {localInbox() && (
-          <p className="mt-6 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+          <p className="mt-6 rounded-xl border border-dashed border-[var(--hairline)] p-3 text-sm text-muted-foreground">
             {t(lang, "auth.devInbox")}{" "}
             <a
               className="font-medium text-foreground underline"

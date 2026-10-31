@@ -43,6 +43,7 @@ export type Project = {
   theme: string;
   brief?: string | null;
   style?: string | null;
+  song_settings?: unknown;
 };
 export type WorkerUpdate = {
   id: string;

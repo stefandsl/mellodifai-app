@@ -23,6 +23,7 @@ export const fakePack: LyricPack = {
     vocalGender: "f",
     styleWeight: 0.7,
     weirdness: 0.35,
+    variety: 1,
     duration: 60,
   },
   displayMap: {},

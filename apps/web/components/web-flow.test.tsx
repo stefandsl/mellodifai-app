@@ -182,6 +182,7 @@ it.each(["it", "en"] as const)(
         vocalGender: "f" as const,
         styleWeight: 0.7,
         weirdness: 0.35,
+        variety: 1,
         duration: 310,
       },
       displayMap: {},

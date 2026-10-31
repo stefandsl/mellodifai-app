@@ -3,10 +3,8 @@ import { t } from "@mellodifai/shared";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/browser";
+import { workerIsOnline } from "@/lib/worker";
 import { useLocale } from "./locale-provider";
-export function workerIsOnline(lastSeen: string | null, now = Date.now()) {
-  return Boolean(lastSeen && now - Date.parse(lastSeen) <= 45000);
-}
 export function WorkerBadge({
   lastSeen,
   now,

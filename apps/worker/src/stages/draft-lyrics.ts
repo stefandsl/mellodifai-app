@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { LyricPackSchema, validateLyricPack } from "@mellodifai/shared";
+import {
+  LyricPackSchema,
+  SongSettingsSchema,
+  validateLyricPack,
+} from "@mellodifai/shared";
 import { optionalText } from "../legacy-import.js";
 import type { StageHandler } from "../loop.js";
 import { ENGINE_ROOT } from "./utils.js";
@@ -45,7 +49,9 @@ export async function draftReference(lang: string) {
 
 // The model writes only the creative fields; the worker owns everything else.
 const DRAFT_INSTRUCTIONS = [
-  "Write a new VBP lyric pack for the topic below and reply with one JSON object with exactly these keys:",
+  "Write an original song about the topic below. The reference song is a format only: copy its section structure, its 80 sung lines and its chant pattern, but the subject, story, title, hook and every lyric line must come from the topic.",
+  "Never reuse the reference's topic, title, characters or phrases. When a style is given, build the style prompt from it.",
+  "Reply with one JSON object with exactly these keys:",
   '"title": string, at most 100 characters (reference file title.txt).',
   '"lyrics": string, the full lyrics with [Section] tag lines, exactly 80 sung lines in the same section structure as the reference (reference file lyrics.txt).',
   '"style": string, the music style prompt, at most 1000 characters (reference file style.txt).',
@@ -73,22 +79,44 @@ function buildPack(
   draft: Record<string, unknown>,
   vocalGender: string | null | undefined,
   displayMap: Record<string, string>,
+  songSettings: unknown,
 ) {
+  // Studio projects carry the form settings; projects created before the studio have none.
+  const parsed = SongSettingsSchema.safeParse(songSettings ?? {});
+  const form = parsed.success ? parsed.data : SongSettingsSchema.parse({});
+  const studio = parsed.success && Object.keys(songSettings ?? {}).length > 0;
   return {
-    title: draft.title,
+    title: form.title || draft.title,
     lyrics: draft.lyrics,
     style: draft.style,
-    exclude: draft.exclude ?? "",
+    exclude: form.exclude || (draft.exclude ?? ""),
     l10n: draft.l10n ?? {},
     settings: {
-      model: "V6",
-      vocalGender: vocalGender === "m" ? "m" : "f",
-      styleWeight: 0.7,
-      weirdness: 0.35,
-      duration: 310,
+      model: form.model,
+      ...(vocalGender === "m" || vocalGender === "f"
+        ? { vocalGender }
+        : studio
+          ? {}
+          : { vocalGender: "f" }),
+      styleWeight: form.styleWeight ?? 0.7,
+      weirdness: form.weirdness ?? 0.35,
+      variety: form.variety ?? 1,
+      duration: studio ? (form.duration ?? null) : 310,
     },
     displayMap,
   };
+}
+
+// Studio projects store lyrics the user wrote as the brief; the draft keeps their words.
+function briefLine(project: {
+  brief?: string | null;
+  song_settings?: unknown;
+}): string {
+  const studio = Object.keys(project.song_settings ?? {}).length > 0;
+  return studio && project.brief
+    ? `Lyrics written by the user (keep their words, arrange them into the reference format):
+${project.brief}`
+    : `Brief: ${project.brief ?? ""}`;
 }
 
 async function referenceDisplayMap(
@@ -161,7 +189,7 @@ export const draftLyrics: StageHandler = async (context) => {
             },
             {
               role: "user",
-              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\nBrief: ${context.project.brief ?? ""}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference:\n${template}\n${correction}`,
+              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
             },
           ],
         }),
@@ -177,6 +205,7 @@ export const draftLyrics: StageHandler = async (context) => {
       parseReply(body.choices?.[0]?.message?.content ?? ""),
       context.project.vocal_gender,
       displayMap,
+      context.project.song_settings,
     );
     const parsed = LyricPackSchema.safeParse(raw);
     const validation = validateLyricPack(

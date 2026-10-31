@@ -28,14 +28,18 @@ export async function writePack(
   pack: LyricPack,
 ): Promise<void> {
   await mkdir(context.ws.versionsDir, { recursive: true });
+  // Names as read by suno-remake/tools/kie.mjs buildJob(); an absent key is not sent to kie.
   const settings = {
     model: pack.settings.model,
-    vocal_gender: pack.settings.vocalGender,
+    ...(pack.settings.vocalGender
+      ? { vocal_gender: pack.settings.vocalGender }
+      : {}),
     style_weight: pack.settings.styleWeight,
-    // Names as read by suno-remake/tools/kie.mjs buildJob().
     weirdness_constraint: pack.settings.weirdness,
-    variety: 1,
-    duration: pack.settings.duration,
+    variety: pack.settings.variety,
+    ...(pack.settings.duration === null
+      ? {}
+      : { duration: pack.settings.duration }),
   };
   await Promise.all([
     writeFile(versionFile(context, "lyrics.txt"), pack.lyrics),

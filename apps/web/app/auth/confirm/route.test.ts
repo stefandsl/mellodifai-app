@@ -13,7 +13,7 @@ beforeEach(() => {
   exchange.mockReset();
 });
 afterEach(() => vi.unstubAllEnvs());
-it("redirects only a successful exchange to the protected library", async () => {
+it("redirects only a successful exchange to the protected studio", async () => {
   exchange.mockResolvedValue({ error: null });
   const response = await GET(
     new NextRequest("http://localhost/auth/confirm?code=valid", {
@@ -21,9 +21,7 @@ it("redirects only a successful exchange to the protected library", async () => 
     }),
   );
   expect(exchange).toHaveBeenCalledWith("valid");
-  expect(response.headers.get("location")).toBe(
-    "http://127.0.0.1:3000/library",
-  );
+  expect(response.headers.get("location")).toBe("http://127.0.0.1:3000/create");
 });
 it.each(["missing", "refused", "transport"])(
   "handles %s code exchange without throwing",

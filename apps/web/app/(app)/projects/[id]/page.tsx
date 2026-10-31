@@ -113,79 +113,85 @@ export default async function ProjectPage({
     : { data: null };
   const failedJob = (jobs ?? []).filter((j) => j.status === "failed").at(-1);
   return (
-    <>
-      <div className="mb-8">
-        <p>{t(lang, "project.label")}</p>
-        <h1 className="text-3xl font-semibold">{project.topic}</h1>
-        <nav className="mt-5 flex flex-wrap gap-2">
-          {versions.map((v) => (
-            <Link
-              key={v.id}
-              href={`/projects/${id}?lang=${v.lang}`}
-              aria-current={v.id === current.id ? "page" : undefined}
-              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <Badge
-                variant="outline"
-                className={
-                  v.id === current.id
-                    ? "h-9 border-transparent bg-[#2BD9A0] px-3 text-slate-950"
-                    : "h-9 px-3"
-                }
+    <div className="h-full overflow-y-auto scrollbar-thin">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-10">
+        <div className="mb-8">
+          <p className="text-[13px] text-muted-foreground">
+            {t(lang, "project.label")}
+          </p>
+          <h1 className="mt-1 text-3xl font-medium tracking-tight sm:text-[40px]">
+            {project.topic}
+          </h1>
+          <nav className="mt-5 flex flex-wrap gap-2">
+            {versions.map((v) => (
+              <Link
+                key={v.id}
+                href={`/projects/${id}?lang=${v.lang}`}
+                aria-current={v.id === current.id ? "page" : undefined}
+                className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                {v.lang.toUpperCase()}
-              </Badge>
-            </Link>
-          ))}
-        </nav>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex flex-wrap items-center gap-3">
-              {current.lang.toUpperCase()}{" "}
-              <Badge variant="secondary">
-                {t(lang, `status.${current.status}`)}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProjectWorkspace
-              key={current.id + current.status}
-              version={current}
-              takes={takeData}
-              renders={renders as RenderPreview[]}
-              publication={publication as PublicationView | null}
-              brief={project.brief ?? ""}
-              failedJob={failedJob}
-              quotaNotBefore={
-                (jobs ?? []).find(
-                  (j) =>
-                    j.stage === "publish" &&
-                    j.status === "queued" &&
-                    j.not_before &&
-                    Date.parse(j.not_before) > Date.now(),
-                )?.not_before
-              }
-              activeJob={(jobs ?? []).some(
-                (j) => j.status === "queued" || j.status === "running",
-              )}
-              isAdmin={profile?.role === "admin"}
-              thumbnailUrl={thumbnailUrl}
+                <Badge
+                  variant="outline"
+                  className={
+                    v.id === current.id
+                      ? "h-9 border-transparent bg-[var(--brand)] px-3 text-white"
+                      : "h-9 px-3"
+                  }
+                >
+                  {v.lang.toUpperCase()}
+                </Badge>
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex flex-wrap items-center gap-3">
+                {current.lang.toUpperCase()}{" "}
+                <Badge variant="secondary">
+                  {t(lang, `status.${current.status}`)}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ProjectWorkspace
+                key={current.id + current.status}
+                version={current}
+                takes={takeData}
+                renders={renders as RenderPreview[]}
+                publication={publication as PublicationView | null}
+                brief={project.brief ?? ""}
+                failedJob={failedJob}
+                quotaNotBefore={
+                  (jobs ?? []).find(
+                    (j) =>
+                      j.stage === "publish" &&
+                      j.status === "queued" &&
+                      j.not_before &&
+                      Date.parse(j.not_before) > Date.now(),
+                  )?.not_before
+                }
+                activeJob={(jobs ?? []).some(
+                  (j) => j.status === "queued" || j.status === "running",
+                )}
+                isAdmin={profile?.role === "admin"}
+                thumbnailUrl={thumbnailUrl}
+              />
+            </CardContent>
+          </Card>
+          <aside className="rounded-2xl bg-card p-5">
+            <h2>{t(lang, "pipeline.title")}</h2>
+            <LiveTimeline
+              key={current.id}
+              versionId={current.id}
+              status={current.status}
+              initialJobs={(jobs ?? []) as TimelineJob[]}
+              initialEvents={(events ?? []).toReversed()}
             />
-          </CardContent>
-        </Card>
-        <aside className="rounded-xl border bg-white p-5">
-          <h2>{t(lang, "pipeline.title")}</h2>
-          <LiveTimeline
-            key={current.id}
-            versionId={current.id}
-            status={current.status}
-            initialJobs={(jobs ?? []) as TimelineJob[]}
-            initialEvents={(events ?? []).toReversed()}
-          />
-        </aside>
+          </aside>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

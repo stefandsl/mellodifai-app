@@ -99,27 +99,27 @@ export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
     "Se l'indirizzo è abilitato riceverai un link.",
   );
   await page.goto(await magicLink(email, previous));
-  await expect(page).toHaveURL(/\/library$/u);
+  await expect(page).toHaveURL(/\/create$/u);
 }
 
 export async function createFrenchProject(page: Page, topic: string) {
   localSupabaseUrl();
-  await page.goto("/projects/new");
-  await page.getByLabel("Argomento").fill(topic);
-  await page.getByLabel("Brief").fill("Test E2E del flusso completo");
-  const italian = page.getByRole("checkbox", { name: "IT", exact: true });
-  const french = page.getByRole("checkbox", { name: "FR", exact: true });
+  await page.goto("/create");
+  await page.getByRole("radio", { name: "Avanzato" }).click();
+  await page.getByRole("textbox", { name: "Stili" }).fill("Pop luminoso");
+  await page.getByPlaceholder("Titolo della canzone (facoltativo)").fill(topic);
+  await page.getByRole("button", { name: /^Lingue:/u }).click();
+  const italian = page.getByRole("menuitemcheckbox", { name: /Italiano/u });
+  const french = page.getByRole("menuitemcheckbox", { name: /Francese/u });
   await expect(italian).toHaveAttribute("aria-checked", "true");
   await italian.click();
   await expect(italian).toHaveAttribute("aria-checked", "false");
-  await expect(french).toHaveAttribute("aria-checked", "false");
   await french.click();
   await expect(french).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("checkbox", { checked: true })).toHaveCount(1);
-  await page.getByLabel("Stile").fill("Pop luminoso");
-  await page.getByLabel("Atmosfera").fill("Ottimista");
-  await page.getByRole("button", { name: "Crea progetto" }).click();
-  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/u);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Crea canzone" }).click();
+  await page.getByRole("link", { name: topic }).first().click();
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+\?lang=fr/u);
 }
 
 export async function getAdminId() {

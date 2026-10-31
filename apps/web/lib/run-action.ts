@@ -24,6 +24,7 @@ export async function runAction(
     }
     if (projectId) revalidatePath(`/projects/${projectId}`);
     revalidatePath("/library");
+    revalidatePath("/create");
     return { ok: true, ...(projectId ? { id: projectId } : {}) };
   } catch (error) {
     const message =

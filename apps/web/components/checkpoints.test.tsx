@@ -16,6 +16,7 @@ const invalidPack = {
     vocalGender: "f",
     styleWeight: 0.7,
     weirdness: 0.35,
+    variety: 1,
     duration: 310,
   },
   displayMap: {},
