@@ -78,8 +78,7 @@ function ApproveDialog({
               key={i}
               className={cn(
                 "block min-h-6",
-                TAG_LINE.test(line) &&
-                  "mt-2 text-[13px] text-[var(--fg-subtle)]",
+                TAG_LINE.test(line) && "text-[13px] text-[var(--fg-subtle)]",
               )}
             >
               {line}
