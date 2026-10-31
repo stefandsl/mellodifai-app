@@ -25,8 +25,9 @@ The checked-in [worker environment example](apps/worker/.env.example) has empty 
 1. Apply all Supabase migrations.
 2. Insert the administrator email into `admin_allowlist` before that administrator's first sign-in.
 3. In hosted Supabase Auth, disable signups, enable email confirmations, set Site URL to `https://mellodifai.com`, and set the redirect allowlist to exactly `https://mellodifai.com/**` and `https://www.mellodifai.com/**`.
-4. Configure the worker environment locally.
-5. Perform the first magic-link smoke test.
+4. Google Cloud OAuth consent screen set to In production (Testing tokens expire after 7 days and publishing stops).
+5. Configure the worker environment locally.
+6. Perform the first magic-link smoke test.
 
 Preview deployments intentionally do not receive authentication: only the two production domains are trusted redirect targets.
 

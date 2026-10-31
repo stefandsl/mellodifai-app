@@ -106,6 +106,27 @@ it("explains imported versions without rendering an empty timeline list", () => 
   expect(screen.queryByRole("list")).not.toBeInTheDocument();
 });
 afterEach(() => vi.useRealTimers());
+it("shows quota deferral from a live publish job update without a version status change", async () => {
+  timeline();
+  const time = new Date(Date.now() + 86400000).toISOString();
+  await act(async () => {
+    mock.handlers
+      .find((h) => h.filter.table === "jobs" && h.filter.event === "UPDATE")
+      ?.callback({
+        new: {
+          id: "j1",
+          version_id: "v1",
+          stage: "publish",
+          status: "queued",
+          created_at: "2026-01-01",
+          not_before: time,
+        },
+      });
+  });
+  expect(
+    screen.getByText(/Waiting for tomorrow's YouTube quota/),
+  ).toHaveTextContent(new Date(time).toLocaleString("en"));
+});
 function timeline(strict = false) {
   const Wrapper = strict ? StrictMode : Fragment;
   return render(

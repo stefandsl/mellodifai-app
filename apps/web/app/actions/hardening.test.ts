@@ -52,6 +52,26 @@ import {
 import { createProject } from "./project";
 
 const id = "00000000-0000-4000-8000-000000000001";
+it("redacts JWT and Supabase keys before logging server action failures", async () => {
+  const { runAction } = await import("@/lib/run-action");
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const credentials = [
+    "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZSJ9.signature",
+    "sb_secret_Abc123_xyz",
+    "sb_publishable_Abc123_xyz",
+  ];
+  for (const plain of [false, true]) {
+    const message = `request failed ${credentials.join(" ")}`;
+    await runAction(async () => {
+      throw plain ? { message } : new Error(message);
+    });
+  }
+  const logged = JSON.stringify(log.mock.calls);
+  expect(logged).toContain("request failed");
+  for (const credential of credentials)
+    expect(logged).not.toContain(credential);
+  log.mockRestore();
+});
 it("routes both resolution forms through owned recovery RPCs and revalidates", async () => {
   await resolveUpload({ publicationId: id, uploaded: true, videoId: "abc123" });
   expect(mocks.rpc).toHaveBeenCalledWith("resolve_upload", {

@@ -66,6 +66,7 @@ export type TimelineJob = {
   status: JobStatus;
   created_at: string;
   error?: string | null;
+  not_before?: string | null;
 };
 export type TimelineEvent = {
   id: number;
@@ -112,7 +113,7 @@ export function LiveTimeline({
           db.from("versions").select("status").eq("id", versionId).single(),
           db
             .from("jobs")
-            .select("id,version_id,stage,status,created_at,error")
+            .select("id,version_id,stage,status,created_at,error,not_before")
             .eq("version_id", versionId)
             .order("created_at"),
         ]);
@@ -283,6 +284,17 @@ export function LiveTimeline({
         return (
           <li key={job.id}>
             <p>{t(lang, `stage.${job.stage}`)}</p>
+            {job.stage === "publish" &&
+              job.status === "queued" &&
+              job.not_before &&
+              Date.parse(job.not_before) > Date.now() && (
+                <p suppressHydrationWarning>
+                  {t(lang, "publish.quotaWait").replace(
+                    "{time}",
+                    new Date(job.not_before).toLocaleString(lang),
+                  )}
+                </p>
+              )}
             <p className="text-sm text-muted-foreground">
               {t(lang, `job.${job.status}`)}{" "}
               {event?.progress != null ? `${event.progress}%` : ""}{" "}

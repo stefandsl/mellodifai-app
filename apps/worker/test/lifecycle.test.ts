@@ -4,7 +4,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { Engine } from "../src/engine.js";
 import { type StageHandler, WorkerLoop } from "../src/loop.js";
-import { installSignals } from "../src/main.js";
+import { installSignals, reportStartupFailure } from "../src/main.js";
+import { loadSecrets } from "../src/secrets.js";
 
 afterEach(() => vi.useRealTimers());
 function setup(handler?: StageHandler) {
@@ -55,6 +56,31 @@ function setup(handler?: StageHandler) {
   return { db, loop, errors };
 }
 const pending: StageHandler = () => new Promise(() => {});
+it("redacts the startup cause with the loaded secrets", async () => {
+  const secrets = await loadSecrets({ API_KEY: "startup-secret-value" });
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  await reportStartupFailure(
+    new Error("startup-secret-value unavailable"),
+    secrets,
+  );
+  expect(log).toHaveBeenCalledWith("Worker startup failed: *** unavailable");
+  log.mockRestore();
+});
+it.each(["getVersion", "getProject"] as const)(
+  "fails missing %s instead of requeueing",
+  async (method) => {
+    const { db, loop } = setup(async () => ({}));
+    vi.spyOn(db, method).mockResolvedValue(null);
+    const patch = vi.spyOn(db, "patchVersion");
+    await loop.runOnce();
+    expect(db.jobs[0]).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("not found"),
+    });
+    if (method === "getProject") expect(db.versions[0]?.status).toBe("failed");
+    else expect(patch).not.toHaveBeenCalled();
+  },
+);
 it.each(["getVersion", "getProject", "getTakes"] as const)(
   "requeues transient %s failures for 30 seconds with attempts preserved",
   async (method) => {

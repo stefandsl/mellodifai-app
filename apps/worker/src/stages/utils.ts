@@ -67,25 +67,35 @@ export async function upload(
 ): Promise<string> {
   const path = previewPath(context, basename(local));
   await context.storage.upload(path, local, type);
-  if (context.storage.remove) {
-    const rows = await context.db.previewRows(context.version.id);
-    const live = new Set<string>([path]);
-    const obsolete = new Set<string>();
-    for (const r of rows.renders) {
-      if (r.preview_path)
-        ((r.render_attempt ?? 1) < (context.version.render_attempt ?? 1)
-          ? obsolete
-          : live
-        ).add(r.preview_path);
+  try {
+    if (context.storage.remove) {
+      const rows = await context.db.previewRows(context.version.id);
+      const live = new Set<string>([path]);
+      const obsolete = new Set<string>();
+      for (const r of rows.renders) {
+        if (r.preview_path)
+          ((r.render_attempt ?? 1) < (context.version.render_attempt ?? 1)
+            ? obsolete
+            : live
+          ).add(r.preview_path);
+      }
+      for (const take of rows.takes) {
+        if (take.audio_preview_path)
+          ((take.generation ?? 1) < (context.version.generation_count ?? 1)
+            ? obsolete
+            : live
+          ).add(take.audio_preview_path);
+      }
+      await context.storage.remove([...obsolete].filter((p) => !live.has(p)));
     }
-    for (const take of rows.takes) {
-      if (take.audio_preview_path)
-        ((take.generation ?? 1) < (context.version.generation_count ?? 1)
-          ? obsolete
-          : live
-        ).add(take.audio_preview_path);
+  } catch (error) {
+    try {
+      await context.log(
+        context.secrets.redact(`Preview cleanup failed: ${String(error)}`),
+      );
+    } catch {
+      /* Cleanup telemetry must not fail a successful upload. */
     }
-    await context.storage.remove([...obsolete].filter((p) => !live.has(p)));
   }
   return path;
 }

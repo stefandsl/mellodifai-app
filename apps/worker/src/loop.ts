@@ -32,6 +32,7 @@ export type WorkspaceProvider = {
 };
 
 let renderLock: Promise<void> = Promise.resolve();
+class MissingRecord extends Error {}
 async function exclusivelyRender<T>(operation: () => Promise<T>): Promise<T> {
   const prior = renderLock;
   let release = () => {};
@@ -197,6 +198,7 @@ export class WorkerLoop {
     this.active.add(active);
     const signal = active.controller.signal;
     let authorized = false;
+    let versionExists = false;
     const heartbeat = this.timer(async () => {
       if (!(await db.heartbeat(job.id, workerId))) {
         active.lost = true;
@@ -223,10 +225,13 @@ export class WorkerLoop {
       signal.throwIfAborted();
       const version = await db.getVersion(job.version_id);
       signal.throwIfAborted();
-      if (!version) throw new Error(`Version ${job.version_id} not found`);
+      if (!version)
+        throw new MissingRecord(`Version ${job.version_id} not found`);
+      versionExists = true;
       const project = await db.getProject(version.project_id);
       signal.throwIfAborted();
-      if (!project) throw new Error(`Project ${version.project_id} not found`);
+      if (!project)
+        throw new MissingRecord(`Project ${version.project_id} not found`);
       await authorizeStage(db, job, version, project);
       authorized = true;
       const handler = this.options.stages[job.stage];
@@ -309,7 +314,11 @@ export class WorkerLoop {
         );
         // Reads and authorization lookups can fail while Supabase/network is
         // transiently unavailable. Only a definite authorization denial is terminal.
-        if (!authorized && !(error instanceof AuthorizationDenied)) {
+        if (
+          !authorized &&
+          !(error instanceof AuthorizationDenied) &&
+          !(error instanceof MissingRecord)
+        ) {
           this.report(message);
           await db.requeue(
             job.id,
@@ -328,7 +337,7 @@ export class WorkerLoop {
           await log(this.redact(String(failure)));
         }
         try {
-          if (authorized || error instanceof AuthorizationDenied)
+          if (versionExists)
             await db.patchVersion(job.version_id, { status: "failed" });
         } catch (failure) {
           this.report(failure);

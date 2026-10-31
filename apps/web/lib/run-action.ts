@@ -26,9 +26,18 @@ export async function runAction(
     revalidatePath("/library");
     return { ok: true, ...(projectId ? { id: projectId } : {}) };
   } catch (error) {
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : String(error);
     console.error(
       "Server action failed:",
-      error instanceof Error ? error.message : String(error),
+      message
+        .replace(
+          /\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu,
+          "[redacted]",
+        )
+        .replace(/\bsb_(?:secret|publishable)_[A-Za-z0-9_-]+/gu, "[redacted]"),
     );
     return { ok: false, error: t(await getLocale(), "error.action") };
   }

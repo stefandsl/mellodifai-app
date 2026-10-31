@@ -1,4 +1,19 @@
 export type DictKey =
+  | "action.backToLyrics"
+  | "action.retryKieFree"
+  | "publish.quotaWait"
+  | "publish.privacy"
+  | "visibility.private"
+  | "visibility.public"
+  | "visibility.unlisted"
+  | "visibility.scheduled"
+  | "media.youtube"
+  | "resolve.kieId"
+  | "resolve.videoId"
+  | "resolve.notCharged"
+  | "resolve.notUploaded"
+  | "resolve.charged"
+  | "resolve.uploaded"
   | "pipeline.imported"
   | "media.master"
   | "media.hook"
@@ -214,6 +229,22 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.email": "Indirizzo email",
     "auth.sendLink": "Invia link di accesso",
     "auth.sent": "Se l'indirizzo è abilitato riceverai un link.",
+    "action.backToLyrics": "Torna ai testi",
+    "action.retryKieFree": "Riprova (gratis, controlla di nuovo kie)",
+    "publish.quotaWait":
+      "In attesa della quota YouTube di domani (dalle {time})",
+    "publish.privacy": "Visibilità",
+    "visibility.private": "Privato",
+    "visibility.public": "Pubblico",
+    "visibility.unlisted": "Non in elenco",
+    "visibility.scheduled": "Programmato",
+    "media.youtube": "YouTube",
+    "resolve.kieId": "ID attività Kie",
+    "resolve.videoId": "ID video YouTube",
+    "resolve.notCharged": "Non addebitato",
+    "resolve.notUploaded": "Non caricato",
+    "resolve.charged": "Addebitato, ID attività ...",
+    "resolve.uploaded": "Caricato, ID video ...",
     "auth.unavailable":
       "Servizio temporaneamente non disponibile. Riprova tra poco.",
     "auth.rateLimited": "Troppi tentativi, riprova tra qualche minuto",
@@ -338,6 +369,21 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.email": "Email address",
     "auth.sendLink": "Send sign-in link",
     "auth.sent": "If the address is enabled, you will receive a link.",
+    "action.backToLyrics": "Back to lyrics",
+    "action.retryKieFree": "Retry (free, checks kie again)",
+    "publish.quotaWait": "Waiting for tomorrow's YouTube quota (from {time})",
+    "publish.privacy": "Privacy",
+    "visibility.private": "Private",
+    "visibility.public": "Public",
+    "visibility.unlisted": "Unlisted",
+    "visibility.scheduled": "Scheduled",
+    "media.youtube": "YouTube",
+    "resolve.kieId": "Kie task id",
+    "resolve.videoId": "YouTube video id",
+    "resolve.notCharged": "Not charged",
+    "resolve.notUploaded": "Not uploaded",
+    "resolve.charged": "Charged, task id ...",
+    "resolve.uploaded": "Uploaded, video id ...",
     "auth.unavailable":
       "Service temporarily unavailable. Please try again shortly.",
     "auth.rateLimited": "Too many attempts, please try again in a few minutes",

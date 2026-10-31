@@ -5,7 +5,7 @@ import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
 import { WorkerLoop } from "./loop.js";
-import { loadSecrets } from "./secrets.js";
+import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
 import { stages } from "./stages/index.js";
 import { SupabaseStorage } from "./storage.js";
@@ -55,8 +55,20 @@ export function installSignals(
   };
 }
 
+let startupSecrets: Secrets | undefined;
+export async function reportStartupFailure(error: unknown, secrets?: Secrets) {
+  const safe =
+    secrets ?? (await loadSecrets({ ...process.env, WORKER_ENV_FILES: "" }));
+  console.error(
+    safe.redact(
+      `Worker startup failed: ${error instanceof Error ? error.message : String(error)}`,
+    ),
+  );
+}
+
 async function main() {
   const secrets = await loadSecrets();
+  startupSecrets = secrets;
   const report = (line: string) => console.error(secrets.redact(line));
   await mkdir("E:\\mellodifai\\tmp", { recursive: true });
   const url = secrets.values.SUPABASE_URL;
@@ -126,10 +138,8 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  void main().catch((error: unknown) => {
-    console.error(
-      `Worker startup failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+  void main().catch(async (error: unknown) => {
+    await reportStartupFailure(error, startupSecrets);
     process.exitCode = 1;
   });
 }

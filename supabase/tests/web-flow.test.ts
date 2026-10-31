@@ -71,6 +71,51 @@ async function fixture(status: string) {
   ).toBeNull();
   return v.data.id as string;
 }
+it("allows only the worker to write kie_task_state, while the owner can read it", async () => {
+  const version = await fixture("failed");
+  expect(
+    (
+      await service
+        .from("versions")
+        .update({ kie_task_state: "failed" })
+        .eq("id", version)
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await client
+        .from("versions")
+        .select("kie_task_state")
+        .eq("id", version)
+        .single()
+    ).data,
+  ).toEqual({ kie_task_state: "failed" });
+  expect(
+    (
+      await client
+        .from("versions")
+        .update({ kie_task_state: null })
+        .eq("id", version)
+    ).error?.code,
+  ).toBe("42501");
+  const anon = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"));
+  expect(
+    (
+      await anon
+        .from("versions")
+        .update({ kie_task_state: null })
+        .eq("id", version)
+    ).error?.code,
+  ).toBe("42501");
+  expect(
+    (
+      await service
+        .from("versions")
+        .update({ kie_task_state: "timeout" })
+        .eq("id", version)
+    ).error?.code,
+  ).toBe("23514");
+});
 it("deduplicates languages, enqueues drafts and rolls back invalid creation", async () => {
   const result = await client.rpc("create_project", args);
   expect(result.error).toBeNull();

@@ -1,4 +1,5 @@
 "use client";
+import { t } from "@mellodifai/shared";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,15 +16,8 @@ export function SubmissionResolution({
 }) {
   const [id, setId] = useState("");
   const { pending, run } = useAction();
-  const it = useLocale() === "it";
-  const label =
-    kind === "kie"
-      ? it
-        ? "ID attività Kie"
-        : "Kie task id"
-      : it
-        ? "ID video YouTube"
-        : "YouTube video id";
+  const lang = useLocale();
+  const label = t(lang, kind === "kie" ? "resolve.kieId" : "resolve.videoId");
   return (
     <form
       className="space-y-3"
@@ -44,22 +38,13 @@ export function SubmissionResolution({
           disabled={pending}
           onClick={() => run(() => resolve(false))}
         >
-          {kind === "kie"
-            ? it
-              ? "Non addebitato"
-              : "Not charged"
-            : it
-              ? "Non caricato"
-              : "Not uploaded"}
+          {t(
+            lang,
+            kind === "kie" ? "resolve.notCharged" : "resolve.notUploaded",
+          )}
         </Button>
         <Button type="submit" disabled={pending || !id.trim()}>
-          {kind === "kie"
-            ? it
-              ? "Addebitato, ID attività ..."
-              : "Charged, task id ..."
-            : it
-              ? "Caricato, ID video ..."
-              : "Uploaded, video id ..."}
+          {t(lang, kind === "kie" ? "resolve.charged" : "resolve.uploaded")}
         </Button>
       </div>
     </form>

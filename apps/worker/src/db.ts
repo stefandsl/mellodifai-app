@@ -32,6 +32,7 @@ export type Version = {
   qa_flags?: unknown;
   render_attempt?: number;
   kie_task_id?: string | null;
+  kie_task_state?: "failed" | null;
 };
 export type Project = {
   owner_id?: string;

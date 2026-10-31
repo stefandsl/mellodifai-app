@@ -33,6 +33,82 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 const roots: string[] = [];
+it.each([0, 1, 2, 3])(
+  "handles Kie wait exit %s without resubmitting",
+  async (code) => {
+    const { ctx, calls, db } = await setup();
+    ctx.secrets.redact = (s) => s.replaceAll("secret-value", "***");
+    const run = ctx.engine.run.bind(ctx.engine);
+    const wait = vi
+      .spyOn(ctx.engine, "run")
+      .mockImplementation(async (cmd, args, opts) => {
+        if (args[1] === "wait" && code !== 0) {
+          opts?.onStderr?.(
+            `failed: {"reason":"secret-value rejected ${"x".repeat(400)}"}`,
+          );
+          return { code, stdout: "", stderr: "" };
+        }
+        return run(cmd, args, opts);
+      });
+    if (code === 0) {
+      await expect(stages.generate_song?.(ctx)).resolves.toMatchObject({
+        versionStatus: "takes_review",
+      });
+      return;
+    }
+    const result = await stages.generate_song?.(ctx).catch((e: Error) => e);
+    expect(result).toBeInstanceOf(Error);
+    const message = (result as Error).message;
+    expect(ctx.version.kie_task_id).toBe("task-1");
+    if (code === 2) {
+      expect(db.versions[0]).toMatchObject({ kie_task_state: "failed" });
+      expect(message).toContain("*** rejected");
+      expect(message).not.toContain("secret-value");
+      expect(message.length).toBeLessThanOrEqual(300);
+      const count = wait.mock.calls.length;
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow(
+        "kie task failed",
+      );
+      expect(wait.mock.calls).toHaveLength(count);
+      ctx.version.generation_count = 2;
+      wait.mockImplementation(run);
+      await expect(stages.generate_song?.(ctx)).resolves.toMatchObject({
+        versionStatus: "takes_review",
+      });
+      expect(ctx.version.kie_task_state).not.toBe("failed");
+    } else {
+      expect(message).toBe(
+        "kie task still pending: Retry checks again for free",
+      );
+      expect(ctx.version.kie_task_state).not.toBe("failed");
+      wait.mockImplementation(run);
+      await expect(stages.generate_song?.(ctx)).resolves.toMatchObject({
+        versionStatus: "takes_review",
+      });
+      expect(calls.filter((c) => c.args[1] === "generate")).toHaveLength(1);
+    }
+  },
+);
+it.each(["list", "remove"])(
+  "does not fail an uploaded preview on prune %s error",
+  async (failure) => {
+    const { ctx, db } = await setup();
+    ctx.log = vi.fn(async () => {});
+    ctx.storage.remove = vi.fn(async () => {});
+    if (failure === "list")
+      vi.spyOn(db, "previewRows").mockRejectedValue(
+        new Error("list unavailable"),
+      );
+    else
+      vi.mocked(ctx.storage.remove).mockRejectedValue(
+        new Error("remove unavailable"),
+      );
+    await expect(stages.render_master?.(ctx)).resolves.toBeDefined();
+    expect(ctx.log).toHaveBeenCalledWith(
+      expect.stringContaining("Preview cleanup failed"),
+    );
+  },
+);
 it("prunes only superseded previews of this version after upload succeeds", async () => {
   const { ctx, db } = await setup();
   ctx.version.generation_count = 2;

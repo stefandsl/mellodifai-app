@@ -90,16 +90,20 @@ export const generateSong: StageHandler = async (context) => {
       }
     await context.db.patchVersion(context.version.id, {
       kie_task_id: null,
+      kie_task_state: null,
       kie_submit_state: null,
       kie_generation: generation,
     });
     Object.assign(context.version, {
       kie_task_id: null,
+      kie_task_state: null,
       kie_submit_state: null,
       kie_generation: generation,
     });
   }
   let taskId = context.version.kie_task_id ?? null;
+  if (context.version.kie_task_state === "failed")
+    throw new Error("kie task failed; create a new generation to try again");
   if (taskId) {
     // The durable worker/admin-resolved ID is authoritative. The engine's wait
     // command reads this file, which may be missing after an unknown submission.
@@ -180,16 +184,31 @@ export const generateSong: StageHandler = async (context) => {
     kie_submit_state: "submitted",
     kie_generation: generation,
   });
+  let waitError = "";
   const waited = await context.engine.run(
     "node",
     ["tools/kie.mjs", "wait", lang],
     {
       cwd: ENGINE_ROOT,
       allowNonZero: true,
+      onStderr: (line) => {
+        waitError += `${line}\n`;
+      },
     },
   );
+  if (waited.code === 2) {
+    await context.db.patchVersion(context.version.id, {
+      kie_task_state: "failed",
+    });
+    context.version.kie_task_state = "failed";
+    throw new Error(
+      context.secrets
+        .redact(waitError.trim() || "kie task failed")
+        .slice(0, 300),
+    );
+  }
   if (waited.code !== 0)
-    throw new Error("kie task failed; create a new generation to try again");
+    throw new Error("kie task still pending: Retry checks again for free");
   for (const take of [1, 2])
     await context.engine.run(
       "node",

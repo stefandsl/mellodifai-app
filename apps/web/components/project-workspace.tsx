@@ -47,6 +47,8 @@ export type WorkspaceVersion = {
   render_attempt: number;
   storyboard_sections?: unknown;
   kie_submit_state?: string | null;
+  kie_task_id?: string | null;
+  kie_task_state?: string | null;
 };
 export function ProjectWorkspace({
   version,
@@ -58,6 +60,7 @@ export function ProjectWorkspace({
   thumbnailUrl,
   activeJob = false,
   isAdmin = false,
+  quotaNotBefore,
 }: {
   version: WorkspaceVersion;
   takes: Take[];
@@ -67,6 +70,7 @@ export function ProjectWorkspace({
   failedJob?: { id: string; error: string | null; stage?: string };
   activeJob?: boolean;
   isAdmin?: boolean;
+  quotaNotBefore?: string | null;
   thumbnailUrl?: string | null;
 }) {
   const lang = useLocale();
@@ -75,6 +79,8 @@ export function ProjectWorkspace({
   const master = renders.find((r) => r.kind === "master");
   const gates = master?.qa_results.gates ?? [];
   const failed = gates.some((g) => !g.pass);
+  const freeKieRetry =
+    Boolean(version.kie_task_id) && version.kie_task_state !== "failed";
   const defaults = publicationDefaults(
     version.lyric_pack?.title ?? "",
     brief,
@@ -195,6 +201,7 @@ export function ProjectWorkspace({
             defaults={defaults}
             publication={publication}
             uploading={activeJob}
+            quotaNotBefore={quotaNotBefore}
             isAdmin={isAdmin}
             retry={
               !activeJob && publication?.upload_state !== "uploading"
@@ -203,7 +210,8 @@ export function ProjectWorkspace({
                 : undefined
             }
           />
-        ) : version.kie_submit_state === "submitting" ? (
+        ) : version.kie_submit_state === "submitting" &&
+          !version.kie_task_id ? (
           isAdmin && !activeJob ? (
             <SubmissionResolution
               kind="kie"
@@ -220,21 +228,23 @@ export function ProjectWorkspace({
           <>
             {failedJob?.stage === "generate_song" && (
               <>
-                <ConfirmDialog
-                  disabled={pending}
-                  trigger={t(lang, "action.generateAgain")}
-                  title={t(lang, "dialog.generation")}
-                  onConfirm={() =>
-                    run(() =>
-                      generateAgain({
-                        versionId: version.id,
-                        generation: version.generation_count,
-                      }),
-                    )
-                  }
-                >
-                  {t(lang, "dialog.cost")}
-                </ConfirmDialog>
+                {!freeKieRetry && (
+                  <ConfirmDialog
+                    disabled={pending}
+                    trigger={t(lang, "action.generateAgain")}
+                    title={t(lang, "dialog.generation")}
+                    onConfirm={() =>
+                      run(() =>
+                        generateAgain({
+                          versionId: version.id,
+                          generation: version.generation_count,
+                        }),
+                      )
+                    }
+                  >
+                    {t(lang, "dialog.cost")}
+                  </ConfirmDialog>
+                )}
                 <Button
                   variant="outline"
                   disabled={pending}
@@ -242,22 +252,28 @@ export function ProjectWorkspace({
                     run(() => backToLyrics({ versionId: version.id }))
                   }
                 >
-                  Back to lyrics
+                  {t(lang, "action.backToLyrics")}
                 </Button>
               </>
             )}
-            <Button
-              disabled={pending || !failedJob}
-              onClick={() =>
-                failedJob &&
-                run(() =>
-                  retryStage({ versionId: version.id, jobId: failedJob.id }),
-                )
-              }
-            >
-              {t(lang, "action.retry")}
-              {failedJob?.stage === "generate_song" ? " (12 credits)" : ""}
-            </Button>
+            {(failedJob?.stage !== "generate_song" || freeKieRetry) && (
+              <Button
+                disabled={pending || !failedJob}
+                onClick={() =>
+                  failedJob &&
+                  run(() =>
+                    retryStage({ versionId: version.id, jobId: failedJob.id }),
+                  )
+                }
+              >
+                {t(
+                  lang,
+                  failedJob?.stage === "generate_song"
+                    ? "action.retryKieFree"
+                    : "action.retry",
+                )}
+              </Button>
+            )}
           </>
         )}
       </section>
@@ -320,6 +336,7 @@ export function ProjectWorkspace({
           defaults={defaults}
           publication={publication}
           uploading={activeJob}
+          quotaNotBefore={quotaNotBefore}
           isAdmin={isAdmin}
         />
       </>
@@ -333,11 +350,13 @@ export function PublishPanel({
   uploading = false,
   isAdmin = false,
   retry,
+  quotaNotBefore,
 }: {
   renderId?: string;
   defaults: ReturnType<typeof publicationDefaults>;
   publication: PublicationView | null;
   uploading?: boolean;
+  quotaNotBefore?: string | null;
   isAdmin?: boolean;
   retry?:
     | (() => Promise<import("@/lib/action-result").ActionResult>)
@@ -346,6 +365,15 @@ export function PublishPanel({
   const lang = useLocale();
   const { pending, run } = useAction();
   const [publishAt, setPublishAt] = useState("");
+  if (quotaNotBefore && Date.parse(quotaNotBefore) > Date.now())
+    return (
+      <p suppressHydrationWarning>
+        {t(lang, "publish.quotaWait").replace(
+          "{time}",
+          new Date(quotaNotBefore).toLocaleString(lang),
+        )}
+      </p>
+    );
   if (uploading) return <p>{t(lang, "publish.wait")}</p>;
   if (publication?.upload_state === "uploading")
     return isAdmin ? (
@@ -375,14 +403,17 @@ export function PublishPanel({
           {t(lang, "publish.video")}:{" "}
           {publication.metadata?.title ?? defaults.title}
         </p>
-        <p>Privacy: {publication.privacy}</p>
+        <p>
+          {t(lang, "publish.privacy")}:{" "}
+          {t(lang, `visibility.${publication.privacy}`)}
+        </p>
         <a
           className="underline"
           href={`https://www.youtube.com/watch?v=${publication.youtube_video_id}`}
           target="_blank"
           rel="noreferrer"
         >
-          YouTube
+          {t(lang, "media.youtube")}
         </a>
         <label htmlFor="publish-at">
           {t(lang, "publish.at")}

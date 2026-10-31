@@ -29,7 +29,7 @@ export default async function ProjectPage({
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id,topic,brief,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections,kie_submit_state)",
+      "id,topic,brief,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections,kie_submit_state,kie_task_id,kie_task_state)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -43,7 +43,7 @@ export default async function ProjectPage({
     await Promise.all([
       supabase
         .from("jobs")
-        .select("id,version_id,stage,status,created_at,error")
+        .select("id,version_id,stage,status,created_at,error,not_before")
         .eq("version_id", current.id)
         .order("created_at"),
       supabase
@@ -158,6 +158,15 @@ export default async function ProjectPage({
               publication={publication as PublicationView | null}
               brief={project.brief ?? ""}
               failedJob={failedJob}
+              quotaNotBefore={
+                (jobs ?? []).find(
+                  (j) =>
+                    j.stage === "publish" &&
+                    j.status === "queued" &&
+                    j.not_before &&
+                    Date.parse(j.not_before) > Date.now(),
+                )?.not_before
+              }
               activeJob={(jobs ?? []).some(
                 (j) => j.status === "queued" || j.status === "running",
               )}
