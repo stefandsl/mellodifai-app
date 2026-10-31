@@ -41,6 +41,7 @@ vi.mock("@/lib/supabase/browser", () => ({
       }),
       limit: () => Promise.resolve({ data: [] }),
       single: () => Promise.resolve(mock.readVersion()),
+      maybeSingle: () => Promise.resolve({ data: null }),
     };
     return {
       from: () => query,
@@ -384,7 +385,7 @@ it("scopes subscriptions and refreshes only when version status changes", async 
     ).toBe(true),
   );
 });
-it("worker heartbeat expires on the 15 second clock and realtime restores it with balance", () => {
+it("worker heartbeat expires on the 15 second clock without subscribing to full worker rows", () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-31T10:00:00Z"));
   render(
@@ -399,17 +400,5 @@ it("worker heartbeat expires on the 15 second clock and realtime restores it wit
   expect(screen.getByText("Online")).toBeInTheDocument();
   act(() => vi.advanceTimersByTime(60000));
   expect(screen.getByText(/Offline since/)).toBeInTheDocument();
-  const handler = mock.handlers.find((h) => h.filter.table === "workers");
-  expect(handler?.filter.filter).toBe("id=eq.pc");
-  act(() =>
-    handler?.callback({
-      new: {
-        last_seen: new Date().toISOString(),
-        busy_job_id: "job",
-        kie_balance: 24,
-      },
-    }),
-  );
-  expect(screen.getByText("Busy")).toBeInTheDocument();
-  expect(screen.getByText("kie balance: 24")).toBeInTheDocument();
+  expect(mock.handlers.some((h) => h.filter.table === "workers")).toBe(false);
 });

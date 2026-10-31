@@ -282,7 +282,7 @@ describe("row level security", () => {
     }
   });
 
-  it("rejects cross-owner events, busy jobs, and publication confirmers", async () => {
+  it("rejects cross-owner events and publication confirmers, but lets a worker track any job", async () => {
     const a = await createUser(true);
     const b = await createUser(true);
     const { jobId, versionId } = await fixture(a);
@@ -293,13 +293,28 @@ describe("row level security", () => {
           .insert({ owner_id: b.id, job_id: jobId, message: "cross-owner" })
       ).error?.code,
     ).toBe("23503");
-    expect(
-      (
-        await service
-          .from("workers")
-          .insert({ id: `cross-${b.id}`, owner_id: b.id, busy_job_id: jobId })
-      ).error?.code,
-    ).toBe("23503");
+    const worker = await service
+      .from("workers")
+      .upsert({ id: `cross-${b.id}`, owner_id: b.id, busy_job_id: jobId })
+      .select("id")
+      .single();
+    expect(worker.error).toBeNull();
+    expect(worker.data?.id).toBe(`cross-${b.id}`);
+    const forbiddenWorkerField = await b.client
+      .from("workers")
+      .select("busy_job_id")
+      .eq("id", worker.data?.id ?? "")
+      .maybeSingle();
+    expect(forbiddenWorkerField.error?.code).toBe("42501");
+    const workerStatus = await b.client
+      .from("workers")
+      .select(
+        "id,last_seen,kie_balance,youtube_uploads_today,youtube_quota_day,engine_version",
+      )
+      .eq("id", worker.data?.id ?? "")
+      .maybeSingle();
+    expect(workerStatus.error).toBeNull();
+    expect(workerStatus.data?.id).toBe(worker.data?.id);
     const render = await service
       .from("renders")
       .insert({ owner_id: a.id, version_id: versionId, kind: "master" })

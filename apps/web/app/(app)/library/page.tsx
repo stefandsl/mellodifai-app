@@ -25,7 +25,9 @@ export default async function LibraryPage() {
     .order("updated_at", { ascending: false });
   const { data: worker } = await supabase
     .from("workers")
-    .select("id,last_seen,busy_job_id,kie_balance")
+    .select(
+      "id,last_seen,kie_balance,youtube_uploads_today,youtube_quota_day,engine_version",
+    )
     .order("last_seen", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -45,7 +47,6 @@ export default async function LibraryPage() {
           workerId={worker?.id}
           balance={worker?.kie_balance ?? null}
           lastSeen={worker?.last_seen ?? null}
-          busyJobId={worker?.busy_job_id}
         />
       </div>
       {projects.length === 0 ? (
