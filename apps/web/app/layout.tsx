@@ -37,7 +37,8 @@ export default async function RootLayout({
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: constant theme bootstrap, no user input. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col">
+      {/* Browser extensions (e.g. Video Speed Controller) add classes to <body> before hydration. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <LocaleProvider value={lang}>
           {children}
           <Toaster position="bottom-center" />
