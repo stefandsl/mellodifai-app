@@ -37,6 +37,10 @@ function clip(patch: Partial<Clip> = {}): Clip {
     art: "",
     settings: {},
     pack: frPack,
+    hasCover: false,
+    takes: [],
+    chosenTakeId: null,
+    jury: null,
     ...patch,
   };
 }

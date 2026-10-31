@@ -20,9 +20,29 @@ export type Clip = {
   href: string;
   // CSS background: the pipeline thumbnail when there is one, else a generated gradient.
   art: string;
+  // False when art is only the gradient; the card then shows a frame of the video if any.
+  hasCover: boolean;
+  // Takes of the current generation, in take order, with playable previews.
+  takes: { id: string; number: number; audioUrl: string | null }[];
+  chosenTakeId: string | null;
   settings: Record<string, unknown>;
   // The drafted lyric pack as stored, sent back unchanged when lyrics are approved from the feed.
   pack: unknown;
+  // The lyric pipeline's report (router choice, jury scores), when the worker wrote one.
+  jury: Jury | null;
+};
+
+export type Jury = {
+  passed: boolean;
+  available: boolean;
+  scores: Record<string, number>;
+  failing: string[];
+  route?: { writer?: string; tone?: string | null };
+  writers?: Record<string, string>;
+  rounds?: { writer: string; passed: boolean }[];
+  verdicts?: { model: string; ms: number; error?: string }[];
+  ms?: number;
+  redacted?: boolean;
 };
 
 type Row = {
@@ -38,6 +58,7 @@ type Row = {
     settings?: { model?: string };
   } | null;
   chosen_take_id: string | null;
+  lyric_jury: Jury | null;
   generation_count: number;
   render_attempt: number;
   projects: {
@@ -81,7 +102,7 @@ export async function loadClips(
   const { data } = await supabase
     .from("versions")
     .select(
-      "id,lang,status,created_at,updated_at,lyric_pack,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings)",
+      "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings)",
     )
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -99,6 +120,27 @@ export async function loadClips(
       .in("version_id", ids)
       .order("created_at", { ascending: false }),
   ]);
+
+  const currentTakes = new Map<
+    string,
+    { id: string; number: number; path: string | null }[]
+  >();
+  for (const row of rows)
+    currentTakes.set(
+      row.id,
+      (takes ?? [])
+        .filter(
+          (take) =>
+            take.version_id === row.id &&
+            take.generation === row.generation_count,
+        )
+        .sort((a, b) => (a.take_number ?? 0) - (b.take_number ?? 0))
+        .map((take, i) => ({
+          id: take.id,
+          number: take.take_number ?? i + 1,
+          path: take.audio_preview_path,
+        })),
+    );
 
   const audioPath = new Map<string, string>();
   for (const row of rows) {
@@ -138,6 +180,9 @@ export async function loadClips(
   const paths = [
     ...new Set([
       ...audioPath.values(),
+      ...[...currentTakes.values()]
+        .flat()
+        .flatMap((take) => (take.path ? [take.path] : [])),
       ...renderPath.values(),
       ...[...coverCandidates.values()].flat(),
     ]),
@@ -150,10 +195,11 @@ export async function loadClips(
     for (const item of urls ?? [])
       if (item.path && item.signedUrl) signed.set(item.path, item.signedUrl);
   }
-  const url = (path: string | undefined) =>
+  const url = (path: string | null | undefined) =>
     path ? (signed.get(path) ?? null) : null;
 
   return rows.map((row) => {
+    const cover = (coverCandidates.get(row.id) ?? []).map(url).find(Boolean);
     const pack = row.lyric_pack ?? {};
     const project = row.projects;
     const settings = project?.song_settings ?? {};
@@ -175,10 +221,15 @@ export async function loadClips(
       videoUrl: url(renderPath.get(`${row.id}:master`)),
       hookUrl: url(renderPath.get(`${row.id}:hook`)),
       href: `/projects/${project?.id ?? ""}?lang=${row.lang}`,
-      art: coverArt(
-        (coverCandidates.get(row.id) ?? []).map(url).find(Boolean),
-        row.id,
-      ),
+      art: coverArt(cover, row.id),
+      hasCover: Boolean(cover),
+      takes: (currentTakes.get(row.id) ?? []).map((take) => ({
+        id: take.id,
+        number: take.number,
+        audioUrl: url(take.path),
+      })),
+      chosenTakeId: row.chosen_take_id,
+      jury: row.lyric_jury,
       settings,
       pack: row.lyric_pack,
     };

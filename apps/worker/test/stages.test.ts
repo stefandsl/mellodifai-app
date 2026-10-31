@@ -622,6 +622,119 @@ describe("round 2 hardening", () => {
       user?.content.indexOf("Reference") ?? 0,
     );
   });
+  it("routes, judges and rewrites a rejected draft before lyrics review", async () => {
+    const { ctx } = await setup();
+    ctx.secrets.values = { ...ctx.secrets.values, LYRICS_JURY: "on" };
+    let judgeRound = 0;
+    const scores = (topic: number) => ({
+      topic,
+      language: 0.9,
+      singable: 0.9,
+      chorus: 0.9,
+      original: 0.9,
+    });
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        model: string;
+        questions?: Record<string, unknown>;
+      };
+      if (url.endsWith("/decisions")) {
+        if (body.questions?.writer)
+          return new Response(
+            JSON.stringify({
+              answers: {
+                tone: { choice: "ironic", confidence: 0.9 },
+                writer: { choice: "fast", confidence: 0.9 },
+              },
+            }),
+          );
+        judgeRound += 1;
+        const topic = judgeRound === 1 ? 0.2 : 0.95;
+        return new Response(
+          JSON.stringify({
+            answers: {
+              ...Object.fromEntries(
+                Object.entries(scores(topic)).map(([k, v]) => [k, { noul: v }]),
+              ),
+              improver: { choice: "strong" },
+            },
+          }),
+        );
+      }
+      if (body.model.includes("haiku") || body.model.includes("gemini"))
+        return respond({
+          scores: scores(judgeRound === 1 ? 0.3 : 0.9),
+          issues: ["the song is about AI approvals, not the coffee machine"],
+          improver: "strong",
+        });
+      return respond(pack);
+    });
+    vi.stubGlobal("fetch", fetch);
+    const result = await stages.draft_lyrics?.(ctx);
+    const writerCalls = (fetch.mock.calls as unknown as [string, RequestInit][])
+      .map(
+        ([, init]) =>
+          JSON.parse(String(init.body)) as {
+            model: string;
+            messages?: { content: string }[];
+          },
+      )
+      .filter(
+        (body) => body.model.includes("opus") || body.model.includes("sonnet"),
+      );
+    expect(writerCalls.map((body) => body.model)).toEqual([
+      "anthropic/claude-sonnet-5.5",
+      "anthropic/claude-opus-5.5",
+    ]);
+    expect(writerCalls[0]?.messages?.[1]?.content).toContain("Tone: Ironic");
+    expect(writerCalls[1]?.messages?.[1]?.content).toContain(
+      "The jury rejected the previous draft",
+    );
+    expect(writerCalls[1]?.messages?.[1]?.content).toContain(
+      "not the coffee machine",
+    );
+    expect(result?.versionStatus).toBe("lyrics_review");
+    expect(result?.patch?.lyric_jury).toMatchObject({
+      passed: true,
+      available: true,
+      route: { tone: "ironic", writer: "fast" },
+      rounds: [{ passed: false }, { passed: true }],
+    });
+  });
+  it("keeps the best draft and flags it when the jury never approves", async () => {
+    const { ctx } = await setup();
+    ctx.secrets.values = {
+      ...ctx.secrets.values,
+      LYRICS_JURY: "on",
+      LYRICS_JUDGES: "anthropic/claude-haiku-5.5",
+    };
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { model: string };
+      if (url.endsWith("/decisions"))
+        return new Response("down", { status: 503 });
+      if (body.model.includes("haiku"))
+        return respond({
+          scores: {
+            topic: 0.4,
+            language: 0.9,
+            singable: 0.9,
+            chorus: 0.9,
+            original: 0.9,
+          },
+          issues: ["off topic"],
+        });
+      return respond(pack);
+    });
+    vi.stubGlobal("fetch", fetch);
+    const result = await stages.draft_lyrics?.(ctx);
+    expect(result?.versionStatus).toBe("lyrics_review");
+    expect(result?.patch?.lyric_jury).toMatchObject({
+      passed: false,
+      failing: ["topic"],
+      route: { writer: "strong" },
+    });
+    expect(result?.patch?.lyric_jury).toHaveProperty("rounds.length", 3);
+  });
   it("builds a full pack from a realistic reply with only the creative fields", async () => {
     // Real models answer with the creative fields only (observed 2026-10-31);
     // settings come from the project and the display map from the reference.
@@ -893,6 +1006,8 @@ async function setup() {
         WORKER_ID: "worker",
         OPENROUTER_API_KEY: "test-only-key",
         LYRICS_STATE_FILE: join(root, "lyrics-state.json"),
+        // Writer-only tests; the router and the jury have their own tests.
+        LYRICS_JURY: "off",
       },
       redact: (line) => line,
     },
@@ -1059,7 +1174,7 @@ describe("stage safety and behavior", () => {
       "https://openrouter.ai/api/v1/chat/completions",
     );
     expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({
-      model: "anthropic/claude-sonnet-5.5",
+      model: "anthropic/claude-opus-5.5",
       response_format: { type: "json_object" },
     });
   });

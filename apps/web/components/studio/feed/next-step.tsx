@@ -2,13 +2,26 @@
 
 import { validateLyricPack } from "@mellodifai/shared";
 import { cn } from "cn";
-import { ArrowRight, Check, Clapperboard, Music2, Pencil } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Clapperboard,
+  Music2,
+  Pause,
+  Pencil,
+  Play,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { approveLyrics } from "@/app/actions/checkpoints";
+import {
+  approveLyrics,
+  keepAudio,
+  makeVideo,
+  pickTake,
+} from "@/app/actions/checkpoints";
 import { useLocale } from "@/components/locale-provider";
 import {
   Dialog,
@@ -18,6 +31,8 @@ import {
 } from "@/components/ui/dialog";
 import type { Clip } from "@/lib/studio/clips";
 import { st } from "@/lib/studio/i18n";
+import { usePlayer } from "@/store/player";
+import { JuryPanel } from "./jury-panel";
 
 const PILL =
   "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--fg)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
@@ -86,6 +101,7 @@ function ApproveDialog({
           ))}
         </div>
         <div className="shrink-0 space-y-4 px-6 pt-4 pb-6">
+          {clip.jury ? <JuryPanel jury={clip.jury} /> : null}
           <ol className="space-y-1.5 text-[13px] text-[var(--fg-muted)]">
             <li className="flex gap-2">
               <Music2 className="mt-0.5 size-3.5 shrink-0 text-[var(--brand)]" />
@@ -131,6 +147,201 @@ function ApproveDialog({
   );
 }
 
+function TakesDialog({
+  clip,
+  open,
+  onOpenChange,
+}: {
+  clip: Clip;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const lang = useLocale();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [chosen, setChosen] = useState(clip.takes[0]?.id ?? null);
+  const current = usePlayer((s) => s.queue[s.index]?.id);
+  const playing = usePlayer((s) => s.playing);
+  const play = usePlayer((s) => s.play);
+  const toggle = usePlayer((s) => s.toggle);
+  const videoOff = clip.settings.video === "off";
+  const run = (action: "audio" | "video") =>
+    start(async () => {
+      if (!chosen) return;
+      const input = { versionId: clip.id, takeId: chosen };
+      const result =
+        action === "audio" ? await keepAudio(input) : await pickTake(input);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        st(lang, action === "audio" ? "next.audioKept" : "next.videoStarted"),
+      );
+      onOpenChange(false);
+      router.refresh();
+    });
+  // The form's video choice decides which action is the primary one.
+  const first = videoOff ? "video" : "audio";
+  const second = videoOff ? "audio" : "video";
+  const label = (action: "audio" | "video") =>
+    st(lang, action === "audio" ? "next.keepAudio" : "next.makeVideo");
+  const icon = (action: "audio" | "video") =>
+    action === "audio" ? (
+      <Music2 className="size-4" />
+    ) : (
+      <Clapperboard className="size-4" />
+    );
+  return (
+    <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
+      <DialogContent className="gap-0 rounded-3xl bg-[var(--surface-1)] p-6 sm:max-w-lg">
+        <DialogTitle className="text-lg font-medium">
+          {st(lang, "next.pickTake")}
+        </DialogTitle>
+        <DialogDescription className="mt-1 text-[var(--fg-muted)]">
+          {clip.title} · {clip.lang.toUpperCase()}
+        </DialogDescription>
+        <p className="mt-3 text-[13px] text-[var(--fg-muted)]">
+          {st(lang, "next.takesHint")}
+        </p>
+        <div
+          role="radiogroup"
+          aria-label={st(lang, "next.pickTake")}
+          className="mt-4 space-y-2"
+        >
+          {clip.takes.map((take) => {
+            const id = `${clip.id}:take-${take.number}`;
+            const isPlaying = current === id && playing;
+            const selected = chosen === take.id;
+            const name = `${st(lang, "next.take")} ${take.number}`;
+            return (
+              <div
+                key={take.id}
+                className={cn(
+                  "flex items-center gap-3 rounded-2xl p-3 ring-1 transition-colors",
+                  selected
+                    ? "bg-[color-mix(in_oklab,var(--brand),transparent_88%)] ring-[color-mix(in_oklab,var(--brand),transparent_45%)]"
+                    : "bg-[var(--bg)] ring-[var(--hairline)]",
+                )}
+              >
+                <button
+                  type="button"
+                  disabled={!take.audioUrl}
+                  aria-label={`${st(lang, isPlaying ? "clip.pause" : "clip.play")}: ${name}`}
+                  onClick={() => {
+                    if (current === id) return toggle();
+                    if (!take.audioUrl) return;
+                    play({
+                      id,
+                      title: `${clip.title} · ${name}`,
+                      subtitle: clip.lang.toUpperCase(),
+                      audioUrl: take.audioUrl,
+                      videoUrl: null,
+                      href: clip.href,
+                      art: clip.art,
+                    });
+                  }}
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] disabled:opacity-40"
+                >
+                  {isPlaying ? (
+                    <Pause className="size-5 fill-current" />
+                  ) : (
+                    <Play className="size-5 translate-x-px fill-current" />
+                  )}
+                </button>
+                {/* biome-ignore lint/a11y/useSemanticElements: a full-row selectable take, not a bare radio input. */}
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={name}
+                  onClick={() => setChosen(take.id)}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 self-stretch rounded-xl px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+                >
+                  <span className="font-medium">{name}</span>
+                  <span
+                    className={cn(
+                      "inline-flex size-5 items-center justify-center rounded-full ring-2",
+                      selected
+                        ? "bg-[var(--brand)] text-white ring-[var(--brand)]"
+                        : "ring-[var(--hairline)]",
+                    )}
+                  >
+                    {selected ? (
+                      <Check className="size-3" strokeWidth={3} />
+                    ) : null}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        {videoOff ? (
+          <p className="mt-4 text-[13px] text-[var(--fg-muted)]">
+            {st(lang, "next.videoOff")}
+          </p>
+        ) : null}
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            disabled={!chosen || pending}
+            onClick={() => run(second)}
+            className={cn(
+              PILL,
+              "h-11 justify-center bg-[var(--surface-2)] px-5 hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] disabled:opacity-50",
+            )}
+          >
+            {icon(second)}
+            {label(second)}
+          </button>
+          <button
+            type="button"
+            disabled={!chosen || pending}
+            onClick={() => run(first)}
+            className={cn(
+              PRIMARY,
+              "h-11 justify-center px-6 disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            {icon(first)}
+            {label(first)}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MakeVideoButton({ clip }: { clip: Clip }) {
+  const lang = useLocale();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          const result = await makeVideo({ versionId: clip.id });
+          if (!result.ok) {
+            toast.error(result.error);
+            return;
+          }
+          toast.success(st(lang, "next.videoStarted"));
+          router.refresh();
+        })
+      }
+      className={cn(
+        PILL,
+        "bg-[var(--surface-2)] hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] disabled:opacity-50",
+      )}
+    >
+      <Clapperboard className="size-3.5 text-[var(--brand)]" />
+      {st(lang, "next.makeVideo")}
+    </button>
+  );
+}
+
 // The one thing the song is waiting for, as a button on its card.
 export function NextStep({ clip }: { clip: Clip }) {
   const lang = useLocale();
@@ -145,6 +356,17 @@ export function NextStep({ clip }: { clip: Clip }) {
         <ApproveDialog clip={clip} open={open} onOpenChange={setOpen} />
       </>
     );
+  if (clip.status === "takes_review" && clip.takes.length > 0)
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)} className={PRIMARY}>
+          {st(lang, "next.pickTake")}
+          <ArrowRight className="size-3.5" />
+        </button>
+        <TakesDialog clip={clip} open={open} onOpenChange={setOpen} />
+      </>
+    );
+  if (clip.status === "audio_ready") return <MakeVideoButton clip={clip} />;
   const link =
     clip.status === "takes_review"
       ? st(lang, "next.pickTake")
@@ -173,7 +395,11 @@ export function NextStep({ clip }: { clip: Clip }) {
 }
 
 export function hasNextStep(clip: Clip): boolean {
-  return ["lyrics_review", "takes_review", "video_review", "failed"].includes(
-    clip.status,
-  );
+  return [
+    "lyrics_review",
+    "takes_review",
+    "audio_ready",
+    "video_review",
+    "failed",
+  ].includes(clip.status);
 }

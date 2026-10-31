@@ -25,6 +25,7 @@ export type Version = {
   lang: Lang;
   status: VersionStatus;
   lyric_pack?: unknown;
+  lyric_jury?: unknown;
   chosen_take_id?: string | null;
   timing_path?: string | null;
   storyboard_path?: string | null;

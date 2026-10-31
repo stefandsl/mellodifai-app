@@ -1,12 +1,28 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  type LyricPack,
   LyricPackSchema,
   SongSettingsSchema,
   validateLyricPack,
 } from "@mellodifai/shared";
 import { optionalText } from "../legacy-import.js";
 import type { StageHandler } from "../loop.js";
+import {
+  combine,
+  DEFAULT_JUDGES,
+  DEFAULT_WRITERS,
+  type JuryReport,
+  judge,
+  looksRedacted,
+  PASS_SCORE,
+  REDACTION_NOTE,
+  type Route,
+  revisionBrief,
+  route,
+  toneLine,
+  type Writer,
+} from "./lyric-jury.js";
 import { ENGINE_ROOT } from "./utils.js";
 
 const reference = async (lang: string) =>
@@ -58,6 +74,7 @@ const DRAFT_INSTRUCTIONS = [
   '"exclude": string, comma-separated styles to avoid (reference file exclude.txt).',
   '"l10n": object with the same keys as the reference storyboard-l10n.json, values written in the requested language.',
   "No other keys, no Markdown, no commentary. Never use the em dash character (U+2014).",
+  REDACTION_NOTE,
 ].join("\n");
 
 function parseReply(content: string): Record<string, unknown> {
@@ -141,11 +158,25 @@ async function referenceDisplayMap(
   }
 }
 
+// Writer calls per draft: at most MAX_FORMAT_ATTEMPTS drafts that break the format, plus
+// the jury's revision rounds. Each call counts against the daily cap.
+const MAX_WRITER_CALLS = 5;
+const MAX_FORMAT_ATTEMPTS = 3;
+const MAX_REVISIONS = 2;
+
+type Candidate = { pack: LyricPack; jury: JuryReport };
+
+// The lowest criterion decides which rejected draft is the least bad.
+function worst(jury: JuryReport): number {
+  const values = Object.values(jury.scores);
+  return values.length ? Math.min(...values) : 0;
+}
+
 export const draftLyrics: StageHandler = async (context) => {
-  const cap = Number(context.secrets.values.LYRICS_DAILY_CAP ?? "50");
+  const secrets = context.secrets.values;
+  const cap = Number(secrets.LYRICS_DAILY_CAP ?? "50");
   const stateFile =
-    context.secrets.values.LYRICS_STATE_FILE ??
-    "E:\\mellodifai\\state\\lyrics.json";
+    secrets.LYRICS_STATE_FILE ?? "E:\\mellodifai\\state\\lyrics.json";
   const {
     mkdir,
     readFile: stateRead,
@@ -160,27 +191,69 @@ export const draftLyrics: StageHandler = async (context) => {
   if (count >= cap) throw new Error("daily lyrics cap reached");
   const template = await draftReference(context.version.lang);
   const displayMap = await referenceDisplayMap(context.version.lang);
+  const referenceTitle = (
+    await optionalText(
+      join(ENGINE_ROOT, "versions", context.version.lang, "title.txt"),
+      "",
+    )
+  ).trim();
+  const call = {
+    // A key without the privacy guardrail keeps lyrics intact; see REDACTION_NOTE.
+    key: secrets.LYRICS_OPENROUTER_KEY ?? secrets.OPENROUTER_API_KEY ?? "",
+    signal: context.signal,
+  };
+  const writers = {
+    strong: secrets.LYRICS_MODEL_STRONG ?? DEFAULT_WRITERS.strong,
+    fast: secrets.LYRICS_MODEL_FAST ?? DEFAULT_WRITERS.fast,
+  };
+  const judges = secrets.LYRICS_JUDGES
+    ? secrets.LYRICS_JUDGES.split(",").map((model) => model.trim())
+    : DEFAULT_JUDGES;
+  const passScore = Number(secrets.LYRICS_JURY_PASS ?? PASS_SCORE);
+  // LYRICS_JURY=off skips the router and the jury: one strong writer, format checks only.
+  const juryOn = secrets.LYRICS_JURY !== "off";
+  const started = performance.now();
+
+  const plan: Route = juryOn
+    ? await route(
+        {
+          topic: context.project.topic,
+          brief: context.project.brief ?? "",
+          style: context.project.style ?? "",
+          lang: context.version.lang,
+        },
+        call,
+      )
+    : { tone: null, writer: "strong", confidence: 0, ms: 0 };
+  let writer: Writer = plan.writer;
   let correction = "";
-  for (let call = 0; call < 3; call += 1) {
-    if (count + call >= cap) throw new Error("daily lyrics cap reached");
+  let revisions = 0;
+  let formatFailures = 0;
+  let best: Candidate | undefined;
+  const rounds: {
+    writer: string;
+    passed: boolean;
+    scores: JuryReport["scores"];
+  }[] = [];
+
+  for (let calls = 0; calls < MAX_WRITER_CALLS; calls += 1) {
+    if (count + calls >= cap) throw new Error("daily lyrics cap reached");
     // Reserve before making the request, including requests that fail in transit.
     await mkdir(join(stateFile, ".."), { recursive: true });
     await writeFile(
       stateFile,
-      JSON.stringify({ day: today, count: count + call + 1 }),
+      JSON.stringify({ day: today, count: count + calls + 1 }),
     );
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${context.secrets.values.OPENROUTER_API_KEY ?? ""}`,
+          Authorization: `Bearer ${call.key}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model:
-            context.secrets.values.LYRICS_MODEL ??
-            "anthropic/claude-sonnet-5.5",
+          model: writers[writer],
           response_format: { type: "json_object" },
           messages: [
             {
@@ -189,7 +262,7 @@ export const draftLyrics: StageHandler = async (context) => {
             },
             {
               role: "user",
-              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
+              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\n${toneLine(plan.tone)}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
             },
           ],
         }),
@@ -212,14 +285,62 @@ export const draftLyrics: StageHandler = async (context) => {
       parsed.success ? parsed.data : raw,
       "vbp",
     );
-    if (parsed.success && validation.ok)
-      return {
-        versionStatus: "lyrics_review",
-        patch: { lyric_pack: parsed.data },
-      };
-    correction = `Correct these validation errors and return JSON only: ${(validation.ok ? [] : validation.errors).join("; ")}`;
+    if (!parsed.success || !validation.ok) {
+      correction = `Correct these validation errors and return JSON only: ${(validation.ok ? [] : validation.errors).join("; ")}`;
+      formatFailures += 1;
+      // A revision that breaks the format keeps the best earlier draft instead.
+      if (formatFailures >= MAX_FORMAT_ATTEMPTS || best) break;
+      continue;
+    }
+    const jury = juryOn
+      ? await judge(
+          parsed.data,
+          {
+            topic: context.project.topic,
+            lang: context.version.lang,
+            referenceTitle,
+          },
+          judges,
+          call,
+          passScore,
+        )
+      : combine([], 0, passScore);
+    rounds.push({
+      writer: writers[writer],
+      passed: jury.passed,
+      scores: jury.scores,
+    });
+    if (!best || jury.passed || worst(jury) > worst(best.jury))
+      best = { pack: parsed.data, jury };
+    if (jury.passed || revisions >= MAX_REVISIONS) break;
+    revisions += 1;
+    writer = jury.improver;
+    correction = `${revisionBrief(jury)}\nPrevious draft:\n${JSON.stringify({ title: parsed.data.title, lyrics: parsed.data.lyrics, style: parsed.data.style })}`;
   }
-  throw new Error(
-    `lyric pack validation failed after 3 attempts: ${correction}`,
-  );
+  if (!best)
+    throw new Error(
+      `lyric pack validation failed after ${formatFailures} attempts: ${correction}`,
+    );
+  return {
+    versionStatus: "lyrics_review",
+    patch: {
+      lyric_pack: best.pack,
+      lyric_jury: {
+        route: plan,
+        writers,
+        passed: best.jury.passed,
+        available: best.jury.available,
+        scores: best.jury.scores,
+        failing: best.jury.failing,
+        issues: best.jury.issues,
+        verdicts: best.jury.verdicts,
+        rounds,
+        threshold: passScore,
+        redacted:
+          best.jury.redacted ||
+          looksRedacted(context.project.topic, best.pack.lyrics),
+        ms: Math.round(performance.now() - started),
+      },
+    },
+  };
 };
