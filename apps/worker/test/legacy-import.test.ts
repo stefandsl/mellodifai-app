@@ -102,6 +102,53 @@ const files: LegacyImportFiles = {
 };
 
 describe("importLegacy", () => {
+  it("replaces old preview objects on completed imports without changing rows", async () => {
+    const db = new FakeDb();
+    const objects = new Map<string, string>([
+      ["previews/owner/project-1/it/video-720p.mp4", "old-large"],
+    ]);
+    const upload = vi.fn(async (value: { path: string; localFile: string }) => {
+      objects.set(value.path, value.localFile);
+    });
+    const inputs = {
+      ...files,
+      upload,
+      uploads: async () => [
+        {
+          path: "previews/owner/project-1/it/video-720p.mp4",
+          localFile: "small-video",
+          contentType: "video/mp4",
+        },
+        {
+          path: "previews/owner/project-1/it/hook.mp4",
+          localFile: "small-hook",
+          contentType: "video/mp4",
+        },
+      ],
+    };
+    await importLegacy({
+      db,
+      files: inputs,
+      ownerId: "owner",
+      languages: ["it"],
+    });
+    const rows = JSON.stringify(db);
+    objects.set("previews/owner/project-1/it/video-720p.mp4", "old-large");
+    await importLegacy({
+      db,
+      files: inputs,
+      ownerId: "owner",
+      languages: ["it"],
+    });
+    expect(objects.get("previews/owner/project-1/it/video-720p.mp4")).toBe(
+      "small-video",
+    );
+    expect(objects.get("previews/owner/project-1/it/hook.mp4")).toBe(
+      "small-hook",
+    );
+    expect(JSON.stringify(db)).toBe(rows);
+    expect(upload).toHaveBeenCalledTimes(4);
+  });
   it.runIf(process.env.TEST_LEGACY_FILES === "1")(
     "imports real shipped packs for all languages twice into a fake database",
     async () => {
@@ -122,7 +169,7 @@ describe("importLegacy", () => {
       });
       expect(db.versions).toHaveLength(11);
       expect(db.renders).toHaveLength(22);
-      expect(upload).toHaveBeenCalledTimes(calls);
+      expect(upload).toHaveBeenCalledTimes(calls * 2);
     },
   );
   it("retries an interrupted upload and only marks completion after success", async () => {
@@ -152,7 +199,7 @@ describe("importLegacy", () => {
     expect(db.versions).toHaveLength(1);
     expect(db.renders).toHaveLength(2);
   });
-  it("imports all eleven languages and makes the second run a no-op", async () => {
+  it("imports all eleven languages and refreshes previews without rewriting rows", async () => {
     const db = new FakeDb();
     const readPack = vi.fn(files.readPack);
     const onLanguage = vi.fn();
@@ -172,7 +219,7 @@ describe("importLegacy", () => {
     await importLegacy({ db, files: inputs, ownerId: "owner" });
     expect(JSON.stringify(db)).toBe(before);
     expect(readPack).toHaveBeenCalledTimes(11);
-    expect(upload).toHaveBeenCalledTimes(11);
+    expect(upload).toHaveBeenCalledTimes(22);
     expect(db.projects[0]?.topic).toBe("Va bene, passa (VBP)");
     expect(db.projects[0]).toMatchObject({
       brief: "Office satire about AI in the workplace, 11 languages",

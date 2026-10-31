@@ -55,6 +55,31 @@ function setup(handler?: StageHandler) {
   return { db, loop, errors };
 }
 const pending: StageHandler = () => new Promise(() => {});
+it.each(["getVersion", "getProject", "getTakes"] as const)(
+  "requeues transient %s failures for 30 seconds with attempts preserved",
+  async (method) => {
+    const { db, loop } = setup(async () => ({}));
+    if (method === "getTakes" && db.jobs[0])
+      db.jobs[0].payload = { take_id: "take" };
+    vi.spyOn(db, method).mockRejectedValueOnce(
+      new Error("network unavailable"),
+    );
+    const before = Date.now();
+    await loop.runOnce();
+    expect(db.jobs[0]).toMatchObject({ status: "queued", attempts: 1 });
+    expect(Date.parse(db.jobs[0]?.not_before ?? "")).toBeGreaterThanOrEqual(
+      before + 30_000,
+    );
+    expect(db.versions[0]?.status).toBe("producing");
+  },
+);
+it("fails both the job and version on authorization denial", async () => {
+  const { db, loop } = setup(async () => ({}));
+  if (db.jobs[0]) db.jobs[0].owner_id = "intruder";
+  await loop.runOnce();
+  expect(db.jobs[0]?.status).toBe("failed");
+  expect(db.versions[0]?.status).toBe("failed");
+});
 it("fails both job and version when no handler exists", async () => {
   const { db, loop } = setup();
   await loop.runOnce();

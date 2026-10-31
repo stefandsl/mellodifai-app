@@ -3,6 +3,11 @@ param(
   [string]$BackupDirectory = "E:\mellodifai\backups"
 )
 
+# DATABASE_URL must use Supabase's session pooler (port 5432), not the
+# transaction pooler (6543). Copy the Session pooler URI from Connect.
+# Example: postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres
+# Install pg_dump with the same major version as the hosted Postgres server.
+
 if (-not (Test-Path -LiteralPath $EnvFile)) {
   throw "Environment file not found: $EnvFile"
 }
@@ -16,6 +21,10 @@ foreach ($line in Get-Content -LiteralPath $EnvFile) {
 }
 if ([string]::IsNullOrWhiteSpace($databaseUrl)) {
   throw "DATABASE_URL is required in $EnvFile"
+}
+try { $poolerUri = [Uri]$databaseUrl } catch { throw "Invalid DATABASE_URL URI" }
+if ($poolerUri.Host -notlike "*.pooler.supabase.com" -or $poolerUri.Port -ne 5432) {
+  throw "DATABASE_URL must be the Supabase session pooler connection string on port 5432"
 }
 
 New-Item -ItemType Directory -Force -Path $BackupDirectory | Out-Null

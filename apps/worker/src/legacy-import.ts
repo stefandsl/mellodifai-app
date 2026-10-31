@@ -1,6 +1,8 @@
-import { access, readFile } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { LANGS, type Lang } from "@mellodifai/shared";
+import { Engine } from "./engine.js";
+import { transcodePreview } from "./preview.js";
 
 export const LEGACY_PROJECT_TOPIC = "Va bene, passa (VBP)";
 export const LEGACY_PROJECT_BRIEF =
@@ -93,6 +95,10 @@ export async function importLegacy({
 
   for (const lang of languages) {
     if (await db.isComplete(project.id, lang)) {
+      // Refresh existing keys so earlier 720p imports are upgraded without
+      // resetting approved versions, chosen takes, or publication state.
+      for (const upload of await files.uploads(lang, ownerId, project.id))
+        await files.upload?.(upload);
       onLanguage(lang);
       continue;
     }
@@ -125,6 +131,7 @@ export async function importLegacy({
       version_id: version.id,
       kind: "hook",
       path: files.hookPath(lang),
+      preview_path: `previews/${ownerId}/${project.id}/${lang}/hook.mp4`,
       qa_results: { gates: [], imported: true },
       render_attempt: 1,
     });
@@ -163,6 +170,13 @@ async function readJson(path: string): Promise<Record<string, unknown>> {
 export function createLegacyFiles(
   versionsRoot = "C:\\Users\\Asus\\Documents\\suno-remake\\versions",
   finalRoot = "E:\\suno-remake-render\\out\\final",
+  encode: (source: string, output: string) => Promise<void> = async (
+    source,
+    output,
+  ) => {
+    await mkdir("E:\\mellodifai\\tmp", { recursive: true });
+    await transcodePreview(new Engine({ log: async () => {} }), source, output);
+  },
 ): LegacyImportFiles {
   return {
     async readPack(lang) {
@@ -187,10 +201,26 @@ export function createLegacyFiles(
     async uploads(lang, ownerId, projectId) {
       const root = join(finalRoot, lang);
       const prefix = `previews/${ownerId}/${projectId}/${lang}`;
+      const video = join(
+        "E:\\mellodifai\\tmp",
+        `${projectId}-${lang}-video-480p.mp4`,
+      );
+      const hook = join(
+        "E:\\mellodifai\\tmp",
+        `${projectId}-${lang}-hook-480p.mp4`,
+      );
+      await encode(join(root, "video.mp4"), video);
+      await encode(join(root, "hook.mp4"), hook);
       const uploads = [
         {
           path: `${prefix}/video-720p.mp4`,
-          localFile: join(root, "video-720p.mp4"),
+          // Keep the historic object key to replace the larger object in place.
+          localFile: video,
+          contentType: "video/mp4",
+        },
+        {
+          path: `${prefix}/hook.mp4`,
+          localFile: hook,
           contentType: "video/mp4",
         },
         {

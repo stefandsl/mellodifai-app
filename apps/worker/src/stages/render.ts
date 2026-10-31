@@ -19,7 +19,7 @@ async function preview(
         "-i",
         source,
         "-vf",
-        "scale=-2:720",
+        "scale=-2:480",
         "-c:v",
         "libx264",
         "-crf",
@@ -27,7 +27,7 @@ async function preview(
         "-c:a",
         "aac",
         "-b:a",
-        "128k",
+        "96k",
         "-movflags",
         "+faststart",
         "-f",
@@ -61,8 +61,8 @@ async function preview(
     if (result.code !== 0 || !Number.isFinite(size) || size <= 0)
       throw new Error("Cannot determine preview size");
     crf += 2;
-  } while (size > 40 * 1024 * 1024 && crf <= 42);
-  if (size > 40 * 1024 * 1024) throw new Error("preview exceeds 40 MB");
+  } while (size > 15 * 1024 * 1024 && crf <= 42);
+  if (size > 15 * 1024 * 1024) throw new Error("preview exceeds 15 MB");
   return upload(context, output, "video/mp4");
 }
 function handler(kind: "master" | "hook"): StageHandler {

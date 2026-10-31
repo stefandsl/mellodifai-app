@@ -6,10 +6,10 @@ import {
   validateLyricPack,
 } from "@mellodifai/shared";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/action-result";
+import { ConfirmDialog } from "./confirm-dialog";
 import { useLocale } from "./locale-provider";
 import { useAction } from "./use-action";
 export function LyricEditor({
@@ -102,12 +102,14 @@ export function LyricEditor({
             ))}
         </div>
       )}
-      <Button
+      <ConfirmDialog
         disabled={pending || !result.ok || jsonError}
-        onClick={() => run(() => onApprove(candidate as LyricPack))}
+        trigger={t(lang, "action.approveGeneration")}
+        title={t(lang, "action.approveGeneration")}
+        onConfirm={() => run(() => onApprove(candidate as LyricPack))}
       >
-        {t(lang, "action.approve")}
-      </Button>
+        {t(lang, "dialog.cost")}
+      </ConfirmDialog>
     </section>
   );
 }

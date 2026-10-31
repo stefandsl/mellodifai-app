@@ -101,6 +101,262 @@ it("deduplicates languages, enqueues drafts and rolls back invalid creation", as
     .eq("owner_id", owner);
   expect(after.count).toBe(before.count);
 });
+
+it("back_to_lyrics requires an owned failed version and preserves unknown submission protection", async () => {
+  const v = await fixture("failed");
+  await service.from("jobs").update({ status: "failed" }).eq("version_id", v);
+  expect(
+    (await other.rpc("back_to_lyrics", { p_version: v })).error,
+  ).not.toBeNull();
+  await service
+    .from("versions")
+    .update({ kie_submit_state: "submitting" })
+    .eq("id", v);
+  expect(
+    (await client.rpc("back_to_lyrics", { p_version: v })).error,
+  ).not.toBeNull();
+  await service.from("versions").update({ kie_submit_state: null }).eq("id", v);
+  expect(
+    (await client.rpc("back_to_lyrics", { p_version: v })).error,
+  ).toBeNull();
+  expect(
+    (await service.from("versions").select("status").eq("id", v).single()).data
+      ?.status,
+  ).toBe("lyrics_review");
+  expect(
+    (await client.rpc("back_to_lyrics", { p_version: v })).error,
+  ).not.toBeNull();
+});
+
+it("clients cannot delete or update projects even as their owner", async () => {
+  const v = await fixture("failed");
+  const row = await service
+    .from("versions")
+    .select("project_id")
+    .eq("id", v)
+    .single();
+  const id = row.data?.project_id;
+  expect(
+    (await client.from("projects").delete().eq("id", id)).error,
+  ).not.toBeNull();
+  expect(
+    (await client.from("projects").update({ topic: "changed" }).eq("id", id))
+      .error,
+  ).not.toBeNull();
+  expect(
+    (await service.from("projects").select("id").eq("id", id).single()).data
+      ?.id,
+  ).toBe(id);
+});
+
+it("generate_again from failed advances once and queues one explicit generation", async () => {
+  const v = await fixture("failed");
+  await service.from("jobs").update({ status: "failed" }).eq("version_id", v);
+  expect(
+    (await other.rpc("generate_again", { p_version: v, p_generation: 1 }))
+      .error,
+  ).not.toBeNull();
+  expect(
+    (await client.rpc("generate_again", { p_version: v, p_generation: 1 }))
+      .error,
+  ).toBeNull();
+  expect(
+    (await client.rpc("generate_again", { p_version: v, p_generation: 1 }))
+      .error,
+  ).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("versions")
+        .select("status,generation_count")
+        .eq("id", v)
+        .single()
+    ).data,
+  ).toEqual({ status: "song_queued", generation_count: 2 });
+  const jobs = await service
+    .from("jobs")
+    .select("id")
+    .eq("version_id", v)
+    .eq("stage", "generate_song");
+  expect(jobs.data).toHaveLength(1);
+});
+
+async function uploadFixture() {
+  const version = await fixture("failed");
+  await service
+    .from("jobs")
+    .update({ status: "failed" })
+    .eq("version_id", version);
+  const r = await service
+    .from("renders")
+    .insert({ owner_id: owner, version_id: version, kind: "master" })
+    .select("id")
+    .single();
+  expect(r.error).toBeNull();
+  const worker = `${prefix}-${version}`;
+  expect(
+    (await service.from("workers").insert({ id: worker, owner_id: owner }))
+      .error,
+  ).toBeNull();
+  const reserved = await service.rpc("reserve_publication_upload", {
+    p_render: r.data?.id,
+    p_worker: worker,
+  });
+  expect(reserved.error).toBeNull();
+  return {
+    version,
+    worker,
+    publication: reserved.data.publication.id as string,
+  };
+}
+
+it("release_youtube_upload is service-only and releases exactly its reservation", async () => {
+  const { worker, publication } = await uploadFixture();
+  const params = {
+    p_publication: publication,
+    p_worker: worker,
+    p_error: "redacted upload error",
+  };
+  expect(
+    (await client.rpc("release_youtube_upload", params)).error,
+  ).toMatchObject({ code: "42501" });
+  const anon = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), {
+    auth: { persistSession: false },
+  });
+  expect(
+    (await anon.rpc("release_youtube_upload", params)).error,
+  ).toMatchObject({ code: "42501" });
+  expect(
+    (
+      await service.rpc("release_youtube_upload", {
+        ...params,
+        p_worker: "other-worker",
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (await service.rpc("release_youtube_upload", params)).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("publications")
+        .select("upload_state")
+        .eq("id", publication)
+        .single()
+    ).data?.upload_state,
+  ).toBe("pending");
+  expect(
+    (
+      await service
+        .from("workers")
+        .select("youtube_uploads_today")
+        .eq("id", worker)
+        .single()
+    ).data?.youtube_uploads_today,
+  ).toBe(0);
+  expect(
+    (await service.rpc("release_youtube_upload", params)).error,
+  ).not.toBeNull();
+});
+
+it("keeps worker RPCs inaccessible to both client roles and client recovery RPCs inaccessible to anon", async () => {
+  const anon = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), {
+    auth: { persistSession: false },
+  });
+  const id = "00000000-0000-4000-8000-000000000001";
+  for (const c of [anon, client]) {
+    expect(
+      (
+        await c.rpc("reserve_publication_upload", {
+          p_render: id,
+          p_worker: "test",
+        })
+      ).error,
+    ).toMatchObject({ code: "42501" });
+    expect(
+      (await c.rpc("reserve_youtube_upload", { p_worker: "test" })).error,
+    ).toMatchObject({ code: "42501" });
+  }
+  for (const [name, params] of [
+    ["back_to_lyrics", { p_version: id }],
+    [
+      "resolve_kie_submission",
+      { p_version: id, p_charged: false, p_task_id: null },
+    ],
+    ["resolve_kie_submission", { p_version: id, p_outcome: "not_submitted" }],
+    [
+      "resolve_upload",
+      { p_publication: id, p_uploaded: false, p_video_id: null },
+    ],
+    ["generate_again", { p_version: id, p_generation: 1 }],
+  ] as const) {
+    expect((await anon.rpc(name, params)).error).toMatchObject({
+      code: "42501",
+    });
+  }
+});
+
+it.each([false, true])(
+  "resolve_upload owned admin outcome uploaded=%s",
+  async (uploaded) => {
+    const { worker, publication, version } = await uploadFixture();
+    const params = {
+      p_publication: publication,
+      p_uploaded: uploaded,
+      p_video_id: uploaded ? "abc123" : null,
+    };
+    expect((await other.rpc("resolve_upload", params)).error).not.toBeNull();
+    await service.from("profiles").update({ role: "customer" }).eq("id", owner);
+    try {
+      expect((await client.rpc("resolve_upload", params)).error).not.toBeNull();
+    } finally {
+      await service.from("profiles").update({ role: "admin" }).eq("id", owner);
+    }
+    expect(
+      (
+        await client.rpc("resolve_upload", {
+          ...params,
+          p_uploaded: true,
+          p_video_id: "",
+        })
+      ).error,
+    ).not.toBeNull();
+    await service.from("jobs").insert({
+      owner_id: owner,
+      version_id: version,
+      stage: "publish",
+      idempotency_key: `active:${version}`,
+    });
+    expect((await client.rpc("resolve_upload", params)).error).not.toBeNull();
+    await service
+      .from("jobs")
+      .update({ status: "failed" })
+      .eq("version_id", version);
+    expect((await client.rpc("resolve_upload", params)).error).toBeNull();
+    expect(
+      (
+        await service
+          .from("publications")
+          .select("upload_state,youtube_video_id")
+          .eq("id", publication)
+          .single()
+      ).data,
+    ).toEqual({
+      upload_state: uploaded ? "uploaded" : "pending",
+      youtube_video_id: uploaded ? "abc123" : null,
+    });
+    expect(
+      (
+        await service
+          .from("workers")
+          .select("youtube_uploads_today")
+          .eq("id", worker)
+          .single()
+      ).data?.youtube_uploads_today,
+    ).toBe(uploaded ? 1 : 0);
+  },
+);
 it("approves lyrics atomically, denies direct edits, bad shapes, other owners and double approval", async () => {
   const v = await fixture("lyrics_review");
   expect(

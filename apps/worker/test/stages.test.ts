@@ -33,6 +33,69 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 const roots: string[] = [];
+it("prunes only superseded previews of this version after upload succeeds", async () => {
+  const { ctx, db } = await setup();
+  ctx.version.generation_count = 2;
+  db.renders.push({
+    id: "old",
+    version_id: "version",
+    kind: "master",
+    render_attempt: 1,
+    preview_path: "old-render.mp4",
+  });
+  db.renders.push({
+    id: "foreign",
+    version_id: "other",
+    kind: "master",
+    render_attempt: 1,
+    preview_path: "other.mp4",
+  });
+  db.takes.push({
+    id: "old-take",
+    version_id: "version",
+    generation: 1,
+    audio_preview_path: "old-take.mp3",
+  });
+  const remove = vi.fn(async () => {});
+  ctx.storage.remove = remove;
+  vi.mocked(ctx.storage.upload).mockRejectedValueOnce(new Error("offline"));
+  await expect(stages.render_master?.(ctx)).rejects.toThrow("offline");
+  expect(remove).not.toHaveBeenCalled();
+  await stages.render_master?.(ctx);
+  expect(remove).toHaveBeenCalledWith(
+    expect.arrayContaining(["old-render.mp4", "old-take.mp3"]),
+  );
+  expect(JSON.stringify(remove.mock.calls)).not.toContain("other.mp4");
+  expect(JSON.stringify(remove.mock.calls)).not.toContain("master-preview.mp4");
+});
+it.each([
+  [4, "balance 3 credits < 12 needed", true],
+  [1, "Error: HTTP 503 /api/v1/chat/credit: unavailable", true],
+  [1, "Error: HTTP 200 /api/v1/jobs/createTask: refused", true],
+  [1, "TypeError: fetch failed", false],
+  [1, "process crashed after POST", false],
+  [1, "", false],
+] as const)(
+  "classifies Kie exit %s stderr %s safely",
+  async (code, stderr, notCharged) => {
+    const { ctx, output, calls } = await setup();
+    output.submitCode = code;
+    output.submitError = stderr;
+    await expect(stages.generate_song?.(ctx)).rejects.toThrow(
+      notCharged ? "not charged" : "unknown",
+    );
+    expect(ctx.version.kie_submit_state).toBe(notCharged ? null : "submitting");
+    if (notCharged) {
+      output.submitCode = 0;
+      await expect(stages.generate_song?.(ctx)).resolves.toMatchObject({
+        versionStatus: "takes_review",
+      });
+    } else {
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("unknown");
+      expect(calls.filter((c) => c.args[1] === "generate")).toHaveLength(1);
+    }
+  },
+);
 describe("round 2 hardening", () => {
   it("balance refresh also tolerates an unavailable log sink", async () => {
     const { ctx } = await setup();
@@ -511,6 +574,8 @@ async function setup() {
   }[] = [];
   await writeFile(join(ws.renderDir, "video.mp4"), "fixture");
   const output = {
+    submitCode: 0,
+    submitError: "",
     lufs: -14,
     peak: -1.5,
     sizes: [1000],
@@ -536,6 +601,11 @@ async function setup() {
     });
     setImmediate(() => {
       void (async () => {
+        if (args[1] === "generate" && output.submitCode !== 0) {
+          child.stderr.emit("data", `${output.submitError}\n`);
+          child.emit("close", output.submitCode);
+          return;
+        }
         if (cmd === "bash")
           await writeFile(
             join(ws.publicDir, "data", "fr", "timing.json"),
@@ -943,7 +1013,7 @@ describe("stage safety and behavior", () => {
   it("never uploads an oversize preview after exhausting retries", async () => {
     const { ctx, output } = await setup();
     output.sizes = [41 * 1024 * 1024];
-    await expect(stages.render_hook?.(ctx)).rejects.toThrow("exceeds 40 MB");
+    await expect(stages.render_hook?.(ctx)).rejects.toThrow("exceeds 15 MB");
     expect(ctx.storage.upload).not.toHaveBeenCalled();
   });
   it("runs the producing chain using the version render attempt", async () => {
@@ -1243,7 +1313,7 @@ describe("exact stage subprocess contracts", () => {
           "-i",
           render(kind === "master" ? "video.mp4" : "hook.mp4"),
           "-vf",
-          "scale=-2:720",
+          "scale=-2:480",
           "-c:v",
           "libx264",
           "-crf",
@@ -1251,7 +1321,7 @@ describe("exact stage subprocess contracts", () => {
           "-c:a",
           "aac",
           "-b:a",
-          "128k",
+          "96k",
           "-movflags",
           "+faststart",
           "-f",

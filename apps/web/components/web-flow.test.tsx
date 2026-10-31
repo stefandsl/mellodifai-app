@@ -164,33 +164,62 @@ it("prefills the editable publication form in English", () => {
   );
   expect(screen.getByLabelText("Chapters")).toHaveValue("0:00 Intro");
 });
-it("enables lyric approval only after fixing both title and line count", () => {
-  const pack = {
-    title: "",
-    lyrics: "one",
-    style: "Pop",
-    exclude: "",
-    settings: {
-      model: "V6" as const,
-      vocalGender: "f" as const,
-      styleWeight: 0.7,
-      weirdness: 0.35,
-      duration: 310,
-    },
-    displayMap: {},
-    l10n: {},
-  };
-  render(
-    <LocaleProvider value="en">
-      <LyricEditor pack={pack} theme="vbp" onApprove={vi.fn()} />
-    </LocaleProvider>,
-  );
-  expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
-  fireEvent.change(screen.getByLabelText("Title"), {
-    target: { value: "Song" },
-  });
-  fireEvent.change(screen.getByLabelText("Lyrics"), {
-    target: { value: Array.from({ length: 80 }, () => "line").join("\n") },
-  });
-  expect(screen.getByRole("button", { name: "Approve" })).not.toBeDisabled();
-});
+it.each(["it", "en"] as const)(
+  "localizes lyric cost confirmation and validates the pack in %s",
+  async (lang) => {
+    const cost =
+      lang === "it"
+        ? "Approva e genera la canzone: 12 crediti kie"
+        : "Approve and generate song: 12 kie credits";
+    const approve = vi.fn();
+    const pack = {
+      title: "",
+      lyrics: "one",
+      style: "Pop",
+      exclude: "",
+      settings: {
+        model: "V6" as const,
+        vocalGender: "f" as const,
+        styleWeight: 0.7,
+        weirdness: 0.35,
+        duration: 310,
+      },
+      displayMap: {},
+      l10n: {},
+    };
+    render(
+      <LocaleProvider value={lang}>
+        <LyricEditor pack={pack} theme="vbp" onApprove={approve} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByRole("button", { name: cost })).toBeDisabled();
+    fireEvent.change(
+      screen.getByLabelText(lang === "it" ? "Titolo" : "Title"),
+      {
+        target: { value: "Song" },
+      },
+    );
+    fireEvent.change(
+      screen.getByLabelText(lang === "it" ? "Testo" : "Lyrics"),
+      {
+        target: { value: Array.from({ length: 80 }, () => "line").join("\n") },
+      },
+    );
+    expect(screen.getByRole("button", { name: cost })).not.toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: cost }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(cost);
+    expect(screen.getByRole("heading", { name: cost })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: lang === "it" ? "Annulla" : "Cancel",
+      }),
+    ).toBeInTheDocument();
+    expect(approve).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: lang === "it" ? "Conferma" : "Confirm",
+      }),
+    );
+    expect(approve).toHaveBeenCalledTimes(1);
+  },
+);

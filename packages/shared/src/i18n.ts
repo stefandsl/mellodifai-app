@@ -28,6 +28,9 @@ export type DictKey =
   | "auth.email"
   | "auth.sendLink"
   | "auth.sent"
+  | "auth.unavailable"
+  | "auth.rateLimited"
+  | "action.approveGeneration"
   | "auth.notAllowed"
   | "project.create"
   | "project.topic"
@@ -140,7 +143,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "voice.m": "Maschile",
     "dialog.generation": "Conferma nuova generazione",
     "dialog.cost": "Questa azione costa 12 crediti kie per questa lingua.",
-    "dialog.visibility": "Conferma visibilita'",
+    "dialog.visibility": "Conferma visibilità",
     "privacy.public": "Rendi pubblico",
     "privacy.unlisted": "Rendi non in elenco",
     "privacy.scheduled": "Programma",
@@ -157,7 +160,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "qa.value": "Valore",
     "action.approveVideo": "Approva video",
     "action.retry": "Riprova",
-    "panel.wait": "Il prossimo passaggio verra' mostrato qui.",
+    "panel.wait": "Il prossimo passaggio verrà mostrato qui.",
     "panel.queued": "Generazione in coda. In attesa del worker.",
     "panel.published": "Video pubblicato",
     "worker.since": "dal",
@@ -185,10 +188,10 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.storyboard": "Storyboard",
     "stage.render_master": "Video principale",
     "stage.render_hook": "Video breve",
-    "stage.qa": "Controlli qualita'",
+    "stage.qa": "Controlli qualità",
     "stage.art": "Copertina",
     "stage.publish": "Caricamento",
-    "stage.set_privacy": "Visibilita'",
+    "stage.set_privacy": "Visibilità",
     "stage.import_legacy": "Importazione",
     "job.queued": "In coda",
     "job.running": "In corso",
@@ -210,8 +213,12 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.failed": "Non riuscito",
     "auth.email": "Indirizzo email",
     "auth.sendLink": "Invia link di accesso",
-    "auth.sent": "Se l'indirizzo e' abilitato riceverai un link.",
-    "auth.notAllowed": "Se l'indirizzo e' abilitato riceverai un link.",
+    "auth.sent": "Se l'indirizzo è abilitato riceverai un link.",
+    "auth.unavailable":
+      "Servizio temporaneamente non disponibile. Riprova tra poco.",
+    "auth.rateLimited": "Troppi tentativi, riprova tra qualche minuto",
+    "action.approveGeneration": "Approva e genera la canzone: 12 crediti kie",
+    "auth.notAllowed": "Se l'indirizzo è abilitato riceverai un link.",
     "project.create": "Crea progetto",
     "project.topic": "Argomento",
     "project.brief": "Brief",
@@ -331,6 +338,10 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.email": "Email address",
     "auth.sendLink": "Send sign-in link",
     "auth.sent": "If the address is enabled, you will receive a link.",
+    "auth.unavailable":
+      "Service temporarily unavailable. Please try again shortly.",
+    "auth.rateLimited": "Too many attempts, please try again in a few minutes",
+    "action.approveGeneration": "Approve and generate song: 12 kie credits",
     "auth.notAllowed": "If the address is enabled, you will receive a link.",
     "project.create": "Create project",
     "project.topic": "Topic",

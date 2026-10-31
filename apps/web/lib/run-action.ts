@@ -25,7 +25,11 @@ export async function runAction(
     if (projectId) revalidatePath(`/projects/${projectId}`);
     revalidatePath("/library");
     return { ok: true, ...(projectId ? { id: projectId } : {}) };
-  } catch {
+  } catch (error) {
+    console.error(
+      "Server action failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     return { ok: false, error: t(await getLocale(), "error.action") };
   }
 }

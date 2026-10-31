@@ -20,7 +20,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ lang?: string }>;
 }) {
-  const [{ id }, query, { supabase }, lang] = await Promise.all([
+  const [{ id }, query, { supabase, profile }, lang] = await Promise.all([
     params,
     searchParams,
     requireProfile(),
@@ -29,7 +29,7 @@ export default async function ProjectPage({
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id,topic,brief,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections)",
+      "id,topic,brief,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections,kie_submit_state)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -105,7 +105,7 @@ export default async function ProjectPage({
   const { data: publication } = master
     ? await supabase
         .from("publications")
-        .select("id,youtube_video_id,privacy,metadata")
+        .select("id,youtube_video_id,privacy,metadata,upload_state")
         .eq("render_id", master.id)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -158,6 +158,10 @@ export default async function ProjectPage({
               publication={publication as PublicationView | null}
               brief={project.brief ?? ""}
               failedJob={failedJob}
+              activeJob={(jobs ?? []).some(
+                (j) => j.status === "queued" || j.status === "running",
+              )}
+              isAdmin={profile?.role === "admin"}
               thumbnailUrl={thumbnailUrl}
             />
           </CardContent>

@@ -18,6 +18,7 @@ export type Spawn = (
   options: SpawnOptions,
 ) => Child;
 export type EngineOptions = {
+  onStderr?: (line: string) => void;
   allowNonZero?: boolean;
   clearOutputs?: string[];
   env?: Record<string, string>;
@@ -162,17 +163,22 @@ export class Engine {
     const flushes = [child.stdout, child.stderr].map((source) => {
       const decoder = new StringDecoder("utf8");
       let remainder = "";
+      const deliver = (line: string) => {
+        if (source === child.stderr)
+          options.onStderr?.(this.dependencies.secrets?.redact(line) ?? line);
+        emit(line);
+      };
       const consume = (text: string) => {
         const lines = `${remainder}${text}`.split(/\r\n|\n|\r/u);
         remainder = lines.pop() ?? "";
-        for (const line of lines) if (line) emit(line);
+        for (const line of lines) if (line) deliver(line);
       };
       source?.on("data", (chunk: Buffer | string) =>
         consume(typeof chunk === "string" ? chunk : decoder.write(chunk)),
       );
       return () => {
         consume(decoder.end());
-        if (remainder) emit(remainder);
+        if (remainder) deliver(remainder);
         remainder = "";
       };
     });

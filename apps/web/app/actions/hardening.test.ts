@@ -39,9 +39,12 @@ import { revalidatePath } from "next/cache";
 import {
   approveLyrics,
   approveVideo,
+  backToLyrics,
   generateAgain,
   pickTake,
   rerenderVideo,
+  resolveKieSubmission,
+  resolveUpload,
   retryStage,
   setPrivacy,
   uploadPrivate,
@@ -49,6 +52,33 @@ import {
 import { createProject } from "./project";
 
 const id = "00000000-0000-4000-8000-000000000001";
+it("routes both resolution forms through owned recovery RPCs and revalidates", async () => {
+  await resolveUpload({ publicationId: id, uploaded: true, videoId: "abc123" });
+  expect(mocks.rpc).toHaveBeenCalledWith("resolve_upload", {
+    p_publication: id,
+    p_uploaded: true,
+    p_video_id: "abc123",
+  });
+  await resolveUpload({ publicationId: id, uploaded: false });
+  expect(mocks.rpc).toHaveBeenCalledWith("resolve_upload", {
+    p_publication: id,
+    p_uploaded: false,
+    p_video_id: null,
+  });
+  await resolveKieSubmission({
+    versionId: id,
+    charged: true,
+    taskId: "task-1",
+  });
+  expect(mocks.rpc).toHaveBeenCalledWith("resolve_kie_submission", {
+    p_version: id,
+    p_charged: true,
+    p_task_id: "task-1",
+  });
+  await backToLyrics({ versionId: id });
+  expect(mocks.rpc).toHaveBeenCalledWith("back_to_lyrics", { p_version: id });
+  expect(revalidatePath).toHaveBeenCalledWith("/projects/project");
+});
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.rpc.mockResolvedValue({ data: "project", error: null });

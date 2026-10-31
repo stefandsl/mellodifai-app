@@ -28,7 +28,16 @@ test("admin completes the French song-to-public-video flow", async ({
   await createFrenchProject(page, topic);
 
   await expect(page.getByText("FR Revisione testi")).toBeVisible();
-  await page.getByRole("button", { name: "Approva" }).click();
+  const approvalCost = "Approva e genera la canzone: 12 crediti kie";
+  await page.getByRole("button", { name: approvalCost }).click();
+  const lyricsDialog = page.getByRole("alertdialog");
+  await expect(
+    lyricsDialog.getByRole("heading", { name: approvalCost }),
+  ).toBeVisible();
+  await expect(lyricsDialog).toContainText(
+    "Questa azione costa 12 crediti kie per questa lingua.",
+  );
+  await lyricsDialog.getByRole("button", { name: "Conferma" }).click();
   await expect(page.getByText("FR Revisione take")).toBeVisible();
   await page.getByRole("button", { name: "Scegli" }).first().click();
   await expect(page.getByText("FR Produzione")).toBeVisible();
@@ -76,6 +85,9 @@ test("admin completes the French song-to-public-video flow", async ({
 
   await page.getByRole("button", { name: "Rendi pubblico" }).click();
   const dialog = page.getByRole("alertdialog");
+  await expect(
+    dialog.getByRole("heading", { name: "Conferma visibilità" }),
+  ).toBeVisible();
   await expect(dialog).toContainText("A little brighter");
   expect(await privacyJobCount()).toBe(0);
   await dialog.getByRole("button", { name: "Annulla" }).click();

@@ -96,7 +96,7 @@ export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
   await page.getByLabel("Indirizzo email").fill(email);
   await page.getByRole("button", { name: "Invia link di accesso" }).click();
   await expect(page.getByRole("status")).toHaveText(
-    "Se l'indirizzo e' abilitato riceverai un link.",
+    "Se l'indirizzo è abilitato riceverai un link.",
   );
   await page.goto(await magicLink(email, previous));
   await expect(page).toHaveURL(/\/library$/u);

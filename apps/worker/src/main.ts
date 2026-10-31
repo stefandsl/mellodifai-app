@@ -126,8 +126,10 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  void main().catch(() => {
-    console.error("Worker startup failed; check configuration and local paths");
+  void main().catch((error: unknown) => {
+    console.error(
+      `Worker startup failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exitCode = 1;
   });
 }

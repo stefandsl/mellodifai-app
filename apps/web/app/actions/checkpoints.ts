@@ -1,5 +1,6 @@
 "use server";
 import { validateLyricPack } from "@mellodifai/shared";
+import { z } from "zod";
 import { runAction } from "@/lib/run-action";
 import {
   GenerateAgainInput,
@@ -43,6 +44,67 @@ export async function generateAgain(input: unknown) {
     });
     if (error) throw error;
     return { versionId: v.versionId };
+  });
+}
+export async function backToLyrics(input: unknown) {
+  return runAction(async (db) => {
+    const v = VersionIdInput.parse(input);
+    const { error } = await db.rpc("back_to_lyrics", {
+      p_version: v.versionId,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
+  });
+}
+export async function resolveKieSubmission(input: unknown) {
+  return runAction(async (db) => {
+    const v = VersionIdInput.extend({
+      charged: z.boolean(),
+      taskId: z.string().trim().max(200).optional(),
+    }).parse(input);
+    const { error } = await db.rpc("resolve_kie_submission", {
+      p_version: v.versionId,
+      p_charged: v.charged,
+      p_task_id: v.taskId ?? null,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
+  });
+}
+export async function resolveUpload(input: unknown) {
+  return runAction(async (db) => {
+    const v = z
+      .object({
+        publicationId: z.string().uuid(),
+        uploaded: z.boolean(),
+        videoId: z
+          .string()
+          .trim()
+          .regex(/^[\w-]+$/u)
+          .max(200)
+          .optional(),
+      })
+      .refine((v) => !v.uploaded || Boolean(v.videoId))
+      .parse(input);
+    const { data: publication, error: readError } = await db
+      .from("publications")
+      .select("render_id")
+      .eq("id", v.publicationId)
+      .single();
+    if (readError) throw readError;
+    const { data: render, error: renderError } = await db
+      .from("renders")
+      .select("version_id")
+      .eq("id", publication.render_id)
+      .single();
+    if (renderError) throw renderError;
+    const { error } = await db.rpc("resolve_upload", {
+      p_publication: v.publicationId,
+      p_uploaded: v.uploaded,
+      p_video_id: v.videoId ?? null,
+    });
+    if (error) throw error;
+    return { versionId: render.version_id };
   });
 }
 export async function approveVideo(input: unknown) {

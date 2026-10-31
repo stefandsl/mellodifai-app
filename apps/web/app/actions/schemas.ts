@@ -43,7 +43,7 @@ export const PublicationInput = z.object({
 export const SetPrivacyInput = z
   .object({
     publicationId: Id,
-    privacy: z.enum(["public", "unlisted", "scheduled"]),
+    privacy: z.enum(["public", "unlisted", "scheduled", "private"]),
     publishAt: z.iso.datetime().optional(),
   })
   .refine(

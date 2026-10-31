@@ -6,6 +6,7 @@ import {
   type LegacyImportDb,
 } from "../src/legacy-import.js";
 import { loadSecrets } from "../src/secrets.js";
+import { SupabaseStorage } from "../src/storage.js";
 
 function ownerArgument(args: string[]) {
   const index = args.indexOf("--owner");
@@ -127,6 +128,7 @@ async function main() {
     },
   };
   const files = createLegacyFiles();
+  const storage = new SupabaseStorage(client);
   const upload = async ({
     path,
     localFile,
@@ -136,14 +138,7 @@ async function main() {
     localFile: string;
     contentType: string;
   }) => {
-    const { error } = await client.storage
-      .from("previews")
-      .upload(
-        path,
-        await (await import("node:fs/promises")).readFile(localFile),
-        { contentType, upsert: true },
-      );
-    if (error) throw new Error(error.message);
+    await storage.upload(path, localFile, contentType);
   };
   await importLegacy({
     db,

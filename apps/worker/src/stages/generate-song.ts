@@ -4,6 +4,7 @@ import {
   readdir,
   readFile,
   rename,
+  rm,
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
@@ -130,7 +131,37 @@ export const generateSong: StageHandler = async (context) => {
       JSON.stringify({ generation, state: "submitting" }),
       { flag: "wx" },
     );
-    await engine(context, "node", ["tools/kie.mjs", "generate", lang]);
+    let stderr = "";
+    const submit = await context.engine.run(
+      "node",
+      ["tools/kie.mjs", "generate", lang],
+      {
+        cwd: ENGINE_ROOT,
+        allowNonZero: true,
+        onStderr: (line) => {
+          stderr += `${line}\n`;
+        },
+      },
+    );
+    if (submit.code !== 0) {
+      const refused =
+        submit.code === 4 ||
+        /HTTP [^\r\n]*\/api\/v1\/(?:chat\/credit|jobs\/createTask)(?=[:\s])/u.test(
+          stderr,
+        );
+      if (!refused)
+        throw new Error(
+          "kie submission state unknown, check the kie dashboard",
+        );
+      await context.db.patchVersion(context.version.id, {
+        kie_submit_state: null,
+      });
+      context.version.kie_submit_state = null;
+      await rm(marker, { force: true });
+      throw new Error(
+        "kie submission was not charged; correct the issue and generate again",
+      );
+    }
     const task = JSON.parse(await readFile(taskFile, "utf8")) as {
       taskId?: string;
       id?: string;
@@ -149,9 +180,16 @@ export const generateSong: StageHandler = async (context) => {
     kie_submit_state: "submitted",
     kie_generation: generation,
   });
-  await context.engine.run("node", ["tools/kie.mjs", "wait", lang], {
-    cwd: ENGINE_ROOT,
-  });
+  const waited = await context.engine.run(
+    "node",
+    ["tools/kie.mjs", "wait", lang],
+    {
+      cwd: ENGINE_ROOT,
+      allowNonZero: true,
+    },
+  );
+  if (waited.code !== 0)
+    throw new Error("kie task failed; create a new generation to try again");
   for (const take of [1, 2])
     await context.engine.run(
       "node",

@@ -4,9 +4,12 @@ import { useState } from "react";
 import {
   approveLyrics,
   approveVideo,
+  backToLyrics,
   generateAgain,
   pickTake,
   rerenderVideo,
+  resolveKieSubmission,
+  resolveUpload,
   retryStage,
   setPrivacy,
   uploadPrivate,
@@ -15,9 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { publicationDefaults } from "@/lib/publication-defaults";
+import { ConfirmDialog } from "./confirm-dialog";
 import { useLocale } from "./locale-provider";
 import { LyricEditor } from "./lyric-editor";
 import { PublishConfirmDialog } from "./publish-confirm-dialog";
+import { SubmissionResolution } from "./submission-resolution";
 import { type Take, TakePicker } from "./take-picker";
 import { useAction } from "./use-action";
 export type RenderPreview = {
@@ -27,6 +32,7 @@ export type RenderPreview = {
   qa_results: { gates?: { name: string; pass: boolean; value: unknown }[] };
 };
 export type PublicationView = {
+  upload_state?: string;
   id: string;
   youtube_video_id: string | null;
   privacy: "public" | "unlisted" | "scheduled" | "private";
@@ -40,6 +46,7 @@ export type WorkspaceVersion = {
   generation_count: number;
   render_attempt: number;
   storyboard_sections?: unknown;
+  kie_submit_state?: string | null;
 };
 export function ProjectWorkspace({
   version,
@@ -49,13 +56,17 @@ export function ProjectWorkspace({
   brief = "",
   failedJob,
   thumbnailUrl,
+  activeJob = false,
+  isAdmin = false,
 }: {
   version: WorkspaceVersion;
   takes: Take[];
   renders: RenderPreview[];
   publication: PublicationView | null;
   brief?: string;
-  failedJob?: { id: string; error: string | null };
+  failedJob?: { id: string; error: string | null; stage?: string };
+  activeJob?: boolean;
+  isAdmin?: boolean;
   thumbnailUrl?: string | null;
 }) {
   const lang = useLocale();
@@ -178,17 +189,77 @@ export function ProjectWorkspace({
       <section className="space-y-4">
         <h2>{t(lang, "status.failed")}</h2>
         <p role="alert">{failedJob?.error}</p>
-        <Button
-          disabled={pending || !failedJob}
-          onClick={() => {
-            if (failedJob)
-              run(() =>
-                retryStage({ versionId: version.id, jobId: failedJob.id }),
-              );
-          }}
-        >
-          {t(lang, "action.retry")}
-        </Button>
+        {failedJob?.stage === "publish" ? (
+          <PublishPanel
+            renderId={master?.id}
+            defaults={defaults}
+            publication={publication}
+            uploading={activeJob}
+            isAdmin={isAdmin}
+            retry={
+              !activeJob && publication?.upload_state !== "uploading"
+                ? () =>
+                    retryStage({ versionId: version.id, jobId: failedJob.id })
+                : undefined
+            }
+          />
+        ) : version.kie_submit_state === "submitting" ? (
+          isAdmin && !activeJob ? (
+            <SubmissionResolution
+              kind="kie"
+              resolve={(charged, taskId) =>
+                resolveKieSubmission({
+                  versionId: version.id,
+                  charged,
+                  ...(taskId ? { taskId } : {}),
+                })
+              }
+            />
+          ) : null
+        ) : (
+          <>
+            {failedJob?.stage === "generate_song" && (
+              <>
+                <ConfirmDialog
+                  disabled={pending}
+                  trigger={t(lang, "action.generateAgain")}
+                  title={t(lang, "dialog.generation")}
+                  onConfirm={() =>
+                    run(() =>
+                      generateAgain({
+                        versionId: version.id,
+                        generation: version.generation_count,
+                      }),
+                    )
+                  }
+                >
+                  {t(lang, "dialog.cost")}
+                </ConfirmDialog>
+                <Button
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => backToLyrics({ versionId: version.id }))
+                  }
+                >
+                  Back to lyrics
+                </Button>
+              </>
+            )}
+            <Button
+              disabled={pending || !failedJob}
+              onClick={() =>
+                failedJob &&
+                run(() =>
+                  retryStage({ versionId: version.id, jobId: failedJob.id }),
+                )
+              }
+            >
+              {t(lang, "action.retry")}
+              {failedJob?.stage === "generate_song" ? " (12 credits)" : ""}
+            </Button>
+          </>
+        )}
       </section>
     );
   if (version.status === "song_queued") return <p>{t(lang, "panel.queued")}</p>;
@@ -248,7 +319,8 @@ export function ProjectWorkspace({
           renderId={master?.id}
           defaults={defaults}
           publication={publication}
-          uploading={version.status === "publishing"}
+          uploading={activeJob}
+          isAdmin={isAdmin}
         />
       </>
     );
@@ -259,15 +331,43 @@ export function PublishPanel({
   defaults,
   publication,
   uploading = false,
+  isAdmin = false,
+  retry,
 }: {
   renderId?: string;
   defaults: ReturnType<typeof publicationDefaults>;
   publication: PublicationView | null;
   uploading?: boolean;
+  isAdmin?: boolean;
+  retry?:
+    | (() => Promise<import("@/lib/action-result").ActionResult>)
+    | undefined;
 }) {
   const lang = useLocale();
   const { pending, run } = useAction();
   const [publishAt, setPublishAt] = useState("");
+  if (uploading) return <p>{t(lang, "publish.wait")}</p>;
+  if (publication?.upload_state === "uploading")
+    return isAdmin ? (
+      <SubmissionResolution
+        kind="upload"
+        resolve={(uploaded, videoId) =>
+          resolveUpload({
+            publicationId: publication.id,
+            uploaded,
+            ...(videoId ? { videoId } : {}),
+          })
+        }
+      />
+    ) : (
+      <p>{t(lang, "publish.wait")}</p>
+    );
+  if (retry)
+    return (
+      <Button disabled={pending || !isAdmin} onClick={() => run(retry)}>
+        {t(lang, "action.retry")}
+      </Button>
+    );
   if (publication?.youtube_video_id)
     return (
       <section className="space-y-4">
@@ -275,6 +375,15 @@ export function PublishPanel({
           {t(lang, "publish.video")}:{" "}
           {publication.metadata?.title ?? defaults.title}
         </p>
+        <p>Privacy: {publication.privacy}</p>
+        <a
+          className="underline"
+          href={`https://www.youtube.com/watch?v=${publication.youtube_video_id}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          YouTube
+        </a>
         <label htmlFor="publish-at">
           {t(lang, "publish.at")}
           <Input
@@ -285,30 +394,31 @@ export function PublishPanel({
           />
         </label>
         <div className="flex flex-wrap gap-2">
-          {(["public", "unlisted", "scheduled"] as const).map((privacy) => (
-            <PublishConfirmDialog
-              key={privacy}
-              videoName={publication.metadata?.title ?? defaults.title}
-              privacy={privacy}
-              disabled={
-                privacy === "scheduled" &&
-                (!publishAt || Date.parse(publishAt) <= Date.now())
-              }
-              onConfirm={() =>
-                setPrivacy({
-                  publicationId: publication.id,
-                  privacy,
-                  ...(privacy === "scheduled"
-                    ? { publishAt: new Date(publishAt).toISOString() }
-                    : {}),
-                })
-              }
-            />
-          ))}
+          {(["public", "unlisted", "scheduled", "private"] as const).map(
+            (privacy) => (
+              <PublishConfirmDialog
+                key={privacy}
+                videoName={publication.metadata?.title ?? defaults.title}
+                privacy={privacy}
+                disabled={
+                  privacy === "scheduled" &&
+                  (!publishAt || Date.parse(publishAt) <= Date.now())
+                }
+                onConfirm={() =>
+                  setPrivacy({
+                    publicationId: publication.id,
+                    privacy,
+                    ...(privacy === "scheduled"
+                      ? { publishAt: new Date(publishAt).toISOString() }
+                      : {}),
+                  })
+                }
+              />
+            ),
+          )}
         </div>
       </section>
     );
-  if (uploading) return <p>{t(lang, "publish.wait")}</p>;
   return (
     <form
       className="space-y-4"

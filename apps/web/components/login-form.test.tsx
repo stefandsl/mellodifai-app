@@ -16,16 +16,43 @@ vi.mock("@/lib/supabase/browser", () => ({
 import { LoginForm } from "./login-form";
 
 it.each(["it", "en"] as const)(
-  "keeps accepted, refused and transport-failed login messages identical in %s",
+  "shows a neutral delivery notice or a real service error in %s",
   async (lang) => {
-    for (const outcome of ["accepted", "refused", "transport"]) {
+    const outage =
+      lang === "it"
+        ? "Servizio temporaneamente non disponibile. Riprova tra poco."
+        : "Service temporarily unavailable. Please try again shortly.";
+    const limited =
+      lang === "it"
+        ? "Troppi tentativi, riprova tra qualche minuto"
+        : "Too many attempts, please try again in a few minutes";
+    for (const [error, expected, rejected] of [
+      [null, t(lang, "auth.sent"), false],
+      [{ code: "otp_disabled" }, t(lang, "auth.sent"), false],
+      [{ code: "signup_disabled" }, t(lang, "auth.sent"), false],
+      [
+        { status: 422, message: "Signups not allowed for otp" },
+        t(lang, "auth.sent"),
+        false,
+      ],
+      [{ status: 403, message: "not allowed" }, t(lang, "auth.sent"), false],
+      [
+        { status: 400, message: "Account refused" },
+        t(lang, "auth.sent"),
+        false,
+      ],
+      [{ status: 429 }, limited, false],
+      [{ status: 500 }, outage, false],
+      [{ status: 503 }, outage, false],
+      [{ name: "AuthRetryableFetchError", status: 0 }, outage, false],
+      [new TypeError("Failed to fetch"), outage, true],
+      [new Error("Network request failed"), outage, true],
+      [{ status: 0 }, outage, false],
+      [{ code: "signup_disabled" }, t(lang, "auth.sent"), true],
+    ] as const) {
       signIn.mockReset();
-      if (outcome === "transport")
-        signIn.mockRejectedValue(new Error("offline"));
-      else
-        signIn.mockResolvedValue({
-          error: outcome === "refused" ? { message: "not allowed" } : null,
-        });
+      if (rejected) signIn.mockRejectedValue(error);
+      else signIn.mockResolvedValue({ error });
       render(<LoginForm lang={lang} />);
       fireEvent.change(screen.getByLabelText(t(lang, "auth.email")), {
         target: { value: "person@example.com" },
@@ -34,9 +61,7 @@ it.each(["it", "en"] as const)(
         screen.getByRole("button", { name: t(lang, "auth.sendLink") }),
       );
       await waitFor(() =>
-        expect(screen.getByRole("status")).toHaveTextContent(
-          t(lang, "auth.sent"),
-        ),
+        expect(screen.getByRole("status")).toHaveTextContent(expected),
       );
       expect(signIn).toHaveBeenCalledWith({
         email: "person@example.com",

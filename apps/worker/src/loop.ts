@@ -1,5 +1,5 @@
 import type { Stage, VersionStatus } from "@mellodifai/shared";
-import { authorizeStage } from "./authorization.js";
+import { AuthorizationDenied, authorizeStage } from "./authorization.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
 import type { Secrets } from "./secrets.js";
@@ -307,6 +307,18 @@ export class WorkerLoop {
         const message = this.redact(
           error instanceof Error ? error.message : String(error),
         );
+        // Reads and authorization lookups can fail while Supabase/network is
+        // transiently unavailable. Only a definite authorization denial is terminal.
+        if (!authorized && !(error instanceof AuthorizationDenied)) {
+          this.report(message);
+          await db.requeue(
+            job.id,
+            workerId,
+            new Date(Date.now() + 30_000).toISOString(),
+            "temporary infrastructure error",
+          );
+          return;
+        }
         this.report(message);
         await log(message);
         try {
@@ -316,7 +328,7 @@ export class WorkerLoop {
           await log(this.redact(String(failure)));
         }
         try {
-          if (authorized)
+          if (authorized || error instanceof AuthorizationDenied)
             await db.patchVersion(job.version_id, { status: "failed" });
         } catch (failure) {
           this.report(failure);

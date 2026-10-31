@@ -10,7 +10,7 @@ test("non-allowlisted addresses receive the neutral login response without a ses
   await page.getByLabel("Indirizzo email").fill(email);
   await page.getByRole("button", { name: "Invia link di accesso" }).click();
   await expect(page.getByRole("status")).toHaveText(
-    "Se l'indirizzo e' abilitato riceverai un link.",
+    "Se l'indirizzo è abilitato riceverai un link.",
   );
   await page.goto("/library");
   await expect(page).toHaveURL(/\/login$/u);

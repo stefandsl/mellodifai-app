@@ -1,5 +1,6 @@
 import { stageAllowed } from "@mellodifai/shared";
 import type { Db, Job, Project, Version } from "./db.js";
+export class AuthorizationDenied extends Error {}
 
 export async function authorizeStage(
   db: Db,
@@ -12,9 +13,11 @@ export async function authorizeStage(
     job.owner_id !== version.owner_id ||
     job.owner_id !== project.owner_id
   )
-    throw new Error("Job ownership mismatch");
+    throw new AuthorizationDenied("Job ownership mismatch");
   if (!stageAllowed(version.status, job.stage))
-    throw new Error(`Stage ${job.stage} not allowed for ${version.status}`);
+    throw new AuthorizationDenied(
+      `Stage ${job.stage} not allowed for ${version.status}`,
+    );
   const check = async (value: unknown, key = ""): Promise<void> => {
     if (Array.isArray(value)) {
       for (const item of value) await check(item, key);
@@ -31,7 +34,8 @@ export async function authorizeStage(
       )
     )
       return;
-    if (typeof value !== "string") throw new Error("Invalid payload id");
+    if (typeof value !== "string")
+      throw new AuthorizationDenied("Invalid payload id");
     const name = key.replaceAll("_", "").toLowerCase();
     if (
       (name === "ownerid" && value === job.owner_id) ||
@@ -53,7 +57,7 @@ export async function authorizeStage(
       const p = await db.getPublicationForVersion(version.id);
       if (p?.id === value && p.owner_id === job.owner_id) return;
     }
-    throw new Error("Unauthorized payload id");
+    throw new AuthorizationDenied("Unauthorized payload id");
   };
   await check(job.payload ?? {});
 }

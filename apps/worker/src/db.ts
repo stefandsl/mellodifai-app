@@ -89,6 +89,7 @@ export type Publication = {
 };
 
 export interface Db {
+  previewRows(versionId: string): Promise<{ renders: Render[]; takes: Take[] }>;
   claim(workerId: string): Promise<Job | null>;
   heartbeat(jobId: string, workerId: string): Promise<boolean>;
   requeueStale(seconds: number): Promise<number>;
@@ -117,6 +118,11 @@ export interface Db {
     kind: "reserved" | "quota" | "uploading" | "uploaded";
     publication?: Publication;
   }>;
+  releaseUpload(
+    publicationId: string,
+    workerId: string,
+    error: string,
+  ): Promise<void>;
   createTake(take: Omit<Take, "id">): Promise<Take>;
   getTakes(versionId: string): Promise<Take[]>;
   upsertRender(render: Omit<Render, "id">): Promise<Render>;
@@ -135,6 +141,17 @@ function requireData<T>(data: T | null, error: { message: string } | null): T {
 }
 
 export class SupabaseDb implements Db {
+  async previewRows(versionId: string) {
+    const { data, error } = await this.client
+      .from("renders")
+      .select("*")
+      .eq("version_id", versionId);
+    if (error) throw new Error(error.message);
+    return {
+      renders: (data ?? []) as Render[],
+      takes: await this.getTakes(versionId),
+    };
+  }
   private readonly client: SupabaseClient;
   constructor(
     url: string,
@@ -391,9 +408,27 @@ export class SupabaseDb implements Db {
       publication?: Publication;
     };
   }
+  async releaseUpload(
+    publicationId: string,
+    workerId: string,
+    errorMessage: string,
+  ) {
+    const { error } = await this.client.rpc("release_youtube_upload", {
+      p_publication: publicationId,
+      p_worker: workerId,
+      p_error: errorMessage,
+    });
+    if (error) throw new Error(error.message);
+  }
 }
 
 export class InMemoryDb implements Db {
+  async previewRows(versionId: string) {
+    return {
+      renders: this.renders.filter((r) => r.version_id === versionId),
+      takes: await this.getTakes(versionId),
+    };
+  }
   public takes: Take[] = [];
   public renders: Render[] = [];
   public publications: Publication[] = [];
@@ -634,6 +669,17 @@ export class InMemoryDb implements Db {
     };
     this.publications.push(publication);
     return { kind: "reserved", publication };
+  }
+  async releaseUpload(publicationId: string, workerId: string, _error: string) {
+    const publication = this.publications.find((p) => p.id === publicationId);
+    if (publication?.upload_state !== "uploading") return;
+    publication.upload_state = "pending";
+    const worker = this.workers.find((w) => w.id === workerId);
+    if (worker)
+      worker.youtube_uploads_today = Math.max(
+        0,
+        (worker.youtube_uploads_today ?? 0) - 1,
+      );
   }
   private findJob(id: string) {
     const job = this.jobs.find((item) => item.id === id);

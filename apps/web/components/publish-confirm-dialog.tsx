@@ -10,9 +10,9 @@ export function PublishConfirmDialog({
   disabled = false,
 }: {
   videoName: string;
-  privacy: "public" | "unlisted" | "scheduled";
+  privacy: "public" | "unlisted" | "scheduled" | "private";
   onConfirm: (
-    privacy: "public" | "unlisted" | "scheduled",
+    privacy: "public" | "unlisted" | "scheduled" | "private",
   ) => void | ActionResult | Promise<void> | Promise<ActionResult>;
   disabled?: boolean;
 }) {
