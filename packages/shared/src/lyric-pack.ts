@@ -1,0 +1,77 @@
+import { z } from "zod";
+
+export const LyricPackSchema = z.object({
+  title: z.string().min(1).max(100),
+  lyrics: z.string(),
+  style: z.string().min(1).max(1000),
+  exclude: z.string(),
+  settings: z.object({
+    model: z.literal("V6"),
+    vocalGender: z.enum(["m", "f"]),
+    styleWeight: z.number().min(0).max(1).default(0.7),
+    weirdness: z.number().min(0).max(1).default(0.35),
+    duration: z.number().int().min(60).max(320).default(310),
+  }),
+  displayMap: z.record(z.string(), z.string()),
+  l10n: z.record(z.string(), z.unknown()),
+});
+
+export type LyricPack = z.infer<typeof LyricPackSchema>;
+export type LyricPackTheme = "vbp" | "general";
+export type LyricPackValidation =
+  | { ok: true }
+  | { ok: false; errors: string[] };
+
+function emDashErrors(value: unknown, path = ""): string[] {
+  if (typeof value === "string") {
+    return value.includes(String.fromCodePoint(0x2014))
+      ? [`${path || "value"} contains an em dash`]
+      : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      emDashErrors(item, `${path}[${index}]`),
+    );
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).flatMap(([key, item]) =>
+      emDashErrors(item, path ? `${path}.${key}` : key),
+    );
+  }
+
+  return [];
+}
+
+function sungLineCount(lyrics: string): number {
+  return lyrics.split(/\r?\n/u).filter((line) => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && !trimmed.startsWith("[");
+  }).length;
+}
+
+export function validateLyricPack(
+  pack: unknown,
+  theme: LyricPackTheme,
+): LyricPackValidation {
+  const parsed = LyricPackSchema.safeParse(pack);
+  const errors = parsed.success
+    ? []
+    : parsed.error.issues.map(
+        (issue) => `${issue.path.join(".") || "pack"}: ${issue.message}`,
+      );
+
+  errors.push(...emDashErrors(pack));
+
+  if (parsed.success && theme === "vbp") {
+    const count = sungLineCount(parsed.data.lyrics);
+    if (count !== 80) {
+      errors.push(
+        `lyrics must contain exactly 80 sung lines for the vbp theme (found ${count})`,
+      );
+    }
+  }
+
+  return errors.length === 0 ? { ok: true } : { ok: false, errors };
+}
