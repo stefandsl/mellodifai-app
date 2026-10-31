@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const getUser = vi.hoisted(() => vi.fn());
 vi.mock("@supabase/ssr", () => ({
@@ -9,8 +9,21 @@ vi.mock("@supabase/ssr", () => ({
 import { proxy } from "./proxy";
 
 beforeEach(() => {
+  vi.stubEnv("NODE_ENV", "development");
   getUser.mockReset();
   getUser.mockResolvedValue({ data: { user: null } });
+});
+afterEach(() => vi.unstubAllEnvs());
+it.each([
+  ["POST", "/projects/new?code=action"],
+  ["GET", "/api?code=api"],
+  ["GET", "/api/example?code=api"],
+  ["GET", "/_next/data?code=data"],
+])("does not intercept %s %s", async (method, path) => {
+  const response = await proxy(
+    new NextRequest(new URL(path, "http://localhost:3000"), { method }),
+  );
+  expect(response.headers.get("location")).toBeNull();
 });
 
 it.each(["/", "/login", "/library", "/projects/new"])(

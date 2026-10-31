@@ -2,6 +2,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Web environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+and `NEXT_PUBLIC_SITE_URL`. Set `NEXT_PUBLIC_SITE_URL=https://mellodifai.com` in
+production and to the HTTPS preview origin for preview deployments. Locally use
+`http://127.0.0.1:3000`. Redirects validate forwarded hosts against this URL;
+development also permits localhost and 127.0.0.1 with any port.
+
 First, run the development server:
 
 ```bash

@@ -25,6 +25,7 @@ export default defineConfig({
       ...process.env,
       NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
+      NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000",
     },
   },
 });

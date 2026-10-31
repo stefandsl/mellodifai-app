@@ -39,7 +39,9 @@ test("admin completes the French song-to-public-video flow", async ({
   await page.getByRole("button", { name: "Approva video" }).click();
   await expect(page.getByText("FR Approvato")).toBeVisible();
   await page.getByRole("button", { name: "Carica come privato" }).click();
-  await expect(page.getByText("FR Pubblicazione")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Rendi pubblico" }),
+  ).toBeVisible();
   await expect(page.getByText("FR Approvato")).toBeVisible({ timeout: 60_000 });
 
   const projectId = /\/projects\/([^?]+)/u.exec(page.url())?.[1];
@@ -61,10 +63,27 @@ test("admin completes the French song-to-public-video flow", async ({
   if (beforeError) throw beforeError;
   expect(beforeConfirm).toBe(0);
 
+  async function privacyJobCount() {
+    const { count, error } = await db
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("version_id", version.id)
+      .eq("stage", "set_privacy");
+    if (error) throw error;
+    return count;
+  }
+
   await page.getByRole("button", { name: "Rendi pubblico" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("A little brighter");
-  await page.getByRole("button", { name: "Conferma" }).click();
+  expect(await privacyJobCount()).toBe(0);
+  await dialog.getByRole("button", { name: "Annulla" }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(await privacyJobCount()).toBe(0);
+  await page.getByRole("button", { name: "Rendi pubblico" }).click();
+  await expect(dialog).toContainText("A little brighter");
+  expect(await privacyJobCount()).toBe(0);
+  await dialog.getByRole("button", { name: "Conferma" }).click();
   await expect(page.getByText("FR Pubblicato")).toBeVisible({
     timeout: 60_000,
   });

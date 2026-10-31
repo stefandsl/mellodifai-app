@@ -1,5 +1,17 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import { Fragment, StrictMode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+
+type FakeChannel = {
+  topic: string;
+  joined: boolean;
+  on(
+    type: string,
+    filter: Record<string, string>,
+    callback: (p: { new: Record<string, unknown> }) => void,
+  ): FakeChannel;
+  subscribe(callback?: (status: string) => void): FakeChannel;
+};
 
 const mock = vi.hoisted(() => ({
   handlers: [] as {
@@ -11,6 +23,7 @@ const mock = vi.hoisted(() => ({
   subscribed: [] as ((status: string) => void)[],
   readVersion: vi.fn(),
   readJobs: vi.fn(),
+  channels: new Map<string, FakeChannel>(),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mock.refresh }),
@@ -32,21 +45,32 @@ vi.mock("@/lib/supabase/browser", () => ({
     return {
       from: () => query,
       removeChannel: mock.remove,
-      channel: () => {
-        const channel = {
+      channel: (topic: string) => {
+        const existing = mock.channels.get(topic);
+        if (existing) return existing;
+        const channel: FakeChannel = {
+          topic,
+          joined: false,
           on: (
             _type: string,
             filter: Record<string, string>,
             callback: (p: { new: Record<string, unknown> }) => void,
           ) => {
+            if (channel.joined)
+              throw new Error(
+                "cannot add postgres_changes callbacks after subscribe()",
+              );
             mock.handlers.push({ filter, callback });
             return channel;
           },
           subscribe: (callback?: (status: string) => void) => {
+            channel.joined = true;
             if (callback) mock.subscribed.push(callback);
             return channel;
           },
         };
+        // Retain registrations to simulate delayed or failed removeChannel calls.
+        mock.channels.set(topic, channel);
         return channel;
       },
     };
@@ -60,31 +84,77 @@ import { WorkerBadge } from "./worker-badge";
 beforeEach(() => {
   mock.handlers.length = 0;
   mock.subscribed.length = 0;
+  mock.channels.clear();
   vi.clearAllMocks();
   mock.readVersion.mockReturnValue({ data: { status: "drafting" } });
   mock.readJobs.mockReturnValue({ data: [] });
 });
 afterEach(() => vi.useRealTimers());
-function timeline() {
+function timeline(strict = false) {
+  const Wrapper = strict ? StrictMode : Fragment;
   return render(
-    <LocaleProvider value="en">
-      <LiveTimeline
-        versionId="v1"
-        status="drafting"
-        initialJobs={[
-          {
-            id: "j1",
-            version_id: "v1",
-            stage: "draft_lyrics",
-            status: "queued",
-            created_at: "2026-01-01",
-          },
-        ]}
-        initialEvents={[]}
-      />
-    </LocaleProvider>,
+    <Wrapper>
+      <LocaleProvider value="en">
+        <LiveTimeline
+          versionId="v1"
+          status="drafting"
+          initialJobs={[
+            {
+              id: "j1",
+              version_id: "v1",
+              stage: "draft_lyrics",
+              status: "queued",
+              created_at: "2026-01-01",
+            },
+          ]}
+          initialEvents={[]}
+        />
+      </LocaleProvider>
+    </Wrapper>,
   );
 }
+it("uses distinct channel objects through Strict Mode, retry, and unmount", async () => {
+  vi.useFakeTimers();
+  mock.readJobs.mockReturnValue({
+    data: [
+      {
+        id: "j1",
+        version_id: "v1",
+        stage: "draft_lyrics",
+        status: "queued",
+        created_at: "2026-01-01",
+      },
+    ],
+  });
+  const view = timeline(true);
+  await act(async () => {});
+  const initial = [...mock.channels.values()];
+  expect(
+    initial.filter((channel) => channel.topic.startsWith("version:")),
+  ).toHaveLength(2);
+  expect(
+    initial.filter((channel) => channel.topic.startsWith("events:")),
+  ).toHaveLength(2);
+  const callbacks = mock.subscribed.slice(-2);
+  await act(async () => {
+    for (const callback of callbacks) callback("CHANNEL_ERROR");
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000);
+  });
+  expect(mock.channels.size).toBe(6);
+  view.unmount();
+  await act(async () => {});
+  for (const channel of mock.channels.values()) {
+    expect(
+      mock.remove.mock.calls.filter(([removed]) => removed === channel),
+    ).toHaveLength(1);
+  }
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30000);
+  });
+  expect(mock.channels.size).toBe(6);
+});
 it("catches a completed job and version change that occurred before SUBSCRIBED", async () => {
   mock.readVersion.mockReturnValue({ data: { status: "lyrics_review" } });
   mock.readJobs.mockReturnValue({
@@ -161,6 +231,54 @@ it.each(["CHANNEL_ERROR", "TIMED_OUT"])(
     expect(mock.readVersion).toHaveBeenCalledTimes(reads);
   },
 );
+it("queues concurrent SUBSCRIBED catch-up requests once", async () => {
+  let resolve: (value: unknown) => void = () => {};
+  mock.readVersion.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  timeline();
+  await act(async () => {
+    mock.subscribed[0]?.("SUBSCRIBED");
+    mock.subscribed[0]?.("SUBSCRIBED");
+    mock.subscribed[0]?.("SUBSCRIBED");
+  });
+  expect(mock.readVersion).toHaveBeenCalledOnce();
+  await act(async () => {
+    resolve({ data: { status: "drafting" } });
+  });
+  expect(mock.readVersion).toHaveBeenCalledTimes(2);
+});
+it("backs off to 30 seconds and retries after channel removal rejects", async () => {
+  vi.useFakeTimers();
+  mock.remove.mockRejectedValue(new Error("disconnected"));
+  const view = timeline();
+  let callback = mock.subscribed[0];
+  for (const delay of [1000, 2000, 4000, 8000, 16000, 30000, 30000]) {
+    const count = mock.subscribed.length;
+    await act(async () => callback?.("CHANNEL_ERROR"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(delay - 1);
+    });
+    expect(mock.subscribed.length).toBe(count);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(mock.subscribed.length).toBe(count + 1);
+    callback = mock.subscribed.at(-1);
+  }
+  await act(async () => callback?.("SUBSCRIBED"));
+  const count = mock.subscribed.length;
+  await act(async () => callback?.("TIMED_OUT"));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000);
+  });
+  expect(mock.subscribed.length).toBe(count + 1);
+  view.unmount();
+  await act(async () => {});
+  mock.remove.mockReset();
+});
 it("scopes subscriptions and refreshes only when version status changes", async () => {
   const view = render(
     <LocaleProvider value="en">
@@ -222,7 +340,7 @@ it("scopes subscriptions and refreshes only when version status changes", async 
     </LocaleProvider>,
   );
   expect(screen.queryByText("draft lyrics")).not.toBeInTheDocument();
-  expect(mock.remove).toHaveBeenCalled();
+  await waitFor(() => expect(mock.remove).toHaveBeenCalled());
   await waitFor(() =>
     expect(
       mock.handlers.some((h) => h.filter.filter === "version_id=eq.v2"),

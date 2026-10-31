@@ -53,4 +53,5 @@ jobs:
             echo "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-$SERVICE_ROLE_KEY}"
           } >> "$GITHUB_ENV"
       - run: pnpm --filter @mellodifai/web exec playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm e2e

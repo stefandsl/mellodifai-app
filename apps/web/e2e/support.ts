@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { localSupabaseUrl } from "./local-env";
 
 export const E2E_ADMIN_EMAIL = "e2e-admin@mellodifai.test";
 const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:54324";
@@ -26,7 +27,7 @@ function required(name: string) {
 
 export function serviceClient() {
   return createClient(
-    required("SUPABASE_URL"),
+    localSupabaseUrl(),
     required("SUPABASE_SERVICE_ROLE_KEY"),
   );
 }
@@ -89,6 +90,7 @@ async function magicLink(email: string, previous: Set<string>) {
 }
 
 export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
+  localSupabaseUrl();
   const previous = await messageIdsFor(email);
   await page.goto("/login");
   await page.getByLabel("Indirizzo email").fill(email);
@@ -101,6 +103,7 @@ export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
 }
 
 export async function createFrenchProject(page: Page, topic: string) {
+  localSupabaseUrl();
   await page.goto("/projects/new");
   await page.getByLabel("Argomento").fill(topic);
   await page.getByLabel("Brief").fill("Test E2E del flusso completo");
@@ -140,6 +143,7 @@ export async function removeE2EWorker() {
 }
 
 export async function startFakeWorker() {
+  const supabaseUrl = localSupabaseUrl();
   const child = spawn(
     process.execPath,
     [
@@ -153,7 +157,7 @@ export async function startFakeWorker() {
       env: {
         ...process.env,
         WORKER_FAKE: "1",
-        SUPABASE_URL: required("SUPABASE_URL"),
+        SUPABASE_URL: supabaseUrl,
         SUPABASE_SERVICE_ROLE_KEY: required("SUPABASE_SERVICE_ROLE_KEY"),
         WORKER_ID: "e2e-worker",
         WORKER_OWNER_ID: await getAdminId(),

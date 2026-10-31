@@ -4,7 +4,13 @@ import { redirectUrl } from "@/lib/redirect-url";
 
 export async function proxy(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  if (code && request.nextUrl.pathname !== "/auth/confirm") {
+  const pathname = request.nextUrl.pathname;
+  if (
+    code &&
+    request.method === "GET" &&
+    pathname !== "/auth/confirm" &&
+    !/^\/(api|_next)(\/|$)/u.test(pathname)
+  ) {
     // Recover codes sent to Site URL when the auth redirect allowlist is incomplete.
     const callback = redirectUrl(request, "/auth/confirm");
     callback.searchParams.set("code", code);

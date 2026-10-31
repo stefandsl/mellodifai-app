@@ -1,5 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
-
 import { E2E_ADMIN_EMAIL, serviceClient } from "./support";
 
 export default async function globalSetup() {
@@ -44,16 +42,4 @@ export default async function globalSetup() {
     .delete()
     .eq("owner_id", user.id);
   if (workerError) throw workerError;
-
-  // Verify startup variables early without exposing their values in output.
-  createClient(
-    requireEnvironment("SUPABASE_URL"),
-    requireEnvironment("SUPABASE_SERVICE_ROLE_KEY"),
-  );
-}
-
-function requireEnvironment(name: string) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required for E2E tests`);
-  return value;
 }

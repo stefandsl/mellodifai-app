@@ -14,24 +14,38 @@ import { useLocale } from "./locale-provider";
 
 function subscribeWithRecovery(
   db: SupabaseClient,
-  makeChannel: () => RealtimeChannel,
+  makeChannel: (attemptId: string) => RealtimeChannel,
   reconcile: () => Promise<void>,
 ) {
   let closed = false;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let channel: RealtimeChannel;
+  let delay = 1000;
   const connect = () => {
-    channel = makeChannel().subscribe((state) => {
+    // Supabase reuses registered topics, including channels still being removed.
+    const attemptChannel = makeChannel(crypto.randomUUID());
+    channel = attemptChannel;
+    attemptChannel.subscribe((state) => {
       if (closed) return;
-      if (state === "SUBSCRIBED") void reconcile();
+      if (state === "SUBSCRIBED") {
+        delay = 1000;
+        void reconcile();
+      }
       if ((state === "CHANNEL_ERROR" || state === "TIMED_OUT") && !retry) {
         void reconcile();
         retry = setTimeout(() => {
-          void Promise.resolve(db.removeChannel(channel)).then(() => {
-            retry = undefined;
+          void (async () => {
+            try {
+              await db.removeChannel(attemptChannel);
+            } catch {
+              /* Retry even if the failed channel cannot be removed. */
+            } finally {
+              retry = undefined;
+            }
             if (!closed) connect();
-          });
-        }, 1000);
+          })();
+        }, delay);
+        delay = Math.min(delay * 2, 30_000);
       }
     });
   };
@@ -39,7 +53,10 @@ function subscribeWithRecovery(
   return () => {
     closed = true;
     clearTimeout(retry);
-    void db.removeChannel(channel);
+    const ownedChannel = channel;
+    void Promise.resolve()
+      .then(() => db.removeChannel(ownedChannel))
+      .catch(() => {});
   };
 }
 export type TimelineJob = {
@@ -82,8 +99,13 @@ export function LiveTimeline({
     const db = createClient();
     let active = true;
     let pending = false;
+    let queued = false;
     const reconcile = async () => {
-      if (!active || pending) return;
+      if (!active) return;
+      if (pending) {
+        queued = true;
+        return;
+      }
       pending = true;
       try {
         const [version, snapshot] = await Promise.all([
@@ -122,6 +144,10 @@ export function LiveTimeline({
         // Keep the last snapshot; focus, reconnect, or the active-job poll retries.
       } finally {
         pending = false;
+        if (queued) {
+          queued = false;
+          if (active) void reconcile();
+        }
       }
     };
     reconcileRef.current = reconcile;
@@ -131,9 +157,9 @@ export function LiveTimeline({
     window.addEventListener("focus", onFocus);
     const unsubscribe = subscribeWithRecovery(
       db,
-      () =>
+      (attemptId) =>
         db
-          .channel(`version:${versionId}`)
+          .channel(`version:${versionId}:${attemptId}`)
           .on(
             "postgres_changes",
             {
@@ -205,8 +231,8 @@ export function LiveTimeline({
     const db = createClient();
     const unsubscribe = subscribeWithRecovery(
       db,
-      () =>
-        db.channel(`events:${versionId}:${ids}`).on(
+      (attemptId) =>
+        db.channel(`events:${versionId}:${ids}:${attemptId}`).on(
           "postgres_changes",
           {
             event: "INSERT",
