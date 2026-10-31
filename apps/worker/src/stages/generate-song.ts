@@ -47,9 +47,19 @@ export async function refreshBalance(
     await balanceEngine.run("node", ["tools/kie.mjs", "credit"], {
       cwd: ENGINE_ROOT,
     });
-    const values = output.match(/\d+(?:\.\d+)?/gu);
-    const value = values?.at(-1);
-    if (value)
+    // kie.mjs prints one JSON line: {"credits":N,"usd":..,"generate_calls_affordable":..}.
+    const value = output
+      .split("\n")
+      .map((line) => {
+        try {
+          return (JSON.parse(line) as { credits?: unknown }).credits;
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((credits): credits is number => typeof credits === "number")
+      .at(-1);
+    if (value !== undefined)
       await context.db.upsertWorker({
         id:
           context.secrets.values.WORKER_ID ??

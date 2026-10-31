@@ -3,6 +3,14 @@ import { t } from "@mellodifai/shared";
 import { LoginForm } from "@/components/login-form";
 import { getLocale } from "@/lib/locale";
 
+// The local Supabase stack delivers auth mail to Mailpit, never to a real inbox.
+function localInbox() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  if (process.env.NODE_ENV !== "development") return undefined;
+  const match = /^http:\/\/(127\.0\.0\.1|localhost):54321\/?$/u.exec(url);
+  return match ? `http://${match[1]}:54324` : undefined;
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -31,6 +39,19 @@ export default async function LoginPage({
           </p>
         )}
         <LoginForm lang={lang} />
+        {localInbox() && (
+          <p className="mt-6 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+            {t(lang, "auth.devInbox")}{" "}
+            <a
+              className="font-medium text-foreground underline"
+              href={localInbox()}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {localInbox()}
+            </a>
+          </p>
+        )}
       </section>
     </main>
   );

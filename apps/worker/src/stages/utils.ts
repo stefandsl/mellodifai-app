@@ -32,7 +32,9 @@ export async function writePack(
     model: pack.settings.model,
     vocal_gender: pack.settings.vocalGender,
     style_weight: pack.settings.styleWeight,
-    weirdness: pack.settings.weirdness,
+    // Names as read by suno-remake/tools/kie.mjs buildJob().
+    weirdness_constraint: pack.settings.weirdness,
+    variety: 1,
     duration: pack.settings.duration,
   };
   await Promise.all([

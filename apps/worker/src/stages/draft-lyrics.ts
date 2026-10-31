@@ -43,6 +43,76 @@ export async function draftReference(lang: string) {
   return `80-line structural template (Italian; translate into the requested language):\n${await reference("it")}\n\nStyle/vocabulary only (ignore this reference's line count and structure):\n${target}`;
 }
 
+// The model writes only the creative fields; the worker owns everything else.
+const DRAFT_INSTRUCTIONS = [
+  "Write a new VBP lyric pack for the topic below and reply with one JSON object with exactly these keys:",
+  '"title": string, at most 100 characters (reference file title.txt).',
+  '"lyrics": string, the full lyrics with [Section] tag lines, exactly 80 sung lines in the same section structure as the reference (reference file lyrics.txt).',
+  '"style": string, the music style prompt, at most 1000 characters (reference file style.txt).',
+  '"exclude": string, comma-separated styles to avoid (reference file exclude.txt).',
+  '"l10n": object with the same keys as the reference storyboard-l10n.json, values written in the requested language.',
+  "No other keys, no Markdown, no commentary. Never use the em dash character (U+2014).",
+].join("\n");
+
+function parseReply(content: string): Record<string, unknown> {
+  const json = content
+    .trim()
+    .replace(/^```(?:json)?\s*/u, "")
+    .replace(/\s*```$/u, "");
+  try {
+    const value: unknown = JSON.parse(json);
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function buildPack(
+  draft: Record<string, unknown>,
+  vocalGender: string | null | undefined,
+  displayMap: Record<string, string>,
+) {
+  return {
+    title: draft.title,
+    lyrics: draft.lyrics,
+    style: draft.style,
+    exclude: draft.exclude ?? "",
+    l10n: draft.l10n ?? {},
+    settings: {
+      model: "V6",
+      vocalGender: vocalGender === "m" ? "m" : "f",
+      styleWeight: 0.7,
+      weirdness: 0.35,
+      duration: 310,
+    },
+    displayMap,
+  };
+}
+
+async function referenceDisplayMap(
+  lang: string,
+): Promise<Record<string, string>> {
+  try {
+    const value: unknown = JSON.parse(
+      await optionalText(
+        join(ENGINE_ROOT, "versions", lang, "display-map.json"),
+        "{}",
+      ),
+    );
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        )
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 export const draftLyrics: StageHandler = async (context) => {
   const cap = Number(context.secrets.values.LYRICS_DAILY_CAP ?? "50");
   const stateFile =
@@ -61,6 +131,7 @@ export const draftLyrics: StageHandler = async (context) => {
   const count = state.day === today ? (state.count ?? 0) : 0;
   if (count >= cap) throw new Error("daily lyrics cap reached");
   const template = await draftReference(context.version.lang);
+  const displayMap = await referenceDisplayMap(context.version.lang);
   let correction = "";
   for (let call = 0; call < 3; call += 1) {
     if (count + call >= cap) throw new Error("daily lyrics cap reached");
@@ -86,8 +157,7 @@ export const draftLyrics: StageHandler = async (context) => {
           messages: [
             {
               role: "system",
-              content:
-                "Return only a new VBP lyric pack JSON. Preserve the exact 80 sung-line section structure and storyboard-l10n keys of this reference. Do not use the prohibited punctuation character.",
+              content: DRAFT_INSTRUCTIONS,
             },
             {
               role: "user",
@@ -103,12 +173,11 @@ export const draftLyrics: StageHandler = async (context) => {
     const body = (await response.json()) as {
       choices?: { message?: { content?: string } }[];
     };
-    let raw: unknown;
-    try {
-      raw = JSON.parse(body.choices?.[0]?.message?.content ?? "");
-    } catch {
-      raw = {};
-    }
+    const raw = buildPack(
+      parseReply(body.choices?.[0]?.message?.content ?? ""),
+      context.project.vocal_gender,
+      displayMap,
+    );
     const parsed = LyricPackSchema.safeParse(raw);
     const validation = validateLyricPack(
       parsed.success ? parsed.data : raw,

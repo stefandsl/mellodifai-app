@@ -13,14 +13,16 @@ import { WorkspaceFactory } from "./workspace.js";
 
 export function startBalanceRefresh(refresh: () => Promise<void>) {
   let pending: Promise<void> | undefined;
-  const timer = setInterval(() => {
+  const tick = () => {
     if (!pending)
       pending = refresh()
         .catch(() => {})
         .finally(() => {
           pending = undefined;
         });
-  }, 600_000);
+  };
+  tick();
+  const timer = setInterval(tick, 600_000);
   return async () => {
     clearInterval(timer);
     await pending;

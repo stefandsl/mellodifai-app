@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Stage } from "@mellodifai/shared";
+import { LyricPackSchema, type Stage } from "@mellodifai/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
@@ -13,7 +13,7 @@ import { childEnvironment, loadSecrets } from "../src/secrets.js";
 import { refreshBalance } from "../src/stages/generate-song.js";
 import { stages } from "../src/stages/index.js";
 import { nextPacificQuotaTime } from "../src/stages/quota.js";
-import { ENGINE_ROOT } from "../src/stages/utils.js";
+import { ENGINE_ROOT, writePack } from "../src/stages/utils.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
@@ -264,6 +264,13 @@ describe("round 2 hardening", () => {
     if (!first) throw new Error("fixture missing");
     expect((await db.reserveUpload(first, "worker")).kind).toBe("uploading");
     expect((await db.getWorker("worker"))?.youtube_uploads_today).toBe(4);
+  });
+  it("refreshes balance at startup so the badge is never blank", async () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn(async () => {});
+    const stop = startBalanceRefresh(refresh);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await stop();
   });
   it("refreshes balance every ten minutes without overlapping or leaking a timer", async () => {
     vi.useFakeTimers();
@@ -579,6 +586,59 @@ describe("round 2 hardening", () => {
     expect(body).toContain("hopeful");
     expect(body).toContain("Vocal gender: m");
   });
+  it("names the exact pack keys in the draft prompt", async () => {
+    const { ctx } = await setup();
+    const fetch = vi.fn(async () => respond(pack));
+    vi.stubGlobal("fetch", fetch);
+    await stages.draft_lyrics?.(ctx);
+    const request = (fetch.mock.calls as unknown[][])[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as {
+      messages: { content: string }[];
+    };
+    for (const key of ['"title"', '"lyrics"', '"style"', '"exclude"', '"l10n"'])
+      expect(body.messages[0]?.content).toContain(key);
+  });
+  it("builds a full pack from a realistic reply with only the creative fields", async () => {
+    // Real models answer with the creative fields only (observed 2026-10-31);
+    // settings come from the project and the display map from the reference.
+    const { ctx } = await setup();
+    ctx.project.vocal_gender = "m";
+    const { title, lyrics, style, exclude } = pack;
+    const reply = `\`\`\`json\n${JSON.stringify({ title, lyrics, style, exclude })}\n\`\`\``;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ choices: [{ message: { content: reply } }] }),
+          ),
+      ),
+    );
+    const result = await stages.draft_lyrics?.(ctx);
+    expect(result?.versionStatus).toBe("lyrics_review");
+    expect(result?.patch?.lyric_pack).toMatchObject({
+      title,
+      settings: { model: "V6", vocalGender: "m" },
+      displayMap: {},
+      l10n: {},
+    });
+  });
+  it("writes the setting names kie.mjs reads", async () => {
+    const { ctx } = await setup();
+    await writePack(ctx, LyricPackSchema.parse(pack));
+    expect(
+      JSON.parse(
+        await readFile(join(ctx.ws.versionsDir, "settings.json"), "utf8"),
+      ),
+    ).toEqual({
+      model: "V6",
+      vocal_gender: "f",
+      style_weight: 0.7,
+      weirdness_constraint: 0.35,
+      variety: 1,
+      duration: 310,
+    });
+  });
   it("selects the latest publication deterministically", async () => {
     const { ctx, db } = await setup();
     const render_id = db.renders[0]?.id ?? "";
@@ -691,7 +751,12 @@ async function setup() {
           if (/\.part\.[^.]+$/u.test(arg)) await writeFile(arg, "fixture");
         if (args[1] === "generate")
           await writeFile(join(ws.outDir, "task.json"), '{"taskId":"task-1"}');
-        if (args[1] === "credit") child.stdout.emit("data", "Balance: 88\n");
+        // Same shape as the real `kie.mjs credit` output.
+        if (args[1] === "credit")
+          child.stdout.emit(
+            "data",
+            `${JSON.stringify({ credits: 88, usd: 0.44, generate_calls_affordable: 7 })}\n`,
+          );
         if (args.includes("ebur128=peak=true"))
           child.stderr.emit(
             "data",

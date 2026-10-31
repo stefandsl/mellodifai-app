@@ -86,8 +86,12 @@ export function ProjectForm({ balance }: { balance: number | null }) {
         </div>
         <div className="grid gap-2">
           <Label htmlFor="vocalGender">{t(lang, "project.vocalGender")}</Label>
-          <Select name="vocalGender" defaultValue="f">
-            <SelectTrigger id="vocalGender">
+          <Select
+            name="vocalGender"
+            defaultValue="f"
+            items={{ f: t(lang, "voice.f"), m: t(lang, "voice.m") }}
+          >
+            <SelectTrigger id="vocalGender" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

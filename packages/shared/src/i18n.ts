@@ -75,6 +75,7 @@ export type DictKey =
   | "publish.chapters"
   | "error.action"
   | "auth.invalidLink"
+  | "auth.devInbox"
   | "library.title"
   | "library.updated"
   | "project.heading"
@@ -148,6 +149,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "publish.tag": "lyric video",
     "error.action": "Operazione non riuscita. Riprova.",
     "auth.invalidLink": "Link non valido o scaduto. Richiedi un nuovo link.",
+    "auth.devInbox":
+      "Ambiente locale: le email non escono dal PC. Apri la casella di test per il link.",
     "library.title": "I tuoi progetti",
     "library.updated": "Aggiornato",
     "project.heading": "Crea una nuova canzone",
@@ -288,6 +291,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "publish.tag": "lyric video",
     "error.action": "Action failed. Please try again.",
     "auth.invalidLink": "Invalid or expired link. Request a new link.",
+    "auth.devInbox":
+      "Local environment: emails never leave this PC. Open the test inbox for the link.",
     "library.title": "Your projects",
     "library.updated": "Updated",
     "project.heading": "Create a new song",
