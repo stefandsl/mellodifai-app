@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { upsertJob } from "@/lib/timeline";
+import { ErrorDetails } from "./error-details";
 import { useLocale } from "./locale-provider";
 
 function subscribeWithRecovery(
@@ -279,8 +280,20 @@ export function LiveTimeline({
     );
   return (
     <ol className="space-y-3 border-l pl-5">
-      {jobs.map((job) => {
+      {jobs.map((job, index) => {
         const event = events.filter((e) => e.job_id === job.id).at(-1);
+        const superseded =
+          job.status === "failed" &&
+          jobs.slice(index + 1).some((later) => later.stage === job.stage);
+        if (superseded)
+          return (
+            <li key={job.id} className="text-sm text-muted-foreground">
+              <p>{t(lang, `stage.${job.stage}`)}</p>
+              <p>{t(lang, "job.superseded")}</p>
+            </li>
+          );
+        const details =
+          job.status === "failed" ? (job.error ?? event?.message) : undefined;
         return (
           <li key={job.id}>
             <p>{t(lang, `stage.${job.stage}`)}</p>
@@ -298,8 +311,9 @@ export function LiveTimeline({
             <p className="text-sm text-muted-foreground">
               {t(lang, `job.${job.status}`)}{" "}
               {event?.progress != null ? `${event.progress}%` : ""}{" "}
-              {event?.message}
+              {details ? "" : event?.message}
             </p>
+            {details && <ErrorDetails text={details} />}
           </li>
         );
       })}

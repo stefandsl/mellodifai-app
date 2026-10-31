@@ -76,6 +76,9 @@ export type DictKey =
   | "error.action"
   | "auth.invalidLink"
   | "auth.devInbox"
+  | "job.superseded"
+  | "error.details"
+  | "lyrics.advanced"
   | "library.title"
   | "library.updated"
   | "project.heading"
@@ -149,6 +152,9 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "publish.tag": "lyric video",
     "error.action": "Operazione non riuscita. Riprova.",
     "auth.invalidLink": "Link non valido o scaduto. Richiedi un nuovo link.",
+    "job.superseded": "Tentativo precedente non riuscito",
+    "error.details": "Dettagli tecnici",
+    "lyrics.advanced": "Impostazioni avanzate",
     "auth.devInbox":
       "Ambiente locale: le email non escono dal PC. Apri la casella di test per il link.",
     "library.title": "I tuoi progetti",
@@ -291,6 +297,9 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "publish.tag": "lyric video",
     "error.action": "Action failed. Please try again.",
     "auth.invalidLink": "Invalid or expired link. Request a new link.",
+    "job.superseded": "Earlier attempt failed",
+    "error.details": "Technical details",
+    "lyrics.advanced": "Advanced settings",
     "auth.devInbox":
       "Local environment: emails never leave this PC. Open the test inbox for the link.",
     "library.title": "Your projects",
@@ -342,22 +351,22 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "validation.json": "Invalid JSON",
     "language.it": "IT",
     "language.en": "EN",
-    "stage.draft_lyrics": "draft lyrics",
-    "stage.generate_song": "generate song",
-    "stage.timing": "timing",
-    "stage.storyboard": "storyboard",
-    "stage.render_master": "render master",
-    "stage.render_hook": "render hook",
-    "stage.qa": "qa",
-    "stage.art": "art",
-    "stage.publish": "publish",
-    "stage.set_privacy": "set privacy",
-    "stage.import_legacy": "import legacy",
-    "job.queued": "queued",
-    "job.running": "running",
-    "job.done": "done",
-    "job.failed": "failed",
-    "job.cancelled": "cancelled",
+    "stage.draft_lyrics": "Lyrics draft",
+    "stage.generate_song": "Song generation",
+    "stage.timing": "Lyric timing",
+    "stage.storyboard": "Storyboard",
+    "stage.render_master": "Main video",
+    "stage.render_hook": "Short video",
+    "stage.qa": "Quality checks",
+    "stage.art": "Thumbnail",
+    "stage.publish": "Upload",
+    "stage.set_privacy": "Visibility",
+    "stage.import_legacy": "Import",
+    "job.queued": "Queued",
+    "job.running": "Running",
+    "job.done": "Done",
+    "job.failed": "Failed",
+    "job.cancelled": "Cancelled",
     "app.name": "mellodifai",
     "nav.library": "Library",
     "nav.newProject": "New project",

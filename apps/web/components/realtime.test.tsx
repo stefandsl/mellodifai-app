@@ -90,6 +90,89 @@ beforeEach(() => {
   mock.readVersion.mockReturnValue({ data: { status: "drafting" } });
   mock.readJobs.mockReturnValue({ data: [] });
 });
+it("collapses a failed attempt that a later attempt replaced", () => {
+  const error = "lyric pack validation failed after 3 attempts: title";
+  render(
+    <LocaleProvider value="it">
+      <LiveTimeline
+        versionId="v1"
+        status="lyrics_review"
+        initialJobs={[
+          {
+            id: "j1",
+            version_id: "v1",
+            stage: "draft_lyrics",
+            status: "failed",
+            error,
+            created_at: "2026-01-01T10:00:00Z",
+          },
+          {
+            id: "j2",
+            version_id: "v1",
+            stage: "draft_lyrics",
+            status: "done",
+            created_at: "2026-01-01T10:05:00Z",
+          },
+        ]}
+        initialEvents={[
+          { id: 1, job_id: "j1", message: error, progress: null },
+        ]}
+      />
+    </LocaleProvider>,
+  );
+  expect(
+    screen.getByText("Tentativo precedente non riuscito"),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(error)).not.toBeInTheDocument();
+});
+it("keeps technical details of a current failure behind a toggle", () => {
+  const error = `lyric pack validation failed after 3 attempts: ${"title: Invalid input; ".repeat(10).trim()}`;
+  render(
+    <LocaleProvider value="it">
+      <LiveTimeline
+        versionId="v1"
+        status="failed"
+        initialJobs={[
+          {
+            id: "j1",
+            version_id: "v1",
+            stage: "generate_song",
+            status: "failed",
+            error,
+            created_at: "2026-01-01T10:00:00Z",
+          },
+        ]}
+        initialEvents={[]}
+      />
+    </LocaleProvider>,
+  );
+  expect(screen.getByText("Dettagli tecnici")).toBeInTheDocument();
+  expect(screen.getByText(error).closest("details")).not.toHaveAttribute(
+    "open",
+  );
+});
+it("labels stages in plain English", () => {
+  render(
+    <LocaleProvider value="en">
+      <LiveTimeline
+        versionId="v1"
+        status="drafting"
+        initialJobs={[
+          {
+            id: "j1",
+            version_id: "v1",
+            stage: "draft_lyrics",
+            status: "done",
+            created_at: "2026-01-01T10:00:00Z",
+          },
+        ]}
+        initialEvents={[]}
+      />
+    </LocaleProvider>,
+  );
+  expect(screen.getByText("Lyrics draft")).toBeInTheDocument();
+  expect(screen.getByText(/Done/u)).toBeInTheDocument();
+});
 it("explains imported versions without rendering an empty timeline list", () => {
   render(
     <LocaleProvider value="it">
@@ -210,7 +293,7 @@ it("catches a completed job and version change that occurred before SUBSCRIBED",
   await act(async () => mock.subscribed[0]?.("SUBSCRIBED"));
   expect(mock.readVersion).toHaveBeenCalled();
   expect(mock.refresh).toHaveBeenCalledOnce();
-  expect(screen.getByText("done")).toBeInTheDocument();
+  expect(screen.getByText("Done")).toBeInTheDocument();
 });
 it("polls active jobs every five seconds and stops once none remain", async () => {
   vi.useFakeTimers();

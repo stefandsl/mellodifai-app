@@ -74,16 +74,27 @@ export function LyricEditor({
           )}
         </label>
       ))}
-      {(["settings", "displayMap", "l10n"] as const).map((field) => (
-        <label key={field} className="grid gap-2" htmlFor={`lyric-${field}`}>
-          {t(lang, `lyrics.${field}`)}
-          <Textarea
-            id={`lyric-${field}`}
-            value={json[field]}
-            onChange={(e) => setJson({ ...json, [field]: e.target.value })}
-          />
-        </label>
-      ))}
+      <details open={jsonError} className="rounded-lg border p-3">
+        <summary className="cursor-pointer text-sm select-none">
+          {t(lang, "lyrics.advanced")}
+        </summary>
+        <div className="mt-3 space-y-4">
+          {(["settings", "displayMap", "l10n"] as const).map((field) => (
+            <label
+              key={field}
+              className="grid gap-2"
+              htmlFor={`lyric-${field}`}
+            >
+              {t(lang, `lyrics.${field}`)}
+              <Textarea
+                id={`lyric-${field}`}
+                value={json[field]}
+                onChange={(e) => setJson({ ...json, [field]: e.target.value })}
+              />
+            </label>
+          ))}
+        </div>
+      </details>
       {(!result.ok || jsonError) && (
         <div role="alert" className="text-destructive">
           {jsonError && <p>{t(lang, "validation.json")}</p>}

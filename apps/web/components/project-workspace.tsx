@@ -1,5 +1,10 @@
 "use client";
-import { type LyricPack, t, type VersionStatus } from "@mellodifai/shared";
+import {
+  type LyricPack,
+  type Stage,
+  t,
+  type VersionStatus,
+} from "@mellodifai/shared";
 import { useState } from "react";
 import {
   approveLyrics,
@@ -19,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { publicationDefaults } from "@/lib/publication-defaults";
 import { ConfirmDialog } from "./confirm-dialog";
+import { ErrorDetails } from "./error-details";
 import { useLocale } from "./locale-provider";
 import { LyricEditor } from "./lyric-editor";
 import { PublishConfirmDialog } from "./publish-confirm-dialog";
@@ -193,8 +199,12 @@ export function ProjectWorkspace({
   if (version.status === "failed")
     return (
       <section className="space-y-4">
-        <h2>{t(lang, "status.failed")}</h2>
-        <p role="alert">{failedJob?.error}</p>
+        <h2>
+          {t(lang, "status.failed")}
+          {failedJob?.stage &&
+            `: ${t(lang, `stage.${failedJob.stage as Stage}`)}`}
+        </h2>
+        {failedJob?.error && <ErrorDetails text={failedJob.error} />}
         {failedJob?.stage === "publish" ? (
           <PublishPanel
             renderId={master?.id}
