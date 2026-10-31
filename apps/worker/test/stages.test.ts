@@ -74,6 +74,35 @@ describe("round 2 hardening", () => {
     );
     expect(calls).toHaveLength(0);
   });
+  it.each([false, true])(
+    "restores an admin-resolved task before wait (stale file: %s)",
+    async (stale) => {
+      const { ctx, calls } = await setup();
+      ctx.version.kie_task_id = "recovered-task";
+      ctx.version.kie_submit_state = "submitted";
+      await writeFile(join(ctx.ws.outDir, "submitting-1.json"), "{}");
+      if (stale)
+        await writeFile(
+          join(ctx.ws.outDir, "task.json"),
+          JSON.stringify({ taskId: "stale-task" }),
+        );
+      const run = ctx.engine.run.bind(ctx.engine);
+      vi.spyOn(ctx.engine, "run").mockImplementation(
+        async (cmd, args, opts) => {
+          if (args[1] === "wait")
+            expect(
+              JSON.parse(
+                await readFile(join(ctx.ws.outDir, "task.json"), "utf8"),
+              ),
+            ).toMatchObject({ taskId: "recovered-task" });
+          return run(cmd, args, opts);
+        },
+      );
+      await stages.generate_song?.(ctx);
+      expect(calls.some((c) => c.args.includes("generate"))).toBe(false);
+      expect(calls.some((c) => c.args.includes("wait"))).toBe(true);
+    },
+  );
   it("limits concurrent quota reservations and deduplicates the same render", async () => {
     const { db } = await setup();
     const renders = await Promise.all(
@@ -507,7 +536,7 @@ async function setup() {
             JSON.stringify(output.timing),
           );
         for (const arg of args)
-          if (arg.endsWith(".part")) await writeFile(arg, "fixture");
+          if (/\.part\.[^.]+$/u.test(arg)) await writeFile(arg, "fixture");
         if (args[1] === "generate")
           await writeFile(join(ws.outDir, "task.json"), '{"taskId":"task-1"}');
         if (args[1] === "credit") child.stdout.emit("data", "Balance: 88\n");
@@ -1074,7 +1103,7 @@ describe("exact stage subprocess contracts", () => {
             "128k",
             "-f",
             "mp3",
-            out(`take-${n}-preview.mp3.part`),
+            out(`take-${n}-preview.part.mp3`),
           ]),
         ),
         command("node", ["tools/kie.mjs", "credit"]),
@@ -1091,7 +1120,7 @@ describe("exact stage subprocess contracts", () => {
           "8",
           "-f",
           "mp3",
-          render("chant-listen.mp3.part"),
+          render("chant-listen.part.mp3"),
         ]),
         command("ffmpeg", [
           "-y",
@@ -1101,7 +1130,7 @@ describe("exact stage subprocess contracts", () => {
           stem,
           "-f",
           "mp3",
-          render("outro-listen.mp3.part"),
+          render("outro-listen.part.mp3"),
         ]),
       ],
       storyboard: [
@@ -1122,7 +1151,7 @@ describe("exact stage subprocess contracts", () => {
           "--title",
           "Test song",
           "--out",
-          render("thumbnail.png.part"),
+          render("thumbnail.part.png"),
         ]),
         command("python", [
           "-I",
@@ -1130,7 +1159,7 @@ describe("exact stage subprocess contracts", () => {
           "utf8",
           "tools/make_srt.py",
           "fr",
-          render("fr.srt.part"),
+          render("fr.part.srt"),
         ]),
       ],
       publish: [
@@ -1184,7 +1213,7 @@ describe("exact stage subprocess contracts", () => {
           "1",
           "-f",
           "image2",
-          render("contact-sheet.jpg.part"),
+          render("contact-sheet.part.jpg"),
         ]),
       ],
     };
@@ -1196,7 +1225,7 @@ describe("exact stage subprocess contracts", () => {
             "scripts/r.mjs",
             "render",
             `${kind === "master" ? "Video" : "Hook"}-fr`,
-            render(kind === "master" ? "video.mp4.part" : "hook.mp4.part"),
+            render(kind === "master" ? "video.part.mp4" : "hook.part.mp4"),
             `--props=${join(ctx.ws.root, "fps30.json")}`,
             "--gl=angle",
             "--log=error",
@@ -1221,7 +1250,7 @@ describe("exact stage subprocess contracts", () => {
           "+faststart",
           "-f",
           "mp4",
-          render(`${kind}-preview.mp4.part`),
+          render(`${kind}-preview.part.mp4`),
         ]),
         command("ffprobe", [
           "-v",

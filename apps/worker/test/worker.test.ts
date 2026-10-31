@@ -136,6 +136,29 @@ describe("worker loop", () => {
 });
 
 describe("engine", () => {
+  it.each(["video.mp4", "thumbnail.png", "it.srt", "take-preview.mp3"])(
+    "stages %s without changing the format extension",
+    async (filename) => {
+      const dir = await mkdtemp(join(tmpdir(), "mellodifai-staging-"));
+      const output = join(dir, filename);
+      const staged = join(dir, filename.replace(/(\.[^.]+)$/u, ".part$1"));
+      let destination: string | undefined;
+      const spawn = (_cmd: string, args: readonly string[]) => {
+        const child = new EventEmitter();
+        destination = args[0];
+        if (!destination) throw new Error("output argument is missing");
+        void writeFile(destination, "complete").then(() =>
+          child.emit("close", 0),
+        );
+        return child;
+      };
+      const engine = new Engine({ spawn: spawn as never, log: async () => {} });
+      await engine.run("tool", [output], { outputs: [output] });
+      expect(destination).toBe(staged);
+      expect(await readFile(output, "utf8")).toBe("complete");
+      await expect(readFile(staged)).rejects.toThrow();
+    },
+  );
   it("does not leave a final file after a failed process and redoes it next time", async () => {
     const dir = await mkdtemp(join(tmpdir(), "mellodifai-"));
     const output = join(dir, "video.mp4");

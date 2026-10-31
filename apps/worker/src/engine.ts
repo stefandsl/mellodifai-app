@@ -1,6 +1,6 @@
 import { spawn as nodeSpawn, type SpawnOptions } from "node:child_process";
 import { rename, rm } from "node:fs/promises";
-import { win32 } from "node:path";
+import { join, parse, win32 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { childEnvironment, type Secrets } from "./secrets.js";
 
@@ -109,7 +109,10 @@ export class Engine {
       );
     }
     const parts = new Map(
-      (options.outputs ?? []).map((file) => [file, `${file}.part`]),
+      (options.outputs ?? []).map((file) => {
+        const { dir, name, ext } = parse(file);
+        return [file, join(dir, `${name}.part${ext}`)];
+      }),
     );
     const staged = args.map((arg) => parts.get(arg) ?? arg);
     if (/^(python|py)(?:\.exe)?$/iu.test(win32.basename(command))) {

@@ -99,7 +99,13 @@ export const generateSong: StageHandler = async (context) => {
     });
   }
   let taskId = context.version.kie_task_id ?? null;
-  if (await exists(taskFile)) {
+  if (taskId) {
+    // The durable worker/admin-resolved ID is authoritative. The engine's wait
+    // command reads this file, which may be missing after an unknown submission.
+    const recovered = join(context.ws.outDir, "task.part.json");
+    await writeFile(recovered, JSON.stringify({ taskId }));
+    await rename(recovered, taskFile);
+  } else if (await exists(taskFile)) {
     const task = JSON.parse(await readFile(taskFile, "utf8")) as {
       taskId?: string;
       id?: string;
