@@ -1,4 +1,9 @@
 export type DictKey =
+  | "pipeline.imported"
+  | "media.master"
+  | "media.hook"
+  | "media.thumbnail"
+  | "media.unavailable"
   | "app.description"
   | "value.unknown"
   | "qa.integrated_loudness"
@@ -158,6 +163,11 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "worker.since": "dal",
     "worker.unknown": "Mai connesso",
     "pipeline.title": "Avanzamento",
+    "pipeline.imported": "Importato dal progetto originale",
+    "media.master": "Video completo · anteprima 720p",
+    "media.hook": "Anteprima hook",
+    "media.thumbnail": "Miniatura del video",
+    "media.unavailable": "Anteprima non disponibile",
     "take.label": "Take",
     "lyrics.exclude": "Esclusioni",
     "lyrics.settings": "Impostazioni (JSON)",
@@ -273,6 +283,11 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "worker.since": "since",
     "worker.unknown": "Never connected",
     "pipeline.title": "Pipeline",
+    "pipeline.imported": "Imported from the original project",
+    "media.master": "Full video · 720p preview",
+    "media.hook": "Hook preview",
+    "media.thumbnail": "Video thumbnail",
+    "media.unavailable": "Preview unavailable",
     "take.label": "Take",
     "lyrics.exclude": "Exclude",
     "lyrics.settings": "Settings (JSON)",

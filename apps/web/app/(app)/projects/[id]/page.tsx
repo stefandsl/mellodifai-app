@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
 import { getLocale } from "@/lib/locale";
+import { orderedVersions, selectedVersion } from "@/lib/versions";
 export default async function ProjectPage({
   params,
   searchParams,
@@ -33,8 +34,10 @@ export default async function ProjectPage({
     .eq("id", id)
     .maybeSingle();
   if (!project) notFound();
-  const versions = project.versions as unknown as WorkspaceVersion[];
-  const current = versions.find((v) => v.lang === query.lang) ?? versions[0];
+  const versions = orderedVersions(
+    project.versions as unknown as WorkspaceVersion[],
+  );
+  const current = selectedVersion(versions, query.lang);
   if (!current) notFound();
   const [{ data: jobs }, { data: takes }, { data: renderRows }] =
     await Promise.all([
@@ -78,6 +81,20 @@ export default async function ProjectPage({
       previewUrl: await signed(r.preview_path),
     })),
   );
+  // Imported thumbnails are optional sibling objects, not public/local file URLs.
+  const masterPath = (renderRows ?? []).find(
+    (r) => r.kind === "master",
+  )?.preview_path;
+  const previewDirectory = masterPath?.includes("/")
+    ? masterPath.slice(0, masterPath.lastIndexOf("/"))
+    : null;
+  const thumbnailUrl = previewDirectory
+    ? ((await signed(`${previewDirectory}/thumbnail-1280x720.png`)) ??
+      (await signed(`${previewDirectory}/thumbnail.png`)))
+    : null;
+  const hook = renders.find((r) => r.kind === "hook");
+  if (hook && !hook.previewUrl && previewDirectory)
+    hook.previewUrl = await signed(`${previewDirectory}/hook.mp4`);
   const takeData = await Promise.all(
     (takes ?? []).map(async (take) => ({
       ...take,
@@ -106,8 +123,16 @@ export default async function ProjectPage({
               key={v.id}
               href={`/projects/${id}?lang=${v.lang}`}
               aria-current={v.id === current.id ? "page" : undefined}
+              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <Badge variant={v.id === current.id ? "secondary" : "outline"}>
+              <Badge
+                variant="outline"
+                className={
+                  v.id === current.id
+                    ? "h-9 border-transparent bg-[#2BD9A0] px-3 text-slate-950"
+                    : "h-9 px-3"
+                }
+              >
                 {v.lang.toUpperCase()}
               </Badge>
             </Link>
@@ -117,8 +142,11 @@ export default async function ProjectPage({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Card>
           <CardHeader>
-            <CardTitle>
-              {current.lang.toUpperCase()} {t(lang, `status.${current.status}`)}
+            <CardTitle className="flex flex-wrap items-center gap-3">
+              {current.lang.toUpperCase()}{" "}
+              <Badge variant="secondary">
+                {t(lang, `status.${current.status}`)}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -130,6 +158,7 @@ export default async function ProjectPage({
               publication={publication as PublicationView | null}
               brief={project.brief ?? ""}
               failedJob={failedJob}
+              thumbnailUrl={thumbnailUrl}
             />
           </CardContent>
         </Card>

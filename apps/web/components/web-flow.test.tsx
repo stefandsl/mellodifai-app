@@ -24,6 +24,49 @@ import { LyricEditor } from "./lyric-editor";
 import { ProjectWorkspace, PublishPanel } from "./project-workspace";
 
 beforeEach(() => vi.clearAllMocks());
+it("shows approved master, hook and thumbnail before the publish form without repeating status", () => {
+  const { container } = render(
+    <LocaleProvider value="en">
+      <ProjectWorkspace
+        version={{
+          id: "v",
+          lang: "it",
+          status: "approved",
+          lyric_pack: null,
+          generation_count: 1,
+          render_attempt: 1,
+        }}
+        takes={[]}
+        publication={null}
+        thumbnailUrl="https://example.test/signed-thumbnail"
+        renders={[
+          {
+            id: "h",
+            kind: "hook",
+            previewUrl: "https://example.test/signed-hook",
+            qa_results: {},
+          },
+          {
+            id: "m",
+            kind: "master",
+            previewUrl: "https://example.test/signed-master",
+            qa_results: {},
+          },
+        ]}
+      />
+    </LocaleProvider>,
+  );
+  const media = [...container.querySelectorAll("video, img, form")];
+  expect(media.map((node) => node.tagName)).toEqual([
+    "VIDEO",
+    "VIDEO",
+    "IMG",
+    "FORM",
+  ]);
+  expect(media[0]).toHaveAttribute("src", "https://example.test/signed-master");
+  expect(media[1]).toHaveAttribute("src", "https://example.test/signed-hook");
+  expect(screen.queryByText("Approved")).not.toBeInTheDocument();
+});
 it.each(["it", "en"] as const)(
   "renders QA values and requires a reason before override in %s",
   async (lang) => {

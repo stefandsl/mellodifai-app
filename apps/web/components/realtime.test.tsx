@@ -89,6 +89,22 @@ beforeEach(() => {
   mock.readVersion.mockReturnValue({ data: { status: "drafting" } });
   mock.readJobs.mockReturnValue({ data: [] });
 });
+it("explains imported versions without rendering an empty timeline list", () => {
+  render(
+    <LocaleProvider value="it">
+      <LiveTimeline
+        versionId="imported"
+        status="approved"
+        initialJobs={[]}
+        initialEvents={[]}
+      />
+    </LocaleProvider>,
+  );
+  expect(
+    screen.getByText("Importato dal progetto originale"),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("list")).not.toBeInTheDocument();
+});
 afterEach(() => vi.useRealTimers());
 function timeline(strict = false) {
   const Wrapper = strict ? StrictMode : Fragment;
@@ -254,7 +270,7 @@ it("backs off to 30 seconds and retries after channel removal rejects", async ()
   vi.useFakeTimers();
   mock.remove.mockRejectedValue(new Error("disconnected"));
   const view = timeline();
-  let callback = mock.subscribed[0];
+  let callback: ((status: string) => void) | undefined = mock.subscribed[0];
   for (const delay of [1000, 2000, 4000, 8000, 16000, 30000, 30000]) {
     const count = mock.subscribed.length;
     await act(async () => callback?.("CHANNEL_ERROR"));

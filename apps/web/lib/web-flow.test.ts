@@ -18,7 +18,7 @@ it("prefills metadata and filters chapter starts less than ten seconds apart", (
   ).toEqual({
     title: "My song | Lyric video",
     description: "A brief\n\nCreated with mellodifai.",
-    tags: "My, song, en, lyric video",
+    tags: "My song, lyric video, en",
     chapters: "0:00 Intro\n1:05 Chorus",
   });
   expect(publicationDefaults("Song", "", "it", null, "it").chapters).toBe("");

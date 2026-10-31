@@ -24,7 +24,7 @@ it("falls back to Host and request protocol", () => {
     "http://mellodifai.com/library",
   );
 });
-it.each([
+const rejectedHeaders: Record<string, string>[] = [
   {},
   { host: "evil.test" },
   { host: "mellodifai.com@evil.test" },
@@ -33,7 +33,8 @@ it.each([
   { host: "localhost:3000" },
   { host: "mellodifai.com", "x-forwarded-proto": "javascript" },
   { host: "mellodifai.com", "x-forwarded-proto": "ftp" },
-])("safely rejects %j", (headers) => {
+];
+it.each(rejectedHeaders)("safely rejects %j", (headers) => {
   expect(target(headers)).toBe("https://mellodifai.com/library");
 });
 it.each(["localhost:4444", "127.0.0.1:3000", "localhost:80"])(

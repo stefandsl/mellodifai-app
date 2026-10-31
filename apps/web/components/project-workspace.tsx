@@ -48,6 +48,7 @@ export function ProjectWorkspace({
   publication,
   brief = "",
   failedJob,
+  thumbnailUrl,
 }: {
   version: WorkspaceVersion;
   takes: Take[];
@@ -55,6 +56,7 @@ export function ProjectWorkspace({
   publication: PublicationView | null;
   brief?: string;
   failedJob?: { id: string; error: string | null };
+  thumbnailUrl?: string | null;
 }) {
   const lang = useLocale();
   const { pending, run } = useAction();
@@ -193,14 +195,55 @@ export function ProjectWorkspace({
   if (["approved", "publishing", "published"].includes(version.status))
     return (
       <>
-        <h2>
-          {t(
-            lang,
-            version.status === "published"
-              ? "panel.published"
-              : `status.${version.status}`,
+        <section className="mb-8 space-y-6">
+          {(["master", "hook"] as const).map((kind) => {
+            const preview = renders.find(
+              (render) => render.kind === kind,
+            )?.previewUrl;
+            return (
+              <figure key={kind} className="space-y-2">
+                <figcaption className="text-sm font-medium">
+                  {t(lang, `media.${kind}`)}
+                </figcaption>
+                {preview ? (
+                  // biome-ignore lint/a11y/useMediaCaption: reviewed lyric video has embedded lyrics.
+                  <video
+                    controls
+                    preload="metadata"
+                    aria-label={t(lang, `media.${kind}`)}
+                    src={preview}
+                    className={
+                      kind === "master"
+                        ? "aspect-video w-full rounded-lg bg-black"
+                        : "max-h-96 w-full rounded-lg bg-black"
+                    }
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t(lang, "media.unavailable")}
+                  </p>
+                )}
+              </figure>
+            );
+          })}
+          {thumbnailUrl && (
+            <figure className="space-y-2">
+              <figcaption className="text-sm font-medium">
+                {t(lang, "media.thumbnail")}
+              </figcaption>
+              {/* The private signed URL must not go through a shared image optimizer cache. */}
+              {/* biome-ignore lint/performance/noImgElement: private one-hour signed preview. */}
+              <img
+                src={thumbnailUrl}
+                alt={t(lang, "media.thumbnail")}
+                width={1280}
+                height={720}
+                loading="lazy"
+                className="aspect-video w-full rounded-lg object-contain"
+              />
+            </figure>
           )}
-        </h2>
+        </section>
         <PublishPanel
           renderId={master?.id}
           defaults={defaults}

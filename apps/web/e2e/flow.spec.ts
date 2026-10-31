@@ -55,6 +55,7 @@ test("admin completes the French song-to-public-video flow", async ({
     .single();
   if (versionError || !version)
     throw versionError ?? new Error("French version was not found");
+  const versionId = version.id;
   const { count: beforeConfirm, error: beforeError } = await db
     .from("jobs")
     .select("id", { count: "exact", head: true })
@@ -67,7 +68,7 @@ test("admin completes the French song-to-public-video flow", async ({
     const { count, error } = await db
       .from("jobs")
       .select("id", { count: "exact", head: true })
-      .eq("version_id", version.id)
+      .eq("version_id", versionId)
       .eq("stage", "set_privacy");
     if (error) throw error;
     return count;

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkerBadge } from "@/components/worker-badge";
 import { requireProfile } from "@/lib/auth";
 import { getLocale } from "@/lib/locale";
+import { orderedVersions } from "@/lib/versions";
 
 type Project = {
   id: string;
@@ -54,14 +55,18 @@ export default async function LibraryPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <Link href={`/projects/${project.id}`} key={project.id}>
+            <Link
+              href={`/projects/${project.id}`}
+              key={project.id}
+              className="group block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
+            >
               <Card className="h-full transition hover:-translate-y-0.5 hover:shadow-md">
                 <CardHeader>
                   <CardTitle>{project.topic}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-1">
-                    {project.versions.map((version) => (
+                    {orderedVersions(project.versions).map((version) => (
                       <Badge variant="secondary" key={version.lang}>
                         {version.lang.toUpperCase()} ·{" "}
                         {t(

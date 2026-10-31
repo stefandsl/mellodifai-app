@@ -270,6 +270,12 @@ export function LiveTimeline({
       unsubscribe();
     };
   }, [ids, versionId]);
+  if (jobs.length === 0)
+    return (
+      <p className="mt-3 text-sm text-muted-foreground">
+        {t(lang, "pipeline.imported")}
+      </p>
+    );
   return (
     <ol className="space-y-3 border-l pl-5">
       {jobs.map((job) => {

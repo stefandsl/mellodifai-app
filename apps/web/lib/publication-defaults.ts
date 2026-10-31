@@ -1,4 +1,51 @@
 import { t } from "@mellodifai/shared";
+
+function defaultTags(title: string, language: string, lyricTag: string) {
+  const unique = (words: string[]) => [
+    ...new Map(words.map((word) => [word.toLocaleLowerCase(), word])).values(),
+  ];
+  const acronyms = [...title.matchAll(/[([]([^\])]+)[)\]]/gu)]
+    .flatMap((match) => match[1].match(/[\p{L}\p{N}]+/gu) ?? [])
+    .filter((word) => word === word.toLocaleUpperCase());
+  const words =
+    title.replace(/[([][^\])]*[)\]]/gu, " ").match(/[\p{L}\p{N}]+/gu) ?? [];
+  // Keep the recognizable full title phrase (including short connecting words),
+  // but never emit a standalone one/two-letter word unless it is an acronym.
+  const seen = new Set<string>();
+  const phrase = words
+    .filter((word) => {
+      const key = word.toLocaleLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(" ");
+  const suffix = unique([lyricTag, language]);
+  const candidates = unique([
+    ...(phrase.length > 2 ? [phrase] : []),
+    ...acronyms,
+  ]);
+  const selected: string[] = [];
+  for (const candidate of candidates) {
+    if (
+      suffix.some(
+        (tag) => tag.toLocaleLowerCase() === candidate.toLocaleLowerCase(),
+      )
+    )
+      continue;
+    const value = [...selected, candidate, ...suffix].join(", ");
+    // Reserve separators and YouTube's extra quotation characters for spaced tags.
+    if (
+      value.length +
+        [...selected, candidate, ...suffix].filter((tag) => tag.includes(" "))
+          .length *
+          2 <=
+      500
+    )
+      selected.push(candidate);
+  }
+  return [...selected, ...suffix].join(", ");
+}
 export function publicationDefaults(
   title: string,
   brief: string,
@@ -33,9 +80,7 @@ export function publicationDefaults(
     description: [brief, t(locale, "publish.credits")]
       .filter(Boolean)
       .join("\n\n"),
-    tags: [
-      ...new Set([...title.split(/\s+/u), language, t(locale, "publish.tag")]),
-    ].join(", "),
+    tags: defaultTags(title, language, t(locale, "publish.tag")),
     chapters: chapters.join("\n"),
   };
 }
