@@ -4,11 +4,14 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias: { "@": path.resolve(__dirname, ".") } },
+  resolve: { alias: { "@": path.resolve(import.meta.dirname, ".") } },
   test: {
     environment: "jsdom",
     pool: "threads",
-    execArgv: ["--require", path.resolve(__dirname, "test/node-polyfills.cjs")],
+    execArgv: [
+      "--require",
+      path.resolve(import.meta.dirname, "test/node-polyfills.cjs"),
+    ],
     setupFiles: ["./test/setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
   },

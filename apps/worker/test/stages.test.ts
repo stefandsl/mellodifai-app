@@ -21,7 +21,13 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     ...fs,
     readFile: (...args: Parameters<typeof fs.readFile>) =>
       String(args[0]).includes("suno-remake")
-        ? Promise.resolve("reference pack fixture")
+        ? Promise.resolve(
+            String(args[0]).endsWith("lyrics.txt")
+              ? Array.from({ length: 80 }, () => "reference pack fixture").join(
+                  "\n",
+                )
+              : "reference pack fixture",
+          )
         : fs.readFile(...args),
   };
 });

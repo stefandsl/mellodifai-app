@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { LyricPackSchema, validateLyricPack } from "@mellodifai/shared";
+import { optionalText } from "../legacy-import.js";
 import type { StageHandler } from "../loop.js";
 import { ENGINE_ROOT } from "./utils.js";
 
@@ -16,9 +17,31 @@ const reference = async (lang: string) =>
       "storyboard-l10n.json",
     ].map(
       async (name) =>
-        `${name}:\n${await readFile(join(ENGINE_ROOT, "versions", lang, name), "utf8")}`,
+        `${name}:\n${await (["lyrics.txt", "title.txt", "style.txt"].includes(name) ? readFile(join(ENGINE_ROOT, "versions", lang, name), "utf8") : optionalText(join(ENGINE_ROOT, "versions", lang, name), name.endsWith(".json") ? "{}" : ""))}`,
     ),
   ).then((files) => files.join("\n\n"));
+
+function sungLines(lyrics: string) {
+  return lyrics
+    .split(/\r?\n/u)
+    .filter((line) => line.trim() && !line.trim().startsWith("[")).length;
+}
+
+export async function draftReference(lang: string) {
+  const target = await reference(lang);
+  const lyrics = await readFile(
+    join(ENGINE_ROOT, "versions", lang, "lyrics.txt"),
+    "utf8",
+  );
+  if (sungLines(lyrics) === 80) return target;
+  const italianLyrics = await readFile(
+    join(ENGINE_ROOT, "versions", "it", "lyrics.txt"),
+    "utf8",
+  );
+  if (sungLines(italianLyrics) !== 80)
+    throw new Error("Italian VBP template must contain 80 sung lines");
+  return `80-line structural template (Italian; translate into the requested language):\n${await reference("it")}\n\nStyle/vocabulary only (ignore this reference's line count and structure):\n${target}`;
+}
 
 export const draftLyrics: StageHandler = async (context) => {
   const cap = Number(context.secrets.values.LYRICS_DAILY_CAP ?? "50");
@@ -37,7 +60,7 @@ export const draftLyrics: StageHandler = async (context) => {
   } catch {}
   const count = state.day === today ? (state.count ?? 0) : 0;
   if (count >= cap) throw new Error("daily lyrics cap reached");
-  const template = await reference(context.version.lang);
+  const template = await draftReference(context.version.lang);
   let correction = "";
   for (let call = 0; call < 3; call += 1) {
     if (count + call >= cap) throw new Error("daily lyrics cap reached");
