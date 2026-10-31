@@ -1,0 +1,153 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  approveVideo: vi.fn(async () => ({ ok: true })),
+  rerenderVideo: vi.fn(async () => ({ ok: true })),
+  toast: vi.fn(),
+}));
+vi.mock("sonner", () => ({ toast: { error: mocks.toast } }));
+vi.mock("@/app/actions/checkpoints", () => ({
+  ...mocks,
+  approveLyrics: vi.fn(),
+  generateAgain: vi.fn(),
+  pickTake: vi.fn(),
+  setPrivacy: vi.fn(),
+  uploadPrivate: vi.fn(),
+  retryStage: vi.fn(),
+}));
+
+import { ConfirmDialog } from "./confirm-dialog";
+import { LocaleProvider } from "./locale-provider";
+import { LyricEditor } from "./lyric-editor";
+import { ProjectWorkspace, PublishPanel } from "./project-workspace";
+
+beforeEach(() => vi.clearAllMocks());
+it.each(["it", "en"] as const)(
+  "renders QA values and requires a reason before override in %s",
+  async (lang) => {
+    render(
+      <LocaleProvider value={lang}>
+        <ProjectWorkspace
+          version={{
+            id: "v",
+            lang: "fr",
+            status: "video_review",
+            lyric_pack: null,
+            generation_count: 2,
+            render_attempt: 3,
+          }}
+          takes={[]}
+          publication={null}
+          renders={[
+            {
+              id: "r",
+              kind: "master",
+              previewUrl: null,
+              qa_results: {
+                gates: [
+                  { name: "integrated_loudness", pass: false, value: -10 },
+                  { name: "true_peak", pass: true, value: -1.5 },
+                ],
+              },
+            },
+          ]}
+        />
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("-10")).toBeInTheDocument();
+    expect(screen.getByText("-1.5")).toBeInTheDocument();
+    const approve = screen.getByRole("button", {
+      name: lang === "en" ? "Approve video" : "Approva video",
+    });
+    expect(approve).toBeDisabled();
+    fireEvent.change(
+      screen.getByLabelText(
+        lang === "en"
+          ? "Approval override reason"
+          : "Motivo approvazione con eccezione",
+      ),
+      { target: { value: "Reviewed louder mix" } },
+    );
+    await userEvent.click(approve);
+    expect(mocks.approveVideo).toHaveBeenCalledWith({
+      versionId: "v",
+      overrideReason: "Reviewed louder mix",
+    });
+  },
+);
+it("keeps a failed confirmation usable, toasts the error and disables pending clicks", async () => {
+  let resolve: (r: { ok: false; error: string }) => void = () => {};
+  const action = vi.fn(
+    () =>
+      new Promise<{ ok: false; error: string }>((r) => {
+        resolve = r;
+      }),
+  );
+  render(
+    <LocaleProvider value="en">
+      <ConfirmDialog trigger="Open" title="Review" onConfirm={action}>
+        Song
+      </ConfirmDialog>
+    </LocaleProvider>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Open" }));
+  await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+  expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+  expect(action).toHaveBeenCalledTimes(1);
+  resolve({ ok: false, error: "Try again" });
+  await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith("Try again"));
+  expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Confirm" })).not.toBeDisabled();
+});
+it("prefills the editable publication form in English", () => {
+  render(
+    <LocaleProvider value="en">
+      <PublishPanel
+        renderId="r"
+        publication={null}
+        defaults={{
+          title: "Song | Lyric video",
+          description: "Brief and credits",
+          tags: "song, en",
+          chapters: "0:00 Intro",
+        }}
+      />
+    </LocaleProvider>,
+  );
+  expect(screen.getByLabelText("Video title")).toHaveValue(
+    "Song | Lyric video",
+  );
+  expect(screen.getByLabelText("Chapters")).toHaveValue("0:00 Intro");
+});
+it("enables lyric approval only after fixing both title and line count", () => {
+  const pack = {
+    title: "",
+    lyrics: "one",
+    style: "Pop",
+    exclude: "",
+    settings: {
+      model: "V6" as const,
+      vocalGender: "f" as const,
+      styleWeight: 0.7,
+      weirdness: 0.35,
+      duration: 310,
+    },
+    displayMap: {},
+    l10n: {},
+  };
+  render(
+    <LocaleProvider value="en">
+      <LyricEditor pack={pack} theme="vbp" onApprove={vi.fn()} />
+    </LocaleProvider>,
+  );
+  expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Title"), {
+    target: { value: "Song" },
+  });
+  fireEvent.change(screen.getByLabelText("Lyrics"), {
+    target: { value: Array.from({ length: 80 }, () => "line").join("\n") },
+  });
+  expect(screen.getByRole("button", { name: "Approve" })).not.toBeDisabled();
+});

@@ -1,47 +1,18 @@
 "use server";
-
-import { revalidatePath } from "next/cache";
-
-import { actionProfile } from "@/lib/auth";
+import { runAction } from "@/lib/run-action";
 import { CreateProjectInput } from "./schemas";
-
 export async function createProject(input: unknown) {
-  const value = CreateProjectInput.parse(input);
-  const { supabase, user } = await actionProfile();
-  const { data: project, error } = await supabase
-    .from("projects")
-    .insert({
-      topic: value.topic,
-      brief: value.brief,
-      style: value.style,
-      mood: value.mood,
-      vocal_gender: value.vocalGender,
-      theme: "vbp",
-    })
-    .select("id")
-    .single();
-  if (error || !project)
-    throw new Error(error?.message ?? "Unable to create project");
-  const versions = value.languages.map((lang) => ({
-    project_id: project.id,
-    lang,
-    lyric_pack: { settings: { vocalGender: value.vocalGender } },
-  }));
-  const { data: inserted, error: versionsError } = await supabase
-    .from("versions")
-    .insert(versions)
-    .select("id");
-  if (versionsError || !inserted)
-    throw new Error(versionsError?.message ?? "Unable to create versions");
-  const { error: jobsError } = await supabase.from("jobs").insert(
-    inserted.map((version) => ({
-      owner_id: user.id,
-      version_id: version.id,
-      stage: "draft_lyrics",
-      idempotency_key: `draft_lyrics:${version.id}:1`,
-    })),
-  );
-  if (jobsError) throw new Error(jobsError.message);
-  revalidatePath("/library");
-  return project.id;
+  return runAction(async (db) => {
+    const v = CreateProjectInput.parse(input);
+    const { data, error } = await db.rpc("create_project", {
+      p_topic: v.topic,
+      p_brief: v.brief,
+      p_languages: [...new Set(v.languages)],
+      p_style: v.style,
+      p_mood: v.mood,
+      p_vocal_gender: v.vocalGender,
+    });
+    if (error) throw error;
+    return { projectId: data as string };
+  });
 }

@@ -224,6 +224,7 @@ export function createFakeStages(
           await ctx.db.upsertRender({
             ...(ctx.version.owner_id ? { owner_id: ctx.version.owner_id } : {}),
             version_id: ctx.version.id,
+            render_attempt: ctx.version.render_attempt ?? 1,
             kind,
             path,
             preview_path: preview,

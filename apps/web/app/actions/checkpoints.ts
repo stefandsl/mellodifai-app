@@ -1,113 +1,118 @@
 "use server";
-
 import { validateLyricPack } from "@mellodifai/shared";
-import { revalidatePath } from "next/cache";
-
-import { actionProfile } from "@/lib/auth";
+import { runAction } from "@/lib/run-action";
 import {
+  GenerateAgainInput,
   PickTakeInput,
   PublicationInput,
-  RerenderInput,
+  RetryInput,
   SetPrivacyInput,
   UpdateLyricsInput,
   VersionIdInput,
   VideoApprovalInput,
 } from "./schemas";
-
-function refresh(versionId: string) {
-  revalidatePath(`/projects/${versionId}`);
-}
-
 export async function approveLyrics(input: unknown) {
-  const value = UpdateLyricsInput.parse(input);
-  const valid = validateLyricPack(value.pack, "vbp");
-  if (!valid.ok) throw new Error(valid.errors.join("; "));
-  const { supabase } = await actionProfile();
-  const { error } = await supabase
-    .from("versions")
-    .update({ lyric_pack: value.pack })
-    .eq("id", value.versionId);
-  if (error) throw new Error(error.message);
-  const { error: jobError } = await supabase.rpc("transition_version", {
-    p_version: value.versionId,
-    p_action: "approve_lyrics",
+  return runAction(async (db) => {
+    const v = UpdateLyricsInput.parse(input);
+    if (!validateLyricPack(v.pack, "vbp").ok) throw new Error("invalid pack");
+    const { error } = await db.rpc("approve_lyrics", {
+      p_version: v.versionId,
+      p_pack: v.pack,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
   });
-  if (jobError) throw new Error(jobError.message);
-  refresh(value.versionId);
 }
-
 export async function pickTake(input: unknown) {
-  const value = PickTakeInput.parse(input);
-  const { supabase } = await actionProfile();
-  const { error } = await supabase.rpc("transition_version", {
-    p_version: value.versionId,
-    p_action: "pick_take",
-    p_take: value.takeId,
+  return runAction(async (db) => {
+    const v = PickTakeInput.parse(input);
+    const { error } = await db.rpc("pick_take", {
+      p_version: v.versionId,
+      p_take: v.takeId,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
   });
-  if (error) throw new Error(error.message);
-  refresh(value.versionId);
 }
-
 export async function generateAgain(input: unknown) {
-  const { versionId } = VersionIdInput.parse(input);
-  const { supabase } = await actionProfile();
-  const { error } = await supabase.rpc("transition_version", {
-    p_version: versionId,
-    p_action: "generate_again",
+  return runAction(async (db) => {
+    const v = GenerateAgainInput.parse(input);
+    const { error } = await db.rpc("generate_again", {
+      p_version: v.versionId,
+      p_generation: v.generation,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
   });
-  if (error) throw new Error(error.message);
-  refresh(versionId);
 }
-
 export async function approveVideo(input: unknown) {
-  const value = VideoApprovalInput.parse(input);
-  const { supabase } = await actionProfile();
-  const { error } = await supabase.rpc("transition_version", {
-    p_version: value.versionId,
-    p_action: "approve_video",
+  return runAction(async (db) => {
+    const v = VideoApprovalInput.parse(input);
+    const { error } = await db.rpc("approve_video", {
+      p_version: v.versionId,
+      p_override_reason: v.overrideReason ?? null,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
   });
-  if (error) throw new Error(error.message);
-  refresh(value.versionId);
 }
-
 export async function rerenderVideo(input: unknown) {
-  const { versionId } = RerenderInput.parse(input);
-  const { supabase } = await actionProfile();
-  const { error } = await supabase.rpc("transition_version", {
-    p_version: versionId,
-    p_action: "render_again",
+  return runAction(async (db) => {
+    const v = VersionIdInput.parse(input);
+    const { error } = await db.rpc("render_again", { p_version: v.versionId });
+    if (error) throw error;
+    return { versionId: v.versionId };
   });
-  if (error) throw new Error(error.message);
-  refresh(versionId);
 }
-
+export async function retryStage(input: unknown) {
+  return runAction(async (db) => {
+    const v = RetryInput.parse(input);
+    const { error } = await db.rpc("retry_stage", {
+      p_version: v.versionId,
+      p_job: v.jobId,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
+  });
+}
 export async function uploadPrivate(input: unknown) {
-  const value = PublicationInput.parse(input);
-  const { supabase } = await actionProfile();
-  const { data: render, error: renderError } = await supabase
-    .from("renders")
-    .select("version_id")
-    .eq("id", value.renderId)
-    .single();
-  if (renderError || !render)
-    throw new Error(renderError?.message ?? "Unable to find render");
-  const { error: jobError } = await supabase.from("jobs").insert({
-    version_id: render.version_id,
-    stage: "publish",
-    idempotency_key: `publish:${value.renderId}`,
-    payload: { render_id: value.renderId, metadata: value.metadata },
+  return runAction(async (db) => {
+    const v = PublicationInput.parse(input);
+    const { data: r, error: readError } = await db
+      .from("renders")
+      .select("version_id")
+      .eq("id", v.renderId)
+      .single();
+    if (readError) throw readError;
+    const { error } = await db.rpc("enqueue_publish", {
+      p_render: v.renderId,
+      p_metadata: v.metadata,
+    });
+    if (error) throw error;
+    return { versionId: r.version_id };
   });
-  if (jobError) throw new Error(jobError.message);
-  refresh(render.version_id);
 }
-
 export async function setPrivacy(input: unknown) {
-  const value = SetPrivacyInput.parse(input);
-  const { supabase } = await actionProfile();
-  const { error } = await supabase.rpc("confirm_publication", {
-    p_publication: value.publicationId,
-    p_privacy: value.privacy,
-    p_publish_at: value.publishAt ?? null,
+  return runAction(async (db) => {
+    const v = SetPrivacyInput.parse(input);
+    const { data: p, error: readError } = await db
+      .from("publications")
+      .select("render_id")
+      .eq("id", v.publicationId)
+      .single();
+    if (readError) throw readError;
+    const { data: r, error: renderError } = await db
+      .from("renders")
+      .select("version_id")
+      .eq("id", p.render_id)
+      .single();
+    if (renderError) throw renderError;
+    const { error } = await db.rpc("confirm_publication", {
+      p_publication: v.publicationId,
+      p_privacy: v.privacy,
+      p_publish_at: v.publishAt ?? null,
+    });
+    if (error) throw error;
+    return { versionId: r.version_id };
   });
-  if (error) throw new Error(error.message);
 }

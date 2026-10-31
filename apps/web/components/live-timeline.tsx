@@ -1,65 +1,158 @@
 "use client";
-
-import type { Stage } from "@mellodifai/shared";
-import { useEffect, useState } from "react";
-
+import {
+  type JobStatus,
+  type Stage,
+  t,
+  type VersionStatus,
+} from "@mellodifai/shared";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
-
-type Job = { id: string; stage: Stage; status: string; created_at: string };
-type Event = {
+import { upsertJob } from "@/lib/timeline";
+import { useLocale } from "./locale-provider";
+export type TimelineJob = {
+  id: string;
+  version_id: string;
+  stage: Stage;
+  status: JobStatus;
+  created_at: string;
+  error?: string | null;
+};
+export type TimelineEvent = {
   id: number;
   job_id: string;
   message: string;
   progress: number | null;
 };
-
 export function LiveTimeline({
-  projectId,
+  versionId,
+  status,
   initialJobs,
   initialEvents,
 }: {
-  projectId: string;
-  initialJobs: Job[];
-  initialEvents: Event[];
+  versionId: string;
+  status: VersionStatus;
+  initialJobs: TimelineJob[];
+  initialEvents: TimelineEvent[];
 }) {
   const [jobs, setJobs] = useState(initialJobs);
   const [events, setEvents] = useState(initialEvents);
+  const lang = useLocale();
+  const router = useRouter();
+  const currentStatus = useRef(status);
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`project:${projectId}`)
+    setJobs(initialJobs);
+    setEvents(initialEvents);
+    currentStatus.current = status;
+  }, [initialJobs, initialEvents, status]);
+  useEffect(() => {
+    const db = createClient();
+    const channel = db
+      .channel(`version:${versionId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "jobs" },
-        (payload) => {
-          const job = payload.new as Job;
-          setJobs((old) => [...old.filter((item) => item.id !== job.id), job]);
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "jobs",
+          filter: `version_id=eq.${versionId}`,
+        },
+        (p) => {
+          const j = p.new as TimelineJob;
+          if (j.version_id === versionId) setJobs((old) => upsertJob(old, j));
         },
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "job_events" },
-        (payload) => setEvents((old) => [...old, payload.new as Event]),
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "jobs",
+          filter: `version_id=eq.${versionId}`,
+        },
+        (p) => {
+          const j = p.new as TimelineJob;
+          if (j.version_id === versionId) setJobs((old) => upsertJob(old, j));
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "versions",
+          filter: `id=eq.${versionId}`,
+        },
+        (p) => {
+          if (p.new.status !== currentStatus.current) {
+            currentStatus.current = p.new.status;
+            router.refresh();
+          }
+        },
       )
       .subscribe();
     return () => {
-      void supabase.removeChannel(channel);
+      void db.removeChannel(channel);
     };
-  }, [projectId]);
+  }, [versionId, router]);
+  const ids = jobs
+    .map((j) => j.id)
+    .sort()
+    .join(",");
+  useEffect(() => {
+    if (!ids) return;
+    let active = true;
+    const db = createClient();
+    const channel = db
+      .channel(`events:${versionId}:${ids}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "job_events",
+          filter: `job_id=in.(${ids})`,
+        },
+        (p) => {
+          const event = p.new as TimelineEvent;
+          if (ids.split(",").includes(event.job_id))
+            setEvents((old) =>
+              [...old.filter((e) => e.id !== event.id), event]
+                .sort((a, b) => a.id - b.id)
+                .slice(-200),
+            );
+        },
+      )
+      .subscribe();
+    void db
+      .from("job_events")
+      .select("id,job_id,message,progress")
+      .in("job_id", ids.split(","))
+      .order("id", { ascending: false })
+      .limit(200)
+      .then(({ data }) => {
+        if (active && data)
+          setEvents((old) => {
+            const merged = new Map([...data, ...old].map((e) => [e.id, e]));
+            return [...merged.values()].sort((a, b) => a.id - b.id).slice(-200);
+          });
+      });
+    return () => {
+      active = false;
+      void db.removeChannel(channel);
+    };
+  }, [ids, versionId]);
   return (
     <ol className="space-y-3 border-l pl-5">
       {jobs.map((job) => {
-        const event = events.filter((item) => item.job_id === job.id).at(-1);
+        const event = events.filter((e) => e.job_id === job.id).at(-1);
         return (
-          <li key={job.id} className="relative">
-            <span className="absolute -left-[1.8rem] top-1 size-3 rounded-full bg-[#7C5CFF]" />
-            <p className="font-medium">{job.stage.replaceAll("_", " ")}</p>
+          <li key={job.id}>
+            <p>{t(lang, `stage.${job.stage}`)}</p>
             <p className="text-sm text-muted-foreground">
-              {job.status}
-              {event?.progress !== null && event?.progress !== undefined
-                ? ` · ${event.progress}%`
-                : ""}
-              {event?.message ? ` · ${event.message}` : ""}
+              {t(lang, `job.${job.status}`)}{" "}
+              {event?.progress != null ? `${event.progress}%` : ""}{" "}
+              {event?.message}
             </p>
           </li>
         );

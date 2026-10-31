@@ -14,14 +14,20 @@ export default async function LoginPage({
     <main className="grid min-h-screen place-items-center bg-[#fbfdfc] p-5">
       <section className="w-full max-w-md rounded-2xl border bg-white p-7 shadow-sm">
         <p className="text-lg font-semibold">
-          mellodifai<span className="text-[#7C5CFF]">.</span>
+          {t(lang, "app.name")}
+          <span className="text-[#7C5CFF]">.</span>
         </p>
         <h1 className="mt-8 text-2xl font-semibold">
           {t(lang, "auth.sendLink")}
         </h1>
-        {params.message === "not-allowed" && (
+        {params.message && (
           <p role="alert" className="mt-3 text-sm text-destructive">
-            {t(lang, "auth.notAllowed")}
+            {t(
+              lang,
+              params.message === "invalid-link"
+                ? "auth.invalidLink"
+                : "auth.notAllowed",
+            )}
           </p>
         )}
         <LoginForm lang={lang} />

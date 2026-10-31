@@ -43,7 +43,7 @@ export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
     drafting: ["draft_lyrics"],
     lyrics_review: ["draft_lyrics"],
     song_queued: ["generate_song"],
-    takes_review: ["timing"],
+    takes_review: [],
     producing: [
       "timing",
       "storyboard",

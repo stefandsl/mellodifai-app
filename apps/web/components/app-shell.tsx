@@ -18,7 +18,8 @@ export function AppShell({
             href="/library"
             className="text-lg font-semibold tracking-tight"
           >
-            mellodifai<span className="text-[#7C5CFF]">.</span>
+            {t(lang, "app.name")}
+            <span className="text-[#7C5CFF]">.</span>
           </Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/library">{t(lang, "nav.library")}</Link>

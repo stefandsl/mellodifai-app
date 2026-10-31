@@ -1,48 +1,74 @@
 "use client";
-
-import type { LyricPack } from "@mellodifai/shared";
+import { type LyricPack, t, type VersionStatus } from "@mellodifai/shared";
 import { useState } from "react";
-
 import {
   approveLyrics,
   approveVideo,
   generateAgain,
   pickTake,
   rerenderVideo,
+  retryStage,
   setPrivacy,
   uploadPrivate,
 } from "@/app/actions/checkpoints";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { publicationDefaults } from "@/lib/publication-defaults";
+import { useLocale } from "./locale-provider";
 import { LyricEditor } from "./lyric-editor";
 import { PublishConfirmDialog } from "./publish-confirm-dialog";
 import { type Take, TakePicker } from "./take-picker";
-
-type Render = {
+import { useAction } from "./use-action";
+export type RenderPreview = {
   id: string;
   kind: string;
   previewUrl: string | null;
-  qa_results: Record<string, boolean>;
+  qa_results: { gates?: { name: string; pass: boolean; value: unknown }[] };
+};
+export type PublicationView = {
+  id: string;
+  youtube_video_id: string | null;
+  privacy: "public" | "unlisted" | "scheduled" | "private";
+  metadata?: { title?: string };
+};
+export type WorkspaceVersion = {
+  id: string;
+  lang: string;
+  status: VersionStatus;
+  lyric_pack: LyricPack | null;
+  generation_count: number;
+  render_attempt: number;
+  storyboard_sections?: unknown;
 };
 export function ProjectWorkspace({
   version,
   takes,
   renders,
   publication,
+  brief = "",
+  failedJob,
 }: {
-  version: { id: string; status: string; lyric_pack: LyricPack | null };
+  version: WorkspaceVersion;
   takes: Take[];
-  renders: Render[];
-  publication: {
-    id: string;
-    youtube_video_id: string | null;
-    privacy: "public" | "unlisted" | "scheduled" | "private";
-  } | null;
+  renders: RenderPreview[];
+  publication: PublicationView | null;
+  brief?: string;
+  failedJob?: { id: string; error: string | null };
 }) {
-  const [overrideReason, setOverrideReason] = useState("");
-  const master = renders.find((render) => render.kind === "master");
-  const hook = renders.find((render) => render.kind === "hook");
+  const lang = useLocale();
+  const { pending, run } = useAction();
+  const [reason, setReason] = useState("");
+  const master = renders.find((r) => r.kind === "master");
+  const gates = master?.qa_results.gates ?? [];
+  const failed = gates.some((g) => !g.pass);
+  const defaults = publicationDefaults(
+    version.lyric_pack?.title ?? "",
+    brief,
+    version.lang,
+    version.storyboard_sections,
+    lang,
+  );
   if (version.status === "lyrics_review" && version.lyric_pack)
     return (
       <LyricEditor
@@ -56,104 +82,180 @@ export function ProjectWorkspace({
       <TakePicker
         takes={takes}
         onPick={(takeId) => pickTake({ versionId: version.id, takeId })}
-        onGenerateAgain={() => generateAgain({ versionId: version.id })}
+        onGenerateAgain={() =>
+          generateAgain({
+            versionId: version.id,
+            generation: version.generation_count,
+          })
+        }
       />
     );
   if (version.status === "video_review")
     return (
       <section className="space-y-4">
-        {master?.previewUrl && (
-          // biome-ignore lint/a11y/useMediaCaption: captions are included in the upload stage.
-          <video
-            controls
-            className="w-full rounded-xl"
-            src={master.previewUrl}
-          />
-        )}
-        {hook?.previewUrl && (
-          // biome-ignore lint/a11y/useMediaCaption: captions are included in the upload stage.
-          <video controls className="w-full rounded-xl" src={hook.previewUrl} />
+        {renders.map(
+          (r) =>
+            r.previewUrl && (
+              // biome-ignore lint/a11y/useMediaCaption: lyric video contains the reviewed lyrics.
+              <video
+                key={r.id}
+                controls
+                className="w-full rounded-xl"
+                src={r.previewUrl}
+              />
+            ),
         )}
         <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th>{t(lang, "qa.gate")}</th>
+              <th>{t(lang, "qa.value")}</th>
+              <th>{t(lang, "pipeline.title")}</th>
+            </tr>
+          </thead>
           <tbody>
-            {Object.entries(master?.qa_results ?? {}).map(([name, passed]) => (
-              <tr key={name}>
-                <td className="border-b py-2">{name}</td>
-                <td className="border-b py-2">{passed ? "Pass" : "Fail"}</td>
+            {gates.map((g) => (
+              <tr key={g.name}>
+                <td>
+                  {[
+                    "integrated_loudness",
+                    "true_peak",
+                    "crushed_words",
+                    "duration",
+                  ].includes(g.name)
+                    ? t(lang, `qa.${g.name}` as "qa.duration")
+                    : g.name}
+                </td>
+                <td>
+                  {typeof g.value === "object"
+                    ? JSON.stringify(g.value)
+                    : g.value === "not measured"
+                      ? t(lang, "qa.notMeasured")
+                      : String(g.value ?? "")}
+                </td>
+                <td>{t(lang, g.pass ? "qa.pass" : "qa.fail")}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <Button onClick={() => approveVideo({ versionId: version.id })}>
-          Approva video
-        </Button>
-        <div className="flex gap-2">
-          <Input
-            aria-label="Override reason"
-            placeholder="Motivo override"
-            value={overrideReason}
-            onChange={(event) => setOverrideReason(event.target.value)}
-          />
+        {failed && (
+          <label htmlFor="override-reason">
+            {t(lang, "qa.override")}
+            <Input
+              id="override-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+        )}
+        <div className="flex flex-wrap gap-2">
           <Button
-            variant="outline"
-            disabled={overrideReason.trim().length < 3}
+            disabled={
+              pending || !gates.length || (failed && reason.trim().length < 3)
+            }
             onClick={() =>
-              rerenderVideo({ versionId: version.id, overrideReason })
+              run(() =>
+                approveVideo({ versionId: version.id, overrideReason: reason }),
+              )
             }
           >
-            Rigenera video
+            {t(lang, "action.approveVideo")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => run(() => rerenderVideo({ versionId: version.id }))}
+          >
+            {t(lang, "action.rerender")}
           </Button>
         </div>
       </section>
     );
-  if (version.status === "approved" || version.status === "publishing")
-    return <PublishPanel renderId={master?.id} publication={publication} />;
-  return (
-    <p className="text-muted-foreground">
-      Il prossimo passaggio verra' mostrato qui.
-    </p>
-  );
+  if (version.status === "failed")
+    return (
+      <section className="space-y-4">
+        <h2>{t(lang, "status.failed")}</h2>
+        <p role="alert">{failedJob?.error}</p>
+        <Button
+          disabled={pending || !failedJob}
+          onClick={() => {
+            if (failedJob)
+              run(() =>
+                retryStage({ versionId: version.id, jobId: failedJob.id }),
+              );
+          }}
+        >
+          {t(lang, "action.retry")}
+        </Button>
+      </section>
+    );
+  if (version.status === "song_queued") return <p>{t(lang, "panel.queued")}</p>;
+  if (["approved", "publishing", "published"].includes(version.status))
+    return (
+      <>
+        <h2>
+          {t(
+            lang,
+            version.status === "published"
+              ? "panel.published"
+              : `status.${version.status}`,
+          )}
+        </h2>
+        <PublishPanel
+          renderId={master?.id}
+          defaults={defaults}
+          publication={publication}
+          uploading={version.status === "publishing"}
+        />
+      </>
+    );
+  return <p className="text-muted-foreground">{t(lang, "panel.wait")}</p>;
 }
-
-function PublishPanel({
+export function PublishPanel({
   renderId,
+  defaults,
   publication,
+  uploading = false,
 }: {
   renderId?: string;
-  publication: {
-    id: string;
-    youtube_video_id: string | null;
-    privacy: "public" | "unlisted" | "scheduled" | "private";
-  } | null;
+  defaults: ReturnType<typeof publicationDefaults>;
+  publication: PublicationView | null;
+  uploading?: boolean;
 }) {
+  const lang = useLocale();
+  const { pending, run } = useAction();
   const [publishAt, setPublishAt] = useState("");
   if (publication?.youtube_video_id)
     return (
-      <section className="space-y-3">
-        <p>Video: {publication.youtube_video_id}</p>
-        <label
-          className="block text-sm"
-          htmlFor={`publish-at-${publication.id}`}
-        >
-          Data e ora di pubblicazione
+      <section className="space-y-4">
+        <p>
+          {t(lang, "publish.video")}:{" "}
+          {publication.metadata?.title ?? defaults.title}
+        </p>
+        <label htmlFor="publish-at">
+          {t(lang, "publish.at")}
           <Input
-            id={`publish-at-${publication.id}`}
+            id="publish-at"
             type="datetime-local"
             value={publishAt}
-            onChange={(event) => setPublishAt(event.target.value)}
+            onChange={(e) => setPublishAt(e.target.value)}
           />
         </label>
         <div className="flex flex-wrap gap-2">
           {(["public", "unlisted", "scheduled"] as const).map((privacy) => (
             <PublishConfirmDialog
               key={privacy}
-              videoName={publication.youtube_video_id ?? "video"}
+              videoName={publication.metadata?.title ?? defaults.title}
               privacy={privacy}
+              disabled={
+                privacy === "scheduled" &&
+                (!publishAt || Date.parse(publishAt) <= Date.now())
+              }
               onConfirm={() =>
                 setPrivacy({
                   publicationId: publication.id,
                   privacy,
-                  ...(privacy === "scheduled" && publishAt
+                  ...(privacy === "scheduled"
                     ? { publishAt: new Date(publishAt).toISOString() }
                     : {}),
                 })
@@ -163,27 +265,49 @@ function PublishPanel({
         </div>
       </section>
     );
+  if (uploading) return <p>{t(lang, "publish.wait")}</p>;
   return (
     <form
-      className="space-y-3"
-      action={async (data) => {
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
         if (renderId)
-          await uploadPrivate({
-            renderId,
-            metadata: {
-              title: String(data.get("title")),
-              description: String(data.get("description")),
-              tags: String(data.get("tags")),
-              chapters: String(data.get("chapters")),
-            },
-          });
+          run(() =>
+            uploadPrivate({
+              renderId,
+              metadata: Object.fromEntries(
+                ["title", "description", "tags", "chapters"].map((k) => [
+                  k,
+                  String(data.get(k)),
+                ]),
+              ),
+            }),
+          );
       }}
     >
-      <Input name="title" placeholder="Titolo video" required />
-      <Textarea name="description" placeholder="Descrizione" />
-      <Input name="tags" placeholder="Tag" />
-      <Textarea name="chapters" placeholder="Capitoli" />
-      <Button>Carica come privato</Button>
+      {(["title", "description", "tags", "chapters"] as const).map((field) => (
+        <label className="grid gap-2" key={field} htmlFor={`publish-${field}`}>
+          {t(lang, `publish.${field}`)}
+          {field === "title" || field === "tags" ? (
+            <Input
+              id={`publish-${field}`}
+              name={field}
+              defaultValue={defaults[field]}
+              required={field === "title"}
+            />
+          ) : (
+            <Textarea
+              id={`publish-${field}`}
+              name={field}
+              defaultValue={defaults[field]}
+            />
+          )}
+        </label>
+      ))}
+      <Button type="submit" disabled={pending || !renderId}>
+        {t(lang, "action.uploadPrivate")}
+      </Button>
     </form>
   );
 }

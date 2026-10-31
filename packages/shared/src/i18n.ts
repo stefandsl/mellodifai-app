@@ -1,4 +1,12 @@
 export type DictKey =
+  | "app.description"
+  | "value.unknown"
+  | "qa.integrated_loudness"
+  | "qa.true_peak"
+  | "qa.crushed_words"
+  | "qa.duration"
+  | "qa.notMeasured"
+  | "publish.tag"
   | "app.name"
   | "nav.library"
   | "nav.newProject"
@@ -41,11 +49,143 @@ export type DictKey =
   | "publish.title"
   | "publish.description"
   | "publish.tags"
-  | "publish.chapters";
+  | "publish.chapters"
+  | "error.action"
+  | "auth.invalidLink"
+  | "library.title"
+  | "library.updated"
+  | "project.heading"
+  | "project.subtitle"
+  | "project.label"
+  | "project.theme"
+  | "voice.f"
+  | "voice.m"
+  | "dialog.generation"
+  | "dialog.cost"
+  | "dialog.visibility"
+  | "privacy.public"
+  | "privacy.unlisted"
+  | "privacy.scheduled"
+  | "privacy.private"
+  | "publish.suffix"
+  | "publish.credits"
+  | "publish.at"
+  | "publish.video"
+  | "publish.wait"
+  | "qa.pass"
+  | "qa.fail"
+  | "qa.override"
+  | "qa.gate"
+  | "qa.value"
+  | "action.approveVideo"
+  | "action.retry"
+  | "panel.wait"
+  | "panel.queued"
+  | "panel.published"
+  | "worker.since"
+  | "worker.unknown"
+  | "pipeline.title"
+  | "take.label"
+  | "lyrics.exclude"
+  | "lyrics.settings"
+  | "lyrics.displayMap"
+  | "lyrics.l10n"
+  | "validation.pack"
+  | "validation.lines"
+  | "validation.dash"
+  | "validation.json"
+  | "language.it"
+  | "language.en"
+  | "stage.draft_lyrics"
+  | "stage.generate_song"
+  | "stage.timing"
+  | "stage.storyboard"
+  | "stage.render_master"
+  | "stage.render_hook"
+  | "stage.qa"
+  | "stage.art"
+  | "stage.publish"
+  | "stage.set_privacy"
+  | "stage.import_legacy"
+  | "job.queued"
+  | "job.running"
+  | "job.done"
+  | "job.failed"
+  | "job.cancelled";
 
 export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
   it: {
-    "app.name": "MellodifAI",
+    "app.description": "La tua musica, dal testo al video.",
+    "value.unknown": "Non disponibile",
+    "qa.integrated_loudness": "Volume integrato",
+    "qa.true_peak": "Picco reale",
+    "qa.crushed_words": "Parole troppo brevi",
+    "qa.duration": "Durata",
+    "qa.notMeasured": "Non misurato",
+    "publish.tag": "lyric video",
+    "error.action": "Operazione non riuscita. Riprova.",
+    "auth.invalidLink": "Link non valido o scaduto. Richiedi un nuovo link.",
+    "library.title": "I tuoi progetti",
+    "library.updated": "Aggiornato",
+    "project.heading": "Crea una nuova canzone",
+    "project.subtitle": "Tema VBP, dalla bozza al video.",
+    "project.label": "Progetto",
+    "project.theme": "Tema: VBP",
+    "voice.f": "Femminile",
+    "voice.m": "Maschile",
+    "dialog.generation": "Conferma nuova generazione",
+    "dialog.cost": "Questa azione costa 12 crediti kie per questa lingua.",
+    "dialog.visibility": "Conferma visibilita'",
+    "privacy.public": "Rendi pubblico",
+    "privacy.unlisted": "Rendi non in elenco",
+    "privacy.scheduled": "Programma",
+    "privacy.private": "Privato",
+    "publish.suffix": "Lyric video",
+    "publish.credits": "Creato con mellodifai.",
+    "publish.at": "Data e ora di pubblicazione",
+    "publish.video": "Video",
+    "publish.wait": "Caricamento in corso. Il video rimane privato.",
+    "qa.pass": "Superato",
+    "qa.fail": "Non superato",
+    "qa.override": "Motivo approvazione con eccezione",
+    "qa.gate": "Controllo",
+    "qa.value": "Valore",
+    "action.approveVideo": "Approva video",
+    "action.retry": "Riprova",
+    "panel.wait": "Il prossimo passaggio verra' mostrato qui.",
+    "panel.queued": "Generazione in coda. In attesa del worker.",
+    "panel.published": "Video pubblicato",
+    "worker.since": "dal",
+    "worker.unknown": "Mai connesso",
+    "pipeline.title": "Avanzamento",
+    "take.label": "Take",
+    "lyrics.exclude": "Esclusioni",
+    "lyrics.settings": "Impostazioni (JSON)",
+    "lyrics.displayMap": "Mappa visualizzazione (JSON)",
+    "lyrics.l10n": "Localizzazione (JSON)",
+    "validation.pack": "Controlla i campi del testo.",
+    "validation.lines": "Il tema VBP richiede 80 righe cantate.",
+    "validation.dash": "Rimuovi il trattino lungo dal campo.",
+    "validation.json": "JSON non valido",
+    "language.it": "IT",
+    "language.en": "EN",
+    "stage.draft_lyrics": "Bozza testi",
+    "stage.generate_song": "Generazione canzone",
+    "stage.timing": "Sincronizzazione",
+    "stage.storyboard": "Storyboard",
+    "stage.render_master": "Video principale",
+    "stage.render_hook": "Video breve",
+    "stage.qa": "Controlli qualita'",
+    "stage.art": "Copertina",
+    "stage.publish": "Caricamento",
+    "stage.set_privacy": "Visibilita'",
+    "stage.import_legacy": "Importazione",
+    "job.queued": "In coda",
+    "job.running": "In corso",
+    "job.done": "Completato",
+    "job.failed": "Non riuscito",
+    "job.cancelled": "Annullato",
+    "app.name": "mellodifai",
     "nav.library": "Libreria",
     "nav.newProject": "Nuovo progetto",
     "status.drafting": "Bozza testi",
@@ -60,8 +200,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.failed": "Non riuscito",
     "auth.email": "Indirizzo email",
     "auth.sendLink": "Invia link di accesso",
-    "auth.sent": "Controlla la tua casella email per il link di accesso.",
-    "auth.notAllowed": "Questo indirizzo non e' abilitato.",
+    "auth.sent": "Se l'indirizzo e' abilitato riceverai un link.",
+    "auth.notAllowed": "Se l'indirizzo e' abilitato riceverai un link.",
     "project.create": "Crea progetto",
     "project.topic": "Argomento",
     "project.brief": "Brief",
@@ -90,7 +230,77 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "publish.chapters": "Capitoli",
   },
   en: {
-    "app.name": "MellodifAI",
+    "app.description": "Your music, from lyrics to video.",
+    "value.unknown": "Unavailable",
+    "qa.integrated_loudness": "Integrated loudness",
+    "qa.true_peak": "True peak",
+    "qa.crushed_words": "Crushed words",
+    "qa.duration": "Duration",
+    "qa.notMeasured": "Not measured",
+    "publish.tag": "lyric video",
+    "error.action": "Action failed. Please try again.",
+    "auth.invalidLink": "Invalid or expired link. Request a new link.",
+    "library.title": "Your projects",
+    "library.updated": "Updated",
+    "project.heading": "Create a new song",
+    "project.subtitle": "VBP theme, from draft to video.",
+    "project.label": "Project",
+    "project.theme": "Theme: VBP",
+    "voice.f": "Female",
+    "voice.m": "Male",
+    "dialog.generation": "Confirm new generation",
+    "dialog.cost": "This will spend 12 kie credits for this language.",
+    "dialog.visibility": "Confirm visibility",
+    "privacy.public": "Make public",
+    "privacy.unlisted": "Make unlisted",
+    "privacy.scheduled": "Schedule",
+    "privacy.private": "Private",
+    "publish.suffix": "Lyric video",
+    "publish.credits": "Created with mellodifai.",
+    "publish.at": "Publication date and time",
+    "publish.video": "Video",
+    "publish.wait": "Upload in progress. The video remains private.",
+    "qa.pass": "Pass",
+    "qa.fail": "Fail",
+    "qa.override": "Approval override reason",
+    "qa.gate": "Check",
+    "qa.value": "Value",
+    "action.approveVideo": "Approve video",
+    "action.retry": "Retry",
+    "panel.wait": "The next step will appear here.",
+    "panel.queued": "Generation queued. Waiting for the worker.",
+    "panel.published": "Video published",
+    "worker.since": "since",
+    "worker.unknown": "Never connected",
+    "pipeline.title": "Pipeline",
+    "take.label": "Take",
+    "lyrics.exclude": "Exclude",
+    "lyrics.settings": "Settings (JSON)",
+    "lyrics.displayMap": "Display map (JSON)",
+    "lyrics.l10n": "Localization (JSON)",
+    "validation.pack": "Check the lyric pack fields.",
+    "validation.lines": "The VBP theme requires 80 sung lines.",
+    "validation.dash": "Remove the em dash from the field.",
+    "validation.json": "Invalid JSON",
+    "language.it": "IT",
+    "language.en": "EN",
+    "stage.draft_lyrics": "draft lyrics",
+    "stage.generate_song": "generate song",
+    "stage.timing": "timing",
+    "stage.storyboard": "storyboard",
+    "stage.render_master": "render master",
+    "stage.render_hook": "render hook",
+    "stage.qa": "qa",
+    "stage.art": "art",
+    "stage.publish": "publish",
+    "stage.set_privacy": "set privacy",
+    "stage.import_legacy": "import legacy",
+    "job.queued": "queued",
+    "job.running": "running",
+    "job.done": "done",
+    "job.failed": "failed",
+    "job.cancelled": "cancelled",
+    "app.name": "mellodifai",
     "nav.library": "Library",
     "nav.newProject": "New project",
     "status.drafting": "Drafting lyrics",
@@ -105,8 +315,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.failed": "Failed",
     "auth.email": "Email address",
     "auth.sendLink": "Send sign-in link",
-    "auth.sent": "Check your email for the sign-in link.",
-    "auth.notAllowed": "This address is not enabled.",
+    "auth.sent": "If the address is enabled, you will receive a link.",
+    "auth.notAllowed": "If the address is enabled, you will receive a link.",
     "project.create": "Create project",
     "project.topic": "Topic",
     "project.brief": "Brief",

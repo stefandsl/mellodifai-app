@@ -111,6 +111,7 @@ function handler(kind: "master" | "hook"): StageHandler {
         ? { owner_id: context.version.owner_id }
         : {}),
       version_id: context.version.id,
+      render_attempt: context.version.render_attempt ?? 1,
       kind,
       path: output,
       preview_path: previewPath,

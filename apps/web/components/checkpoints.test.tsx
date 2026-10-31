@@ -26,8 +26,8 @@ describe("checkpoint components", () => {
   it("shows lyric validation errors inline and disables approval until valid", async () => {
     render(<LyricEditor pack={invalidPack} theme="vbp" onApprove={vi.fn()} />);
 
-    expect(screen.getByText(/title/i)).toBeInTheDocument();
-    expect(screen.getByText(/80 sung lines/i)).toBeInTheDocument();
+    expect(screen.getByText(/Controlla i campi/i)).toBeInTheDocument();
+    expect(screen.getByText(/80 righe cantate/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /approva/i })).toBeDisabled();
   });
 
@@ -43,9 +43,9 @@ describe("checkpoint components", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /genera di nuovo/i }));
-    expect(screen.getByText(/confirm new generation/i)).toBeInTheDocument();
+    expect(screen.getByText(/conferma nuova generazione/i)).toBeInTheDocument();
     expect(onGenerateAgain).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: /^confirm$/i }));
+    await user.click(screen.getByRole("button", { name: /^conferma$/i }));
     expect(onGenerateAgain).toHaveBeenCalledOnce();
   });
 
@@ -60,11 +60,13 @@ describe("checkpoint components", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /make unlisted/i }));
+    await user.click(
+      screen.getByRole("button", { name: /rendi non in elenco/i }),
+    );
     expect(screen.getByText(/Va bene, passa/)).toBeInTheDocument();
-    expect(screen.getAllByText(/unlisted/i).length).toBeGreaterThan(1);
+    expect(screen.getAllByText(/non in elenco/i).length).toBeGreaterThan(1);
     expect(onConfirm).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: /^confirm$/i }));
+    await user.click(screen.getByRole("button", { name: /^conferma$/i }));
     expect(onConfirm).toHaveBeenCalledWith("unlisted");
   });
 });

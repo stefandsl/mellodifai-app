@@ -590,6 +590,7 @@ async function setup() {
   ctx.version.chosen_take_id = take.id;
   await db.upsertRender({
     version_id: "version",
+    render_attempt: 7,
     kind: "master",
     owner_id: "owner",
     path: join(ws.renderDir, "video.mp4"),
@@ -611,6 +612,40 @@ function respond(value: unknown) {
 }
 
 describe("stage safety and behavior", () => {
+  it("preserves historical renders and selects only the current attempt", async () => {
+    const { ctx, db } = await setup();
+    const oldId = db.renders[0]?.id;
+    ctx.version.render_attempt = 8;
+    expect(await db.getRender(ctx.version.id, "master")).toBeNull();
+    await db.upsertRender({
+      version_id: ctx.version.id,
+      kind: "master",
+      render_attempt: 8,
+    });
+    expect(db.renders).toHaveLength(2);
+    expect((await db.getRender(ctx.version.id, "master"))?.id).not.toBe(oldId);
+  });
+  it("uses the reviewed publication metadata in the upload file", async () => {
+    const { ctx } = await setup();
+    ctx.job.payload = {
+      metadata: {
+        title: "Reviewed title",
+        description: "Reviewed credits",
+        tags: "pop, fr",
+        chapters: "0:00 Intro\n0:20 Verse",
+      },
+    };
+    await stages.publish?.(ctx);
+    const meta = JSON.parse(
+      await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+    );
+    expect(meta).toMatchObject({
+      title: "Reviewed title",
+      description: "Reviewed credits\n\n0:00 Intro\n0:20 Verse",
+      tags: ["pop", "fr"],
+      privacyStatus: "private",
+    });
+  });
   it("strips loaded secrets from child environment, including overridden aliases", async () => {
     const { ctx, calls } = await setup();
     const file = join(ctx.ws.root, "fixture.env");

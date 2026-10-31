@@ -1,42 +1,17 @@
-import type { LyricPack, VersionStatus } from "@mellodifai/shared";
+import { t } from "@mellodifai/shared";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
-import { LiveTimeline } from "@/components/live-timeline";
-import { ProjectWorkspace } from "@/components/project-workspace";
+import { LiveTimeline, type TimelineJob } from "@/components/live-timeline";
+import {
+  ProjectWorkspace,
+  type PublicationView,
+  type RenderPreview,
+  type WorkspaceVersion,
+} from "@/components/project-workspace";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
-
-type Version = {
-  id: string;
-  lang: string;
-  status: VersionStatus;
-  lyric_pack: LyricPack | null;
-};
-type RenderRow = {
-  id: string;
-  kind: string;
-  preview_path: string | null;
-  qa_results: Record<string, boolean>;
-};
-type TakeRow = {
-  id: string;
-  audio_preview_path: string | null;
-  scores: Record<string, unknown> | null;
-};
-
-async function signedUrl(
-  supabase: Awaited<ReturnType<typeof requireProfile>>["supabase"],
-  path: string | null,
-) {
-  if (!path) return null;
-  const { data } = await supabase.storage
-    .from("previews")
-    .createSignedUrl(path, 60 * 60);
-  return data?.signedUrl ?? null;
-}
-
+import { getLocale } from "@/lib/locale";
 export default async function ProjectPage({
   params,
   searchParams,
@@ -44,117 +19,128 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ lang?: string }>;
 }) {
-  const [{ id }, query, { supabase }] = await Promise.all([
+  const [{ id }, query, { supabase }, lang] = await Promise.all([
     params,
     searchParams,
     requireProfile(),
+    getLocale(),
   ]);
   const { data: project } = await supabase
     .from("projects")
-    .select("id, topic, versions(id, lang, status, lyric_pack)")
+    .select(
+      "id,topic,brief,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections)",
+    )
     .eq("id", id)
     .maybeSingle();
   if (!project) notFound();
-  const versions = (project.versions ?? []) as unknown as Version[];
-  const current =
-    versions.find((version) => version.lang === query.lang) ?? versions[0];
+  const versions = project.versions as unknown as WorkspaceVersion[];
+  const current = versions.find((v) => v.lang === query.lang) ?? versions[0];
   if (!current) notFound();
-  const [
-    { data: jobs },
-    { data: events },
-    { data: takes },
-    { data: renderRows },
-  ] = await Promise.all([
-    supabase
-      .from("jobs")
-      .select("id, stage, status, created_at")
-      .eq("version_id", current.id)
-      .order("created_at"),
-    supabase
-      .from("job_events")
-      .select("id, job_id, message, progress")
-      .order("at"),
-    supabase
-      .from("takes")
-      .select("id, audio_preview_path, scores")
-      .eq("version_id", current.id),
-    supabase
-      .from("renders")
-      .select("id, kind, preview_path, qa_results")
-      .eq("version_id", current.id),
-  ]);
+  const [{ data: jobs }, { data: takes }, { data: renderRows }] =
+    await Promise.all([
+      supabase
+        .from("jobs")
+        .select("id,version_id,stage,status,created_at,error")
+        .eq("version_id", current.id)
+        .order("created_at"),
+      supabase
+        .from("takes")
+        .select("id,audio_preview_path,scores")
+        .eq("version_id", current.id)
+        .eq("generation", current.generation_count)
+        .order("take_number"),
+      supabase
+        .from("renders")
+        .select("id,kind,preview_path,qa_results")
+        .eq("version_id", current.id)
+        .eq("render_attempt", current.render_attempt)
+        .order("created_at", { ascending: false }),
+    ]);
+  const ids = (jobs ?? []).map((j) => j.id);
+  const { data: events } = ids.length
+    ? await supabase
+        .from("job_events")
+        .select("id,job_id,message,progress")
+        .in("job_id", ids)
+        .order("id", { ascending: false })
+        .limit(200)
+    : { data: [] };
+  async function signed(path: string | null) {
+    if (!path) return null;
+    const { data } = await supabase.storage
+      .from("previews")
+      .createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  }
   const renders = await Promise.all(
-    ((renderRows ?? []) as unknown as RenderRow[]).map(async (render) => ({
-      ...render,
-      previewUrl: await signedUrl(supabase, render.preview_path),
+    (renderRows ?? []).map(async (r) => ({
+      ...r,
+      previewUrl: await signed(r.preview_path),
     })),
   );
   const takeData = await Promise.all(
-    ((takes ?? []) as unknown as TakeRow[]).map(async (take) => ({
-      id: take.id,
-      audioUrl: await signedUrl(supabase, take.audio_preview_path),
-      scores: take.scores,
+    (takes ?? []).map(async (take) => ({
+      ...take,
+      audioUrl: await signed(take.audio_preview_path),
     })),
   );
-  const master = renders.find((render) => render.kind === "master");
+  const master = renders.find((r) => r.kind === "master");
   const { data: publication } = master
     ? await supabase
         .from("publications")
-        .select("id, youtube_video_id, privacy")
+        .select("id,youtube_video_id,privacy,metadata")
         .eq("render_id", master.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle()
     : { data: null };
+  const failedJob = (jobs ?? []).filter((j) => j.status === "failed").at(-1);
   return (
     <>
       <div className="mb-8">
-        <p className="text-sm text-muted-foreground">Progetto</p>
-        <h1 className="mt-1 text-3xl font-semibold">{project.topic}</h1>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {versions.map((version) => (
+        <p>{t(lang, "project.label")}</p>
+        <h1 className="text-3xl font-semibold">{project.topic}</h1>
+        <nav className="mt-5 flex flex-wrap gap-2">
+          {versions.map((v) => (
             <Link
-              key={version.id}
-              href={`/projects/${id}?lang=${version.lang}`}
+              key={v.id}
+              href={`/projects/${id}?lang=${v.lang}`}
+              aria-current={v.id === current.id ? "page" : undefined}
             >
-              <Badge
-                variant={version.id === current.id ? "default" : "outline"}
-              >
-                {version.lang.toUpperCase()}
+              <Badge variant={v.id === current.id ? "secondary" : "outline"}>
+                {v.lang.toUpperCase()}
               </Badge>
             </Link>
           ))}
-        </div>
+        </nav>
       </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Card>
           <CardHeader>
             <CardTitle>
-              {current.lang.toUpperCase()}{" "}
-              <span className="text-sm font-normal text-muted-foreground">
-                {current.status}
-              </span>
+              {current.lang.toUpperCase()} {t(lang, `status.${current.status}`)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ProjectWorkspace
+              key={current.id + current.status}
               version={current}
               takes={takeData}
-              renders={renders}
-              publication={
-                publication as {
-                  id: string;
-                  youtube_video_id: string | null;
-                  privacy: "public" | "unlisted" | "scheduled" | "private";
-                } | null
-              }
+              renders={renders as RenderPreview[]}
+              publication={publication as PublicationView | null}
+              brief={project.brief ?? ""}
+              failedJob={failedJob}
             />
           </CardContent>
         </Card>
         <aside className="rounded-xl border bg-white p-5">
-          <h2 className="mb-4 font-semibold">Pipeline</h2>
+          <h2>{t(lang, "pipeline.title")}</h2>
           <LiveTimeline
-            projectId={id}
-            initialJobs={(jobs ?? []) as never[]}
-            initialEvents={(events ?? []) as never[]}
+            key={current.id}
+            versionId={current.id}
+            status={current.status}
+            initialJobs={(jobs ?? []) as TimelineJob[]}
+            initialEvents={(events ?? []).toReversed()}
           />
         </aside>
       </div>

@@ -1,50 +1,59 @@
 "use client";
-
 import { t } from "@mellodifai/shared";
-
 import { Button } from "@/components/ui/button";
+import type { ActionCallback, ActionResult } from "@/lib/action-result";
 import { ConfirmDialog } from "./confirm-dialog";
-
+import { useLocale } from "./locale-provider";
+import { useAction } from "./use-action";
 export type Take = {
   id: string;
   audioUrl?: string | null;
   scores?: Record<string, unknown> | null;
 };
-
 export function TakePicker({
   takes,
   onPick,
   onGenerateAgain,
 }: {
   takes: Take[];
-  onPick: (id: string) => void | Promise<void>;
-  onGenerateAgain: () => void | Promise<void>;
+  onPick: (
+    id: string,
+  ) => void | ActionResult | Promise<void> | Promise<ActionResult>;
+  onGenerateAgain: ActionCallback;
 }) {
+  const lang = useLocale();
+  const { pending, run } = useAction();
   return (
     <section className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
         {takes.map((take, index) => (
           <article className="rounded-xl border p-4" key={take.id}>
-            <h3 className="font-medium">Take {index + 1}</h3>
+            <h3>
+              {t(lang, "take.label")} {index + 1}
+            </h3>
             {take.audioUrl && (
-              // biome-ignore lint/a11y/useMediaCaption: generated music previews have no captions.
-              <audio controls className="mt-3 w-full" src={take.audioUrl} />
+              // biome-ignore lint/a11y/useMediaCaption: music preview; lyrics are reviewed separately.
+              <audio controls className="w-full" src={take.audioUrl} />
             )}
-            <pre className="mt-3 overflow-auto text-xs text-muted-foreground">
+            <pre className="overflow-auto text-xs">
               {JSON.stringify(take.scores ?? {}, null, 2)}
             </pre>
-            <Button className="mt-3" onClick={() => onPick(take.id)}>
-              {t("it", "action.pick")}
+            <Button
+              disabled={pending}
+              onClick={() => run(() => onPick(take.id))}
+            >
+              {t(lang, "action.pick")}
             </Button>
           </article>
         ))}
       </div>
       <ConfirmDialog
-        trigger={t("it", "action.generateAgain")}
-        title="Confirm new generation"
+        disabled={pending}
+        trigger={t(lang, "action.generateAgain")}
+        title={t(lang, "dialog.generation")}
         onConfirm={onGenerateAgain}
       >
-        This will spend 12 kie credits for this language.
+        {t(lang, "dialog.cost")}
       </ConfirmDialog>
     </section>
   );

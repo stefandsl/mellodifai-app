@@ -1,25 +1,30 @@
 "use client";
-
+import { t } from "@mellodifai/shared";
+import type { ActionResult } from "@/lib/action-result";
 import { ConfirmDialog } from "./confirm-dialog";
-
+import { useLocale } from "./locale-provider";
 export function PublishConfirmDialog({
   videoName,
   privacy,
   onConfirm,
+  disabled = false,
 }: {
   videoName: string;
   privacy: "public" | "unlisted" | "scheduled";
   onConfirm: (
     privacy: "public" | "unlisted" | "scheduled",
-  ) => void | Promise<void>;
+  ) => void | ActionResult | Promise<void> | Promise<ActionResult>;
+  disabled?: boolean;
 }) {
+  const lang = useLocale();
   return (
     <ConfirmDialog
-      trigger={`Make ${privacy}`}
-      title="Confirm visibility"
+      trigger={t(lang, `privacy.${privacy}`)}
+      title={t(lang, "dialog.visibility")}
       onConfirm={() => onConfirm(privacy)}
+      disabled={disabled}
     >
-      Make <strong>{videoName}</strong> {privacy}?
+      {t(lang, `privacy.${privacy}`)}: <strong>{videoName}</strong>?
     </ConfirmDialog>
   );
 }

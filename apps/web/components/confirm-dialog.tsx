@@ -1,51 +1,67 @@
 "use client";
-
+import { t } from "@mellodifai/shared";
 import { useState } from "react";
-
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-
+import type { ActionCallback } from "@/lib/action-result";
+import { useLocale } from "./locale-provider";
+import { useAction } from "./use-action";
 export function ConfirmDialog({
   trigger,
   title,
   children,
   onConfirm,
+  disabled = false,
 }: {
   trigger: string;
   title: string;
   children: React.ReactNode;
-  onConfirm: () => void | Promise<void>;
+  onConfirm: ActionCallback;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const lang = useLocale();
+  const { pending, run } = useAction();
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        disabled={disabled || pending}
+        onClick={() => setOpen(true)}
+      >
         {trigger}
       </Button>
-      {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center bg-black/20 p-4"
-        >
-          <div className="w-full max-w-sm rounded-xl bg-card p-5 shadow-xl">
-            <h2 className="font-semibold">{title}</h2>
-            <div className="mt-2 text-sm text-muted-foreground">{children}</div>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  await onConfirm();
-                  setOpen(false);
-                }}
-              >
-                Confirm
-              </Button>
-            </div>
+      <AlertDialog
+        open={open}
+        onOpenChange={(value) => {
+          if (!pending) setOpen(value);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{children}</AlertDialogDescription>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => setOpen(false)}
+            >
+              {t(lang, "action.cancel")}
+            </Button>
+            <Button
+              disabled={pending}
+              onClick={() => run(onConfirm, () => setOpen(false))}
+            >
+              {t(lang, "action.confirm")}
+            </Button>
           </div>
-        </div>
-      )}
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

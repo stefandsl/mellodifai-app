@@ -323,17 +323,15 @@ it("claim skips future jobs and explicit transitions are owner-checked", async (
   );
   expect(
     (
-      await other.rpc("transition_version", {
+      await other.rpc("render_again", {
         p_version: version,
-        p_action: "render_again",
       })
     ).error,
   ).not.toBeNull();
   expect(
     (
-      await client.rpc("transition_version", {
+      await client.rpc("render_again", {
         p_version: version,
-        p_action: "render_again",
       })
     ).error,
   ).toBeNull();

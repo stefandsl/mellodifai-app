@@ -18,7 +18,14 @@ import { ProjectWorkspace } from "./project-workspace";
 it("sends an explicit future ISO date only after scheduled confirmation", async () => {
   render(
     <ProjectWorkspace
-      version={{ id: "v", status: "approved", lyric_pack: null }}
+      version={{
+        id: "v",
+        status: "approved",
+        lyric_pack: null,
+        lang: "it",
+        generation_count: 1,
+        render_attempt: 1,
+      }}
       takes={[]}
       renders={[]}
       publication={{ id: "p", youtube_video_id: "abc123", privacy: "private" }}
@@ -28,11 +35,9 @@ it("sends an explicit future ISO date only after scheduled confirmation", async 
     target: { value: "2099-01-01T12:00" },
   });
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Make scheduled" }));
+  await user.click(screen.getByRole("button", { name: "Programma" }));
   expect(mocks.setPrivacy).not.toHaveBeenCalled();
-  await user.click(
-    screen.getByRole("button", { name: "Confirm", exact: true }),
-  );
+  await user.click(screen.getByRole("button", { name: "Conferma" }));
   expect(mocks.setPrivacy).toHaveBeenCalledWith({
     publicationId: "p",
     privacy: "scheduled",

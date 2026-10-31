@@ -2,68 +2,134 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
-  const single = vi.fn(async () => ({
-    data: {
-      id: "publication",
-      version_id: "version",
-      render_attempt: 1,
-      renders: { version_id: "version" },
-    },
-    error: null,
-  }));
-  const query = { single, eq: vi.fn(), select: vi.fn() };
-  query.eq.mockReturnValue(query);
+  const query = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    single: vi.fn(async () => ({
+      data: {
+        id: "publication",
+        render_id: "render",
+        version_id: "version",
+        project_id: "project",
+      },
+      error: null,
+    })),
+  };
   query.select.mockReturnValue(query);
-  const from = vi.fn(() => ({
-    update: vi.fn(() => query),
-    insert: vi.fn(() => query),
-    select: vi.fn(() => query),
-  }));
-  return { from, rpc: vi.fn(async () => ({ data: "job", error: null })) };
+  query.eq.mockReturnValue(query);
+  return {
+    from: vi.fn(() => query),
+    rpc: vi.fn(async () => ({
+      data: "project",
+      error: null as { message: string } | null,
+    })),
+    auth: vi.fn(),
+  };
 });
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/locale", () => ({ getLocale: async () => "en" }));
 vi.mock("@/lib/auth", () => ({
-  actionProfile: async () => ({ supabase: mocks, user: { id: "owner" } }),
+  actionProfile: async () => {
+    mocks.auth();
+    return { supabase: mocks, user: { id: "owner" } };
+  },
 }));
 
+import { revalidatePath } from "next/cache";
 import {
+  approveLyrics,
+  approveVideo,
   generateAgain,
   pickTake,
   rerenderVideo,
+  retryStage,
   setPrivacy,
+  uploadPrivate,
 } from "./checkpoints";
+import { createProject } from "./project";
 
 const id = "00000000-0000-4000-8000-000000000001";
-beforeEach(() => vi.clearAllMocks());
-it("uses an atomic transition to pick a take and enqueue timing", async () => {
-  await pickTake({ versionId: id, takeId: id });
-  expect(mocks.rpc).toHaveBeenCalledWith("transition_version", {
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.rpc.mockResolvedValue({ data: "project", error: null });
+});
+it("picks atomically and revalidates the project rather than version path", async () => {
+  expect(await pickTake({ versionId: id, takeId: id })).toEqual({
+    ok: true,
+    id: "project",
+  });
+  expect(mocks.rpc).toHaveBeenCalledWith("pick_take", {
     p_version: id,
-    p_action: "pick_take",
     p_take: id,
   });
-  expect(mocks.from).not.toHaveBeenCalled();
+  expect(revalidatePath).toHaveBeenCalledWith("/projects/project");
 });
-it("uses explicit transition RPCs for new paid generations and render attempts", async () => {
-  await generateAgain({ versionId: id });
-  await rerenderVideo({ versionId: id, overrideReason: "Fix timing" });
-  expect(mocks.rpc).toHaveBeenCalledWith("transition_version", {
+it("sends expected generation, override reason and render request to separate RPCs", async () => {
+  await generateAgain({ versionId: id, generation: 4 });
+  await rerenderVideo({ versionId: id });
+  await approveVideo({ versionId: id, overrideReason: "Reviewed loudness" });
+  expect(mocks.rpc).toHaveBeenCalledWith("generate_again", {
     p_version: id,
-    p_action: "generate_again",
+    p_generation: 4,
   });
-  expect(mocks.rpc).toHaveBeenCalledWith("transition_version", {
+  expect(mocks.rpc).toHaveBeenCalledWith("render_again", { p_version: id });
+  expect(mocks.rpc).toHaveBeenCalledWith("approve_video", {
     p_version: id,
-    p_action: "render_again",
+    p_override_reason: "Reviewed loudness",
   });
-  expect(mocks.from).not.toHaveBeenCalled();
+  expect(mocks.auth).toHaveBeenCalledTimes(3);
 });
-it("confirms a scheduled publication through the authenticated RPC only", async () => {
-  const publishAt = "2099-01-01T00:00:00Z";
-  await setPrivacy({ publicationId: id, privacy: "scheduled", publishAt });
+it("confirms scheduled publication and refreshes its project", async () => {
+  await setPrivacy({
+    publicationId: id,
+    privacy: "scheduled",
+    publishAt: "2099-01-01T00:00:00Z",
+  });
   expect(mocks.rpc).toHaveBeenCalledWith("confirm_publication", {
     p_publication: id,
     p_privacy: "scheduled",
-    p_publish_at: publishAt,
+    p_publish_at: "2099-01-01T00:00:00Z",
   });
+  expect(revalidatePath).toHaveBeenCalledWith("/projects/project");
+});
+it("creates a deduplicated project in one RPC", async () => {
+  await createProject({
+    topic: "Song",
+    style: "Pop",
+    vocalGender: "f",
+    languages: ["en", "en"],
+  });
+  expect(mocks.rpc).toHaveBeenCalledWith(
+    "create_project",
+    expect.objectContaining({ p_languages: ["en"] }),
+  );
   expect(mocks.from).not.toHaveBeenCalled();
+});
+it("all actions return failures for malformed input instead of throwing", async () => {
+  for (const action of [
+    approveLyrics,
+    approveVideo,
+    generateAgain,
+    pickTake,
+    rerenderVideo,
+    setPrivacy,
+    uploadPrivate,
+    retryStage,
+    createProject,
+  ])
+    expect(await action({})).toMatchObject({
+      ok: false,
+      error: expect.any(String),
+    });
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it("database errors are returned without leaking raw database details", async () => {
+  mocks.rpc.mockResolvedValueOnce({
+    data: "",
+    error: { message: "secret internal detail" },
+  });
+  expect(await pickTake({ versionId: id, takeId: id })).toEqual({
+    ok: false,
+    error: "Action failed. Please try again.",
+  });
 });

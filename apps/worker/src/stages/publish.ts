@@ -37,14 +37,26 @@ export const publish: StageHandler = async (context) => {
   if (reservation.kind === "uploaded") return { versionStatus: "approved" };
   if (!reservation.publication) throw new Error("Missing upload reservation");
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
+  const requested = context.job.payload?.metadata as
+    | { title?: string; description?: string; tags?: string; chapters?: string }
+    | undefined;
   const meta = {
     video: render.path,
     captions: join(context.ws.renderDir, `${language(context)}.srt`),
     captions_name: pack.title,
     thumbnail: join(context.ws.renderDir, "thumbnail.png"),
-    title: pack.title,
-    description: context.project.brief ?? "",
-    tags: [],
+    title: requested?.title ?? pack.title,
+    description: [
+      requested?.description ?? context.project.brief ?? "",
+      requested?.chapters ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    tags:
+      requested?.tags
+        ?.split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean) ?? [],
     categoryId: "10",
     defaultLanguage: language(context),
     defaultAudioLanguage: language(context),

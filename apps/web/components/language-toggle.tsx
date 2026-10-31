@@ -1,5 +1,6 @@
 "use client";
 
+import { t } from "@mellodifai/shared";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ export function LanguageToggle({ lang }: { lang: "it" | "en" }) {
         router.refresh();
       }}
     >
-      {lang === "it" ? "EN" : "IT"}
+      {t(lang, lang === "it" ? "language.en" : "language.it")}
     </Button>
   );
 }

@@ -17,6 +17,11 @@ export const UpdateLyricsInput = z.object({
   pack: LyricPackSchema,
 });
 export const VersionIdInput = z.object({ versionId: Id });
+export const GenerateAgainInput = z.object({
+  versionId: Id,
+  generation: z.number().int().positive(),
+});
+export const RetryInput = z.object({ versionId: Id, jobId: Id });
 export const PickTakeInput = z.object({ versionId: Id, takeId: Id });
 export const VideoApprovalInput = z.object({
   versionId: Id,

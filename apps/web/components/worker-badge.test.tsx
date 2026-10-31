@@ -1,5 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+
+vi.mock("@/lib/supabase/browser", () => ({
+  createClient: () => {
+    const channel = { on: () => channel, subscribe: () => channel };
+    return { channel: () => channel, removeChannel: vi.fn() };
+  },
+}));
 
 import { WorkerBadge } from "./worker-badge";
 

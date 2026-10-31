@@ -24,7 +24,7 @@ export default async function LibraryPage() {
     .order("updated_at", { ascending: false });
   const { data: worker } = await supabase
     .from("workers")
-    .select("last_seen, busy_job_id")
+    .select("id,last_seen,busy_job_id,kie_balance")
     .order("last_seen", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -37,10 +37,12 @@ export default async function LibraryPage() {
             {t(lang, "nav.library")}
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            I tuoi progetti
+            {t(lang, "library.title")}
           </h1>
         </div>
         <WorkerBadge
+          workerId={worker?.id}
+          balance={worker?.kie_balance ?? null}
           lastSeen={worker?.last_seen ?? null}
           busyJobId={worker?.busy_job_id}
         />
@@ -70,7 +72,7 @@ export default async function LibraryPage() {
                     ))}
                   </div>
                   <p className="mt-5 text-xs text-muted-foreground">
-                    Aggiornato{" "}
+                    {t(lang, "library.updated")}{" "}
                     {new Date(project.updated_at).toLocaleDateString(
                       lang === "it" ? "it-IT" : "en-US",
                     )}

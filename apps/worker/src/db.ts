@@ -28,6 +28,7 @@ export type Version = {
   chosen_take_id?: string | null;
   timing_path?: string | null;
   storyboard_path?: string | null;
+  storyboard_sections?: unknown;
   qa_flags?: unknown;
   render_attempt?: number;
   kie_task_id?: string | null;
@@ -62,6 +63,8 @@ export type Take = {
   scores?: unknown;
 };
 export type Render = {
+  render_attempt?: number;
+  approved_at?: string | null;
   id: string;
   owner_id?: string;
   version_id: string;
@@ -319,6 +322,10 @@ export class SupabaseDb implements Db {
       .select("*")
       .eq("version_id", versionId)
       .eq("kind", kind)
+      .eq(
+        "render_attempt",
+        (await this.getVersion(versionId))?.render_attempt ?? 1,
+      )
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data as Render | null;
@@ -520,7 +527,9 @@ export class InMemoryDb implements Db {
   async upsertRender(render: Omit<Render, "id">) {
     const item = this.renders.find(
       (value) =>
-        value.version_id === render.version_id && value.kind === render.kind,
+        value.version_id === render.version_id &&
+        value.kind === render.kind &&
+        (value.render_attempt ?? 1) === (render.render_attempt ?? 1),
     );
     if (item) {
       Object.assign(item, render);
@@ -533,7 +542,12 @@ export class InMemoryDb implements Db {
   async getRender(versionId: string, kind: Render["kind"]) {
     return (
       this.renders.find(
-        (item) => item.version_id === versionId && item.kind === kind,
+        (item) =>
+          item.version_id === versionId &&
+          item.kind === kind &&
+          (item.render_attempt ?? 1) ===
+            (this.versions.find((v) => v.id === versionId)?.render_attempt ??
+              1),
       ) ?? null
     );
   }
