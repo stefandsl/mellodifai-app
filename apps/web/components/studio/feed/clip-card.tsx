@@ -8,12 +8,11 @@ import {
   ListPlus,
   Loader2,
   MoreHorizontal,
+  Music2,
   Pause,
   Play,
   RotateCcw,
   Share2,
-  ThumbsDown,
-  ThumbsUp,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -31,7 +30,6 @@ import { st } from "@/lib/studio/i18n";
 import { initialForm, useCreateForm } from "@/store/create-form";
 import { type Track, usePlayer } from "@/store/player";
 import { modelLabel } from "../create/model-select";
-import { IconButton } from "../ui";
 import { hasNextStep, NextStep } from "./next-step";
 
 const GENERATING = new Set([
@@ -89,6 +87,15 @@ function StatusBadge({ clip }: { clip: Clip }) {
         {st(lang, "badge.rendering")}
       </span>
     );
+  if (clip.status === "audio_ready")
+    return (
+      <span
+        className={cn(base, "bg-[var(--surface-2)] text-[var(--fg-muted)]")}
+      >
+        <Music2 className="size-3" />
+        {st(lang, "badge.audioOnly")}
+      </span>
+    );
   if (
     clip.videoUrl &&
     ["approved", "published", "publishing"].includes(clip.status)
@@ -132,12 +139,24 @@ function Artwork({
       )}
       style={generating ? undefined : { background: clip.art }}
     >
+      {!generating && !clip.hasCover && clip.videoUrl ? (
+        // No thumbnail yet: a frame from the song's own video stands in as the cover.
+        <video
+          aria-hidden
+          src={`${clip.videoUrl}#t=25`}
+          muted
+          playsInline
+          preload="metadata"
+          tabIndex={-1}
+          className="pointer-events-none absolute inset-0 size-full object-cover"
+        />
+      ) : null}
       {generating ? (
         <Loader2 className="absolute top-1/2 left-1/2 size-5 -translate-1/2 animate-spin text-[var(--fg-muted)]" />
       ) : (
         <span
           aria-hidden
-          className="absolute bottom-1.5 left-2 font-mono text-[11px] font-semibold text-white/85"
+          className="absolute bottom-1.5 left-2 font-mono text-[11px] font-semibold text-white/90 [text-shadow:0_1px_3px_rgb(0_0_0/0.8)]"
         >
           {clip.lang.toUpperCase()}
         </span>
@@ -262,15 +281,9 @@ function MoreMenu({ clip }: { clip: Clip }) {
 
 function Actions({ clip }: { clip: Clip }) {
   const lang = useLocale();
-  const soon = st(lang, "soon");
+  const _soon = st(lang, "soon");
   return (
     <div className="flex items-center gap-1.5">
-      <IconButton label={st(lang, "clip.like")} soon={soon}>
-        <ThumbsUp />
-      </IconButton>
-      <IconButton label={st(lang, "clip.dislike")} soon={soon}>
-        <ThumbsDown />
-      </IconButton>
       <button
         type="button"
         aria-label={st(lang, "clip.share")}

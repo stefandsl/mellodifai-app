@@ -26,6 +26,7 @@ describe("create form", () => {
       styleWeight: 0.3,
       variety: 4,
       duration: null,
+      video: "lyric",
     });
     expect(SongSettingsSchema.parse(payload.settings)).toEqual(
       payload.settings,
@@ -35,6 +36,10 @@ describe("create form", () => {
       payloadFor({ ...form, durationMode: "custom", duration: 95 }).settings
         .duration,
     ).toBe(95);
+    expect(
+      payloadFor({ ...form, video: { ...form.video, mode: "off" } }).settings
+        .video,
+    ).toBe("off");
   });
 
   it("blocks Create with the reason the panel shows", () => {

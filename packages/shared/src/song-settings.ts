@@ -21,5 +21,7 @@ export const SongSettingsSchema = z.object({
   styleWeight: z.number().min(0).max(1).optional(),
   variety: z.number().int().min(0).max(4).optional(),
   duration: z.number().int().min(10).max(360).nullable().optional(),
+  // "off" makes Keep audio only the suggested choice when picking the take.
+  video: z.enum(["lyric", "off"]).optional(),
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;

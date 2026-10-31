@@ -559,6 +559,56 @@ it("picks only current generation and transitions once to producing with timing 
     ).error,
   ).toBeNull();
 });
+it("keeps only the audio of the chosen take and makes the video later on request", async () => {
+  const v = await fixture("takes_review");
+  const take = await service
+    .from("takes")
+    .insert({ owner_id: owner, version_id: v, generation: 1 })
+    .select()
+    .single();
+  expect(
+    (await client.rpc("make_video", { p_version: v })).error,
+  ).not.toBeNull();
+  expect(
+    (await other.rpc("keep_audio", { p_version: v, p_take: take.data.id }))
+      .error,
+  ).not.toBeNull();
+  expect(
+    (await client.rpc("keep_audio", { p_version: v, p_take: take.data.id }))
+      .error,
+  ).toBeNull();
+  expect(
+    (await service.from("versions").select().eq("id", v).single()).data,
+  ).toMatchObject({ status: "audio_ready", chosen_take_id: take.data.id });
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select()
+        .eq("version_id", v)
+        .eq("stage", "timing")
+    ).data,
+  ).toHaveLength(0);
+  expect(
+    (await other.rpc("make_video", { p_version: v })).error,
+  ).not.toBeNull();
+  expect((await client.rpc("make_video", { p_version: v })).error).toBeNull();
+  expect(
+    (await client.rpc("make_video", { p_version: v })).error,
+  ).not.toBeNull();
+  expect(
+    (await service.from("versions").select().eq("id", v).single()).data,
+  ).toMatchObject({ status: "producing" });
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select()
+        .eq("idempotency_key", `timing:${v}:1`)
+        .single()
+    ).error,
+  ).toBeNull();
+});
 it("records failed-QA override and approver, uses current attempt and rerenders atomically", async () => {
   const v = await fixture("video_review");
   const r = await service

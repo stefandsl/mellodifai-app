@@ -7,6 +7,8 @@ export type VersionStatus =
   | "lyrics_review"
   | "song_queued"
   | "takes_review"
+  // A take was kept without a video; make_video can still start one.
+  | "audio_ready"
   | "producing"
   | "video_review"
   | "approved"
@@ -19,6 +21,7 @@ const STATUS_STAGES: Record<VersionStatus, Stage[]> = {
   lyrics_review: [],
   song_queued: ["generate_song"],
   takes_review: [],
+  audio_ready: [],
   producing: [
     "timing",
     "storyboard",
@@ -44,6 +47,7 @@ export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
     lyrics_review: ["draft_lyrics"],
     song_queued: ["generate_song"],
     takes_review: [],
+    audio_ready: [],
     producing: [
       "timing",
       "storyboard",

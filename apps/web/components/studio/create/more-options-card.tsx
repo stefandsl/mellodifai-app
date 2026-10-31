@@ -31,7 +31,6 @@ function Row({
 export function MoreOptionsCard() {
   const lang = useLocale();
   const f = useCreateForm();
-  const soon = st(lang, "soon");
   const varietyWord = st(lang, `variety.${f.variety}` as "variety.2");
   return (
     <PanelCard
@@ -104,17 +103,6 @@ export function MoreOptionsCard() {
             onChange={(duration) => f.set({ duration })}
           />
         ) : null}
-        <Row label="Max Mode" tip={soon}>
-          <Segmented
-            label="Max Mode"
-            value="off"
-            onChange={() => {}}
-            options={[
-              { value: "off", label: st(lang, "create.off") },
-              { value: "on", label: st(lang, "create.on"), soon },
-            ]}
-          />
-        </Row>
         <TickSlider
           label={st(lang, "create.weirdness")}
           value={f.weirdness}

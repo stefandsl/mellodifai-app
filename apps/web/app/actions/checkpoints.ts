@@ -35,6 +35,26 @@ export async function pickTake(input: unknown) {
     return { versionId: v.versionId };
   });
 }
+// Keeps the chosen take without starting the video; makeVideo can start it later.
+export async function keepAudio(input: unknown) {
+  return runAction(async (db) => {
+    const v = PickTakeInput.parse(input);
+    const { error } = await db.rpc("keep_audio", {
+      p_version: v.versionId,
+      p_take: v.takeId,
+    });
+    if (error) throw error;
+    return { versionId: v.versionId };
+  });
+}
+export async function makeVideo(input: unknown) {
+  return runAction(async (db) => {
+    const v = VersionIdInput.parse(input);
+    const { error } = await db.rpc("make_video", { p_version: v.versionId });
+    if (error) throw error;
+    return { versionId: v.versionId };
+  });
+}
 export async function generateAgain(input: unknown) {
   return runAction(async (db) => {
     const v = GenerateAgainInput.parse(input);

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import { Library, RefreshCw, Wand2 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { useLocale } from "@/components/locale-provider";
@@ -58,15 +58,6 @@ export function StylesCard() {
       title={st(lang, "create.styles")}
       open={open}
       onToggle={() => toggle("styles")}
-      actions={
-        <IconButton
-          label={lang === "it" ? "Stili salvati" : "Saved styles"}
-          soon={st(lang, "soon")}
-          className="bg-transparent"
-        >
-          <Library />
-        </IconButton>
-      }
     >
       <div className="relative">
         <RotatingPlaceholder
@@ -85,13 +76,6 @@ export function StylesCard() {
         </div>
       </div>
       <div className="mt-2 flex items-center gap-1.5">
-        <IconButton
-          label={st(lang, "create.boostStyle")}
-          soon={st(lang, "soon")}
-          className="text-[var(--brand)]"
-        >
-          <Wand2 />
-        </IconButton>
         <IconButton
           label={st(lang, "create.refreshStyles")}
           onClick={() => setOffset((offset + 6) % SEED_CHIPS.length)}

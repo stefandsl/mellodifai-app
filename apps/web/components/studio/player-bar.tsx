@@ -11,8 +11,6 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
-  ThumbsDown,
-  ThumbsUp,
   Volume2,
   VolumeX,
   X,
@@ -214,7 +212,7 @@ export function PlayerBar() {
   }, []);
 
   const pct = p.duration ? (p.time / p.duration) * 100 : 0;
-  const soon = st(lang, "soon");
+  const _soon = st(lang, "soon");
   return (
     <>
       <MiniVideo audio={audio} />
@@ -344,22 +342,6 @@ export function PlayerBar() {
               <Play className="size-5 translate-x-px fill-current" />
             )}
           </button>
-          <span className="flex items-center gap-1 max-lg:hidden">
-            <IconButton
-              label={st(lang, "clip.like")}
-              soon={soon}
-              className="bg-transparent"
-            >
-              <ThumbsUp />
-            </IconButton>
-            <IconButton
-              label={st(lang, "clip.dislike")}
-              soon={soon}
-              className="bg-transparent"
-            >
-              <ThumbsDown />
-            </IconButton>
-          </span>
           {track?.videoUrl ? (
             <IconButton
               label={st(lang, "player.video")}

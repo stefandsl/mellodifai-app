@@ -34,6 +34,7 @@ export type DictKey =
   | "status.lyrics_review"
   | "status.song_queued"
   | "status.takes_review"
+  | "status.audio_ready"
   | "status.producing"
   | "status.video_review"
   | "status.approved"
@@ -229,6 +230,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.lyrics_review": "Revisione testi",
     "status.song_queued": "Canzone in coda",
     "status.takes_review": "Revisione take",
+    "status.audio_ready": "Solo audio",
     "status.producing": "Produzione",
     "status.video_review": "Revisione video",
     "status.approved": "Approvato",
@@ -374,6 +376,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.lyrics_review": "Lyrics review",
     "status.song_queued": "Song queued",
     "status.takes_review": "Takes review",
+    "status.audio_ready": "Audio only",
     "status.producing": "Producing",
     "status.video_review": "Video review",
     "status.approved": "Approved",

@@ -1,16 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import {
-  AudioLines,
-  Folder,
-  ImagePlus,
-  Lightbulb,
-  Mic,
-  Music2,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Music2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -32,7 +23,7 @@ import {
   LIMITS,
   useCreateForm,
 } from "@/store/create-form";
-import { Counter, Segmented, SoonBadge, Tip } from "../ui";
+import { Counter, Segmented, Tip } from "../ui";
 import { LanguagePicker } from "./language-picker";
 import { LyricsCard } from "./lyrics-card";
 import { ModelSelect } from "./model-select";
@@ -57,78 +48,19 @@ export function payloadFor(form: CreateFormState) {
       styleWeight: Math.round(form.styleInfluence) / 100,
       variety: form.variety,
       duration: form.durationMode === "custom" ? form.duration : null,
+      video: form.video.mode === "off" ? ("off" as const) : ("lyric" as const),
     },
   };
 }
 
-function Tabs() {
+function Heading() {
   const lang = useLocale();
-  const tabs = [
-    { id: "songs", label: st(lang, "create.songs") },
-    { id: "speech", label: st(lang, "create.speech"), soon: true },
-    { id: "sounds", label: st(lang, "create.sounds"), soon: true },
-  ];
   return (
-    <div
-      role="tablist"
-      aria-label={st(lang, "create.what")}
-      className="flex items-center gap-5 border-b border-[var(--hairline)]"
-    >
-      {tabs.map((tab) => {
-        const button = (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={!tab.soon}
-            aria-disabled={tab.soon || undefined}
-            className={cn(
-              "relative -mb-px flex h-10 items-center gap-1.5 border-b-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]",
-              tab.soon
-                ? "cursor-not-allowed border-transparent text-[var(--fg-subtle)]"
-                : "border-[var(--fg)] text-[var(--fg)]",
-            )}
-          >
-            {tab.label}
-            {tab.soon ? <SoonBadge>{st(lang, "soon")}</SoonBadge> : null}
-          </button>
-        );
-        return tab.soon ? (
-          <Tip key={tab.id} label={st(lang, "soon")}>
-            {button}
-          </Tip>
-        ) : (
-          button
-        );
-      })}
-    </div>
-  );
-}
-
-function AttachmentRow({ advanced }: { advanced: boolean }) {
-  const lang = useLocale();
-  const items = [
-    { icon: <AudioLines />, label: st(lang, "create.audio") },
-    { icon: <Mic />, label: st(lang, "create.voice") },
-    advanced
-      ? { icon: <Lightbulb />, label: st(lang, "create.inspo") }
-      : { icon: <ImagePlus />, label: st(lang, "create.image") },
-  ];
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      {items.map((item) => (
-        <Tip key={item.label} label={st(lang, "soon")}>
-          <button
-            type="button"
-            aria-disabled
-            className="flex h-9 cursor-not-allowed items-center justify-center gap-1.5 rounded-full bg-[var(--surface-2)] text-[13px] text-[var(--fg-muted)] [&_svg]:size-4"
-          >
-            <Plus className="size-3.5" />
-            {item.label}
-          </button>
-        </Tip>
-      ))}
-    </div>
+    <h2 className="flex h-10 items-center border-b border-[var(--hairline)] text-base font-medium">
+      <span className="-mb-px flex h-full items-center border-b-2 border-[var(--fg)]">
+        {st(lang, "create.songs")}
+      </span>
+    </h2>
   );
 }
 
@@ -207,7 +139,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
       )}
     >
       <div className="shrink-0 px-4 pt-3">
-        <Tabs />
+        <Heading />
         <div className="mt-3 flex items-center justify-between gap-2">
           <Segmented
             label={`${st(lang, "create.simple")} / ${st(lang, "create.advanced")}`}
@@ -232,7 +164,6 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-4 scrollbar-thin">
-        <AttachmentRow advanced={form.mode === "advanced"} />
         {form.mode === "simple" ? (
           <>
             <SimplePrompt />
@@ -263,15 +194,6 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
             </div>
           </>
         )}
-        <div className="flex items-center justify-between gap-2 px-1 text-[13px] text-[var(--fg-muted)]">
-          <span className="flex items-center gap-1.5">
-            <Folder className="size-4" />
-            {lang === "it" ? "Salva in" : "Save to"}
-          </span>
-          <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-[var(--fg)]">
-            {st(lang, "feed.workspace")}
-          </span>
-        </div>
       </div>
 
       <div className="shrink-0 border-t border-[var(--hairline)] bg-[var(--bg)] px-4 pt-3 pb-4">

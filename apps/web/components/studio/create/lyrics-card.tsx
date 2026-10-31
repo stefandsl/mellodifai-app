@@ -1,21 +1,13 @@
 "use client";
 
 import { cn } from "cn";
-import {
-  Expand,
-  FilePlus2,
-  Library,
-  Minimize2,
-  Redo2,
-  Sparkles,
-  Undo2,
-} from "lucide-react";
+import { Expand, FilePlus2, Minimize2, Redo2, Undo2 } from "lucide-react";
 import { Fragment, useRef, useState } from "react";
 
 import { useLocale } from "@/components/locale-provider";
 import { st } from "@/lib/studio/i18n";
 import { LIMITS, useCreateForm } from "@/store/create-form";
-import { Counter, IconButton, PanelCard, Tip } from "../ui";
+import { Counter, IconButton, PanelCard } from "../ui";
 
 const TAGS = [
   "Intro",
@@ -132,13 +124,6 @@ export function LyricsCard() {
               <FilePlus2 />
             </IconButton>
             <IconButton
-              label={it ? "Testi salvati" : "Saved lyrics"}
-              soon={st(lang, "soon")}
-              className="bg-transparent"
-            >
-              <Library />
-            </IconButton>
-            <IconButton
               label={
                 full
                   ? it
@@ -214,16 +199,6 @@ export function LyricsCard() {
             <span className="text-xs text-[var(--fg-subtle)]">
               {lyrics.trim() ? "" : st(lang, "create.aiLyrics")}
             </span>
-            <Tip label={`${st(lang, "create.cowriter")} - ${st(lang, "soon")}`}>
-              <button
-                type="button"
-                aria-label={st(lang, "create.cowriter")}
-                aria-disabled
-                className="inline-flex size-7 cursor-not-allowed items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--brand)] opacity-60"
-              >
-                <Sparkles className="size-3.5" />
-              </button>
-            </Tip>
             <Counter value={lyrics.length} max={LIMITS.lyrics} />
           </div>
         </div>
