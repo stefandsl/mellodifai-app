@@ -68,7 +68,7 @@ export const draftLyrics: StageHandler = async (context) => {
             },
             {
               role: "user",
-              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\nBrief: ${context.project.brief ?? ""}\nStyle: ${context.project.style ?? ""}\nReference:\n${template}\n${correction}`,
+              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\nBrief: ${context.project.brief ?? ""}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference:\n${template}\n${correction}`,
             },
           ],
         }),

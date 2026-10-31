@@ -8,14 +8,21 @@ import { Engine } from "../src/engine.js";
 import { WorkerLoop } from "../src/loop.js";
 import { loadSecrets } from "../src/secrets.js";
 
-const project = { id: "project-1", topic: "Topic", theme: "general" };
+const project = {
+  id: "project-1",
+  owner_id: "owner",
+  topic: "Topic",
+  theme: "general",
+};
 const version = {
+  owner_id: "owner",
   id: "version-1",
   project_id: project.id,
   lang: "en" as const,
   status: "producing" as const,
 };
 const job = {
+  owner_id: "owner",
   id: "job-1",
   version_id: version.id,
   stage: "qa" as const,
@@ -150,7 +157,7 @@ describe("engine", () => {
     };
     const engine = new Engine({ spawn: spawn as never, log: async () => {} });
     await expect(
-      engine.run("tool", [output], { outputs: [output] }),
+      engine.run("tool", [output], { outputs: [output], allowNonZero: true }),
     ).resolves.toEqual({ code: 1 });
     await expect(readFile(output)).rejects.toThrow();
     await engine.run("tool", [output], { outputs: [output] });

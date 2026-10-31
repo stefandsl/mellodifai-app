@@ -10,7 +10,7 @@ const credentialName =
   /(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION|COOKIE)/iu;
 
 // File-loaded names are private even when their names do not resemble credentials.
-// Also remove aliases containing a credential value, including process overrides.
+// Drop exact value aliases only; short values must not erase system paths.
 export function childEnvironment(
   environment: NodeJS.ProcessEnv,
   secrets?: Secrets,
@@ -20,19 +20,20 @@ export function childEnvironment(
   );
   for (const name of Object.keys(secrets?.values ?? {}))
     if (credentialName.test(name)) names.add(name.toUpperCase());
-  for (const name of Object.keys(environment))
-    if (credentialName.test(name)) names.add(name.toUpperCase());
   const values = [
     ...Object.entries(secrets?.values ?? {}),
     ...Object.entries(environment),
   ]
-    .filter(([name, value]) => names.has(name.toUpperCase()) && Boolean(value))
+    .filter(
+      ([name, value]) =>
+        names.has(name.toUpperCase()) && (value?.length ?? 0) >= 8,
+    )
     .map(([, value]) => value as string);
   return Object.fromEntries(
     Object.entries(environment).filter(
       ([name, value]) =>
         !names.has(name.toUpperCase()) &&
-        !values.some((secret) => value?.includes(secret)),
+        !values.some((secret) => value === secret),
     ),
   );
 }

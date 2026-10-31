@@ -300,9 +300,9 @@ describe("row level security", () => {
           .insert({ id: `cross-${b.id}`, owner_id: b.id, busy_job_id: jobId })
       ).error?.code,
     ).toBe("23503");
-    const render = await a.client
+    const render = await service
       .from("renders")
-      .insert({ version_id: versionId, kind: "master" })
+      .insert({ owner_id: a.id, version_id: versionId, kind: "master" })
       .select("id")
       .single();
     expect(render.error).toBeNull();
@@ -312,14 +312,14 @@ describe("row level security", () => {
           .from("publications")
           .insert({ render_id: render.data?.id, confirmed_by: b.id })
       ).error?.code,
-    ).toBe("23514");
-    const publication = await a.client
+    ).toBe("42501");
+    const publication = await service
       .from("publications")
-      .insert({ render_id: render.data?.id })
+      .insert({ owner_id: a.id, render_id: render.data?.id })
       .select("id, confirmed_by")
       .single();
     expect(publication.error).toBeNull();
-    expect(publication.data?.confirmed_by).toBe(a.id);
+    expect(publication.data?.confirmed_by).toBeNull();
     expect(
       (
         await a.client
@@ -327,7 +327,7 @@ describe("row level security", () => {
           .update({ confirmed_by: b.id })
           .eq("id", publication.data?.id)
       ).error?.code,
-    ).toBe("23514");
+    ).toBe("42501");
     expect(
       (
         await service

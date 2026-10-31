@@ -1,7 +1,12 @@
 import { copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
-import type { LyricPack, Stage } from "@mellodifai/shared";
+import {
+  type LyricPack,
+  privacyVersionStatus,
+  STAGE_STATUS,
+  type Stage,
+} from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { ENGINE_ROOT, key, upload, writePack } from "../stages/utils.js";
 
@@ -146,28 +151,23 @@ export function createFakeStages(
           break;
         case "generate_song": {
           await writePack(ctx, fakePack);
-          const existing = await ctx.db.getTakes(ctx.version.id);
           for (const n of [1, 2]) {
             const path = await copy(
               fixtures.audio,
               join(ctx.ws.outDir, `take-${n}.mp3`),
               "audio/mpeg",
             );
-            if (
-              !existing.some(
-                (take) =>
-                  (take.scores as { take?: number } | undefined)?.take === n,
-              )
-            )
-              await ctx.db.createTake({
-                ...(ctx.version.owner_id
-                  ? { owner_id: ctx.version.owner_id }
-                  : {}),
-                version_id: ctx.version.id,
-                kie_task_id: `fake-${ctx.version.id}`,
-                audio_preview_path: path,
-                scores: { take: n },
-              });
+            await ctx.db.createTake({
+              ...(ctx.version.owner_id
+                ? { owner_id: ctx.version.owner_id }
+                : {}),
+              version_id: ctx.version.id,
+              take_number: n,
+              generation: ctx.version.generation_count ?? 1,
+              kie_task_id: `fake-${ctx.version.id}`,
+              audio_preview_path: path,
+              scores: { take: n },
+            });
           }
           result.versionStatus = "takes_review";
           break;
@@ -266,6 +266,11 @@ export function createFakeStages(
             join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
             "1\n00:00:00,000 --> 00:00:10,000\nA little brighter\n",
           );
+          await upload(
+            ctx,
+            join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
+            "application/x-subrip",
+          );
           result.versionStatus = "video_review";
           break;
         case "publish": {
@@ -279,8 +284,10 @@ export function createFakeStages(
               render_id: render.id,
               youtube_video_id: "fake-video",
               privacy: "private",
+              upload_state: "uploaded",
+              privacy_applied: "private",
             });
-          result.versionStatus = "publishing";
+          result.versionStatus = "approved";
           break;
         }
         case "set_privacy": {
@@ -291,11 +298,24 @@ export function createFakeStages(
             throw new Error(
               "publication must be confirmed before changing privacy",
             );
-          result.versionStatus = "published";
+          if (
+            publication.privacy === "scheduled" &&
+            (!publication.publish_at ||
+              Date.parse(publication.publish_at) <= Date.now())
+          )
+            throw new Error("Scheduled publish_at must be in the future");
+          if (publication.upload_state !== "uploaded")
+            throw new Error("Worker uploaded publication required");
+          await ctx.db.patchPublication(publication.id, {
+            privacy_applied: publication.privacy,
+          });
+          result.versionStatus = privacyVersionStatus(publication.privacy);
           break;
         }
       }
       const following = next[stage];
+      const status = STAGE_STATUS[stage];
+      if (status) result.versionStatus = status;
       if (following)
         result.enqueue = [
           {

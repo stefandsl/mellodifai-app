@@ -18,6 +18,8 @@ export type Spawn = (
   options: SpawnOptions,
 ) => Child;
 export type EngineOptions = {
+  allowNonZero?: boolean;
+  clearOutputs?: string[];
   env?: Record<string, string>;
   outputs?: string[];
   cwd?: string;
@@ -115,7 +117,12 @@ export class Engine {
       if (staged[0] === "-X" && staged[1] === "utf8") staged.splice(0, 2);
       staged.unshift("-I", "-X", "utf8");
     }
-    for (const part of parts.values()) await rm(part, { force: true });
+    for (const file of [
+      ...parts.keys(),
+      ...parts.values(),
+      ...(options.clearOutputs ?? []),
+    ])
+      await rm(file, { force: true });
     signal?.throwIfAborted();
     const child = (this.dependencies.spawn ?? nodeSpawn)(command, staged, {
       shell: false,
@@ -136,8 +143,12 @@ export class Engine {
       },
     });
     let logs = Promise.resolve();
+    const tail: string[] = [];
     let logError: unknown;
     const emit = (line: string) => {
+      line = this.dependencies.secrets?.redact(line) ?? line;
+      tail.push(line);
+      if (tail.length > 20) tail.shift();
       logs = logs
         .then(() => this.dependencies.log(line))
         .catch((error: unknown) => {
@@ -193,6 +204,8 @@ export class Engine {
       await logs;
       signal?.throwIfAborted();
       if (logError) throw new Error("Engine log delivery failed");
+      if (code !== 0 && !options.allowNonZero)
+        throw new Error(`${command} exited ${code}\n${tail.join("\n")}`);
       if (code === 0)
         for (const [file, part] of parts) await rename(part, file);
       return { code };

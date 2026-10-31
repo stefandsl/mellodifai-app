@@ -1,3 +1,4 @@
+import { STAGE_STATUS, type Stage } from "@mellodifai/shared";
 import type { StageRegistry } from "../loop.js";
 import { art } from "./art.js";
 import { draftLyrics } from "./draft-lyrics.js";
@@ -19,3 +20,12 @@ export const stages: StageRegistry = {
   publish,
   set_privacy: setPrivacy,
 };
+for (const stage of Object.keys(STAGE_STATUS) as Stage[]) {
+  const handler = stages[stage];
+  const status = STAGE_STATUS[stage];
+  if (handler && status)
+    stages[stage] = async (context) => {
+      const result = await handler(context);
+      return result.retryLater ? result : { ...result, versionStatus: status };
+    };
+}

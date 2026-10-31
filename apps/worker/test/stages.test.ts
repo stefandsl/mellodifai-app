@@ -8,8 +8,11 @@ import { InMemoryDb } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
 import { createFakeStages } from "../src/fake/index.js";
 import { type StageContext, WorkerLoop } from "../src/loop.js";
-import { loadSecrets } from "../src/secrets.js";
+import { startBalanceRefresh } from "../src/main.js";
+import { childEnvironment, loadSecrets } from "../src/secrets.js";
+import { refreshBalance } from "../src/stages/generate-song.js";
 import { stages } from "../src/stages/index.js";
+import { nextPacificQuotaTime } from "../src/stages/quota.js";
 import { ENGINE_ROOT } from "../src/stages/utils.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -24,6 +27,402 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 const roots: string[] = [];
+describe("round 2 hardening", () => {
+  it("balance refresh also tolerates an unavailable log sink", async () => {
+    const { ctx } = await setup();
+    ctx.log = async () => {
+      throw new Error("log unavailable");
+    };
+    await expect(refreshBalance(ctx)).resolves.toBeUndefined();
+  });
+  it("refuses historical client-written publication ids without worker upload provenance", async () => {
+    const { ctx, db, calls } = await setup();
+    const render = db.renders[0];
+    if (!render) throw new Error("missing fixture");
+    await db.createPublication({
+      render_id: render.id,
+      privacy: "public",
+      youtube_video_id: "forged",
+      upload_state: "pending",
+      confirmed_by: "owner",
+      confirmed_at: new Date().toISOString(),
+    });
+    await expect(stages.set_privacy?.(ctx)).rejects.toThrow("uploaded");
+    expect(calls).toHaveLength(0);
+  });
+  it("archives the previous generation only on explicit generation_count change", async () => {
+    const { ctx, db } = await setup();
+    await stages.generate_song?.(ctx);
+    await writeFile(join(ctx.ws.outDir, "take-1.mp3"), "old take");
+    ctx.version.generation_count = 2;
+    await stages.generate_song?.(ctx);
+    expect(
+      JSON.parse(
+        await readFile(join(ctx.ws.outDir, "gen-1", "task.json"), "utf8"),
+      ),
+    ).toMatchObject({ taskId: "task-1" });
+    expect(
+      await readFile(join(ctx.ws.outDir, "gen-1", "take-1.mp3"), "utf8"),
+    ).toBe("old take");
+    expect(db.takes.filter((t) => t.generation === 2)).toHaveLength(2);
+  });
+  it("refuses a local submitting marker even when the database state was lost", async () => {
+    const { ctx, calls } = await setup();
+    await writeFile(join(ctx.ws.outDir, "submitting-1.json"), "{}");
+    await expect(stages.generate_song?.(ctx)).rejects.toThrow(
+      "kie submission state unknown",
+    );
+    expect(calls).toHaveLength(0);
+  });
+  it("limits concurrent quota reservations and deduplicates the same render", async () => {
+    const { db } = await setup();
+    const renders = await Promise.all(
+      Array.from({ length: 5 }, (_, n) =>
+        db.upsertRender({ version_id: `v${n}`, kind: "master" }),
+      ),
+    );
+    const results = await Promise.all(
+      renders.map((r) => db.reserveUpload(r, "worker")),
+    );
+    expect(results.filter((r) => r.kind === "reserved")).toHaveLength(4);
+    expect(results.filter((r) => r.kind === "quota")).toHaveLength(1);
+    const first = renders[0];
+    if (!first) throw new Error("fixture missing");
+    expect((await db.reserveUpload(first, "worker")).kind).toBe("uploading");
+    expect((await db.getWorker("worker"))?.youtube_uploads_today).toBe(4);
+  });
+  it("refreshes balance every ten minutes without overlapping or leaking a timer", async () => {
+    vi.useFakeTimers();
+    let release = () => {};
+    const refresh = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const stop = startBalanceRefresh(refresh);
+    await vi.advanceTimersByTimeAsync(600000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(600000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    release();
+    await stop();
+    await vi.advanceTimersByTimeAsync(600000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["2026-11-01T08:30:00Z", "2026-11-02T08:05:00.000Z"],
+    ["2026-03-08T09:30:00Z", "2026-03-09T07:05:00.000Z"],
+  ])("defers to Pacific midnight across DST (%s)", (now, expected) => {
+    expect(nextPacificQuotaTime(new Date(now))).toBe(expected);
+  });
+  it("rejects foreign payload ids even when the stage and row ownership are valid", async () => {
+    const { ctx, db, calls } = await setup();
+    db.jobs.push({ ...ctx.job, payload: { take_id: "foreign" } });
+    const loop = new WorkerLoop({
+      db,
+      workerId: "worker",
+      stages,
+      engine: ctx.engine,
+      storage: ctx.storage,
+      secrets: ctx.secrets,
+      workspace: { forVersion: async () => ctx.ws },
+    });
+    await loop.runOnce();
+    expect(db.jobs[0]?.error).toContain("payload");
+    expect(calls).toHaveLength(0);
+  });
+  it("clears old timing before a failed pipeline and never exposes old files", async () => {
+    const { ctx } = await setup();
+    const path = join(ctx.ws.publicDir, "data", "fr", "timing.json");
+    ctx.engine = new Engine({
+      log: async () => {},
+      spawn: () => {
+        const child = new EventEmitter();
+        setImmediate(() => child.emit("close", 3));
+        return child;
+      },
+    });
+    await expect(stages.timing?.(ctx)).rejects.toThrow("bash exited 3");
+    await expect(readFile(path)).rejects.toThrow();
+  });
+  it("throws on nonzero exit with only the last 20 redacted lines and deletes stale outputs", async () => {
+    const { ctx } = await setup();
+    const file = join(ctx.ws.renderDir, "video.mp4");
+    await writeFile(file, "old");
+    const engine = new Engine({
+      secrets: {
+        values: { KEY: "long-secret" },
+        redact: (s) => s.replaceAll("long-secret", "***"),
+      },
+      log: async () => {},
+      spawn: () => {
+        const child = Object.assign(new EventEmitter(), {
+          stdout: new EventEmitter(),
+        });
+        setImmediate(() => {
+          for (let i = 0; i < 25; i++)
+            child.stdout.emit("data", `line-${i}:long-secret\n`);
+          child.emit("close", 2);
+        });
+        return child as unknown as ReturnType<Spawn>;
+      },
+    });
+    await expect(
+      engine.run("ffmpeg", [file], { outputs: [file] }),
+    ).rejects.toThrow("ffmpeg exited 2");
+    await expect(readFile(file)).rejects.toThrow();
+    try {
+      await engine.run("ffmpeg", []);
+    } catch (error) {
+      const message = String(error);
+      expect(message).toContain("line-24:***");
+      expect(message).not.toContain("line-4:");
+      expect(message).not.toContain("long-secret");
+    }
+  });
+  it("preserves system paths despite short private values", () => {
+    expect(
+      childEnvironment(
+        {
+          PATH: "C:\\python1",
+          SystemRoot: "C:\\Windows",
+          WORKER_FAKE: "1",
+          ALIAS: "prefix-long-secret",
+        },
+        {
+          values: { WORKER_FAKE: "1", KEY: "long-secret" },
+          secretNames: ["WORKER_FAKE", "KEY"],
+          redact: (s) => s,
+        },
+      ),
+    ).toMatchObject({
+      PATH: "C:\\python1",
+      SystemRoot: "C:\\Windows",
+      ALIAS: "prefix-long-secret",
+    });
+  });
+  it("rejects unauthorized stages and foreign payload ids before engine invocation", async () => {
+    const { ctx, db, calls } = await setup();
+    ctx.version.status = "drafting";
+    ctx.job.owner_id = "owner";
+    ctx.project.owner_id = "owner";
+    db.jobs.push({
+      ...ctx.job,
+      stage: "publish",
+      payload: { version_id: "foreign" },
+    });
+    const loop = new WorkerLoop({
+      db,
+      workerId: "worker",
+      stages,
+      engine: ctx.engine,
+      storage: ctx.storage,
+      secrets: ctx.secrets,
+      workspace: { forVersion: async () => ctx.ws },
+    });
+    await loop.runOnce();
+    expect(calls).toHaveLength(0);
+    expect(db.jobs[0]?.error).toMatch(/not allowed|payload/u);
+  });
+  it("defers claims until not_before", async () => {
+    const { ctx, db } = await setup();
+    db.jobs.push({
+      ...ctx.job,
+      not_before: new Date(Date.now() + 60000).toISOString(),
+    });
+    expect(await db.claim("worker")).toBeNull();
+  });
+  it.each(["private", "unlisted", "public", "scheduled"] as const)(
+    "applies %s before changing version visibility",
+    async (privacy) => {
+      const { ctx, db } = await setup();
+      const render = db.renders[0];
+      if (!render) throw new Error("missing fixture");
+      await db.createPublication({
+        render_id: render.id,
+        privacy,
+        confirmed_by: "owner",
+        confirmed_at: new Date().toISOString(),
+        youtube_video_id: "abc123",
+        upload_state: "uploaded",
+        publish_at: new Date(Date.now() + 3600000).toISOString(),
+      });
+      expect((await stages.set_privacy?.(ctx))?.versionStatus).toBe(
+        privacy === "public" || privacy === "scheduled"
+          ? "published"
+          : "approved",
+      );
+      expect(db.publications[0]?.privacy_applied).toBe(privacy);
+    },
+  );
+  it.each(["uploading", "uploaded"] as const)(
+    "never repeats an upload in state %s",
+    async (state) => {
+      const { ctx, db, calls } = await setup();
+      await db.createPublication({
+        render_id: db.renders[0]?.id ?? "",
+        privacy: "private",
+        upload_state: state,
+        youtube_video_id: state === "uploaded" ? "abc123" : null,
+      });
+      if (state === "uploading")
+        await expect(stages.publish?.(ctx)).rejects.toThrow(
+          "upload state unknown, check YouTube Studio",
+        );
+      else await stages.publish?.(ctx);
+      expect(calls).toHaveLength(0);
+    },
+  );
+  it("reserves publication and quota before upload, even when the response is lost", async () => {
+    const { ctx, db } = await setup();
+    const original = ctx.engine.withWorkspace.bind(ctx.engine);
+    vi.spyOn(ctx.engine, "withWorkspace").mockImplementation((...args) => {
+      const e = original(...args);
+      vi.spyOn(e, "run").mockImplementation(async () => {
+        expect(db.publications[0]?.upload_state).toBe("uploading");
+        expect((await db.getWorker("worker"))?.youtube_uploads_today).toBe(1);
+        throw new Error("connection lost");
+      });
+      return e;
+    });
+    await expect(stages.publish?.(ctx)).rejects.toThrow("connection lost");
+    await expect(stages.publish?.(ctx)).rejects.toThrow("upload state unknown");
+  });
+  it("rejects publishing paths outside workspace", async () => {
+    const { ctx, db, calls } = await setup();
+    if (!db.renders[0]) throw new Error("missing fixture");
+    db.renders[0].path = "C:\\private\\video.mp4";
+    await expect(stages.publish?.(ctx)).rejects.toThrow("workspace");
+    expect(calls).toHaveLength(0);
+  });
+  it("schedules from private and requires a future publish_at", async () => {
+    const { ctx, db, calls } = await setup();
+    const pub = await db.createPublication({
+      render_id: db.renders[0]?.id ?? "",
+      privacy: "scheduled",
+      upload_state: "uploaded",
+      youtube_video_id: "abc123",
+      confirmed_at: "2026-01-01",
+      confirmed_by: "owner",
+      publish_at: "2000-01-01T00:00:00Z",
+    });
+    await expect(stages.set_privacy?.(ctx)).rejects.toThrow("future");
+    pub.publish_at = new Date(Date.now() + 3600000).toISOString();
+    await stages.set_privacy?.(ctx);
+    expect(calls.at(-1)?.args).toEqual([
+      "-I",
+      "-X",
+      "utf8",
+      "publish/yt.py",
+      "privacy",
+      "abc123",
+      "private",
+      "--publish-at",
+      pub.publish_at,
+      "--confirm",
+    ]);
+  });
+  it("does not resubmit ambiguous Kie submissions", async () => {
+    const { ctx, calls } = await setup();
+    ctx.version.kie_submit_state = "submitting";
+    await expect(stages.generate_song?.(ctx)).rejects.toThrow(
+      "kie submission state unknown, check the kie dashboard",
+    );
+    expect(calls.some((c) => c.args.includes("generate"))).toBe(false);
+  });
+  it("persists Kie task before wait and upserts numbered takes", async () => {
+    const { ctx, db } = await setup();
+    const run = ctx.engine.run.bind(ctx.engine);
+    vi.spyOn(ctx.engine, "run").mockImplementation(async (cmd, args, opts) => {
+      if (args[1] === "generate")
+        expect(ctx.version.kie_submit_state).toBe("submitting");
+      if (args[1] === "wait") expect(ctx.version.kie_task_id).toBe("task-1");
+      return run(cmd, args, opts);
+    });
+    await stages.generate_song?.(ctx);
+    await stages.generate_song?.(ctx);
+    expect(db.takes.filter((t) => t.take_number)).toHaveLength(2);
+  });
+  it("balance failures do not fail generation", async () => {
+    const { ctx } = await setup();
+    const original = ctx.engine.withWorkspace.bind(ctx.engine);
+    vi.spyOn(ctx.engine, "withWorkspace").mockImplementation((...args) => {
+      const e = original(...args);
+      vi.spyOn(e, "run").mockRejectedValue(new Error("balance unavailable"));
+      return e;
+    });
+    expect((await stages.generate_song?.(ctx))?.versionStatus).toBe(
+      "takes_review",
+    );
+  });
+  it("uses take_number and cuts before Final Chorus", async () => {
+    const { ctx, db, calls } = await setup();
+    if (!db.takes[0]) throw new Error("missing fixture");
+    db.takes[0].take_number = 2;
+    await writeFile(
+      join(ctx.ws.publicDir, "data", "fr", "timing.json"),
+      JSON.stringify({
+        duration: 100,
+        sections: [
+          {
+            name: "Final Chorus",
+            lines: [{ words: [{ start: 60, end: 61 }] }],
+          },
+        ],
+      }),
+    );
+    const result = await stages.timing?.(ctx);
+    expect(calls[0]?.args).toEqual(["tools/workspace_pipeline.sh", "fr", "2"]);
+    expect(calls[1]?.args).toContain("52");
+    expect(result?.versionStatus).toBe("producing");
+  });
+  it("art creates and uploads SRT before video_review", async () => {
+    const { ctx, calls } = await setup();
+    await stages.art?.(ctx);
+    expect(calls.some((c) => c.args.includes("tools/make_srt.py"))).toBe(true);
+    expect(ctx.storage.upload).toHaveBeenCalledTimes(2);
+  });
+  it("QA fails closed and samples the real duration without exposing video_review", async () => {
+    const { ctx, db, calls } = await setup();
+    ctx.version.qa_flags = [];
+    const result = await stages.qa?.(ctx);
+    expect(result?.versionStatus).toBeUndefined();
+    expect(calls.at(-1)?.args).toContain("fps=20/10,scale=320:-1,tile=5x4");
+    expect(JSON.stringify(db.renders[0]?.qa_results)).toContain("not measured");
+  });
+  it("includes mood and vocal gender in the draft prompt", async () => {
+    const { ctx } = await setup();
+    ctx.project.mood = "hopeful";
+    ctx.project.vocal_gender = "m";
+    const fetch = vi.fn(async () => respond(pack));
+    vi.stubGlobal("fetch", fetch);
+    await stages.draft_lyrics?.(ctx);
+    const request = (fetch.mock.calls as unknown[][])[0]?.[1] as
+      | RequestInit
+      | undefined;
+    const body = String(request?.body);
+    expect(body).toContain("hopeful");
+    expect(body).toContain("Vocal gender: m");
+  });
+  it("selects the latest publication deterministically", async () => {
+    const { ctx, db } = await setup();
+    const render_id = db.renders[0]?.id ?? "";
+    await db.createPublication({
+      render_id,
+      privacy: "private",
+      created_at: "2000-01-01",
+    });
+    const latest = await db.createPublication({
+      render_id,
+      privacy: "private",
+      created_at: "2020-01-01",
+    });
+    expect((await db.getPublicationForVersion(ctx.version.id))?.id).toBe(
+      latest.id,
+    );
+  });
+});
 afterEach(async () => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -75,7 +474,20 @@ async function setup() {
     cwd: unknown;
     env: NodeJS.ProcessEnv;
   }[] = [];
-  const output = { lufs: -14, peak: -1.5, sizes: [1000], duration: 10 };
+  await writeFile(join(ws.renderDir, "video.mp4"), "fixture");
+  const output = {
+    lufs: -14,
+    peak: -1.5,
+    sizes: [1000],
+    duration: 10,
+    timing: {
+      duration: 10,
+      words: [{ start: 0, end: 0.1 }],
+      sections: [
+        { name: "Final Chorus", lines: [{ words: [{ start: 60, end: 61 }] }] },
+      ],
+    } as unknown,
+  };
   const spawn: Spawn = (cmd, args, options) => {
     calls.push({
       cmd,
@@ -89,6 +501,11 @@ async function setup() {
     });
     setImmediate(() => {
       void (async () => {
+        if (cmd === "bash")
+          await writeFile(
+            join(ws.publicDir, "data", "fr", "timing.json"),
+            JSON.stringify(output.timing),
+          );
         for (const arg of args)
           if (arg.endsWith(".part")) await writeFile(arg, "fixture");
         if (args[1] === "generate")
@@ -119,6 +536,7 @@ async function setup() {
   const db = new InMemoryDb();
   const ctx: StageContext = {
     job: {
+      owner_id: "owner",
       id: "job",
       stage: "timing",
       version_id: "version",
@@ -139,7 +557,7 @@ async function setup() {
         { kind: "timing_duration", value: 10 },
       ],
     },
-    project: { id: "project", topic: "Test", theme: "vbp" },
+    project: { id: "project", owner_id: "owner", topic: "Test", theme: "vbp" },
     ws,
     db,
     engine: new Engine({ spawn, log: async () => {} }).withWorkspace(root),
@@ -163,11 +581,17 @@ async function setup() {
   }).withWorkspace(root);
   db.versions.push(ctx.version);
   db.projects.push(ctx.project);
-  const take = await db.createTake({ version_id: "version" });
+  const take = await db.createTake({
+    owner_id: "owner",
+    version_id: "version",
+    take_number: 1,
+    generation: 1,
+  });
   ctx.version.chosen_take_id = take.id;
   await db.upsertRender({
     version_id: "version",
     kind: "master",
+    owner_id: "owner",
     path: join(ws.renderDir, "video.mp4"),
   });
   return { ctx, calls, output, db };
@@ -197,6 +621,7 @@ describe("stage safety and behavior", () => {
     const secrets = await loadSecrets({
       WORKER_ENV_FILES: file,
       OPENROUTER_API_KEY: "test-router-secret",
+      SUPABASE_SERVICE_ROLE_KEY: "fixture-service-key",
     });
     vi.stubEnv("CUSTOM_CREDENTIAL", "fixture-secret-value");
     vi.stubEnv("ALIAS", "fixture-secret-value");
@@ -358,6 +783,7 @@ describe("stage safety and behavior", () => {
       youtube_quota_day: "2026-10-30",
       youtube_uploads_today: 4,
     });
+    ctx.version.status = "approved";
     db.jobs.push({ ...ctx.job, stage: "publish" });
     const loop = new WorkerLoop({
       db,
@@ -371,7 +797,9 @@ describe("stage safety and behavior", () => {
     await loop.runOnce();
     expect(db.jobs[0]?.status).toBe("queued");
     expect(calls).toHaveLength(0);
-    expect(db.events.some((e) => e.message.includes("quota"))).toBe(true);
+    expect(db.jobs[0]?.error).toContain("quota");
+    expect(db.jobs[0]?.not_before).toBe("2026-10-31T07:05:00.000Z");
+    expect(await loop.runOnce()).toBe(false);
     vi.setSystemTime(new Date("2026-10-31T08:00:00Z"));
     await loop.runOnce();
     expect(db.jobs[0]?.status).toBe("done");
@@ -586,13 +1014,14 @@ describe("exact stage subprocess contracts", () => {
         render_id: db.renders[0]?.id ?? "",
         youtube_video_id: "abc123",
         privacy: "unlisted",
+        upload_state: "uploaded",
         confirmed_at: "2026-10-31",
         confirmed_by: "owner",
       });
     await stages[stage]?.(ctx);
     const out = (name: string) => join(ctx.ws.outDir, name);
     const render = (name: string) => join(ctx.ws.renderDir, name);
-    const stem = join(ctx.ws.root, "stems", "vocals.wav");
+    const stem = join(ctx.ws.root, "stems", "htdemucs", "fr", "vocals.wav");
     const expected: Partial<Record<Stage, ReturnType<typeof command>[]>> = {
       generate_song: [
         command("node", ["tools/kie.mjs", "job", "fr"]),
@@ -619,6 +1048,8 @@ describe("exact stage subprocess contracts", () => {
         command("bash", ["tools/workspace_pipeline.sh", "fr", "1"]),
         command("ffmpeg", [
           "-y",
+          "-ss",
+          "52",
           "-i",
           stem,
           "-t",
@@ -657,6 +1088,14 @@ describe("exact stage subprocess contracts", () => {
           "Test song",
           "--out",
           render("thumbnail.png.part"),
+        ]),
+        command("python", [
+          "-I",
+          "-X",
+          "utf8",
+          "tools/make_srt.py",
+          "fr",
+          render("fr.srt.part"),
         ]),
       ],
       publish: [
@@ -705,7 +1144,7 @@ describe("exact stage subprocess contracts", () => {
           "-i",
           render("video.mp4"),
           "-vf",
-          "fps=20/600,scale=320:-1,tile=5x4",
+          "fps=20/10,scale=320:-1,tile=5x4",
           "-frames:v",
           "1",
           "-f",

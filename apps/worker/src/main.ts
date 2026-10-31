@@ -6,9 +6,26 @@ import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
 import { WorkerLoop } from "./loop.js";
 import { loadSecrets } from "./secrets.js";
+import { refreshBalance } from "./stages/generate-song.js";
 import { stages } from "./stages/index.js";
 import { SupabaseStorage } from "./storage.js";
 import { WorkspaceFactory } from "./workspace.js";
+
+export function startBalanceRefresh(refresh: () => Promise<void>) {
+  let pending: Promise<void> | undefined;
+  const timer = setInterval(() => {
+    if (!pending)
+      pending = refresh()
+        .catch(() => {})
+        .finally(() => {
+          pending = undefined;
+        });
+  }, 600_000);
+  return async () => {
+    clearInterval(timer);
+    await pending;
+  };
+}
 
 export function installSignals(
   loop: Pick<WorkerLoop, "stop" | "forceStop">,
@@ -49,22 +66,50 @@ async function main() {
   const workerId =
     secrets.values.WORKER_ID ?? `worker-${process.env.COMPUTERNAME ?? "pc"}`;
   const db = new SupabaseDb(url, key, secrets.values.WORKER_OWNER_ID);
+  const engine = new Engine({
+    log: async (line) => console.log(secrets.redact(line)),
+    secrets,
+    report,
+  });
+  const balanceAbort = new AbortController();
+  const stopBalance =
+    process.env.WORKER_FAKE === "1"
+      ? async () => {}
+      : startBalanceRefresh(() =>
+          refreshBalance({
+            engine: engine.withWorkspace(
+              "E:\\mellodifai",
+              async (line) => report(line),
+              balanceAbort.signal,
+            ),
+            ws: { root: "E:\\mellodifai" },
+            db,
+            secrets,
+            signal: balanceAbort.signal,
+            log: async (line) => report(line),
+          }),
+        );
   const loop = new WorkerLoop({
     db,
     workerId,
     stages: process.env.WORKER_FAKE === "1" ? fakeStages : stages,
     workspace: new WorkspaceFactory(),
-    engine: new Engine({
-      log: async (line) => console.log(secrets.redact(line)),
-      secrets,
-      report,
-    }),
+    engine,
     storage: new SupabaseStorage(createClient(url, key)),
     secrets,
     report,
   });
   const removeSignals = installSignals(
-    loop,
+    {
+      stop: async () => {
+        balanceAbort.abort();
+        await Promise.all([loop.stop(), stopBalance()]);
+      },
+      forceStop: async () => {
+        balanceAbort.abort();
+        await Promise.all([loop.forceStop(), stopBalance()]);
+      },
+    },
     process,
     (code) => process.exit(code),
     report,
@@ -72,6 +117,8 @@ async function main() {
   try {
     await loop.runForever();
   } finally {
+    balanceAbort.abort();
+    await stopBalance();
     removeSignals();
   }
 }

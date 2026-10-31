@@ -13,7 +13,9 @@ export async function createProject(input: unknown) {
     .insert({
       topic: value.topic,
       brief: value.brief,
-      style: `${value.style}\n${value.mood}`,
+      style: value.style,
+      mood: value.mood,
+      vocal_gender: value.vocalGender,
       theme: "vbp",
     })
     .select("id")

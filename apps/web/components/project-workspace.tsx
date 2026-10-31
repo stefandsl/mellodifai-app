@@ -126,10 +126,23 @@ function PublishPanel({
     privacy: "public" | "unlisted" | "scheduled" | "private";
   } | null;
 }) {
+  const [publishAt, setPublishAt] = useState("");
   if (publication?.youtube_video_id)
     return (
       <section className="space-y-3">
         <p>Video: {publication.youtube_video_id}</p>
+        <label
+          className="block text-sm"
+          htmlFor={`publish-at-${publication.id}`}
+        >
+          Data e ora di pubblicazione
+          <Input
+            id={`publish-at-${publication.id}`}
+            type="datetime-local"
+            value={publishAt}
+            onChange={(event) => setPublishAt(event.target.value)}
+          />
+        </label>
         <div className="flex flex-wrap gap-2">
           {(["public", "unlisted", "scheduled"] as const).map((privacy) => (
             <PublishConfirmDialog
@@ -137,7 +150,13 @@ function PublishPanel({
               videoName={publication.youtube_video_id ?? "video"}
               privacy={privacy}
               onConfirm={() =>
-                setPrivacy({ publicationId: publication.id, privacy })
+                setPrivacy({
+                  publicationId: publication.id,
+                  privacy,
+                  ...(privacy === "scheduled" && publishAt
+                    ? { publishAt: new Date(publishAt).toISOString() }
+                    : {}),
+                })
               }
             />
           ))}

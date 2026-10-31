@@ -1,4 +1,5 @@
 import type { Stage, VersionStatus } from "@mellodifai/shared";
+import { authorizeStage } from "./authorization.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
 import type { Secrets } from "./secrets.js";
@@ -22,7 +23,7 @@ export type StageResult = {
   versionStatus?: VersionStatus;
   patch?: Partial<Version>;
   enqueue?: { stage: Stage; idempotencyKey: string }[];
-  retryLater?: string;
+  retryLater?: { reason: string; notBefore: string };
 };
 export type StageHandler = (context: StageContext) => Promise<StageResult>;
 export type StageRegistry = Partial<Record<Stage, StageHandler>>;
@@ -195,6 +196,7 @@ export class WorkerLoop {
     };
     this.active.add(active);
     const signal = active.controller.signal;
+    let authorized = false;
     const heartbeat = this.timer(async () => {
       if (!(await db.heartbeat(job.id, workerId))) {
         active.lost = true;
@@ -222,12 +224,14 @@ export class WorkerLoop {
       const version = await db.getVersion(job.version_id);
       signal.throwIfAborted();
       if (!version) throw new Error(`Version ${job.version_id} not found`);
-      const handler = this.options.stages[job.stage];
-      if (!handler)
-        throw new Error(`No handler registered for stage ${job.stage}`);
       const project = await db.getProject(version.project_id);
       signal.throwIfAborted();
       if (!project) throw new Error(`Project ${version.project_id} not found`);
+      await authorizeStage(db, job, version, project);
+      authorized = true;
+      const handler = this.options.stages[job.stage];
+      if (!handler)
+        throw new Error(`No handler registered for stage ${job.stage}`);
       const { engine, storage, secrets, workspace } = this.options;
       if (!engine || !storage || !secrets || !workspace)
         throw new Error("Worker dependencies are not configured");
@@ -273,8 +277,12 @@ export class WorkerLoop {
           : await operation();
       signal.throwIfAborted();
       if (result.retryLater) {
-        await log(result.retryLater);
-        await db.requeue(job.id, workerId);
+        await db.requeue(
+          job.id,
+          workerId,
+          result.retryLater.notBefore,
+          result.retryLater.reason,
+        );
         return;
       }
       // Check ownership again before publishing stage results.
@@ -308,7 +316,8 @@ export class WorkerLoop {
           await log(this.redact(String(failure)));
         }
         try {
-          await db.patchVersion(job.version_id, { status: "failed" });
+          if (authorized)
+            await db.patchVersion(job.version_id, { status: "failed" });
         } catch (failure) {
           this.report(failure);
           await log(this.redact(String(failure)));

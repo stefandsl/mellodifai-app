@@ -12,14 +12,23 @@ function setup(handler?: StageHandler) {
     [
       {
         id: "j",
+        owner_id: "owner",
         version_id: "v",
         stage: "qa",
         status: "queued",
         idempotency_key: "k",
       },
     ],
-    [{ id: "v", project_id: "p", lang: "en", status: "producing" }],
-    [{ id: "p", topic: "topic", theme: "general" }],
+    [
+      {
+        id: "v",
+        owner_id: "owner",
+        project_id: "p",
+        lang: "en",
+        status: "producing",
+      },
+    ],
+    [{ id: "p", owner_id: "owner", topic: "topic", theme: "general" }],
   );
   const errors: string[] = [];
   const loop = new WorkerLoop({

@@ -1,33 +1,41 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { LyricPackSchema } from "@mellodifai/shared";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { LyricPackSchema, privacyVersionStatus } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
+import { nextPacificQuotaTime } from "./quota.js";
 import { ENGINE_ROOT, language } from "./utils.js";
 
-function pacificDay(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
 export const publish: StageHandler = async (context) => {
   const workerId =
     context.secrets.values.WORKER_ID ??
     `worker-${process.env.COMPUTERNAME ?? "pc"}`;
-  const worker = await context.db.getWorker(workerId);
-  const day = pacificDay();
-  const used =
-    worker?.youtube_quota_day === day ? (worker.youtube_uploads_today ?? 0) : 0;
-  if (used >= 4)
-    return {
-      retryLater:
-        "YouTube daily upload quota reached; retry after Pacific midnight",
-    };
   const render = await context.db.getRender(context.version.id, "master");
   if (!render?.path)
     throw new Error("master render is required before publishing");
+  const prior = await context.db.getPublicationForVersion(context.version.id);
+  if (prior?.render_id === render.id && prior.upload_state === "uploading")
+    throw new Error("upload state unknown, check YouTube Studio");
+  if (prior?.render_id === render.id && prior.upload_state === "uploaded")
+    return { versionStatus: "approved" };
+  const inside = (root: string, path: string) => {
+    const rel = relative(root, path);
+    if (!rel || rel.startsWith("..") || isAbsolute(rel))
+      throw new Error("Render path is outside workspace");
+  };
+  inside(resolve(context.ws.root), resolve(render.path));
+  inside(await realpath(context.ws.root), await realpath(render.path));
+  const reservation = await context.db.reserveUpload(render, workerId);
+  if (reservation.kind === "quota")
+    return {
+      retryLater: {
+        reason: "YouTube daily upload quota reached",
+        notBefore: nextPacificQuotaTime(),
+      },
+    };
+  if (reservation.kind === "uploading")
+    throw new Error("upload state unknown, check YouTube Studio");
+  if (reservation.kind === "uploaded") return { versionStatus: "approved" };
+  if (!reservation.publication) throw new Error("Missing upload reservation");
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   const meta = {
     video: render.path,
@@ -68,19 +76,14 @@ export const publish: StageHandler = async (context) => {
   );
   const videoId = /video id\s+([\w-]+)/iu.exec(output)?.[1];
   if (!videoId) throw new Error("YouTube upload did not return a video id");
-  await context.db.createPublication({
-    ...(context.version.owner_id ? { owner_id: context.version.owner_id } : {}),
-    render_id: render.id,
+  await context.db.patchPublication(reservation.publication.id, {
+    upload_state: "uploaded",
+    privacy_applied: "private",
     youtube_video_id: videoId,
     privacy: "private",
     metadata: meta,
   });
-  await context.db.upsertWorker({
-    id: workerId,
-    youtube_quota_day: day,
-    youtube_uploads_today: used + 1,
-  });
-  return { versionStatus: "publishing" };
+  return { versionStatus: "approved" };
 };
 export const setPrivacy: StageHandler = async (context) => {
   const publication = await context.db.getPublicationForVersion(
@@ -90,8 +93,17 @@ export const setPrivacy: StageHandler = async (context) => {
     throw new Error("publication video is required");
   if (!publication.confirmed_at || !publication.confirmed_by)
     throw new Error("publication must be confirmed before changing privacy");
-  const privacy =
-    publication.privacy === "scheduled" ? "public" : publication.privacy;
+  if (publication.upload_state !== "uploaded")
+    throw new Error("Worker uploaded publication required");
+  const scheduled = publication.privacy === "scheduled";
+  if (
+    scheduled &&
+    (!publication.publish_at ||
+      !Number.isFinite(Date.parse(publication.publish_at)) ||
+      Date.parse(publication.publish_at) <= Date.now())
+  )
+    throw new Error("Scheduled publish_at must be in the future");
+  const privacy = scheduled ? "private" : publication.privacy;
   await context.engine.run(
     "python",
     [
@@ -102,9 +114,13 @@ export const setPrivacy: StageHandler = async (context) => {
       "privacy",
       publication.youtube_video_id,
       privacy,
+      ...(scheduled ? ["--publish-at", publication.publish_at as string] : []),
       "--confirm",
     ],
     { cwd: ENGINE_ROOT },
   );
-  return { versionStatus: "published" };
+  await context.db.patchPublication(publication.id, {
+    privacy_applied: publication.privacy,
+  });
+  return { versionStatus: privacyVersionStatus(publication.privacy) };
 };

@@ -2,6 +2,9 @@ import type { JobStatus, Lang, Stage, VersionStatus } from "@mellodifai/shared";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export type Job = {
+  owner_id?: string;
+  payload?: Record<string, unknown>;
+  not_before?: string | null;
   id: string;
   version_id: string;
   stage: Stage;
@@ -13,6 +16,9 @@ export type Job = {
   worker_id?: string | null;
 };
 export type Version = {
+  generation_count?: number;
+  kie_generation?: number;
+  kie_submit_state?: string | null;
   id: string;
   owner_id?: string;
   project_id: string;
@@ -27,6 +33,9 @@ export type Version = {
   kie_task_id?: string | null;
 };
 export type Project = {
+  owner_id?: string;
+  mood?: string | null;
+  vocal_gender?: string | null;
   id: string;
   topic: string;
   theme: string;
@@ -43,6 +52,8 @@ export type WorkerUpdate = {
   youtube_quota_day?: string | null;
 };
 export type Take = {
+  take_number?: number;
+  generation?: number;
   id: string;
   owner_id?: string;
   version_id: string;
@@ -60,6 +71,10 @@ export type Render = {
   qa_results?: unknown;
 };
 export type Publication = {
+  upload_state?: string;
+  privacy_applied?: string | null;
+  publish_at?: string | null;
+  created_at?: string;
   id: string;
   owner_id?: string;
   render_id: string;
@@ -86,7 +101,19 @@ export interface Db {
     stage: Stage,
     idempotencyKey: string,
   ): Promise<void>;
-  requeue(jobId: string, workerId: string): Promise<void>;
+  requeue(
+    jobId: string,
+    workerId: string,
+    notBefore?: string,
+    reason?: string,
+  ): Promise<void>;
+  reserveUpload(
+    render: Render,
+    workerId: string,
+  ): Promise<{
+    kind: "reserved" | "quota" | "uploading" | "uploaded";
+    publication?: Publication;
+  }>;
   createTake(take: Omit<Take, "id">): Promise<Take>;
   getTakes(versionId: string): Promise<Take[]>;
   upsertRender(render: Omit<Render, "id">): Promise<Render>;
@@ -175,6 +202,7 @@ export class SupabaseDb implements Db {
     progress?: number,
   ): Promise<void> {
     const event = {
+      ...(this.ownerId ? { owner_id: this.ownerId } : {}),
       job_id: jobId,
       message,
       ...(progress === undefined ? {} : { progress }),
@@ -222,14 +250,23 @@ export class SupabaseDb implements Db {
     stage: Stage,
     idempotencyKey: string,
   ): Promise<void> {
-    const { error } = await this.client.from("jobs").insert({
-      version_id: versionId,
-      stage,
-      idempotency_key: idempotencyKey,
-    });
+    const { error } = await this.client.from("jobs").upsert(
+      {
+        owner_id: (await this.getVersion(versionId))?.owner_id,
+        version_id: versionId,
+        stage,
+        idempotency_key: idempotencyKey,
+      },
+      { onConflict: "idempotency_key", ignoreDuplicates: true },
+    );
     if (error) throw new Error(error.message);
   }
-  async requeue(jobId: string, workerId: string): Promise<void> {
+  async requeue(
+    jobId: string,
+    workerId: string,
+    notBefore?: string,
+    reason?: string,
+  ): Promise<void> {
     const { error } = await this.client
       .from("jobs")
       .update({
@@ -237,6 +274,7 @@ export class SupabaseDb implements Db {
         worker_id: null,
         heartbeat_at: null,
         started_at: null,
+        ...(notBefore ? { not_before: notBefore, error: reason ?? null } : {}),
       })
       .eq("id", jobId)
       .eq("worker_id", workerId)
@@ -246,7 +284,7 @@ export class SupabaseDb implements Db {
   async createTake(take: Omit<Take, "id">): Promise<Take> {
     const { data, error } = await this.client
       .from("takes")
-      .insert(take)
+      .upsert(take, { onConflict: "version_id,generation,take_number" })
       .select()
       .single();
     return requireData(data as Take | null, error);
@@ -309,6 +347,9 @@ export class SupabaseDb implements Db {
       .from("publications")
       .select("*, renders!inner(version_id)")
       .eq("renders.version_id", versionId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data as Publication | null;
@@ -332,6 +373,17 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(error.message);
     return data as WorkerUpdate | null;
   }
+  async reserveUpload(render: Render, workerId: string) {
+    const { data, error } = await this.client.rpc(
+      "reserve_publication_upload",
+      { p_render: render.id, p_worker: workerId },
+    );
+    if (error) throw new Error(error.message);
+    return data as {
+      kind: "reserved" | "quota" | "uploading" | "uploaded";
+      publication?: Publication;
+    };
+  }
 }
 
 export class InMemoryDb implements Db {
@@ -346,7 +398,11 @@ export class InMemoryDb implements Db {
     public events: { jobId: string; message: string; progress?: number }[] = [],
   ) {}
   async claim(workerId: string) {
-    const job = this.jobs.find((item) => item.status === "queued");
+    const job = this.jobs.find(
+      (item) =>
+        item.status === "queued" &&
+        (!item.not_before || Date.parse(item.not_before) <= Date.now()),
+    );
     if (!job) return null;
     job.status = "running";
     job.worker_id = workerId;
@@ -414,7 +470,11 @@ export class InMemoryDb implements Db {
     Object.assign(this.versions.find((item) => item.id === id) ?? {}, patch);
   }
   async enqueue(versionId: string, stage: Stage, idempotencyKey: string) {
+    if (this.jobs.some((job) => job.idempotency_key === idempotencyKey)) return;
     this.jobs.push({
+      ...((await this.getVersion(versionId))?.owner_id
+        ? { owner_id: (await this.getVersion(versionId))?.owner_id as string }
+        : {}),
       id: crypto.randomUUID(),
       version_id: versionId,
       stage,
@@ -422,14 +482,34 @@ export class InMemoryDb implements Db {
       idempotency_key: idempotencyKey,
     });
   }
-  async requeue(jobId: string, workerId: string) {
+  async requeue(
+    jobId: string,
+    workerId: string,
+    notBefore?: string,
+    reason?: string,
+  ) {
     const job = this.findJob(jobId);
     if (job.worker_id !== workerId || job.status !== "running") return;
     job.status = "queued";
     job.worker_id = null;
     job.heartbeat_at = null;
+    if (notBefore) {
+      job.not_before = notBefore;
+      job.error = reason ?? null;
+    }
   }
   async createTake(take: Omit<Take, "id">) {
+    const existing = this.takes.find(
+      (t) =>
+        t.version_id === take.version_id &&
+        t.generation === take.generation &&
+        t.take_number === take.take_number &&
+        take.take_number !== undefined,
+    );
+    if (existing) {
+      Object.assign(existing, take);
+      return existing;
+    }
     const item = { ...take, id: crypto.randomUUID() };
     this.takes.push(item);
     return item;
@@ -461,7 +541,11 @@ export class InMemoryDb implements Db {
     Object.assign(this.renders.find((item) => item.id === id) ?? {}, patch);
   }
   async createPublication(publication: Omit<Publication, "id">) {
-    const item = { ...publication, id: crypto.randomUUID() };
+    const item = {
+      created_at: new Date().toISOString(),
+      ...publication,
+      id: crypto.randomUUID(),
+    };
     this.publications.push(item);
     return item;
   }
@@ -472,7 +556,13 @@ export class InMemoryDb implements Db {
         .map((item) => item.id),
     );
     return (
-      this.publications.find((item) => renderIds.has(item.render_id)) ?? null
+      this.publications
+        .filter((item) => renderIds.has(item.render_id))
+        .sort(
+          (a, b) =>
+            (b.created_at ?? "").localeCompare(a.created_at ?? "") ||
+            b.id.localeCompare(a.id),
+        )[0] ?? null
     );
   }
   async patchPublication(id: string, patch: Partial<Publication>) {
@@ -483,6 +573,53 @@ export class InMemoryDb implements Db {
   }
   async getWorker(id: string) {
     return this.workers.find((item) => item.id === id) ?? null;
+  }
+  async reserveUpload(
+    render: Render,
+    workerId: string,
+  ): Promise<{
+    kind: "reserved" | "quota" | "uploading" | "uploaded";
+    publication?: Publication;
+  }> {
+    // No await before both reservations: mirrors the atomic database transaction.
+    const prior = this.publications.find(
+      (p) =>
+        p.render_id === render.id &&
+        ["uploading", "uploaded"].includes(p.upload_state ?? ""),
+    );
+    if (prior)
+      return {
+        kind: prior.upload_state as "uploading" | "uploaded",
+        publication: prior,
+      };
+    const day = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Los_Angeles",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    let worker = this.workers.find((w) => w.id === workerId);
+    if (!worker) {
+      worker = { id: workerId };
+      this.workers.push(worker);
+    }
+    const count =
+      worker.youtube_quota_day === day
+        ? (worker.youtube_uploads_today ?? 0)
+        : 0;
+    if (count >= 4) return { kind: "quota" };
+    worker.youtube_quota_day = day;
+    worker.youtube_uploads_today = count + 1;
+    const publication: Publication = {
+      id: crypto.randomUUID(),
+      render_id: render.id,
+      privacy: "private",
+      upload_state: "uploading",
+      created_at: new Date().toISOString(),
+      ...(render.owner_id ? { owner_id: render.owner_id } : {}),
+    };
+    this.publications.push(publication);
+    return { kind: "reserved", publication };
   }
   private findJob(id: string) {
     const job = this.jobs.find((item) => item.id === id);

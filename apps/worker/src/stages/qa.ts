@@ -27,8 +27,8 @@ export const qa: StageHandler = async (context) => {
     ],
     { cwd: ENGINE_ROOT },
   );
-  const loudness = /I:\s*(-?[\d.]+)/u.exec(analysis);
-  const peak = /Peak:\s*(-?[\d.]+)/u.exec(analysis);
+  const loudness = [...analysis.matchAll(/I:\s*(-?[\d.]+)/gu)].at(-1);
+  const peak = [...analysis.matchAll(/Peak:\s*(-?[\d.]+)/gu)].at(-1);
   const lufs = Number(loudness?.[1] ?? Number.NaN);
   const dbtp = Number(peak?.[1] ?? Number.NaN);
   const flags = Array.isArray(context.version.qa_flags)
@@ -38,8 +38,7 @@ export const qa: StageHandler = async (context) => {
         value?: number;
       }[])
     : [];
-  const crushed =
-    flags.find((flag) => flag.kind === "crushed_words")?.count ?? 0;
+  const crushed = flags.find((flag) => flag.kind === "crushed_words")?.count;
   const timingDuration = flags.find(
     (flag) => flag.kind === "timing_duration",
   )?.value;
@@ -65,6 +64,8 @@ export const qa: StageHandler = async (context) => {
     { cwd: ENGINE_ROOT },
   );
   const masterDuration = Number(durationOutput.trim());
+  if (!Number.isFinite(masterDuration) || masterDuration <= 0)
+    throw new Error("Master duration not measured");
   const sheet = join(context.ws.renderDir, "contact-sheet.jpg");
   await context.engine.run(
     "ffmpeg",
@@ -73,7 +74,7 @@ export const qa: StageHandler = async (context) => {
       "-i",
       master.path,
       "-vf",
-      "fps=20/600,scale=320:-1,tile=5x4",
+      `fps=20/${masterDuration},scale=320:-1,tile=5x4`,
       "-frames:v",
       "1",
       "-f",
@@ -90,14 +91,18 @@ export const qa: StageHandler = async (context) => {
         value: lufs,
       },
       { name: "true_peak", pass: dbtp <= -1, value: dbtp },
-      { name: "crushed_words", pass: crushed === 0, value: crushed },
+      {
+        name: "crushed_words",
+        pass: crushed === 0,
+        value: crushed ?? "not measured",
+      },
       {
         name: "duration",
         pass:
-          timingDuration === undefined ||
+          typeof timingDuration === "number" &&
           Math.abs(masterDuration - timingDuration) <= 0.5,
         value: masterDuration,
-        expected: timingDuration,
+        expected: timingDuration ?? "not measured",
       },
     ],
     informational: [
@@ -109,7 +114,6 @@ export const qa: StageHandler = async (context) => {
   };
   await context.db.patchRender(master.id, { qa_results: results });
   return {
-    versionStatus: "video_review",
     enqueue: [{ stage: "art", idempotencyKey: key("art", context) }],
   };
 };

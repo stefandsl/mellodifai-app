@@ -35,7 +35,18 @@ export const PublicationInput = z.object({
     chapters: z.string().max(5000),
   }),
 });
-export const SetPrivacyInput = z.object({
-  publicationId: Id,
-  privacy: z.enum(["public", "unlisted", "scheduled"]),
-});
+export const SetPrivacyInput = z
+  .object({
+    publicationId: Id,
+    privacy: z.enum(["public", "unlisted", "scheduled"]),
+    publishAt: z.iso.datetime().optional(),
+  })
+  .refine(
+    (value) =>
+      value.privacy !== "scheduled" ||
+      Boolean(value.publishAt && Date.parse(value.publishAt) > Date.now()),
+    {
+      message: "Scheduled publication requires a future publishAt",
+      path: ["publishAt"],
+    },
+  );

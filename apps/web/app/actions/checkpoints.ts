@@ -25,13 +25,12 @@ export async function approveLyrics(input: unknown) {
   const { supabase } = await actionProfile();
   const { error } = await supabase
     .from("versions")
-    .update({ lyric_pack: value.pack, status: "song_queued" })
+    .update({ lyric_pack: value.pack })
     .eq("id", value.versionId);
   if (error) throw new Error(error.message);
-  const { error: jobError } = await supabase.from("jobs").insert({
-    version_id: value.versionId,
-    stage: "generate_song",
-    idempotency_key: `generate_song:${value.versionId}:1`,
+  const { error: jobError } = await supabase.rpc("transition_version", {
+    p_version: value.versionId,
+    p_action: "approve_lyrics",
   });
   if (jobError) throw new Error(jobError.message);
   refresh(value.versionId);
@@ -40,10 +39,11 @@ export async function approveLyrics(input: unknown) {
 export async function pickTake(input: unknown) {
   const value = PickTakeInput.parse(input);
   const { supabase } = await actionProfile();
-  const { error } = await supabase
-    .from("versions")
-    .update({ chosen_take_id: value.takeId, status: "producing" })
-    .eq("id", value.versionId);
+  const { error } = await supabase.rpc("transition_version", {
+    p_version: value.versionId,
+    p_action: "pick_take",
+    p_take: value.takeId,
+  });
   if (error) throw new Error(error.message);
   refresh(value.versionId);
 }
@@ -51,29 +51,21 @@ export async function pickTake(input: unknown) {
 export async function generateAgain(input: unknown) {
   const { versionId } = VersionIdInput.parse(input);
   const { supabase } = await actionProfile();
-  const { count, error } = await supabase
-    .from("jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("version_id", versionId)
-    .eq("stage", "generate_song");
-  if (error) throw new Error(error.message);
-  const attempt = (count ?? 0) + 1;
-  const { error: jobError } = await supabase.from("jobs").insert({
-    version_id: versionId,
-    stage: "generate_song",
-    idempotency_key: `generate_song:${versionId}:${attempt}`,
+  const { error } = await supabase.rpc("transition_version", {
+    p_version: versionId,
+    p_action: "generate_again",
   });
-  if (jobError) throw new Error(jobError.message);
+  if (error) throw new Error(error.message);
   refresh(versionId);
 }
 
 export async function approveVideo(input: unknown) {
   const value = VideoApprovalInput.parse(input);
   const { supabase } = await actionProfile();
-  const { error } = await supabase
-    .from("versions")
-    .update({ status: "approved" })
-    .eq("id", value.versionId);
+  const { error } = await supabase.rpc("transition_version", {
+    p_version: value.versionId,
+    p_action: "approve_video",
+  });
   if (error) throw new Error(error.message);
   refresh(value.versionId);
 }
@@ -81,24 +73,11 @@ export async function approveVideo(input: unknown) {
 export async function rerenderVideo(input: unknown) {
   const { versionId } = RerenderInput.parse(input);
   const { supabase } = await actionProfile();
-  const { data: version, error } = await supabase
-    .from("versions")
-    .select("render_attempt")
-    .eq("id", versionId)
-    .single();
-  if (error) throw new Error(error.message);
-  const attempt = version.render_attempt + 1;
-  const { error: updateError } = await supabase
-    .from("versions")
-    .update({ render_attempt: attempt, status: "producing" })
-    .eq("id", versionId);
-  if (updateError) throw new Error(updateError.message);
-  const { error: jobError } = await supabase.from("jobs").insert({
-    version_id: versionId,
-    stage: "timing",
-    idempotency_key: `timing:${versionId}:${attempt}`,
+  const { error } = await supabase.rpc("transition_version", {
+    p_version: versionId,
+    p_action: "render_again",
   });
-  if (jobError) throw new Error(jobError.message);
+  if (error) throw new Error(error.message);
   refresh(versionId);
 }
 
@@ -112,49 +91,23 @@ export async function uploadPrivate(input: unknown) {
     .single();
   if (renderError || !render)
     throw new Error(renderError?.message ?? "Unable to find render");
-  const { data: publication, error } = await supabase
-    .from("publications")
-    .insert({
-      render_id: value.renderId,
-      privacy: "private",
-      metadata: value.metadata,
-    })
-    .select("id")
-    .single();
-  if (error || !publication)
-    throw new Error(error?.message ?? "Unable to create publication");
   const { error: jobError } = await supabase.from("jobs").insert({
     version_id: render.version_id,
     stage: "publish",
     idempotency_key: `publish:${value.renderId}`,
+    payload: { render_id: value.renderId, metadata: value.metadata },
   });
   if (jobError) throw new Error(jobError.message);
-  return publication.id;
+  refresh(render.version_id);
 }
 
 export async function setPrivacy(input: unknown) {
   const value = SetPrivacyInput.parse(input);
-  const { supabase, user } = await actionProfile();
-  const { data: publication, error } = await supabase
-    .from("publications")
-    .update({
-      privacy: value.privacy,
-      confirmed_by: user.id,
-      confirmed_at: new Date().toISOString(),
-    })
-    .eq("id", value.publicationId)
-    .select("render_id, renders(version_id)")
-    .single();
-  if (error || !publication)
-    throw new Error(error?.message ?? "Unable to confirm privacy");
-  const render = publication.renders as unknown as {
-    version_id: string;
-  } | null;
-  if (!render) throw new Error("Unable to find render");
-  const { error: jobError } = await supabase.from("jobs").insert({
-    version_id: render.version_id,
-    stage: "set_privacy",
-    idempotency_key: `set_privacy:${value.publicationId}:${value.privacy}`,
+  const { supabase } = await actionProfile();
+  const { error } = await supabase.rpc("confirm_publication", {
+    p_publication: value.publicationId,
+    p_privacy: value.privacy,
+    p_publish_at: value.publishAt ?? null,
   });
-  if (jobError) throw new Error(jobError.message);
+  if (error) throw new Error(error.message);
 }

@@ -20,5 +20,12 @@ export const art: StageHandler = async (context) => {
     { cwd: ENGINE_ROOT, outputs: [output] },
   );
   await upload(context, output, "image/png");
+  const srt = join(context.ws.renderDir, `${context.version.lang}.srt`);
+  await context.engine.run(
+    "python",
+    ["-I", "-X", "utf8", "tools/make_srt.py", context.version.lang, srt],
+    { cwd: ENGINE_ROOT, outputs: [srt] },
+  );
+  await upload(context, srt, "application/x-subrip");
   return { versionStatus: "video_review" };
 };
