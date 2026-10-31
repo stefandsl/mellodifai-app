@@ -2,13 +2,23 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
     runs-on: ubuntu-latest
+    outputs:
+      has-supabase-config: ${{ steps.supabase-config.outputs.exists }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check for Supabase config
+        id: supabase-config
+        run: echo "exists=${{ hashFiles('supabase/config.toml') != '' }}" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -20,6 +30,8 @@ jobs:
       - run: pnpm test
 
   db:
+    needs: checks
+    if: needs.checks.outputs.has-supabase-config == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

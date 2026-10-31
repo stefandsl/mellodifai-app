@@ -2,10 +2,14 @@
   "name": "mellodifai",
   "private": true,
   "packageManager": "pnpm@10.2.1",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "lint": "biome check .",
     "typecheck": "tsc -b",
-    "test": "pnpm --filter @mellodifai/shared test",
+    "test": "pnpm -r --if-present test",
+    "e2e": "pnpm -r --if-present e2e",
     "test:db": "node -e \"process.exit(0)\""
   },
   "devDependencies": {
