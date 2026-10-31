@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
@@ -18,6 +19,8 @@ const environment = Object.fromEntries(
 
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const createdUserIds: string[] = [];
+const createdEmails: string[] = [];
+let userSequence = 0;
 let service: SupabaseClient;
 
 function requireEnvironment(): void {
@@ -29,11 +32,12 @@ function requireEnvironment(): void {
 }
 
 async function createUser(allowlisted: boolean): Promise<TestUser> {
-  const email = `${allowlisted ? "allowed" : "blocked"}-${runId}-${createdUserIds.length}@example.test`;
+  const email = `${allowlisted ? "allowed" : "blocked"}-${runId}-${userSequence++}@example.test`;
 
   if (allowlisted) {
     const { error } = await service.from("admin_allowlist").insert({ email });
     expect(error).toBeNull();
+    createdEmails.push(email);
   }
 
   const { data, error } = await service.auth.admin.createUser({
@@ -80,9 +84,376 @@ afterEach(async () => {
       expect(error).toBeNull();
     }),
   );
+  if (createdEmails.length) {
+    const cleanup = await service
+      .from("admin_allowlist")
+      .delete()
+      .in("email", createdEmails.splice(0));
+    expect(cleanup.error).toBeNull();
+  }
 });
 
+async function fixture(user: TestUser) {
+  const project = await user.client
+    .from("projects")
+    .insert({ topic: "Security test" })
+    .select("id")
+    .single();
+  expect(project.error).toBeNull();
+  const version = await user.client
+    .from("versions")
+    .insert({ project_id: project.data?.id, lang: "en" })
+    .select("id")
+    .single();
+  expect(version.error).toBeNull();
+  const intent = {
+    version_id: version.data?.id,
+    stage: "draft_lyrics",
+    idempotency_key: `security-${user.id}`,
+  };
+  const job = await user.client
+    .from("jobs")
+    .insert(intent)
+    .select("id")
+    .single();
+  expect(job.error).toBeNull();
+  if (!job.data || !version.data) throw new Error("Missing fixture");
+  return { intent, jobId: job.data.id, versionId: version.data.id };
+}
+
+function anonClient() {
+  return createClient(
+    environment.SUPABASE_URL ?? "",
+    environment.SUPABASE_ANON_KEY ?? "",
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
+}
+
 describe("row level security", () => {
+  it("requires confirmed email before provisioning an allowlisted admin", async () => {
+    const email = `unconfirmed-${runId}@example.test`;
+    expect(
+      (await service.from("admin_allowlist").insert({ email })).error,
+    ).toBeNull();
+    createdEmails.push(email);
+    const created = await service.auth.admin.createUser({
+      email,
+      password: "database-test-password",
+      email_confirm: false,
+    });
+    expect(created.error).toBeNull();
+    if (!created.data.user) throw new Error("Missing unconfirmed user");
+    const id = created.data.user.id;
+    createdUserIds.push(id);
+    expect(created.data.user.email_confirmed_at).toBeFalsy();
+    const profile = await service.from("profiles").select("id").eq("id", id);
+    expect(profile.error).toBeNull();
+    expect(profile.data).toEqual([]);
+    const client = anonClient();
+    // Depending on Auth configuration an unconfirmed login is denied or has no profile.
+    await client.auth.signInWithPassword({
+      email,
+      password: "database-test-password",
+    });
+    for (const table of ["profiles", "projects", "versions", "jobs"]) {
+      const rows = await client.from(table).select("id");
+      expect(rows.data ?? []).toEqual([]);
+    }
+    expect(
+      (await service.auth.admin.updateUserById(id, { email_confirm: true }))
+        .error,
+    ).toBeNull();
+    const confirmed = await service
+      .from("profiles")
+      .select("id, role")
+      .eq("id", id)
+      .single();
+    expect(confirmed.error).toBeNull();
+    expect(confirmed.data).toEqual({ id, role: "admin" });
+  });
+
+  it("refuses anonymous signup with a new email", async () => {
+    const signup = await anonClient().auth.signUp({
+      email: `new-signup-${runId}@example.test`,
+      password: "database-test-password",
+    });
+    if (signup.data.user) createdUserIds.push(signup.data.user.id);
+    expect(signup.error?.code).toBe("signup_disabled");
+    expect(signup.data.user).toBeNull();
+    expect(signup.data.session).toBeNull();
+  });
+
+  it("rejects public email signup even for an allowlisted address", async () => {
+    const email = `signup-${runId}@example.test`;
+    expect(
+      (await service.from("admin_allowlist").insert({ email })).error,
+    ).toBeNull();
+    createdEmails.push(email);
+    const signup = await anonClient().auth.signUp({
+      email,
+      password: "database-test-password",
+    });
+    if (signup.data.user) createdUserIds.push(signup.data.user.id);
+    expect(signup.error?.code).toBe("signup_disabled");
+    expect(signup.data.session).toBeNull();
+  });
+
+  it("allows enqueue and cancellation but denies worker-owned writes", async () => {
+    const user = await createUser(true);
+    const { intent, jobId } = await fixture(user);
+    for (const patch of [
+      { status: "done" },
+      { attempts: 1 },
+      { worker_id: "forged" },
+      { result: {} },
+      { error: "forged" },
+      { heartbeat_at: new Date().toISOString() },
+      { started_at: new Date().toISOString() },
+      { finished_at: new Date().toISOString() },
+    ]) {
+      const insert = await user.client.from("jobs").insert({
+        ...intent,
+        idempotency_key: `${intent.idempotency_key}-${Object.keys(patch)[0]}`,
+        ...patch,
+      });
+      expect(insert.error?.code).toBe("42501");
+      const update = await user.client
+        .from("jobs")
+        .update(patch)
+        .eq("id", jobId);
+      expect(update.error?.code).toBe("42501");
+    }
+    expect(
+      (
+        await user.client
+          .from("jobs")
+          .update({ status: "running" })
+          .eq("id", jobId)
+      ).error?.code,
+    ).toBe("42501");
+    expect(
+      (await user.client.from("jobs").delete().eq("id", jobId)).error?.code,
+    ).toBe("42501");
+    expect(
+      (
+        await user.client
+          .from("job_events")
+          .insert({ job_id: jobId, message: "forged" })
+      ).error?.code,
+    ).toBe("42501");
+    expect(
+      (await user.client.from("workers").insert({ id: `forged-${user.id}` }))
+        .error?.code,
+    ).toBe("42501");
+    const cancel = await user.client
+      .from("jobs")
+      .update({ status: "cancelled" })
+      .eq("id", jobId)
+      .select("status")
+      .single();
+    expect(cancel.error).toBeNull();
+    expect(cancel.data).toEqual({ status: "cancelled" });
+    expect(
+      (await service.from("jobs").update({ status: "running" }).eq("id", jobId))
+        .error,
+    ).toBeNull();
+    const cancelRunning = await user.client
+      .from("jobs")
+      .update({ status: "cancelled" })
+      .eq("id", jobId)
+      .select("id");
+    expect(cancelRunning.error).toBeNull();
+    expect(cancelRunning.data).toEqual([]);
+    for (const table of ["job_events", "workers"]) {
+      expect(
+        (
+          await user.client
+            .from(table)
+            .update({ owner_id: user.id })
+            .eq("owner_id", user.id)
+        ).error?.code,
+      ).toBe("42501");
+      expect(
+        (await user.client.from(table).delete().eq("owner_id", user.id)).error
+          ?.code,
+      ).toBe("42501");
+    }
+  });
+
+  it("rejects cross-owner events, busy jobs, and publication confirmers", async () => {
+    const a = await createUser(true);
+    const b = await createUser(true);
+    const { jobId, versionId } = await fixture(a);
+    expect(
+      (
+        await service
+          .from("job_events")
+          .insert({ owner_id: b.id, job_id: jobId, message: "cross-owner" })
+      ).error?.code,
+    ).toBe("23503");
+    expect(
+      (
+        await service
+          .from("workers")
+          .insert({ id: `cross-${b.id}`, owner_id: b.id, busy_job_id: jobId })
+      ).error?.code,
+    ).toBe("23503");
+    const render = await a.client
+      .from("renders")
+      .insert({ version_id: versionId, kind: "master" })
+      .select("id")
+      .single();
+    expect(render.error).toBeNull();
+    expect(
+      (
+        await a.client
+          .from("publications")
+          .insert({ render_id: render.data?.id, confirmed_by: b.id })
+      ).error?.code,
+    ).toBe("23514");
+    const publication = await a.client
+      .from("publications")
+      .insert({ render_id: render.data?.id })
+      .select("id, confirmed_by")
+      .single();
+    expect(publication.error).toBeNull();
+    expect(publication.data?.confirmed_by).toBe(a.id);
+    expect(
+      (
+        await a.client
+          .from("publications")
+          .update({ confirmed_by: b.id })
+          .eq("id", publication.data?.id)
+      ).error?.code,
+    ).toBe("23514");
+    expect(
+      (
+        await service
+          .from("job_events")
+          .insert({ owner_id: a.id, job_id: jobId, message: "valid" })
+      ).error,
+    ).toBeNull();
+    expect(
+      (
+        await service
+          .from("workers")
+          .insert({ id: `valid-${a.id}`, owner_id: a.id, busy_job_id: jobId })
+      ).error,
+    ).toBeNull();
+  });
+
+  it("denies queue RPCs to anonymous and authenticated clients", async () => {
+    const user = await createUser(true);
+    for (const client of [anonClient(), user.client]) {
+      for (const [name, args] of [
+        ["claim_job", { p_worker: "forged" }],
+        [
+          "heartbeat_job",
+          { p_job: "00000000-0000-0000-0000-000000000000", p_worker: "forged" },
+        ],
+        ["requeue_stale", { p_seconds: 120 }],
+      ] as const) {
+        expect((await client.rpc(name, args)).error?.code).toBe("42501");
+      }
+    }
+  });
+
+  it("revokes profile trigger execution explicitly from all client roles", () => {
+    const sql = readFileSync(
+      "supabase/migrations/20261031000003_security.sql",
+      "utf8",
+    );
+    expect(sql).toMatch(
+      /revoke all on function public\.create_allowlisted_profile\(\) from public, anon, authenticated;/,
+    );
+  });
+
+  it("prevents profile creation and self-promotion by authenticated users", async () => {
+    const user = await createUser(false);
+    expect(
+      (
+        await user.client.from("profiles").insert({
+          id: user.id,
+          email: `forged-${runId}@example.test`,
+          role: "admin",
+        })
+      ).error?.code,
+    ).toBe("42501");
+    expect(
+      (
+        await service.from("profiles").insert({
+          id: user.id,
+          email: `customer-${user.id}@example.test`,
+          role: "customer",
+        })
+      ).error,
+    ).toBeNull();
+    expect(
+      (
+        await user.client
+          .from("profiles")
+          .update({ role: "admin" })
+          .eq("id", user.id)
+      ).error?.code,
+    ).toBe("42501");
+    const profile = await service
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    expect(profile.error).toBeNull();
+    expect(profile.data?.role).toBe("customer");
+  });
+
+  it("allows customers to read only their own preview paths", async () => {
+    const a = await createUser(true);
+    const b = await createUser(true);
+    expect(
+      (
+        await service
+          .from("profiles")
+          .update({ role: "customer" })
+          .eq("id", b.id)
+      ).error,
+    ).toBeNull();
+    const paths = [`${a.id}/security.txt`, `${b.id}/security.txt`];
+    try {
+      for (const path of paths) {
+        expect(
+          (
+            await service.storage
+              .from("previews")
+              .upload(path, "test", { contentType: "text/plain" })
+          ).error,
+        ).toBeNull();
+      }
+      expect(
+        (await b.client.storage.from("previews").download(paths[0] ?? ""))
+          .error,
+      ).not.toBeNull();
+      expect(
+        (
+          await b.client.storage
+            .from("previews")
+            .createSignedUrl(paths[0] ?? "", 60)
+        ).error,
+      ).not.toBeNull();
+      expect(
+        (await b.client.storage.from("previews").download(paths[1] ?? ""))
+          .error,
+      ).toBeNull();
+      expect(
+        (await a.client.storage.from("previews").download(paths[1] ?? ""))
+          .error,
+      ).toBeNull();
+    } finally {
+      expect(
+        (await service.storage.from("previews").remove(paths)).error,
+      ).toBeNull();
+    }
+  });
   it("isolates projects, versions, and jobs between allowlisted users", async () => {
     const userA = await createUser(true);
     const userB = await createUser(true);
