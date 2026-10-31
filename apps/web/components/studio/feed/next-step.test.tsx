@@ -93,3 +93,35 @@ it("links the other waiting steps to the song page", () => {
   rerender(<NextStep clip={clip({ status: "producing" })} />);
   expect(screen.queryByRole("link")).toBeNull();
 });
+
+it("suggests the video by default and audio only when the form turned video off", async () => {
+  const takes = [
+    { id: "t1", number: 1, audioUrl: "https://s/t1.mp3" },
+    { id: "t2", number: 2, audioUrl: "https://s/t2.mp3" },
+  ];
+  const primary = () =>
+    screen
+      .getAllByRole("button")
+      .find(
+        (button) =>
+          button.className.includes("bg-cta") &&
+          button.closest("[role=dialog]"),
+      );
+  const { unmount } = render(
+    <NextStep clip={clip({ status: "takes_review", takes })} />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: /Scegli la take/u }),
+  );
+  expect(primary()).toHaveTextContent("Crea il video");
+  unmount();
+  render(
+    <NextStep
+      clip={clip({ status: "takes_review", takes, settings: { video: "off" } })}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: /Scegli la take/u }),
+  );
+  expect(primary()).toHaveTextContent("Tieni solo l'audio");
+});

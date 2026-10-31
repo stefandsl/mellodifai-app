@@ -182,8 +182,8 @@ function TakesDialog({
       router.refresh();
     });
   // The form's video choice decides which action is the primary one.
-  const first = videoOff ? "video" : "audio";
-  const second = videoOff ? "audio" : "video";
+  const first = videoOff ? "audio" : "video";
+  const second = videoOff ? "video" : "audio";
   const label = (action: "audio" | "video") =>
     st(lang, action === "audio" ? "next.keepAudio" : "next.makeVideo");
   const icon = (action: "audio" | "video") =>
