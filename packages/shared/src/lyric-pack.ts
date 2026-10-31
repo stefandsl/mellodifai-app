@@ -64,8 +64,11 @@ export function validateLyricPack(
 
   errors.push(...emDashErrors(pack));
 
-  if (parsed.success && theme === "vbp") {
-    const count = sungLineCount(parsed.data.lyrics);
+  if (
+    theme === "vbp" &&
+    typeof (pack as { lyrics?: unknown }).lyrics === "string"
+  ) {
+    const count = sungLineCount((pack as { lyrics: string }).lyrics);
     if (count !== 80) {
       errors.push(
         `lyrics must contain exactly 80 sung lines for the vbp theme (found ${count})`,
