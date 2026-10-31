@@ -1,0 +1,782 @@
+import { EventEmitter } from "node:events";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Stage } from "@mellodifai/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { InMemoryDb } from "../src/db.js";
+import { Engine, type Spawn } from "../src/engine.js";
+import { createFakeStages } from "../src/fake/index.js";
+import { type StageContext, WorkerLoop } from "../src/loop.js";
+import { loadSecrets } from "../src/secrets.js";
+import { stages } from "../src/stages/index.js";
+import { ENGINE_ROOT } from "../src/stages/utils.js";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...fs,
+    readFile: (...args: Parameters<typeof fs.readFile>) =>
+      String(args[0]).includes("suno-remake")
+        ? Promise.resolve("reference pack fixture")
+        : fs.readFile(...args),
+  };
+});
+
+const roots: string[] = [];
+afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+  await Promise.all(
+    roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
+  );
+});
+const pack = {
+  title: "Test song",
+  lyrics: Array.from({ length: 80 }, (_, i) => `Line ${i}`).join("\n"),
+  style: "pop",
+  exclude: "",
+  settings: {
+    model: "V6",
+    vocalGender: "f",
+    styleWeight: 0.7,
+    weirdness: 0.35,
+    duration: 310,
+  },
+  displayMap: {},
+  l10n: {},
+};
+async function setup() {
+  const root = await mkdtemp(join(tmpdir(), "stage-tests-"));
+  roots.push(root);
+  const ws = {
+    root,
+    versionsDir: join(root, "versions", "fr"),
+    outDir: join(root, "out", "fr"),
+    publicDir: join(root, "public"),
+    renderDir: join(root, "render"),
+  };
+  await Promise.all(
+    [
+      ws.versionsDir,
+      ws.outDir,
+      ws.renderDir,
+      join(ws.publicDir, "data", "fr"),
+    ].map((dir) => mkdir(dir, { recursive: true })),
+  );
+  await writeFile(
+    join(ws.publicDir, "data", "fr", "timing.json"),
+    JSON.stringify({ duration: 10, words: [{ start: 0, end: 0.1 }] }),
+  );
+  const calls: {
+    cmd: string;
+    args: string[];
+    cwd: unknown;
+    env: NodeJS.ProcessEnv;
+  }[] = [];
+  const output = { lufs: -14, peak: -1.5, sizes: [1000], duration: 10 };
+  const spawn: Spawn = (cmd, args, options) => {
+    calls.push({
+      cmd,
+      args: [...args],
+      cwd: options.cwd,
+      env: options.env ?? {},
+    });
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new EventEmitter(),
+      stderr: new EventEmitter(),
+    });
+    setImmediate(() => {
+      void (async () => {
+        for (const arg of args)
+          if (arg.endsWith(".part")) await writeFile(arg, "fixture");
+        if (args[1] === "generate")
+          await writeFile(join(ws.outDir, "task.json"), '{"taskId":"task-1"}');
+        if (args[1] === "credit") child.stdout.emit("data", "Balance: 88\n");
+        if (args.includes("ebur128=peak=true"))
+          child.stderr.emit(
+            "data",
+            `I: ${output.lufs} LUFS\nPeak: ${output.peak} dBFS\n`,
+          );
+        if (cmd === "ffprobe")
+          child.stdout.emit(
+            "data",
+            `${args.includes("format=size") ? (output.sizes.length > 1 ? output.sizes.shift() : output.sizes[0]) : output.duration}\n`,
+          );
+        if (args.includes("upload"))
+          child.stdout.emit(
+            "data",
+            "video id abc123  https://youtu.be/abc123\n",
+          );
+        if (args.includes("render"))
+          child.stdout.emit("data", "Rendered 50/100\nRendered 100/100\n");
+        child.emit("close", 0);
+      })().catch((error: unknown) => child.emit("error", error));
+    });
+    return child as unknown as ReturnType<Spawn>;
+  };
+  const db = new InMemoryDb();
+  const ctx: StageContext = {
+    job: {
+      id: "job",
+      stage: "timing",
+      version_id: "version",
+      status: "queued",
+      idempotency_key: "timing:version:7",
+      attempts: 99,
+    },
+    version: {
+      id: "version",
+      owner_id: "owner",
+      project_id: "project",
+      lang: "fr",
+      status: "producing",
+      lyric_pack: pack,
+      render_attempt: 7,
+      qa_flags: [
+        { kind: "crushed_words", count: 0 },
+        { kind: "timing_duration", value: 10 },
+      ],
+    },
+    project: { id: "project", topic: "Test", theme: "vbp" },
+    ws,
+    db,
+    engine: new Engine({ spawn, log: async () => {} }).withWorkspace(root),
+    storage: { upload: vi.fn(async () => {}) },
+    log: vi.fn(async () => {}),
+    progress: vi.fn(async () => {}),
+    secrets: {
+      values: {
+        WORKER_ID: "worker",
+        OPENROUTER_API_KEY: "test-only-key",
+        LYRICS_STATE_FILE: join(root, "lyrics-state.json"),
+      },
+      redact: (line) => line,
+    },
+    signal: new AbortController().signal,
+  };
+  ctx.engine = new Engine({
+    spawn,
+    log: async () => {},
+    secrets: ctx.secrets,
+  }).withWorkspace(root);
+  db.versions.push(ctx.version);
+  db.projects.push(ctx.project);
+  const take = await db.createTake({ version_id: "version" });
+  ctx.version.chosen_take_id = take.id;
+  await db.upsertRender({
+    version_id: "version",
+    kind: "master",
+    path: join(ws.renderDir, "video.mp4"),
+  });
+  return { ctx, calls, output, db };
+}
+function command(cmd: string, args: string[], cwd: string = ENGINE_ROOT) {
+  return { cmd, args, cwd };
+}
+function commands(calls: Awaited<ReturnType<typeof setup>>["calls"]) {
+  return calls.map(({ cmd, args, cwd }) => ({ cmd, args, cwd }));
+}
+function respond(value: unknown) {
+  return new Response(
+    JSON.stringify({
+      choices: [{ message: { content: JSON.stringify(value) } }],
+    }),
+  );
+}
+
+describe("stage safety and behavior", () => {
+  it("strips loaded secrets from child environment, including overridden aliases", async () => {
+    const { ctx, calls } = await setup();
+    const file = join(ctx.ws.root, "fixture.env");
+    await writeFile(
+      file,
+      "CUSTOM_CREDENTIAL=fixture-secret-value\nOPAQUE=opaque-private-value\n",
+    );
+    const secrets = await loadSecrets({
+      WORKER_ENV_FILES: file,
+      OPENROUTER_API_KEY: "test-router-secret",
+    });
+    vi.stubEnv("CUSTOM_CREDENTIAL", "fixture-secret-value");
+    vi.stubEnv("ALIAS", "fixture-secret-value");
+    vi.stubEnv("opaque", "opaque-private-value");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "fixture-service-key");
+    const spawn: Spawn = (cmd, args, opts) => {
+      calls.push({ cmd, args: [...args], cwd: opts.cwd, env: opts.env ?? {} });
+      const child = new EventEmitter();
+      setImmediate(() => child.emit("close", 0));
+      return child;
+    };
+    const engine = new Engine({ spawn, log: async () => {}, secrets });
+    await engine
+      .withWorkspace(ctx.ws.root)
+      .run("node", ["tools/kie.mjs", "credit"], {
+        env: { CUSTOM_CREDENTIAL: "fixture-secret-value" },
+      });
+    const env = calls[0]?.env;
+    expect(env).not.toHaveProperty("CUSTOM_CREDENTIAL");
+    expect(env).not.toHaveProperty("OPENROUTER_API_KEY");
+    expect(env).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
+    expect(env).not.toHaveProperty("opaque");
+    expect(JSON.stringify(env)).not.toContain("fixture-secret-value");
+    expect(JSON.stringify(env)).not.toContain("opaque-private-value");
+    expect(env?.PATH ?? env?.Path).toBeTruthy();
+    expect(env).toMatchObject({
+      ENGINE_WORKSPACE: ctx.ws.root,
+      TMP: "E:\\mellodifai\\tmp",
+      TEMP: "E:\\mellodifai\\tmp",
+      PYTHONIOENCODING: "utf-8",
+    });
+  });
+  it.each(["file", "stored"])(
+    "never generates when the task is %s",
+    async (guard) => {
+      const { ctx, calls } = await setup();
+      if (guard === "file")
+        await writeFile(
+          join(ctx.ws.outDir, "task.json"),
+          '{"taskId":"existing"}',
+        );
+      else ctx.version.kie_task_id = "existing";
+      await stages.generate_song?.(ctx);
+      expect(calls.filter((c) => c.cmd === "node").map((c) => c.args)).toEqual([
+        ["tools/kie.mjs", "wait", "fr"],
+        ["tools/kie.mjs", "lyrics-ts", "fr", "1"],
+        ["tools/kie.mjs", "lyrics-ts", "fr", "2"],
+        ["tools/kie.mjs", "credit"],
+      ]);
+    },
+  );
+  it("generates once across retries and persists balance", async () => {
+    const { ctx, calls, db } = await setup();
+    await stages.generate_song?.(ctx);
+    await stages.generate_song?.(ctx);
+    expect(calls.filter((c) => c.args[1] === "generate")).toHaveLength(1);
+    expect((await db.getWorker("worker"))?.kie_balance).toBe(88);
+  });
+  it("retries an invalid lyric pack and includes the validation errors", async () => {
+    const { ctx } = await setup();
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        respond({ ...pack, title: `bad${String.fromCodePoint(0x2014)}` }),
+      )
+      .mockResolvedValueOnce(respond(pack));
+    vi.stubGlobal("fetch", fetch);
+    expect((await stages.draft_lyrics?.(ctx))?.versionStatus).toBe(
+      "lyrics_review",
+    );
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[1]?.[1].body).toContain(
+      "title contains an em dash",
+    );
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      "https://openrouter.ai/api/v1/chat/completions",
+    );
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({
+      model: "anthropic/claude-sonnet-5.5",
+      response_format: { type: "json_object" },
+    });
+  });
+  it("fails after exactly two retries with validation errors", async () => {
+    const { ctx } = await setup();
+    const fetch = vi.fn(async () =>
+      respond({ ...pack, title: String.fromCodePoint(0x2014) }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await expect(stages.draft_lyrics?.(ctx)).rejects.toThrow(
+      "title contains an em dash",
+    );
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+  it("enforces daily cap before every request including retries", async () => {
+    const { ctx } = await setup();
+    ctx.secrets.values = { ...ctx.secrets.values, LYRICS_DAILY_CAP: "1" };
+    const fetch = vi.fn(async () => respond({}));
+    vi.stubGlobal("fetch", fetch);
+    await expect(stages.draft_lyrics?.(ctx)).rejects.toThrow(
+      "daily lyrics cap",
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(stages.draft_lyrics?.(ctx)).rejects.toThrow(
+      "daily lyrics cap",
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("counts failed network requests against the daily cap", async () => {
+    const { ctx } = await setup();
+    ctx.secrets.values = { ...ctx.secrets.values, LYRICS_DAILY_CAP: "1" };
+    const fetch = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    vi.stubGlobal("fetch", fetch);
+    await expect(stages.draft_lyrics?.(ctx)).rejects.toThrow("offline");
+    await expect(stages.draft_lyrics?.(ctx)).rejects.toThrow(
+      "daily lyrics cap",
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("resets the lyrics count on the next UTC day", async () => {
+    const { ctx } = await setup();
+    await writeFile(
+      ctx.secrets.values.LYRICS_STATE_FILE ?? "",
+      JSON.stringify({ day: "2000-01-01", count: 50 }),
+    );
+    const fetch = vi.fn(async () => respond(pack));
+    vi.stubGlobal("fetch", fetch);
+    await stages.draft_lyrics?.(ctx);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    [-10, -1.5, 0, "integrated_loudness"],
+    [-14, -0.5, 0, "true_peak"],
+    [-14, -1.5, 1, "crushed_words"],
+  ] as const)(
+    "fails QA at %s LUFS, %s peak, %s crushed",
+    async (lufs, peak, crushed, gate) => {
+      const { ctx, db, output } = await setup();
+      output.lufs = lufs;
+      output.peak = peak;
+      ctx.version.qa_flags = [
+        { kind: "crushed_words", count: crushed },
+        { kind: "timing_duration", value: 10 },
+      ];
+      await stages.qa?.(ctx);
+      const results = (await db.getRender("version", "master"))?.qa_results as {
+        gates: { name: string; pass: boolean }[];
+      };
+      expect(results.gates.find((g) => g.name === gate)?.pass).toBe(false);
+    },
+  );
+  it("holds the fifth Pacific-day upload queued, then allows the next day", async () => {
+    const { ctx, db, calls } = await setup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T06:30:00Z"));
+    await db.upsertWorker({
+      id: "worker",
+      youtube_quota_day: "2026-10-30",
+      youtube_uploads_today: 4,
+    });
+    db.jobs.push({ ...ctx.job, stage: "publish" });
+    const loop = new WorkerLoop({
+      db,
+      workerId: "worker",
+      stages,
+      engine: ctx.engine,
+      storage: ctx.storage,
+      secrets: ctx.secrets,
+      workspace: { forVersion: async () => ctx.ws },
+    });
+    await loop.runOnce();
+    expect(db.jobs[0]?.status).toBe("queued");
+    expect(calls).toHaveLength(0);
+    expect(db.events.some((e) => e.message.includes("quota"))).toBe(true);
+    vi.setSystemTime(new Date("2026-10-31T08:00:00Z"));
+    await loop.runOnce();
+    expect(db.jobs[0]?.status).toBe("done");
+    expect(await db.getWorker("worker")).toMatchObject({
+      youtube_quota_day: "2026-10-31",
+      youtube_uploads_today: 1,
+    });
+  });
+  it.each([{}, { confirmed_at: "2026-10-31" }, { confirmed_by: "owner" }])(
+    "refuses privacy without both confirmations: %j",
+    async (confirmation) => {
+      const { ctx, db, calls } = await setup();
+      await db.createPublication({
+        render_id: db.renders[0]?.id ?? "",
+        youtube_video_id: "abc123",
+        privacy: "public",
+        ...confirmation,
+      });
+      await expect(stages.set_privacy?.(ctx)).rejects.toThrow("confirmed");
+      expect(calls).toHaveLength(0);
+    },
+  );
+  it("increments the current Pacific-day counter after a private upload", async () => {
+    const { ctx, db } = await setup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T18:00:00Z"));
+    await db.upsertWorker({
+      id: "worker",
+      youtube_quota_day: "2026-10-31",
+      youtube_uploads_today: 3,
+    });
+    await stages.publish?.(ctx);
+    expect(await db.getWorker("worker")).toMatchObject({
+      youtube_quota_day: "2026-10-31",
+      youtube_uploads_today: 4,
+    });
+    expect(db.publications[0]).toMatchObject({
+      privacy: "private",
+      youtube_video_id: "abc123",
+    });
+    expect(
+      JSON.parse(
+        await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+      ),
+    ).toMatchObject({
+      privacyStatus: "private",
+      publishAt: null,
+      containsSyntheticMedia: true,
+    });
+  });
+  it("computes the crushed-word count from timing and uploads both listen clips", async () => {
+    const { ctx } = await setup();
+    const result = await stages.timing?.(ctx);
+    expect(result?.patch?.qa_flags).toEqual(
+      expect.arrayContaining([
+        { kind: "crushed_words", blocking: true, count: 1 },
+      ]),
+    );
+    expect(ctx.storage.upload).toHaveBeenCalledTimes(2);
+  });
+  it("re-encodes a preview over 40 MB using ffprobe size", async () => {
+    const { ctx, calls, output } = await setup();
+    output.sizes = [41 * 1024 * 1024, 1000];
+    await stages.render_master?.(ctx);
+    expect(
+      calls
+        .filter((c) => c.args.includes("-crf"))
+        .map((c) => c.args[c.args.indexOf("-crf") + 1]),
+    ).toEqual(["30", "32"]);
+  });
+  it("never uploads an oversize preview after exhausting retries", async () => {
+    const { ctx, output } = await setup();
+    output.sizes = [41 * 1024 * 1024];
+    await expect(stages.render_hook?.(ctx)).rejects.toThrow("exceeds 40 MB");
+    expect(ctx.storage.upload).not.toHaveBeenCalled();
+  });
+  it("runs the producing chain using the version render attempt", async () => {
+    const { ctx, db } = await setup();
+    db.jobs.push(ctx.job);
+    const loop = new WorkerLoop({
+      db,
+      workerId: "worker",
+      stages,
+      engine: ctx.engine,
+      storage: ctx.storage,
+      secrets: ctx.secrets,
+      workspace: { forVersion: async () => ctx.ws },
+    });
+    for (let i = 0; i < 6; i++) await loop.runOnce();
+    expect(db.jobs.map((j) => j.stage)).toEqual([
+      "timing",
+      "storyboard",
+      "render_master",
+      "render_hook",
+      "qa",
+      "art",
+    ]);
+    expect(
+      db.jobs.every(
+        (j) =>
+          j.idempotency_key === `${j.stage}:version:7` && j.status === "done",
+      ),
+    ).toBe(true);
+    expect(ctx.version.status).toBe("video_review");
+  });
+});
+
+it("fake stages generate playable temporary media, persist rows and advance the complete chain", async () => {
+  const { ctx, db } = await setup();
+  db.takes = [];
+  db.renders = [];
+  ctx.engine = new Engine({
+    log: async () => {},
+    secrets: ctx.secrets,
+  }).withWorkspace(ctx.ws.root);
+  const sleep = vi.fn(async () => {});
+  const registry = createFakeStages({ tempRoot: ctx.ws.root, sleep });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => {
+      throw new Error("Fake mode must not call a paid API");
+    }),
+  );
+  const run = async (stage: Stage) => {
+    const result = await registry[stage]?.(ctx);
+    Object.assign(ctx.version, result?.patch);
+    if (result?.versionStatus) ctx.version.status = result.versionStatus;
+    return result;
+  };
+  await run("draft_lyrics");
+  expect(ctx.version.status).toBe("lyrics_review");
+  await run("generate_song");
+  expect(ctx.version.status).toBe("takes_review");
+  expect(db.takes).toHaveLength(2);
+  for (const [stage, next] of [
+    ["timing", "storyboard"],
+    ["storyboard", "render_master"],
+    ["render_master", "render_hook"],
+    ["render_hook", "qa"],
+    ["qa", "art"],
+  ] as const)
+    expect((await run(stage))?.enqueue).toEqual([
+      { stage: next, idempotencyKey: `${next}:version:7` },
+    ]);
+  await run("art");
+  expect(ctx.version.status).toBe("video_review");
+  expect(db.renders).toHaveLength(2);
+  for (const [file, codec, width] of [
+    [join(ctx.ws.outDir, "take-1.mp3"), "mp3", undefined],
+    [join(ctx.ws.renderDir, "video.mp4"), "h264", 1280],
+    [join(ctx.ws.renderDir, "thumbnail.png"), "png", 1280],
+  ] as const) {
+    let output = "";
+    const probe = ctx.engine.withWorkspace(ctx.ws.root, async (line) => {
+      output += line;
+    });
+    expect(
+      (
+        await probe.run("ffprobe", [
+          "-v",
+          "error",
+          "-show_streams",
+          "-show_format",
+          "-of",
+          "json",
+          file,
+        ])
+      ).code,
+    ).toBe(0);
+    const info = JSON.parse(output) as {
+      streams: { codec_name: string; width?: number; height?: number }[];
+      format: { duration?: string };
+    };
+    expect(info.streams[0]?.codec_name).toBe(codec);
+    if (width) expect(info.streams[0]).toMatchObject({ width, height: 720 });
+    if (codec !== "png")
+      expect(Number(info.format.duration)).toBeCloseTo(10, 0);
+  }
+  await run("publish");
+  expect(db.publications[0]?.privacy).toBe("private");
+  await expect(run("set_privacy")).rejects.toThrow("confirmed");
+  await db.patchPublication(db.publications[0]?.id ?? "", {
+    confirmed_at: new Date().toISOString(),
+    confirmed_by: "owner",
+    privacy: "public",
+  });
+  await run("set_privacy");
+  expect(ctx.version.status).toBe("published");
+  expect(sleep).toHaveBeenCalledTimes(11);
+  expect(ctx.storage.upload).toHaveBeenCalledWith(
+    "previews/owner/project/fr/master-preview.mp4",
+    join(ctx.ws.renderDir, "master-preview.mp4"),
+    "video/mp4",
+  );
+}, 30_000);
+
+describe("exact stage subprocess contracts", () => {
+  it.each([
+    "generate_song",
+    "timing",
+    "storyboard",
+    "render_master",
+    "render_hook",
+    "qa",
+    "art",
+    "publish",
+    "set_privacy",
+  ] as Stage[])("%s arguments, cwd, environment", async (stage) => {
+    const { ctx, calls, db } = await setup();
+    if (stage === "set_privacy")
+      await db.createPublication({
+        render_id: db.renders[0]?.id ?? "",
+        youtube_video_id: "abc123",
+        privacy: "unlisted",
+        confirmed_at: "2026-10-31",
+        confirmed_by: "owner",
+      });
+    await stages[stage]?.(ctx);
+    const out = (name: string) => join(ctx.ws.outDir, name);
+    const render = (name: string) => join(ctx.ws.renderDir, name);
+    const stem = join(ctx.ws.root, "stems", "vocals.wav");
+    const expected: Partial<Record<Stage, ReturnType<typeof command>[]>> = {
+      generate_song: [
+        command("node", ["tools/kie.mjs", "job", "fr"]),
+        command("node", ["tools/kie.mjs", "generate", "fr"]),
+        command("node", ["tools/kie.mjs", "wait", "fr"]),
+        ...[1, 2].map((n) =>
+          command("node", ["tools/kie.mjs", "lyrics-ts", "fr", String(n)]),
+        ),
+        ...[1, 2].map((n) =>
+          command("ffmpeg", [
+            "-y",
+            "-i",
+            out(`take-${n}.mp3`),
+            "-b:a",
+            "128k",
+            "-f",
+            "mp3",
+            out(`take-${n}-preview.mp3.part`),
+          ]),
+        ),
+        command("node", ["tools/kie.mjs", "credit"]),
+      ],
+      timing: [
+        command("bash", ["tools/workspace_pipeline.sh", "fr", "1"]),
+        command("ffmpeg", [
+          "-y",
+          "-i",
+          stem,
+          "-t",
+          "8",
+          "-f",
+          "mp3",
+          render("chant-listen.mp3.part"),
+        ]),
+        command("ffmpeg", [
+          "-y",
+          "-sseof",
+          "-12",
+          "-i",
+          stem,
+          "-f",
+          "mp3",
+          render("outro-listen.mp3.part"),
+        ]),
+      ],
+      storyboard: [
+        command("python", [
+          "-I",
+          "-X",
+          "utf8",
+          "tools/make_storyboard.py",
+          "fr",
+        ]),
+      ],
+      art: [
+        command("python", [
+          "-I",
+          "-X",
+          "utf8",
+          "tools/make_thumb.py",
+          "--title",
+          "Test song",
+          "--out",
+          render("thumbnail.png.part"),
+        ]),
+      ],
+      publish: [
+        command("python", [
+          "-I",
+          "-X",
+          "utf8",
+          "publish/yt.py",
+          "upload",
+          join(ctx.ws.root, "publish", "meta", "fr.json"),
+        ]),
+      ],
+      set_privacy: [
+        command("python", [
+          "-I",
+          "-X",
+          "utf8",
+          "publish/yt.py",
+          "privacy",
+          "abc123",
+          "unlisted",
+          "--confirm",
+        ]),
+      ],
+      qa: [
+        command("ffmpeg", [
+          "-i",
+          render("video.mp4"),
+          "-filter_complex",
+          "ebur128=peak=true",
+          "-f",
+          "null",
+          "-",
+        ]),
+        command("ffprobe", [
+          "-v",
+          "error",
+          "-show_entries",
+          "format=duration",
+          "-of",
+          "default=noprint_wrappers=1:nokey=1",
+          render("video.mp4"),
+        ]),
+        command("ffmpeg", [
+          "-y",
+          "-i",
+          render("video.mp4"),
+          "-vf",
+          "fps=20/600,scale=320:-1,tile=5x4",
+          "-frames:v",
+          "1",
+          "-f",
+          "image2",
+          render("contact-sheet.jpg.part"),
+        ]),
+      ],
+    };
+    for (const kind of ["master", "hook"] as const)
+      expected[kind === "master" ? "render_master" : "render_hook"] = [
+        command(
+          "node",
+          [
+            "scripts/r.mjs",
+            "render",
+            `${kind === "master" ? "Video" : "Hook"}-fr`,
+            render(kind === "master" ? "video.mp4.part" : "hook.mp4.part"),
+            `--props=${join(ctx.ws.root, "fps30.json")}`,
+            "--gl=angle",
+            "--log=error",
+          ],
+          join(ENGINE_ROOT, "motion"),
+        ),
+        command("ffmpeg", [
+          "-y",
+          "-i",
+          render(kind === "master" ? "video.mp4" : "hook.mp4"),
+          "-vf",
+          "scale=-2:720",
+          "-c:v",
+          "libx264",
+          "-crf",
+          "30",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "128k",
+          "-movflags",
+          "+faststart",
+          "-f",
+          "mp4",
+          render(`${kind}-preview.mp4.part`),
+        ]),
+        command("ffprobe", [
+          "-v",
+          "error",
+          "-show_entries",
+          "format=size",
+          "-of",
+          "default=noprint_wrappers=1:nokey=1",
+          render(`${kind}-preview.mp4`),
+        ]),
+      ];
+    expect(commands(calls)).toEqual(expected[stage]);
+    for (const call of calls) {
+      expect(call.env).toMatchObject({
+        ENGINE_WORKSPACE: ctx.ws.root,
+        PYTHONIOENCODING: "utf-8",
+        TMP: "E:\\mellodifai\\tmp",
+        TEMP: "E:\\mellodifai\\tmp",
+      });
+      expect(JSON.stringify(call.args)).not.toContain("test-only-key");
+      expect(JSON.stringify(call.env)).not.toContain("test-only-key");
+    }
+    if (stage.startsWith("render_"))
+      expect(ctx.progress).toHaveBeenLastCalledWith(100);
+    if (stage === "generate_song")
+      expect(
+        JSON.parse(
+          await readFile(join(ctx.ws.versionsDir, "settings.json"), "utf8"),
+        ),
+      ).toMatchObject({ model: "V6", vocal_gender: "f", style_weight: 0.7 });
+  });
+});

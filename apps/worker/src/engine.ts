@@ -2,6 +2,7 @@ import { spawn as nodeSpawn, type SpawnOptions } from "node:child_process";
 import { rename, rm } from "node:fs/promises";
 import { win32 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { childEnvironment, type Secrets } from "./secrets.js";
 
 type Child = {
   pid?: number | undefined;
@@ -19,8 +20,10 @@ export type Spawn = (
 export type EngineOptions = {
   env?: Record<string, string>;
   outputs?: string[];
+  cwd?: string;
 };
 type Dependencies = {
+  secrets?: Secrets;
   spawn?: Spawn;
   log: (line: string) => Promise<void>;
   report?: (line: string) => void;
@@ -29,13 +32,17 @@ type Dependencies = {
   killTree?: (child: Child) => Promise<void>;
 };
 
-async function killTree(child: Child): Promise<void> {
+async function killTree(child: Child, secrets?: Secrets): Promise<void> {
   if (process.platform === "win32" && child.pid) {
     await new Promise<void>((resolve, reject) => {
       const killer = nodeSpawn(
         "taskkill.exe",
         ["/PID", String(child.pid), "/T", "/F"],
-        { shell: false, windowsHide: true },
+        {
+          shell: false,
+          windowsHide: true,
+          env: childEnvironment(process.env, secrets),
+        },
       );
       killer.once("error", reject);
       killer.once("close", (code) =>
@@ -113,10 +120,16 @@ export class Engine {
     const child = (this.dependencies.spawn ?? nodeSpawn)(command, staged, {
       shell: false,
       windowsHide: true,
+      ...(options.cwd ? { cwd: options.cwd } : {}),
       env: {
-        ...process.env,
-        ...this.dependencies.env,
-        ...options.env,
+        ...childEnvironment(
+          {
+            ...process.env,
+            ...this.dependencies.env,
+            ...options.env,
+          },
+          this.dependencies.secrets,
+        ),
         PYTHONIOENCODING: "utf-8",
         TMP: "E:\\mellodifai\\tmp",
         TEMP: "E:\\mellodifai\\tmp",
@@ -160,7 +173,11 @@ export class Engine {
     });
     const abort = () => {
       kill = Promise.resolve()
-        .then(() => (this.dependencies.killTree ?? killTree)(child))
+        .then(() =>
+          this.dependencies.killTree
+            ? this.dependencies.killTree(child)
+            : killTree(child, this.dependencies.secrets),
+        )
         .catch(() => {
           this.report("Child process tree termination failed");
         });

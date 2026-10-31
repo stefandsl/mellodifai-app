@@ -14,6 +14,7 @@ export type Job = {
 };
 export type Version = {
   id: string;
+  owner_id?: string;
   project_id: string;
   lang: Lang;
   status: VersionStatus;
@@ -22,6 +23,8 @@ export type Version = {
   timing_path?: string | null;
   storyboard_path?: string | null;
   qa_flags?: unknown;
+  render_attempt?: number;
+  kie_task_id?: string | null;
 };
 export type Project = {
   id: string;
@@ -35,6 +38,36 @@ export type WorkerUpdate = {
   owner_id?: string;
   busy_job_id?: string | null;
   engine_version?: string | null;
+  kie_balance?: number | null;
+  youtube_uploads_today?: number;
+  youtube_quota_day?: string | null;
+};
+export type Take = {
+  id: string;
+  owner_id?: string;
+  version_id: string;
+  kie_task_id?: string | null;
+  audio_preview_path?: string | null;
+  scores?: unknown;
+};
+export type Render = {
+  id: string;
+  owner_id?: string;
+  version_id: string;
+  kind: "master" | "hook";
+  path?: string | null;
+  preview_path?: string | null;
+  qa_results?: unknown;
+};
+export type Publication = {
+  id: string;
+  owner_id?: string;
+  render_id: string;
+  youtube_video_id?: string | null;
+  privacy: "private" | "public" | "unlisted" | "scheduled";
+  metadata?: unknown;
+  confirmed_at?: string | null;
+  confirmed_by?: string | null;
 };
 
 export interface Db {
@@ -54,6 +87,15 @@ export interface Db {
     idempotencyKey: string,
   ): Promise<void>;
   requeue(jobId: string, workerId: string): Promise<void>;
+  createTake(take: Omit<Take, "id">): Promise<Take>;
+  getTakes(versionId: string): Promise<Take[]>;
+  upsertRender(render: Omit<Render, "id">): Promise<Render>;
+  getRender(versionId: string, kind: Render["kind"]): Promise<Render | null>;
+  patchRender(id: string, patch: Partial<Render>): Promise<void>;
+  createPublication(publication: Omit<Publication, "id">): Promise<Publication>;
+  getPublicationForVersion(versionId: string): Promise<Publication | null>;
+  patchPublication(id: string, patch: Partial<Publication>): Promise<void>;
+  getWorker(id: string): Promise<WorkerUpdate | null>;
 }
 
 function requireData<T>(data: T | null, error: { message: string } | null): T {
@@ -201,9 +243,102 @@ export class SupabaseDb implements Db {
       .eq("status", "running");
     if (error) throw new Error(error.message);
   }
+  async createTake(take: Omit<Take, "id">): Promise<Take> {
+    const { data, error } = await this.client
+      .from("takes")
+      .insert(take)
+      .select()
+      .single();
+    return requireData(data as Take | null, error);
+  }
+  async getTakes(versionId: string): Promise<Take[]> {
+    const { data, error } = await this.client
+      .from("takes")
+      .select("*")
+      .eq("version_id", versionId);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Take[];
+  }
+  async upsertRender(render: Omit<Render, "id">): Promise<Render> {
+    const existing = await this.getRender(render.version_id, render.kind);
+    if (existing) {
+      await this.patchRender(existing.id, render);
+      return { ...existing, ...render };
+    }
+    const { data, error } = await this.client
+      .from("renders")
+      .insert(render)
+      .select()
+      .single();
+    return requireData(data as Render | null, error);
+  }
+  async getRender(
+    versionId: string,
+    kind: Render["kind"],
+  ): Promise<Render | null> {
+    const { data, error } = await this.client
+      .from("renders")
+      .select("*")
+      .eq("version_id", versionId)
+      .eq("kind", kind)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Render | null;
+  }
+  async patchRender(id: string, patch: Partial<Render>): Promise<void> {
+    const { error } = await this.client
+      .from("renders")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+  async createPublication(
+    publication: Omit<Publication, "id">,
+  ): Promise<Publication> {
+    const { data, error } = await this.client
+      .from("publications")
+      .insert(publication)
+      .select()
+      .single();
+    return requireData(data as Publication | null, error);
+  }
+  async getPublicationForVersion(
+    versionId: string,
+  ): Promise<Publication | null> {
+    const { data, error } = await this.client
+      .from("publications")
+      .select("*, renders!inner(version_id)")
+      .eq("renders.version_id", versionId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Publication | null;
+  }
+  async patchPublication(
+    id: string,
+    patch: Partial<Publication>,
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("publications")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+  async getWorker(id: string): Promise<WorkerUpdate | null> {
+    const { data, error } = await this.client
+      .from("workers")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as WorkerUpdate | null;
+  }
 }
 
 export class InMemoryDb implements Db {
+  public takes: Take[] = [];
+  public renders: Render[] = [];
+  public publications: Publication[] = [];
+  public workers: WorkerUpdate[] = [];
   constructor(
     public jobs: Job[] = [],
     public versions: Version[] = [],
@@ -264,7 +399,11 @@ export class InMemoryDb implements Db {
         : { jobId, message, progress },
     );
   }
-  async upsertWorker(_worker: WorkerUpdate) {}
+  async upsertWorker(worker: WorkerUpdate) {
+    const existing = this.workers.find((item) => item.id === worker.id);
+    if (existing) Object.assign(existing, worker);
+    else this.workers.push({ ...worker });
+  }
   async getVersion(id: string) {
     return this.versions.find((item) => item.id === id) ?? null;
   }
@@ -289,6 +428,61 @@ export class InMemoryDb implements Db {
     job.status = "queued";
     job.worker_id = null;
     job.heartbeat_at = null;
+  }
+  async createTake(take: Omit<Take, "id">) {
+    const item = { ...take, id: crypto.randomUUID() };
+    this.takes.push(item);
+    return item;
+  }
+  async getTakes(versionId: string) {
+    return this.takes.filter((item) => item.version_id === versionId);
+  }
+  async upsertRender(render: Omit<Render, "id">) {
+    const item = this.renders.find(
+      (value) =>
+        value.version_id === render.version_id && value.kind === render.kind,
+    );
+    if (item) {
+      Object.assign(item, render);
+      return item;
+    }
+    const created = { ...render, id: crypto.randomUUID() };
+    this.renders.push(created);
+    return created;
+  }
+  async getRender(versionId: string, kind: Render["kind"]) {
+    return (
+      this.renders.find(
+        (item) => item.version_id === versionId && item.kind === kind,
+      ) ?? null
+    );
+  }
+  async patchRender(id: string, patch: Partial<Render>) {
+    Object.assign(this.renders.find((item) => item.id === id) ?? {}, patch);
+  }
+  async createPublication(publication: Omit<Publication, "id">) {
+    const item = { ...publication, id: crypto.randomUUID() };
+    this.publications.push(item);
+    return item;
+  }
+  async getPublicationForVersion(versionId: string) {
+    const renderIds = new Set(
+      this.renders
+        .filter((item) => item.version_id === versionId)
+        .map((item) => item.id),
+    );
+    return (
+      this.publications.find((item) => renderIds.has(item.render_id)) ?? null
+    );
+  }
+  async patchPublication(id: string, patch: Partial<Publication>) {
+    Object.assign(
+      this.publications.find((item) => item.id === id) ?? {},
+      patch,
+    );
+  }
+  async getWorker(id: string) {
+    return this.workers.find((item) => item.id === id) ?? null;
   }
   private findJob(id: string) {
     const job = this.jobs.find((item) => item.id === id);

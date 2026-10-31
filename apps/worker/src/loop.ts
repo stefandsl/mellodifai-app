@@ -15,12 +15,14 @@ export type StageContext = {
   log(line: string): Promise<void>;
   progress(pct: number): Promise<void>;
   secrets: Secrets;
+  db: Db;
   signal: AbortSignal;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
   patch?: Partial<Version>;
   enqueue?: { stage: Stage; idempotencyKey: string }[];
+  retryLater?: string;
 };
 export type StageHandler = (context: StageContext) => Promise<StageResult>;
 export type StageRegistry = Partial<Record<Stage, StageHandler>>;
@@ -240,6 +242,7 @@ export class WorkerLoop {
         engine: active.engine,
         storage,
         secrets,
+        db,
         signal,
         log,
         progress: async (pct) => {
@@ -269,6 +272,11 @@ export class WorkerLoop {
           ? await exclusivelyRender(operation)
           : await operation();
       signal.throwIfAborted();
+      if (result.retryLater) {
+        await log(result.retryLater);
+        await db.requeue(job.id, workerId);
+        return;
+      }
       // Check ownership again before publishing stage results.
       if (!(await db.heartbeat(job.id, workerId))) {
         active.lost = true;

@@ -1,13 +1,15 @@
 import { mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { createClient } from "@supabase/supabase-js";
 import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
-import { type StageRegistry, WorkerLoop } from "./loop.js";
+import { fakeStages } from "./fake/index.js";
+import { WorkerLoop } from "./loop.js";
 import { loadSecrets } from "./secrets.js";
-import { noStorage } from "./storage.js";
+import { stages } from "./stages/index.js";
+import { SupabaseStorage } from "./storage.js";
 import { WorkspaceFactory } from "./workspace.js";
 
-const stages: StageRegistry = {};
 export function installSignals(
   loop: Pick<WorkerLoop, "stop" | "forceStop">,
   source: {
@@ -50,14 +52,14 @@ async function main() {
   const loop = new WorkerLoop({
     db,
     workerId,
-    stages,
+    stages: process.env.WORKER_FAKE === "1" ? fakeStages : stages,
     workspace: new WorkspaceFactory(),
     engine: new Engine({
       log: async (line) => console.log(secrets.redact(line)),
-      env: { ...secrets.values },
+      secrets,
       report,
     }),
-    storage: noStorage,
+    storage: new SupabaseStorage(createClient(url, key)),
     secrets,
     report,
   });

@@ -2,8 +2,40 @@ import { readFile } from "node:fs/promises";
 
 export type Secrets = {
   values: Readonly<Record<string, string>>;
+  secretNames?: readonly string[];
   redact(text: string): string;
 };
+
+const credentialName =
+  /(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION|COOKIE)/iu;
+
+// File-loaded names are private even when their names do not resemble credentials.
+// Also remove aliases containing a credential value, including process overrides.
+export function childEnvironment(
+  environment: NodeJS.ProcessEnv,
+  secrets?: Secrets,
+): NodeJS.ProcessEnv {
+  const names = new Set(
+    (secrets?.secretNames ?? []).map((name) => name.toUpperCase()),
+  );
+  for (const name of Object.keys(secrets?.values ?? {}))
+    if (credentialName.test(name)) names.add(name.toUpperCase());
+  for (const name of Object.keys(environment))
+    if (credentialName.test(name)) names.add(name.toUpperCase());
+  const values = [
+    ...Object.entries(secrets?.values ?? {}),
+    ...Object.entries(environment),
+  ]
+    .filter(([name, value]) => names.has(name.toUpperCase()) && Boolean(value))
+    .map(([, value]) => value as string);
+  return Object.fromEntries(
+    Object.entries(environment).filter(
+      ([name, value]) =>
+        !names.has(name.toUpperCase()) &&
+        !values.some((secret) => value?.includes(secret)),
+    ),
+  );
+}
 
 export async function loadSecrets(
   environment: Record<string, string | undefined> = process.env,
@@ -23,11 +55,17 @@ export async function loadSecrets(
       }
     }
   }
+  const secretNames = [
+    ...new Set([
+      ...Object.keys(values),
+      ...Object.keys(environment).filter((name) => credentialName.test(name)),
+    ]),
+  ];
   const protectedValues = [
     ...new Set(
       [
         ...Object.values(values),
-        environment.SUPABASE_SERVICE_ROLE_KEY ?? "",
+        ...secretNames.map((name) => environment[name] ?? ""),
       ].filter((value) => value.length >= 8),
     ),
   ].sort((a, b) => b.length - a.length);
@@ -35,6 +73,7 @@ export async function loadSecrets(
     if (value !== undefined && !(key in values)) values[key] = value;
   return {
     values,
+    secretNames,
     redact: (text) =>
       protectedValues.reduce(
         (result, value) => result.split(value).join("***"),
