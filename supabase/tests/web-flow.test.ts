@@ -147,6 +147,77 @@ it("deduplicates languages, enqueues drafts and rolls back invalid creation", as
   expect(after.count).toBe(before.count);
 });
 
+it.each(["generate_again", "back_to_lyrics"] as const)(
+  "%s refuses a possibly live task without changing state or enqueueing work",
+  async (rpc) => {
+    const v = await fixture("failed");
+    await service.from("jobs").update({ status: "failed" }).eq("version_id", v);
+    expect(
+      (
+        await service
+          .from("versions")
+          .update({ kie_task_id: "pending-task", kie_task_state: null })
+          .eq("id", v)
+      ).error,
+    ).toBeNull();
+    const params =
+      rpc === "generate_again"
+        ? { p_version: v, p_generation: 1 }
+        : { p_version: v };
+    const before = await service.from("versions").select().eq("id", v).single();
+    const jobsBefore = await service
+      .from("jobs")
+      .select("id")
+      .eq("version_id", v);
+    expect((await client.rpc(rpc, params)).error?.message).toBe(
+      "kie task may still succeed: use Retry, it is free",
+    );
+    expect(
+      (await service.from("versions").select().eq("id", v).single()).data,
+    ).toEqual(before.data);
+    expect(
+      (await service.from("jobs").select("id").eq("version_id", v)).data,
+    ).toEqual(jobsBefore.data);
+    expect((await service.rpc(rpc, params)).error?.code).toBe("42501");
+  },
+);
+it.each([
+  ["generate_again", "failed"],
+  ["generate_again", "missing"],
+  ["back_to_lyrics", "failed"],
+  ["back_to_lyrics", "missing"],
+] as const)("%s allows recovery when task is %s", async (rpc, task) => {
+  const v = await fixture("failed");
+  await service.from("jobs").update({ status: "failed" }).eq("version_id", v);
+  expect(
+    (
+      await service
+        .from("versions")
+        .update({
+          kie_task_id: task === "failed" ? "failed-task" : null,
+          kie_task_state: task === "failed" ? "failed" : null,
+        })
+        .eq("id", v)
+    ).error,
+  ).toBeNull();
+  const params =
+    rpc === "generate_again"
+      ? { p_version: v, p_generation: 1 }
+      : { p_version: v };
+  expect((await client.rpc(rpc, params)).error).toBeNull();
+  expect(
+    (
+      await service
+        .from("versions")
+        .select("status,generation_count")
+        .eq("id", v)
+        .single()
+    ).data,
+  ).toEqual({
+    status: rpc === "generate_again" ? "song_queued" : "lyrics_review",
+    generation_count: 2,
+  });
+});
 it("back_to_lyrics requires an owned failed version and preserves unknown submission protection", async () => {
   const v = await fixture("failed");
   await service.from("jobs").update({ status: "failed" }).eq("version_id", v);

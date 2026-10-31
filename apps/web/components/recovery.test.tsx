@@ -77,11 +77,11 @@ it.each(["it", "en"] as const)(
           name: state === "pending" ? paid : free,
         }),
       ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", {
-          name: lang === "it" ? "Torna ai testi" : "Back to lyrics",
-        }),
-      ).toBeInTheDocument();
+      const back = screen.queryByRole("button", {
+        name: lang === "it" ? "Torna ai testi" : "Back to lyrics",
+      });
+      if (state === "pending") expect(back).not.toBeInTheDocument();
+      else expect(back).toBeInTheDocument();
       view.unmount();
     }
   },

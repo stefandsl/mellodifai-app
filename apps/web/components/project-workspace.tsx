@@ -245,15 +245,17 @@ export function ProjectWorkspace({
                     {t(lang, "dialog.cost")}
                   </ConfirmDialog>
                 )}
-                <Button
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() =>
-                    run(() => backToLyrics({ versionId: version.id }))
-                  }
-                >
-                  {t(lang, "action.backToLyrics")}
-                </Button>
+                {!freeKieRetry && (
+                  <Button
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() =>
+                      run(() => backToLyrics({ versionId: version.id }))
+                    }
+                  >
+                    {t(lang, "action.backToLyrics")}
+                  </Button>
+                )}
               </>
             )}
             {(failedJob?.stage !== "generate_song" || freeKieRetry) && (
