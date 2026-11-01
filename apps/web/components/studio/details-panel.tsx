@@ -1,6 +1,7 @@
 "use client";
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { EDIT_STATUSES } from "@mellodifai/shared";
 import { cn } from "cn";
 import {
   Check,
@@ -8,6 +9,7 @@ import {
   ExternalLink,
   ListMusic,
   Pause,
+  PenLine,
   Play,
   Share2,
   X,
@@ -16,7 +18,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-
+import { chooseTake } from "@/app/actions/songs-from-songs";
 import { useLocale } from "@/components/locale-provider";
 import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
 import { st, stf } from "@/lib/studio/i18n";
@@ -42,6 +44,7 @@ import { DownloadButton } from "./player-controls";
 import { AddToPlaylistDialog } from "./playlist-dialog";
 import { ReactionButtons } from "./reaction-buttons";
 import { ShareDialog } from "./share-dialog";
+import { SongSources } from "./song-sources";
 import { StemsBadge } from "./stems/stems-badge";
 import { IconButton } from "./ui";
 
@@ -223,44 +226,88 @@ function Cover({ clip }: { clip: Clip }) {
   );
 }
 
-// The versions of the song as chips: a chip plays that take as its own preview.
+// The versions of the song as chips: a chip plays that take as its own preview. The take in use is
+// marked; while another one plays, "Usa questa versione" makes it the song's audio (after a
+// rewrite the original stays here for A/B listening).
 function Takes({ clip }: { clip: Clip }) {
   const lang = useLocale();
+  const router = useRouter();
   const playingId = usePlayer((s) => s.queue[s.index]?.id);
   const p = usePlayer();
+  const [choosing, setChoosing] = useState(false);
   const own = trackFor(clip);
   const detail = own?.detail;
   const takes = clip.takes.filter((take) => take.audioUrl);
   if (!own || !detail || takes.length < 2) return null;
+  const canChoose = EDIT_STATUSES.includes(clip.status) && !clip.trashedAt;
+  const heard = takes.find(
+    (take) => takeTrack(own, detail, take.number)?.id === playingId,
+  );
+  const choose = async (take: (typeof takes)[number]) => {
+    setChoosing(true);
+    const result = await chooseTake({ versionId: clip.id, takeId: take.id });
+    setChoosing(false);
+    if (!result.ok) {
+      toast.error(st(lang, "det.takeChooseFailed"));
+      return;
+    }
+    toast.success(stf(lang, "det.takeChosen", { n: String(take.number) }));
+    router.refresh();
+  };
   return (
-    <fieldset className="m-0 flex min-w-0 flex-wrap items-center gap-1.5 border-0 p-0">
-      <legend className="sr-only">{st(lang, "det.takes")}</legend>
-      {takes.map((take) => {
-        const next = takeTrack(own, detail, take.number);
-        const pressed = next !== null && playingId === next.id;
-        return (
-          <button
-            key={take.id}
-            type="button"
-            aria-pressed={pressed}
-            disabled={!next}
-            onClick={() => {
-              if (!next) return;
-              if (pressed) return p.toggle();
-              p.play(next);
-            }}
-            className={cn(
-              "h-8 rounded-full px-3.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)]",
-              pressed
-                ? "bg-[var(--fg)] text-[var(--bg)]"
-                : "bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
-            )}
-          >
-            {stf(lang, "det.take", { n: String(take.number) })}
-          </button>
-        );
-      })}
-    </fieldset>
+    <div className="space-y-2">
+      <fieldset className="m-0 flex min-w-0 flex-wrap items-center gap-1.5 border-0 p-0">
+        <legend className="sr-only">{st(lang, "det.takes")}</legend>
+        {takes.map((take) => {
+          const next = takeTrack(own, detail, take.number);
+          const pressed = next !== null && playingId === next.id;
+          const inUse = take.id === clip.chosenTakeId;
+          return (
+            <button
+              key={take.id}
+              type="button"
+              aria-pressed={pressed}
+              aria-label={`${stf(lang, "det.take", { n: String(take.number) })}${inUse ? ` (${st(lang, "det.inUse")})` : ""}`}
+              disabled={!next}
+              title={take.rewritten ? st(lang, "det.takeRewritten") : undefined}
+              onClick={() => {
+                if (!next) return;
+                if (pressed) return p.toggle();
+                p.play(next);
+              }}
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)]",
+                pressed
+                  ? "bg-[var(--fg)] text-[var(--bg)]"
+                  : "bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
+              )}
+            >
+              {inUse ? (
+                <span
+                  aria-hidden
+                  className="size-1.5 rounded-full bg-[var(--brand)]"
+                />
+              ) : null}
+              {stf(lang, "det.take", { n: String(take.number) })}
+              {take.rewritten ? (
+                <PenLine aria-hidden className="size-3 opacity-70" />
+              ) : null}
+            </button>
+          );
+        })}
+      </fieldset>
+      {canChoose && heard && heard.id !== clip.chosenTakeId ? (
+        <button
+          type="button"
+          disabled={choosing}
+          onClick={() => void choose(heard)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-full bg-cta px-3.5 text-[13px] font-medium text-white outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[var(--brand)] disabled:opacity-55"
+        >
+          <Check className="size-3.5" />
+          {st(lang, "det.useTake")} {heard.number}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -416,6 +463,7 @@ export function DetailsBody({
         )}
 
         <Takes clip={clip} />
+        <SongSources clip={clip} />
         <Tags style={clip.style} />
         <Lyrics text={clip.lyrics} />
 

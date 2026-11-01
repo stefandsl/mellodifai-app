@@ -198,6 +198,8 @@ export interface Db {
   getWorker(id: string): Promise<WorkerUpdate | null>;
   // profiles.role of a song's owner: local engines are for the admin only (design 5.5).
   getOwnerRole(ownerId: string): Promise<string | null>;
+  // profiles.email of a song's owner: kie is never called for test accounts (kie/guard.ts).
+  getOwnerEmail(ownerId: string): Promise<string | null>;
   // Replaces jobs.payload of a job this worker runs; local engines keep their seeds there
   // before the first submit.
   patchJobPayload(
@@ -523,6 +525,15 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(error.message);
     return data as WorkerUpdate | null;
   }
+  async getOwnerEmail(ownerId: string): Promise<string | null> {
+    const { data, error } = await this.client
+      .from("profiles")
+      .select("email")
+      .eq("id", ownerId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as { email?: string } | null)?.email ?? null;
+  }
   async getOwnerRole(ownerId: string): Promise<string | null> {
     const { data, error } = await this.client
       .from("profiles")
@@ -581,7 +592,7 @@ export class InMemoryDb implements Db {
   public renders: Render[] = [];
   public publications: Publication[] = [];
   public workers: WorkerUpdate[] = [];
-  public profiles: { id: string; role: string }[] = [];
+  public profiles: { id: string; role: string; email?: string }[] = [];
   public sectionEdits: SectionEdit[] = [];
   constructor(
     public jobs: Job[] = [],
@@ -798,6 +809,13 @@ export class InMemoryDb implements Db {
   }
   async getOwnerRole(ownerId: string) {
     return this.profiles.find((item) => item.id === ownerId)?.role ?? null;
+  }
+  async getOwnerEmail(ownerId: string) {
+    // Tests that do not name an e-mail stand for a real (non-test) owner.
+    return (
+      this.profiles.find((item) => item.id === ownerId)?.email ??
+      `${ownerId}@example.com`
+    );
   }
   async patchJobPayload(
     jobId: string,

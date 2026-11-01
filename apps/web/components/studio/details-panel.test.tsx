@@ -405,7 +405,10 @@ describe("playing", () => {
   it("lists the takes as chips and plays the one chosen", async () => {
     select();
     panel();
-    const one = within(aside()).getByRole("button", { name: "Versione 1" });
+    // The take in use carries "(In uso)" for screen readers.
+    const one = within(aside()).getByRole("button", {
+      name: "Versione 1 (In uso)",
+    });
     const two = within(aside()).getByRole("button", { name: "Versione 2" });
     await userEvent.click(two);
     expect(usePlayer.getState().queue[0]).toMatchObject({
@@ -431,7 +434,7 @@ describe("playing", () => {
     );
     panel();
     expect(
-      within(aside()).queryByRole("button", { name: "Versione 1" }),
+      within(aside()).queryByRole("button", { name: /^Versione 1/u }),
     ).toBeNull();
   });
 });
@@ -563,7 +566,7 @@ describe("actions", () => {
 });
 
 describe("tools", () => {
-  it("offers only what is built: the prompt, the video studio, the audio editor and the stems", () => {
+  it("offers the prompt, the video studio, the editor, the rewrite, the stems, cover and reference", () => {
     select();
     panel();
     const tools = within(aside()).getByRole("region", { name: "Strumenti" });
@@ -575,14 +578,11 @@ describe("tools", () => {
       "Riusa il prompt",
       "Crea video visualizer",
       "Modifica audio",
+      "Riscrivi una parte",
       "Estrai stems",
+      "Cover di questa canzone",
+      "Usa come riferimento",
     ]);
-    for (const gone of [
-      /cover|copertina/iu,
-      /riferimento|reference/iu,
-      /repaint|ridipingi/iu,
-    ])
-      expect(within(tools).queryByRole("button", { name: gone })).toBeNull();
   });
 
   it("opens the Video Studio for the song", async () => {
@@ -655,9 +655,15 @@ describe("tools", () => {
     };
     // A video being rendered keeps its take: stems yes, an edit no.
     expect(names(clip({ status: "video_review" }))).toContain("Modifica audio");
-    // No chosen take: nothing to edit or separate.
+    // No chosen take: nothing to edit or separate, but a part of a take may be rewritten and a
+    // take may start a cover or a reference.
     expect(names(clip({ status: "takes_review", chosenTakeId: null }))).toEqual(
-      ["Riusa il prompt"],
+      [
+        "Riusa il prompt",
+        "Riscrivi una parte",
+        "Cover di questa canzone",
+        "Usa come riferimento",
+      ],
     );
     expect(
       names(clip({ takes: [], audioUrl: null, chosenTakeId: "t1" })),

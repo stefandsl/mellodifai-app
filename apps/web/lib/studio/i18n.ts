@@ -879,6 +879,7 @@ const it = {
   "aud.pause": "Pausa",
   "aud.set": "Audio pronto per la nuova canzone.",
   "aud.libraryTag": "dalla libreria",
+  "create.audioMode": "Questo motore non può partire dall'audio in questo modo",
 } as const;
 
 export type StudioKey = keyof typeof it;
@@ -1759,6 +1760,7 @@ const en: Record<StudioKey, string> = {
   "aud.pause": "Pause",
   "aud.set": "Audio ready for the new song.",
   "aud.libraryTag": "from library",
+  "create.audioMode": "This engine cannot start from the audio this way",
 };
 
 const DICT: Record<"it" | "en", Record<StudioKey, string>> = { it, en };

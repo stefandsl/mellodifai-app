@@ -338,6 +338,20 @@ export function RewritePanel({
   const problem = loaded
     ? sectionProblem(range.start, range.end, duration)
     : null;
+  // The lit lines come into view in the lyrics list as the part moves.
+  const lyricList = useRef<HTMLOListElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: follows the lit lines only.
+  useEffect(() => {
+    const list = lyricList.current;
+    const first = lines[0];
+    if (!list || first === undefined) return;
+    const item = list.querySelector<HTMLElement>(`[data-line="${first}"]`);
+    if (item)
+      list.scrollTo({
+        top: Math.max(0, item.offsetTop - 8),
+        behavior: "smooth",
+      });
+  }, [linesKey]);
   const max = Math.floor(maxSection(duration) * 10) / 10;
   const full = replaceSection(lyrics, lines, text);
   const busyEdit = active || busy !== null;
@@ -517,7 +531,7 @@ export function RewritePanel({
               audition.playing === "part" ? "rw.stopPart" : "rw.playPart",
             )}
           </button>
-          <div className="grid min-w-0 flex-1 grid-cols-3 gap-3">
+          <div className="grid min-w-0 flex-1 grid-cols-3 gap-3 max-sm:basis-full">
             <ClockField
               label={st(lang, "rw.from")}
               value={range.start}
@@ -558,10 +572,13 @@ export function RewritePanel({
           <p className="mt-1 mb-3 text-[12.5px] text-[var(--fg-muted)]">
             {st(lang, hasTiming ? "rw.lyricsTimed" : "rw.lyricsUntimed")}
           </p>
-          <ol className="max-h-80 space-y-0.5 overflow-y-auto font-mono text-[13px] leading-6 scrollbar-thin">
+          <ol
+            ref={lyricList}
+            className="relative max-h-80 space-y-0.5 overflow-y-auto font-mono text-[13px] leading-6 scrollbar-thin"
+          >
             {timed.map((line) =>
               line.sung ? (
-                <li key={line.index}>
+                <li key={line.index} data-line={line.index}>
                   <button
                     type="button"
                     aria-pressed={lines.includes(line.index)}

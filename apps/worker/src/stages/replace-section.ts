@@ -28,6 +28,7 @@ import {
   KieRefused,
   type KieTrack,
 } from "../kie/client.js";
+import { assertKieAllowed } from "../kie/guard.js";
 import type { StageContext, StageHandler, StageResult } from "../loop.js";
 import { encode, matchGain, probeSeconds, splice } from "./audio-util.js";
 import { LOCAL_TEXT, LocalGeneration, takeSeeds } from "./local-engine.js";
@@ -130,6 +131,8 @@ async function kieAlternatives(
   duration: number,
   dir: string,
 ): Promise<Made[]> {
+  // Paid: never for a test account or a test song.
+  await assertKieAllowed(context);
   const key = context.secrets.values.KIE_API_KEY ?? "";
   if (!key) throw new Error(REWRITE_TEXT.kieKey);
   const client = new KieClient(key);
@@ -361,6 +364,8 @@ export const replaceSection: StageHandler = async (context) => {
     await context.log("Alternative già pronte per questa richiesta");
     return {};
   }
+  // Paid: refused for a test account or a test song before anything else happens.
+  if (edit.engine === "kie") await assertKieAllowed(context);
   const take = (await context.db.getTakes(context.version.id)).find(
     (item) => item.id === edit.take_id,
   );

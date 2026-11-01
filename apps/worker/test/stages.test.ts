@@ -6,7 +6,7 @@ import { LyricPackSchema, type Stage } from "@mellodifai/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
-import { createFakeStages } from "../src/fake/index.js";
+import { createFakeStages, fakePack } from "../src/fake/index.js";
 import { type StageContext, WorkerLoop } from "../src/loop.js";
 import { startBalanceRefresh } from "../src/main.js";
 import { childEnvironment, loadSecrets } from "../src/secrets.js";
@@ -1538,6 +1538,15 @@ describe("stage safety and behavior", () => {
       ]),
     );
     expect(ctx.storage.upload).toHaveBeenCalledTimes(2);
+  });
+  it("writes the lyric files an imported song never had before timing it", async () => {
+    const { ctx } = await setup();
+    ctx.version.lyric_pack = fakePack;
+    await rm(ctx.ws.versionsDir, { recursive: true, force: true });
+    await stages.timing?.(ctx);
+    expect(await readFile(join(ctx.ws.versionsDir, "title.txt"), "utf8")).toBe(
+      fakePack.title,
+    );
   });
   it("re-encodes a preview over 40 MB using ffprobe size", async () => {
     const { ctx, calls, output } = await setup();
