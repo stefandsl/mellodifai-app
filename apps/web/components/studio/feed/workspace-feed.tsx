@@ -4,6 +4,7 @@ import { cn } from "cn";
 import {
   ChevronLeft,
   ChevronRight,
+  FileUp,
   LayoutGrid,
   List,
   ListChecks,
@@ -31,6 +32,7 @@ import { st, stf } from "@/lib/studio/i18n";
 import { matchClip } from "@/lib/studio/search";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { useDetailsClips } from "@/store/details";
+import { useImportDialog } from "@/store/import-dialog";
 import { useReactions } from "@/store/reactions";
 import { AddToPlaylistDialog } from "../playlist-dialog";
 import { ClipCard } from "./clip-card";
@@ -236,12 +238,26 @@ export function WorkspaceFeed({
           <span className="font-medium">
             {heading ?? st(lang, "feed.workspace")}
           </span>
+          {trash ? null : (
+            <button
+              type="button"
+              onClick={() => useImportDialog.getState().show()}
+              className={cn(
+                PILL,
+                "ml-auto bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
+              )}
+            >
+              <FileUp className="size-3.5" />
+              {st(lang, "imp.open")}
+            </button>
+          )}
           {trashLink ? (
             <Link
               href={trash ? "/library" : "/library?tab=trash"}
               className={cn(
                 PILL,
-                "ml-auto bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
+                trash && "ml-auto",
+                "bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
               )}
             >
               {trash ? (

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DetailsPanel } from "./details-panel";
+import { ImportDialog } from "./import/import-dialog";
 import { PlayerBar } from "./player-bar";
 import { PlaylistsProvider, type PlaylistsState } from "./playlists-context";
 import { MobileTopBar, StudioSidebar } from "./sidebar";
@@ -44,6 +45,7 @@ export function StudioShell({
           </div>
           <VideoStudio />
           <VisualizerWatcher />
+          <ImportDialog />
         </PlaylistsProvider>
       </WorkerProvider>
     </TooltipProvider>

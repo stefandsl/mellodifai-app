@@ -1,9 +1,10 @@
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { extname, join } from "node:path";
+import { LyricPackSchema } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
 import { encode, probeSeconds } from "./audio-util.js";
 import { scoreTakes } from "./score-takes.js";
-import { upload } from "./utils.js";
+import { upload, writePack } from "./utils.js";
 
 export const IMPORT_TEXT = {
   invalid: "Il file da importare non è valido.",
@@ -58,6 +59,9 @@ export const importAudio: StageHandler = async (context) => {
       source: { kind: "import", upload: path },
     });
     await context.progress(60, "Ascolto il brano per il testo");
+    // score_takes.py compares what it hears with versions/<lang>/lyrics.txt.
+    const pack = LyricPackSchema.safeParse(context.version.lyric_pack);
+    if (pack.success) await writePack(context, pack.data);
     // Length, loudness and the heard words (the lines "Riscrivi una parte" lights up).
     await scoreTakes(context, [take]);
     await context.progress(100, "Canzone importata");

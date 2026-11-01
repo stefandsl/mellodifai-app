@@ -191,6 +191,10 @@ describe("Importa da Suno", () => {
         call.args.some((arg) => arg.endsWith("score_takes.py")),
       ),
     ).toBe(true);
+    // The lyrics are where score_takes.py reads them.
+    expect(await readFile(join(ctx.ws.versionsDir, "lyrics.txt"), "utf8")).toBe(
+      "[Verse]\nUna riga\nDue righe",
+    );
   });
   it("accepts only a recording in the owner's own folder", async () => {
     const { ctx } = await setup();
