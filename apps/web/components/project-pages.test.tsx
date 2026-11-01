@@ -125,3 +125,21 @@ it("honors the requested project language", async () => {
     "page",
   );
 });
+
+it("titles the page with the song's title and keeps the prompt underneath", async () => {
+  mock.versions = mock.versions.map((version) =>
+    version.lang === "it"
+      ? Object.assign(version, { lyric_pack: { title: "Va bene, Pazienza" } })
+      : version,
+  );
+  render(
+    await ProjectPage({
+      params: Promise.resolve({ id: "p" }),
+      searchParams: Promise.resolve({ lang: "it" }),
+    }),
+  );
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Va bene, Pazienza",
+  );
+  expect(screen.getByText("Va bene, passa (VBP)")).toBeVisible();
+});

@@ -39,10 +39,10 @@ export function Logo({ compact }: { compact?: boolean }) {
       <Image
         src="/brand/mellodifai-logo.png"
         alt=""
-        width={34}
-        height={34}
+        width={42}
+        height={42}
         priority
-        className="size-[34px] shrink-0"
+        className="size-[42px] shrink-0"
       />
       {compact ? null : (
         <span className="text-[17px] font-semibold tracking-tight">

@@ -95,7 +95,7 @@ export default async function ProjectPage({
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id,topic,brief,song_settings,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections,kie_submit_state,kie_task_id,kie_task_state)",
+      "id,topic,brief,song_settings,versions(id,lang,status,display_title,lyric_pack,generation_count,render_attempt,storyboard_sections,kie_submit_state,kie_task_id,kie_task_state)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -178,6 +178,12 @@ export default async function ProjectPage({
         .maybeSingle()
     : { data: null };
   const failedJob = (jobs ?? []).filter((j) => j.status === "failed").at(-1);
+  // The song's own title, as the feed, search and player show it; the prompt stays visible below.
+  const pack = current.lyric_pack as { title?: string } | null;
+  const songTitle =
+    (current as { display_title?: string | null }).display_title ||
+    pack?.title ||
+    project.topic;
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-10">
@@ -186,8 +192,13 @@ export default async function ProjectPage({
             {t(lang, "project.label")}
           </p>
           <h1 className="mt-1 text-3xl font-medium tracking-tight sm:text-[40px]">
-            {project.topic}
+            {songTitle}
           </h1>
+          {songTitle !== project.topic ? (
+            <p className="mt-2 max-w-3xl text-[15px] text-muted-foreground">
+              {project.topic}
+            </p>
+          ) : null}
           <nav className="mt-5 flex flex-wrap gap-2">
             {versions.map((v) => (
               <Link
