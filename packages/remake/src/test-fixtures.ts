@@ -1,6 +1,49 @@
 // Small hand-made fixtures shared by the unit tests (no network, no media).
 import type { Analysis, Blueprint } from "./schemas.js";
 
+export type FakeCall = { url: string; body: Record<string, unknown> };
+
+// A fetch stand-in: `reply` maps each request to a JSON body (or an HTTP status).
+export function fakeFetch(
+  reply: (call: FakeCall) => unknown | { status: number; text: string },
+): { fetchFn: typeof globalThis.fetch; calls: FakeCall[] } {
+  const calls: FakeCall[] = [];
+  const fetchFn = (async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    const call = {
+      url: String(input),
+      body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+    };
+    calls.push(call);
+    const out = reply(call);
+    if (out && typeof out === "object" && "status" in out && "text" in out) {
+      const { status, text } = out as { status: number; text: string };
+      return new Response(text, { status });
+    }
+    return new Response(JSON.stringify(out), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof globalThis.fetch;
+  return { fetchFn, calls };
+}
+
+export function chatReply(content: unknown, cost = 0.001) {
+  return {
+    choices: [
+      {
+        message: {
+          content:
+            typeof content === "string" ? content : JSON.stringify(content),
+        },
+      },
+    ],
+    usage: { prompt_tokens: 100, completion_tokens: 50, cost },
+  };
+}
+
 export function must<T>(value: T | undefined | null): T {
   if (value === undefined || value === null)
     throw new Error("fixture value missing");
