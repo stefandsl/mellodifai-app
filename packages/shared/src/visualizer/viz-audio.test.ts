@@ -6,11 +6,14 @@ import {
   bandEdges,
   bandsFromBytes,
   blackman,
+  createAudioHistory,
   FFT_SIZE,
   FRAME_BYTES,
   fft,
   frameOf,
   frequencyBytes,
+  HISTORY_FRAMES,
+  historyOf,
   levelOf,
   MAX_DB,
   MIN_DB,
@@ -145,5 +148,41 @@ describe("analysis like the Web Audio analyser", () => {
     expect(Math.max(...frame.bands)).toBeGreaterThan(0.5);
     // Out-of-range frames clamp to the last one.
     expect(frameOf(data, 999).bands).toEqual(frameOf(data, 59).bands);
+  });
+});
+
+describe("history of past frames", () => {
+  const frame = (v: number) => ({
+    bands: new Float32Array(BAND_COUNT).fill(v),
+    wave: new Float32Array(WAVE_POINTS),
+  });
+
+  it("reads the render's frames back from the analysis, newest first", () => {
+    const data = analyseSong(sine(80, 2), ANALYSIS_RATE, 30, 60);
+    const h = historyOf(data, 50);
+    expect(h).toHaveLength(HISTORY_FRAMES);
+    expect(h[0]).toEqual(frameOf(data, 50));
+    expect(h[7]).toEqual(frameOf(data, 43));
+    expect(historyOf(data, 3)).toHaveLength(4);
+  });
+
+  it("gives the preview one frame per video frame whatever the screen's rate", () => {
+    const history = createAudioHistory();
+    // A 144 Hz screen: reads every 1/144 s, each frame's value is its time.
+    for (let t = 0; t <= 2; t += 1 / 144) history.push(t, frame(t));
+    const frames = history.frames(2);
+    expect(frames).toHaveLength(HISTORY_FRAMES);
+    for (const [k, f] of frames.entries())
+      expect(Math.abs((f.bands[0] as number) - (2 - k / 30))).toBeLessThan(
+        1 / 144,
+      );
+  });
+
+  it("starts again after a seek and never reaches before the first read", () => {
+    const history = createAudioHistory();
+    for (let t = 10; t <= 11; t += 1 / 60) history.push(t, frame(t));
+    history.push(3, frame(3));
+    expect(history.frames(3)).toHaveLength(1);
+    expect(createAudioHistory().frames(5)).toEqual([]);
   });
 });

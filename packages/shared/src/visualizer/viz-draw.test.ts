@@ -13,8 +13,12 @@ import {
   subscribeWindow,
   type VisualizerScene,
 } from "./viz-draw.js";
+import { shapedBars } from "./viz-kit.js";
+import { LOOK_PRESETS, shapedParticleAt } from "./viz-looks.js";
 import {
+  CROWN_TEETH,
   defaultVisualizerParams,
+  PARTICLE_SHAPES,
   VISUALIZER_EFFECTS,
   VISUALIZER_PRESETS,
   type VisualizerParams,
@@ -374,5 +378,131 @@ describe("Classico text stack", () => {
         440,
       ).map((l) => l.text),
     ).toEqual(["SONG: CIVICO TREDICI,", "VIA DEI LAMPIONI"]);
+  });
+});
+
+describe("catalogue looks", () => {
+  const look = (
+    preset: (typeof LOOK_PRESETS)[number],
+    aspect: "16:9" | "9:16" = "16:9",
+  ): VisualizerParams => ({ ...defaultVisualizerParams(), preset, aspect });
+  const flat = (v: number) => new Float32Array(BAND_COUNT).fill(v);
+  const peaky = Float32Array.from({ length: BAND_COUNT }, (_, i) =>
+    i % 8 < 2 ? 0.95 : 0.35,
+  );
+
+  it("every look moves with the music", () => {
+    for (const preset of LOOK_PRESETS) {
+      const quiet = draw(look(preset), { bands: flat(0.05) });
+      const loud = draw(look(preset), { bands: peaky });
+      expect(JSON.stringify(quiet), preset).not.toBe(JSON.stringify(loud));
+    }
+  });
+
+  it("keeps every line of text inside the frame, in both aspects", () => {
+    for (const preset of LOOK_PRESETS)
+      for (const aspect of ["16:9", "9:16"] as const) {
+        const params = look(preset, aspect);
+        params.classico.album = "Lampioni";
+        const s = scene(params, {
+          title: "Civico tredici, via dei Lampioni e delle stelle cadenti",
+        });
+        for (const call of draw(params, s).filter((c) => c[0] === "fillText")) {
+          const [x, y] = [call[2] as number, call[3] as number];
+          expect(x, `${preset} ${aspect} ${call[1]}`).toBeGreaterThanOrEqual(0);
+          expect(x, `${preset} ${aspect} ${call[1]}`).toBeLessThanOrEqual(
+            s.width,
+          );
+          expect(y, `${preset} ${aspect} ${call[1]}`).toBeGreaterThan(0);
+          expect(y, `${preset} ${aspect} ${call[1]}`).toBeLessThan(s.height);
+        }
+      }
+  });
+
+  it("draws the centre image only when one is chosen", () => {
+    for (const preset of LOOK_PRESETS) {
+      const params = look(preset);
+      const images = (p: VisualizerParams) =>
+        draw(p).filter((c) => c[0] === "drawImage").length;
+      const withImage = images(params);
+      params.centerImage.mode = "none";
+      expect(withImage, preset).toBe(images(params) + 1);
+    }
+  });
+
+  it("trails the music: peaks, echoes and contours read the frames before this one", () => {
+    const history = Array.from({ length: 36 }, (_, k) => ({
+      bands: flat(k % 3 === 0 ? 0.9 : 0.2),
+      wave: new Float32Array(WAVE_POINTS),
+    }));
+    for (const preset of ["dotline", "burst", "pills", "contours"] as const) {
+      const now = draw(look(preset), { history: [] });
+      const trailed = draw(look(preset), { history });
+      expect(JSON.stringify(now), preset).not.toBe(JSON.stringify(trailed));
+    }
+  });
+
+  it("draws each Corona tooth, each particle shape and both Contorni styles differently", () => {
+    const variants = (patches: Partial<VisualizerParams["look"]>[]) =>
+      new Set(
+        patches.map((patch) => {
+          const params = look(
+            "teeth" in patch
+              ? "crown"
+              : "shape" in patch
+                ? "shaped"
+                : "contours",
+          );
+          params.look = { ...params.look, ...patch };
+          return JSON.stringify(draw(params));
+        }),
+      ).size;
+    expect(variants(CROWN_TEETH.map((teeth) => ({ teeth })))).toBe(5);
+    expect(variants(PARTICLE_SHAPES.map((shape) => ({ shape })))).toBe(8);
+    expect(variants([{ contour: "rings" }, { contour: "ridges" }])).toBe(2);
+  });
+
+  it("puts the rotating badges over any preset, in the safe corners", () => {
+    for (const aspect of ["16:9", "9:16"] as const) {
+      const params = { ...defaultVisualizerParams(), aspect };
+      const off = draw(params);
+      params.badges = { enabled: true, text: "Nuovo singolo" };
+      const on = draw(params);
+      const glyphs = (calls: Call[]) =>
+        calls.filter((c) => c[0] === "fillText" && c[1] === "N").length;
+      expect(glyphs(off)).toBe(0);
+      expect(glyphs(on)).toBeGreaterThan(1);
+      const centres = on
+        .filter((c) => c[0] === "translate" && c[1] !== 0)
+        .map((c) => [c[1] as number, c[2] as number]);
+      const s = scene(params);
+      for (const [x, y] of centres) {
+        expect(x).toBeGreaterThan(0);
+        expect(x).toBeLessThan(s.width);
+        // In 9:16 both badges stay in the top fifth, away from the Shorts buttons.
+        if (aspect === "9:16") expect(y).toBeLessThan(s.height * 0.2);
+      }
+    }
+  });
+
+  it("keeps peaks visible on a loud, dense master", () => {
+    const dense = Float32Array.from({ length: BAND_COUNT }, (_, i) =>
+      i === 20 ? 1 : 0.8,
+    );
+    const values = shapedBars(dense, BAND_COUNT);
+    expect(Math.max(...values)).toBeGreaterThan(0.9);
+    expect(values[5] as number).toBeLessThan(0.6);
+    expect(shapedBars(flat(0.05), 16).every((v) => v < 0.1)).toBe(true);
+  });
+
+  it("gives each shaped particle a life that fades in and out, the same at the same time", () => {
+    expect(shapedParticleAt(7, 12.3)).toEqual(shapedParticleAt(7, 12.3));
+    for (let i = 0; i < 40; i++) {
+      const p = shapedParticleAt(i, i * 0.37);
+      expect(p.age).toBeGreaterThanOrEqual(0);
+      expect(p.age).toBeLessThan(3.5);
+      expect(p.alpha).toBeGreaterThanOrEqual(0);
+      expect(p.alpha).toBeLessThanOrEqual(1);
+    }
   });
 });
