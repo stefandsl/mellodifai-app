@@ -330,7 +330,13 @@ M7 (after M6): capability-aware queue, doctor, installers, self-update, then des
   click-through rate per thumbnail style, and YouTube's own thumbnail test is used when available.
 - **Karaoke mode** (like Spotify's): the listening view shows lyrics synced line by line with the
   current line and word highlighted (word timing already exists), plus a karaoke switch that
-  lowers or removes the vocal using the stems or the T11b vocal removal.
+  lowers or removes the vocal using the stems or the T11b vocal removal. Owner's reference
+  screenshots of Spotify (01/11): full-screen lyrics on a solid background taken from the cover's
+  dominant colour, very large bold left-aligned lines in a soft tint with the current line in full
+  white, generous line spacing, auto-scroll keeping the current line in view, a lyrics credit at
+  the bottom; and the main layout with a playlist header whose colour comes from the cover, a big
+  round play button, track rows with cover, title, artist, album and duration, and a right-hand
+  "now playing" panel with large artwork. The app's polish should match that level.
 - **Agents edit songs and videos by talking.** Every editor action (cut, fade, normalise, replace a
   section, regenerate a section, re-render the video, change the storyboard) is an MCP tool, so an
   agent on the user's Claude or ChatGPT subscription edits from a conversation without driving the
