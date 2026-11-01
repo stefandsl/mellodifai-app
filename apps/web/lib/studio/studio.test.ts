@@ -2,6 +2,7 @@ import { SongSettingsSchema } from "@mellodifai/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { CreateSongInput } from "@/app/actions/schemas";
 import { payloadFor } from "@/components/studio/create/create-panel";
+import { clipBadge } from "@/components/studio/feed/clip-card";
 import { dayLabel } from "@/components/studio/feed/workspace-feed";
 import { blocker, initialForm, useCreateForm } from "@/store/create-form";
 import { usePlayer } from "@/store/player";
@@ -128,6 +129,16 @@ describe("feed", () => {
     );
     expect(dayLabel(new Date(2026, 9, 15).toISOString(), "en", now)).toBe(
       "Thursday, Oct 15",
+    );
+  });
+
+  it("badges a song with the engine that made it", () => {
+    expect(clipBadge({ model: "V6", settings: {} })).toBe("v6");
+    expect(clipBadge({ model: "V6", settings: { engine: "ace-step" } })).toBe(
+      "ACE-Step",
+    );
+    expect(clipBadge({ model: "V6", settings: { engine: "yue2" } })).toBe(
+      "YuE2",
     );
   });
 

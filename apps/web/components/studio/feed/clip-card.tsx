@@ -39,12 +39,19 @@ const GENERATING = new Set([
   "publishing",
 ]);
 
+// What made the song: the local engine's name, else the kie model ("v6").
+export function clipBadge(clip: Pick<Clip, "model" | "settings">): string {
+  if (clip.settings.engine === "yue2") return "YuE2";
+  if (clip.settings.engine === "ace-step") return "ACE-Step";
+  return modelLabel(clip.model);
+}
+
 export function trackFor(clip: Clip): Track | null {
   if (!clip.audioUrl) return null;
   return {
     id: clip.id,
     title: clip.title,
-    subtitle: `${clip.lang.toUpperCase()} · ${modelLabel(clip.model)}`,
+    subtitle: `${clip.lang.toUpperCase()} · ${clipBadge(clip)}`,
     audioUrl: clip.audioUrl,
     videoUrl: clip.videoUrl,
     href: clip.href,
@@ -367,7 +374,7 @@ export function ClipCard({
               {title}
             </Link>
             <span className="shrink-0 text-[11px] font-semibold text-[var(--brand)]">
-              {modelLabel(clip.model)}
+              {clipBadge(clip)}
             </span>
           </div>
           <p className="truncate text-[13px] text-[var(--fg-muted)]">
@@ -403,7 +410,7 @@ export function ClipCard({
               {title}
             </Link>
             <span className="shrink-0 rounded-full bg-[color-mix(in_oklab,var(--brand),transparent_85%)] px-1.5 text-[10px] leading-4 font-semibold text-[var(--brand)]">
-              {modelLabel(clip.model)}
+              {clipBadge(clip)}
             </span>
             <span className="contents max-sm:hidden">
               <StatusBadge clip={clip} />
