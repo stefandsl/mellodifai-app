@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
       "./stages.js": "../../packages/shared/src/stages.ts",
       "./status.js": "../../packages/shared/src/status.ts",
       "./suggest-take.js": "../../packages/shared/src/suggest-take.ts",
+      "./visualizer/index.js": "../../packages/shared/src/visualizer/index.ts",
+      "./visualizer/viz-params.js":
+        "../../packages/shared/src/visualizer/viz-params.ts",
+      "./viz-audio.js": "../../packages/shared/src/visualizer/viz-audio.ts",
+      "./viz-draw.js": "../../packages/shared/src/visualizer/viz-draw.ts",
+      "./viz-params.js": "../../packages/shared/src/visualizer/viz-params.ts",
     },
     rules: {
       "*.css": {

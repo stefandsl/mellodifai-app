@@ -52,6 +52,14 @@ export async function authorizeStage(
         const r = await db.getRender(version.id, kind);
         if (r?.id === value && r.owner_id === job.owner_id) return;
       }
+      // A Video Studio render of this song (one per aspect, outside the render attempts).
+      const visualizer = await db.getRenderById(value);
+      if (
+        visualizer?.kind === "visualizer" &&
+        visualizer.version_id === version.id &&
+        visualizer.owner_id === job.owner_id
+      )
+        return;
     }
     if (name === "publicationid") {
       const p = await db.getPublicationForVersion(version.id);

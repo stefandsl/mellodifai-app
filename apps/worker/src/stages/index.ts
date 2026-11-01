@@ -9,6 +9,7 @@ import { renderHook, renderMaster } from "./render.js";
 import { stems } from "./stems.js";
 import { storyboard } from "./storyboard.js";
 import { timing } from "./timing.js";
+import { visualizer } from "./visualizer.js";
 export const stages: StageRegistry = {
   draft_lyrics: draftLyrics,
   generate_song: generateSong,
@@ -21,6 +22,7 @@ export const stages: StageRegistry = {
   publish,
   set_privacy: setPrivacy,
   stems,
+  visualizer,
 };
 for (const stage of Object.keys(STAGE_STATUS) as Stage[]) {
   const handler = stages[stage];

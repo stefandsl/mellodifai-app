@@ -4,8 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export interface Storage {
   upload(path: string, localFile: string, contentType: string): Promise<void>;
   remove?(paths: string[]): Promise<void>;
-  // Copies a stored file to a local path (an edited take only exists in storage).
-  download?(path: string, localFile: string): Promise<void>;
+  // Copies a stored file to a local path (an edited take only exists in storage). `bucket` is
+  // "previews" unless named: the studio's uploads live in "uploads".
+  download?(path: string, localFile: string, bucket?: string): Promise<void>;
 }
 export class SupabaseStorage implements Storage {
   constructor(private readonly client: SupabaseClient) {}
@@ -48,9 +49,13 @@ export class SupabaseStorage implements Storage {
       .upload(path, await readFile(localFile), { contentType, upsert: true });
     if (error) throw new Error(error.message);
   }
-  async download(path: string, localFile: string): Promise<void> {
+  async download(
+    path: string,
+    localFile: string,
+    bucket = "previews",
+  ): Promise<void> {
     const { data, error } = await this.client.storage
-      .from("previews")
+      .from(bucket)
       .download(path);
     if (error || !data)
       throw new Error(error?.message ?? `Cannot download ${path}`);

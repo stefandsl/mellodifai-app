@@ -23,6 +23,7 @@ The checked-in [worker environment example](apps/worker/.env.example) has empty 
 ## Deploy
 
 1. Apply all Supabase migrations.
+   Then upload the Video Studio's stock backgrounds once (`apps/worker`: `node node_modules/tsx/dist/cli.mjs scripts/visualizer-stock.ts`); the uploads bucket takes files up to 100 MB, which also needs the project's global upload limit at 100 MB or more.
 2. Insert the administrator email into `admin_allowlist` before that administrator's first sign-in.
 3. In hosted Supabase Auth, disable signups, enable email confirmations, set Site URL to `https://mellodifai.com`, and set the redirect allowlist to exactly `https://mellodifai.com/**` and `https://www.mellodifai.com/**`.
 4. Google Cloud OAuth consent screen set to In production (Testing tokens expire after 7 days and publishing stops).

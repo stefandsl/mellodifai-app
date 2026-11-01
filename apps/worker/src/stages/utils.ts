@@ -79,11 +79,18 @@ export async function upload(
       const live = new Set<string>([path]);
       const obsolete = new Set<string>();
       for (const r of rows.renders) {
-        if (r.preview_path)
-          ((r.render_attempt ?? 1) < (context.version.render_attempt ?? 1)
+        // A visualizer video belongs to no render attempt: a new lyric video leaves it alone.
+        const files = r.preview_path
+          ? r.kind === "visualizer"
+            ? [r.preview_path, posterOf(r.preview_path)]
+            : [r.preview_path]
+          : [];
+        for (const file of files)
+          (r.kind !== "visualizer" &&
+          (r.render_attempt ?? 1) < (context.version.render_attempt ?? 1)
             ? obsolete
             : live
-          ).add(r.preview_path);
+          ).add(file);
       }
       for (const take of rows.takes)
         for (const file of [
@@ -108,6 +115,10 @@ export async function upload(
     }
   }
   return path;
+}
+// The still frame stored beside a visualizer video (stages/visualizer.ts).
+export function posterOf(videoPath: string): string {
+  return videoPath.replace(/\.mp4$/u, ".jpg");
 }
 // The stored files of a take's stems (stems.ts StemSet), for the preview cleanup.
 export function stemPaths(stems: unknown): string[] {

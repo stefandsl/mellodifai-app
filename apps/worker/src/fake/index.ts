@@ -125,6 +125,7 @@ export function createFakeStages(
     "publish",
     "set_privacy",
     "stems",
+    "visualizer",
   ];
   for (const stage of names)
     registry[stage] = async (ctx) => {
@@ -349,6 +350,31 @@ export function createFakeStages(
               tracks,
             },
           });
+          return {};
+        }
+        case "visualizer": {
+          // The fixture video stands in for the render, under the names stages/visualizer.ts uses.
+          const renderId = ((ctx.job.payload ?? {}) as { render_id?: string })
+            .render_id;
+          const render = renderId ? await ctx.db.getRenderById(renderId) : null;
+          if (!render?.aspect)
+            throw new Error("Fake visualizer needs its render");
+          const name = `visualizer-${render.aspect.replace(":", "x")}`;
+          const preview = await copy(
+            fixtures.video,
+            join(ctx.ws.renderDir, `${name}.mp4`),
+            "video/mp4",
+          );
+          await copy(
+            fixtures.thumbnail,
+            join(ctx.ws.renderDir, `${name}.jpg`),
+            "image/jpeg",
+          );
+          await ctx.db.patchRender(render.id, {
+            path: join(ctx.ws.renderDir, `${name}.mp4`),
+            preview_path: preview,
+          });
+          await ctx.progress(100, "Video pronto");
           return {};
         }
       }

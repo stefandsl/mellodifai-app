@@ -291,7 +291,9 @@ export class WorkerLoop {
     };
     try {
       const result =
-        job.stage === "render_master" || job.stage === "render_hook"
+        job.stage === "render_master" ||
+        job.stage === "render_hook" ||
+        job.stage === "visualizer"
           ? await exclusivelyRender(operation)
           : await operation();
       signal.throwIfAborted();

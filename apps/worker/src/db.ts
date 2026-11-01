@@ -81,10 +81,13 @@ export type Render = {
   id: string;
   owner_id?: string;
   version_id: string;
-  kind: "master" | "hook";
+  // "visualizer": a Video Studio render, one per aspect (migration 20261101000022).
+  kind: "master" | "hook" | "visualizer";
   path?: string | null;
   preview_path?: string | null;
   qa_results?: unknown;
+  aspect?: "16:9" | "9:16" | null;
+  visualizer_params?: unknown;
 };
 export type Publication = {
   upload_state?: string;
@@ -146,6 +149,7 @@ export interface Db {
   patchTake(id: string, patch: Partial<Take>): Promise<void>;
   upsertRender(render: Omit<Render, "id">): Promise<Render>;
   getRender(versionId: string, kind: Render["kind"]): Promise<Render | null>;
+  getRenderById(id: string): Promise<Render | null>;
   patchRender(id: string, patch: Partial<Render>): Promise<void>;
   createPublication(publication: Omit<Publication, "id">): Promise<Publication>;
   getPublicationForVersion(versionId: string): Promise<Publication | null>;
@@ -379,6 +383,15 @@ export class SupabaseDb implements Db {
         "render_attempt",
         (await this.getVersion(versionId))?.render_attempt ?? 1,
       )
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Render | null;
+  }
+  async getRenderById(id: string): Promise<Render | null> {
+    const { data, error } = await this.client
+      .from("renders")
+      .select("*")
+      .eq("id", id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data as Render | null;
@@ -652,6 +665,9 @@ export class InMemoryDb implements Db {
               1),
       ) ?? null
     );
+  }
+  async getRenderById(id: string) {
+    return this.renders.find((item) => item.id === id) ?? null;
   }
   async patchRender(id: string, patch: Partial<Render>) {
     Object.assign(this.renders.find((item) => item.id === id) ?? {}, patch);

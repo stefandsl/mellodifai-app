@@ -64,7 +64,9 @@ export const EDIT_STATUSES: readonly VersionStatus[] = [
 ];
 
 export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
-  if (stage === "stems") return STEMS_STATUSES.includes(status);
+  // A visualizer renders the same chosen take the stems separate (request_visualizer).
+  if (stage === "stems" || stage === "visualizer")
+    return STEMS_STATUSES.includes(status);
   const allowed: Record<VersionStatus, readonly Stage[]> = {
     drafting: ["draft_lyrics"],
     lyrics_review: ["draft_lyrics"],

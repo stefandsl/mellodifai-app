@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VisualizerParamsSchema } from "./visualizer/viz-params.js";
 
 // Models offered by the studio model selector, as kie names them.
 export const SONG_MODELS = [
@@ -75,8 +76,10 @@ export const SongSettingsSchema = z.object({
   styleWeight: z.number().min(0).max(1).optional(),
   variety: z.number().int().min(0).max(4).optional(),
   duration: z.number().int().min(10).max(360).nullable().optional(),
-  // "off" makes Keep audio only the suggested choice when picking the take.
-  video: z.enum(["lyric", "off"]).optional(),
+  // "off" makes Keep audio only the suggested choice when picking the take; "visualizer" keeps
+  // the audio and renders a visualizer video with `visualizer` (the Video Studio's look).
+  video: z.enum(["lyric", "off", "visualizer"]).optional(),
+  visualizer: VisualizerParamsSchema.optional(),
   engine: z.enum(SONG_ENGINES).default("kie"),
   bpm: z.number().int().min(BPM_RANGE.min).max(BPM_RANGE.max).optional(),
   keyscale: z.enum(SONG_KEYS as [string, ...string[]]).optional(),
