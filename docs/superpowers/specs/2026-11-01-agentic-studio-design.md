@@ -350,3 +350,13 @@ M7 (after M6): capability-aware queue, doctor, installers, self-update, then des
   preview). An evaluation picks one, or a split (for example HyperFrames for agent-authored scenes,
   Remotion for rendering), on output quality, editability, licence, speed on the PC and fit with
   the existing pipeline.
+- **From the Riffusion/Producer research** (`E:/mellodifai/research/riffusion-producer-report.md`;
+  Producer became Google Flow Music on Lyria, without its old swap and cover-strength features):
+  (1) a chat editor where the user or agent says "change the second chorus" and it becomes kie
+  `replace-section` / `extend` calls (sections to seconds via word timing or kie
+  `get-timestamped-lyrics`; windows 10 s minimum, at most half the track); (2) "Cambia voce" and
+  "Cambia base" buttons from stems plus kie `add-vocals` / `add-instrumental`; (3) "Dalla mia voce
+  allo studio": upload a dry vocal, get a produced song (ACE-Step cover with a strength slider,
+  kie `upload-and-cover-audio` as the paid option; Italian bake-off first); (4) a free local tier
+  (Demucs, ffmpeg effects, ACE-Step repaint); (5) optional Lyria engine through the Gemini API
+  (about 0.08 USD per song, no edit endpoints).
