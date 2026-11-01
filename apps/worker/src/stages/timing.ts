@@ -10,7 +10,8 @@ export const timing: StageHandler = async (context) => {
   );
   if (!selected) throw new Error("chosen take is required before timing");
   const takeNumber = selected.take_number;
-  if (takeNumber !== 1 && takeNumber !== 2)
+  // Takes 1 and 2 come from a generation; a rewritten part adds 3, 4 and so on.
+  if (!takeNumber || !Number.isInteger(takeNumber) || takeNumber < 1)
     throw new Error("Invalid take_number");
   const lang = language(context);
   await materializeEditedTake(context, selected);
@@ -48,13 +49,31 @@ export const timing: StageHandler = async (context) => {
   const data = await readJson<{
     duration?: number;
     words?: { start: number; end: number }[];
-    lines?: { section?: string; words?: { start: number; end: number }[] }[];
+    lines?: {
+      section?: string;
+      text?: string;
+      words?: { start: number; end: number }[];
+    }[];
     sections?: {
       name?: string;
       title?: string;
       lines?: { words?: { start: number; end: number }[] }[];
     }[];
   }>(timingFile);
+  // The measured lines become the take's timing for "Riscrivi una parte".
+  const timed = (data.lines ?? []).flatMap((line) => {
+    const first = line.words?.[0];
+    const last = line.words?.at(-1);
+    return first && last && typeof line.text === "string"
+      ? [{ text: line.text, start: first.start, end: last.end }]
+      : [];
+  });
+  if (timed.length > 0)
+    await context.db
+      .patchTake(selected.id, {
+        lyric_timing: { source: "timing", lines: timed },
+      })
+      .catch(() => {});
   const words =
     data.words ??
     data.lines?.flatMap((line) => line.words ?? []) ??

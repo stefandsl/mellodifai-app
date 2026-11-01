@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import {
   access,
   copyFile,
+  mkdir,
   readdir,
   readFile,
   rm,
@@ -10,6 +11,7 @@ import {
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+  ACE_COVER_DENOISE,
   aceStepSeconds,
   type LocalSongEngine,
   type LyricPack,
@@ -27,11 +29,13 @@ import {
 } from "../comfy/client.js";
 import { LOCAL_ENGINES } from "../comfy/config.js";
 import {
+  AUDIO_INPUT_NODES,
   aceGraph,
   bpmAndKey,
   type ComfyGraph,
   loadGraph,
   toYue2Lyrics,
+  withSourceAudio,
   yue2Graph,
 } from "../comfy/graphs.js";
 import { PROMPT_NAMESPACE, uuidv5 } from "../comfy/ids.js";
@@ -42,7 +46,9 @@ import {
 } from "../comfy/runtime.js";
 import type { Take } from "../db.js";
 import type { StageContext, StageResult } from "../loop.js";
+import { encode, probeSeconds } from "./audio-util.js";
 import { scoreTakes } from "./score-takes.js";
+import { fetchSource, songSource } from "./source-audio.js";
 import { ENGINE_ROOT, language, upload, writePack } from "./utils.js";
 
 // Owner decision (design 14): a ceiling, not a length; YuE2 stops at its own end token.
@@ -69,6 +75,7 @@ export const LOCAL_TEXT = {
   failedTwice: (take: number, reason: string) =>
     `Il motore locale non è riuscito a creare il brano ${take} per due volte (${reason}). Riprova più tardi.`,
   unknownEngine: (engine: string) => `Motore sconosciuto: ${engine}.`,
+  noSource: "Questo motore locale non può partire da un audio in questo modo.",
 };
 
 // Which node runs which part of a take, and the share of the take it covers (for progress).
@@ -139,7 +146,9 @@ function validSeed(value: unknown): value is number {
 // Seeds are drawn once per generate_song job and saved before the first submit, so a requeued
 // job rebuilds the same graphs (below 2^48: exact in JavaScript and in a bigint column). A seed
 // the user fixed in the form is take 1's, and take 2 uses the next one.
-async function takeSeeds(context: StageContext): Promise<[number, number]> {
+export async function takeSeeds(
+  context: StageContext,
+): Promise<[number, number]> {
   const payload = context.job.payload ?? {};
   const saved = payload.seeds as Record<string, unknown> | undefined;
   if (validSeed(saved?.["1"]) && validSeed(saved?.["2"]))
@@ -180,7 +189,11 @@ async function findOutput(
   }
 }
 
-class LocalGeneration {
+// What the progress line calls the piece being made: "Brano 1 di 2" for a song, "Alternativa 1
+// di 2" for a rewritten part; `total` pieces share the bar.
+export type PieceLabel = { label: (piece: number) => string; total: number };
+
+export class LocalGeneration {
   private readonly client: ComfyClient;
   private readonly limits: LocalLimits;
   private readonly now: () => number;
@@ -189,6 +202,10 @@ class LocalGeneration {
     private readonly context: StageContext,
     private readonly runtime: LocalRuntime,
     private readonly engine: LocalSongEngine,
+    private readonly pieces: PieceLabel = {
+      label: (take) => `Brano ${take} di 2 con ${ENGINE_NAMES[engine]}`,
+      total: 2,
+    },
   ) {
     this.client = new ComfyClient(
       runtime.supervisor.baseUrl,
@@ -204,9 +221,11 @@ class LocalGeneration {
   private get generation() {
     return this.context.version.generation_count ?? 1;
   }
+  // A cover: the source in ComfyUI's input directory and its length.
+  source: { audio: string; seconds: number } | null = null;
 
-  async checkNodes() {
-    const nodes = LOCAL_ENGINES[this.engine].nodes;
+  async checkNodes(extra: string[] = []) {
+    const nodes = [...LOCAL_ENGINES[this.engine].nodes, ...extra];
     const present = await Promise.all(
       nodes.map((node) => this.client.hasNode(node)),
     );
@@ -228,11 +247,11 @@ class LocalGeneration {
     // ACE-Step takes tempo, key and signature as encoder inputs, so a chosen value replaces the
     // one the drafted style names; Auto reads the style as before.
     const drafted = bpmAndKey(pack.style);
-    return aceGraph(template, {
+    const graph = aceGraph(template, {
       style: styleWithout(pack.style, controls),
       lyrics: pack.lyrics,
       seed,
-      duration: aceDuration(pack),
+      duration: this.source?.seconds ?? aceDuration(pack),
       bpm: controls.bpm ?? drafted.bpm,
       keyscale: controls.keyscale ?? drafted.keyscale,
       ...(controls.timeSignature
@@ -245,6 +264,12 @@ class LocalGeneration {
       language: language(this.context),
       prefix,
     });
+    return this.source
+      ? withSourceAudio(graph, {
+          audio: this.source.audio,
+          denoise: ACE_COVER_DENOISE,
+        })
+      : graph;
   }
 
   // At most one progress event every 2 s, labelled with the part of the take that runs.
@@ -256,12 +281,11 @@ class LocalGeneration {
     this.lastProgress = now;
     const [label, from, to] = stage;
     const share = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
-    const pct = Math.round(((take - 1 + from + (to - from) * share) / 2) * 100);
+    const pct = Math.round(
+      ((take - 1 + from + (to - from) * share) / this.pieces.total) * 100,
+    );
     void this.context
-      .progress(
-        pct,
-        `Brano ${take} di 2 con ${ENGINE_NAMES[this.engine]}: ${label}`,
-      )
+      .progress(pct, `${this.pieces.label(take)}: ${label}`)
       .catch(() => {});
   }
 
@@ -389,31 +413,28 @@ class LocalGeneration {
     };
   }
 
-  // One take, with one restart and resubmit after a hang or a failure, never more.
-  async take(pack: LyricPack, take: number, seed: number): Promise<TakeResult> {
+  // One graph run to a FLAC file, with one restart and resubmit after a hang or a failure, never
+  // more. `name` makes the prompt ids, so a requeued job finds its prompt again.
+  async render(
+    graph: ComfyGraph,
+    name: string,
+    prefix: string,
+    flac: string,
+    piece: number,
+  ): Promise<{ promptId: string; abc: string | null; budget: boolean }> {
     const { context } = this;
-    const outDir = context.ws.outDir;
-    const marker = join(outDir, `local-${this.generation}-take-${take}.json`);
-    const mp3 = join(outDir, `take-${take}.mp3`);
-    if ((await exists(marker)) && (await exists(mp3)))
-      return JSON.parse(await readFile(marker, "utf8")) as TakeResult;
-    const name = `${context.version.id}:${this.generation}:${take}`;
     const ids = [
       uuidv5(PROMPT_NAMESPACE, name),
       uuidv5(PROMPT_NAMESPACE, `${name}:retry`),
     ] as const;
-    const prefix = `mellodifai/${context.version.id}/g${this.generation}/take-${take}`;
-    const graph = await this.graph(pack, seed, prefix);
-    const flac = join(outDir, `take-${take}.flac`);
     // A crash after the watchdog's resubmit: follow the second attempt, not the first.
     let attempt = (await this.client.job(ids[1])) ? 1 : 0;
     let reason = "";
-    let result: TakeResult | undefined;
-    for (; attempt < 2 && !result; attempt += 1) {
+    for (; attempt < 2; attempt += 1) {
       const promptId = ids[attempt] ?? ids[0];
       try {
-        const outcome = await this.obtain(promptId, graph, prefix, flac, take);
-        result = { take, promptId, seed, ...outcome };
+        const outcome = await this.obtain(promptId, graph, prefix, flac, piece);
+        return { promptId, ...outcome };
       } catch (error) {
         if (context.signal.aborted) throw error;
         if (error instanceof GraphRejected) {
@@ -424,7 +445,7 @@ class LocalGeneration {
           error instanceof TakeFailure ? error.message : "ComfyUI non risponde";
         await context.log(
           context.secrets.redact(
-            `Take ${take} attempt ${attempt + 1} failed: ${String(error)}`,
+            `Take ${piece} attempt ${attempt + 1} failed: ${String(error)}`,
           ),
         );
         if (attempt === 0) {
@@ -434,7 +455,23 @@ class LocalGeneration {
         }
       }
     }
-    if (!result) throw new Error(LOCAL_TEXT.failedTwice(take, reason));
+    throw new Error(LOCAL_TEXT.failedTwice(piece, reason));
+  }
+
+  // One take, with one restart and resubmit after a hang or a failure, never more.
+  async take(pack: LyricPack, take: number, seed: number): Promise<TakeResult> {
+    const { context } = this;
+    const outDir = context.ws.outDir;
+    const marker = join(outDir, `local-${this.generation}-take-${take}.json`);
+    const mp3 = join(outDir, `take-${take}.mp3`);
+    if ((await exists(marker)) && (await exists(mp3)))
+      return JSON.parse(await readFile(marker, "utf8")) as TakeResult;
+    const name = `${context.version.id}:${this.generation}:${take}`;
+    const prefix = `mellodifai/${context.version.id}/g${this.generation}/take-${take}`;
+    const graph = await this.graph(pack, seed, prefix);
+    const flac = join(outDir, `take-${take}.flac`);
+    const outcome = await this.render(graph, name, prefix, flac, take);
+    const result: TakeResult = { take, seed, ...outcome };
     await context.engine.run(
       "ffmpeg",
       [
@@ -518,10 +555,29 @@ export async function generateLocal(
   }
   const results: TakeResult[] = [];
   const takes: Take[] = [];
+  // A cover: the source goes into ComfyUI's input directory, and the song is as long as it.
+  const source = songSource(context.project.song_settings);
+  let sourceFile: string | null = null;
+  if (source) {
+    if (engine !== "ace-step" || source.mode !== "cover" || !runtime.inputDir)
+      throw new Error(LOCAL_TEXT.noSource);
+    const dir = join(context.ws.root, "source");
+    const fetched = await fetchSource(context, source, dir);
+    const flac = join(dir, "source.flac");
+    await encode(context, fetched, flac, "flac");
+    const relative = `mellodifai/${context.version.id}-source.flac`;
+    sourceFile = join(runtime.inputDir, ...relative.split("/"));
+    await mkdir(join(runtime.inputDir, "mellodifai"), { recursive: true });
+    await copyFile(flac, sourceFile);
+    run.source = {
+      audio: relative,
+      seconds: Math.round((await probeSeconds(context, flac)) * 100) / 100,
+    };
+  }
   try {
     await context.log(`Starting ComfyUI for ${ENGINE_NAMES[engine]}`);
     await runtime.supervisor.ensureStarted();
-    await run.checkNodes();
+    await run.checkNodes(source ? AUDIO_INPUT_NODES : []);
     // Take 2 is submitted only after take 1 ends (ComfyUI #16416).
     for (const take of [1, 2]) {
       const result = await run.take(pack, take, seeds[take - 1] ?? 0);
@@ -529,6 +585,7 @@ export async function generateLocal(
       takes.push(await run.saveTake(result));
     }
   } finally {
+    if (sourceFile) await rm(sourceFile, { force: true }).catch(() => {});
     // Demucs (timing) and Remotion need the whole GPU.
     try {
       await runtime.supervisor.stop();

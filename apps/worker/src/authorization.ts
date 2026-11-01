@@ -61,6 +61,11 @@ export async function authorizeStage(
       )
         return;
     }
+    if (name === "editid") {
+      const edit = await db.getSectionEdit(value);
+      if (edit?.version_id === version.id && edit.owner_id === job.owner_id)
+        return;
+    }
     if (name === "publicationid") {
       const p = await db.getPublicationForVersion(version.id);
       if (p?.id === value && p.owner_id === job.owner_id) return;

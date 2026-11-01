@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { publishEngines } from "./comfy/availability.js";
-import { COMFY_CONFIG, comfyOutputDir } from "./comfy/config.js";
+import { COMFY_CONFIG, comfyInputDir, comfyOutputDir } from "./comfy/config.js";
 import type { LocalRuntime } from "./comfy/runtime.js";
 import {
   type ComfySupervisor,
@@ -143,6 +143,7 @@ async function main() {
   const comfy: LocalRuntime = {
     supervisor,
     outputDir: comfyOutputDir(COMFY_CONFIG),
+    inputDir: comfyInputDir(COMFY_CONFIG),
     freeVramMb: nvidiaFreeVramMb,
   };
   const stopLocal =

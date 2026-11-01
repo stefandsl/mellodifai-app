@@ -62,18 +62,55 @@ export type Take = {
   take_number?: number;
   generation?: number;
   id: string;
+  created_at?: string;
   owner_id?: string;
   version_id: string;
   kie_task_id?: string | null;
   audio_preview_path?: string | null;
   scores?: unknown;
   // "edit": saved from the studio's audio editor, its audio lives only in storage.
-  engine?: "kie" | "ace-step" | "yue2" | "edit";
+  // "import": a recording the owner brought in (import_audio).
+  engine?: "kie" | "ace-step" | "yue2" | "edit" | "import";
   seed?: number | null;
   cover_path?: string | null;
   abc?: string | null;
   // Written by the stems stage (stages/stems.ts, StemSet).
   stems?: unknown;
+  // Suno's id of the track (kie record data.response.data[].id), for replace-section.
+  kie_audio_id?: string | null;
+  // How the take was made when it is not a plain generation (migration 20261101000023).
+  source?: Record<string, unknown> | null;
+  // The sung lines with their times (shared LyricTimingSchema).
+  lyric_timing?: unknown;
+  // The lyrics this take sings when they differ from the song's.
+  lyrics?: string | null;
+};
+// One "Riscrivi una parte" request (migration 20261101000023).
+export type SectionAlternative = {
+  path: string;
+  duration: number;
+  kie_task_id?: string;
+  kie_audio_id?: string;
+  lyric_timing?: unknown;
+};
+export type SectionEdit = {
+  id: string;
+  owner_id?: string;
+  version_id: string;
+  take_id: string;
+  engine: "kie" | "ace-step";
+  start_s: number;
+  end_s: number;
+  duration_s: number;
+  section_lines: number[];
+  section_lyrics: string;
+  full_lyrics: string;
+  old_lyrics: string;
+  alternatives: SectionAlternative[];
+  kie_task_id?: string | null;
+  kie_submit_state?: "submitting" | "submitted" | null;
+  kept_take_id?: string | null;
+  discarded_at?: string | null;
 };
 export type Render = {
   render_attempt?: number;
@@ -146,7 +183,11 @@ export interface Db {
   ): Promise<void>;
   createTake(take: Omit<Take, "id">): Promise<Take>;
   getTakes(versionId: string): Promise<Take[]>;
+  // Any take by id (a cover's source belongs to another song of the same owner).
+  getTake(id: string): Promise<Take | null>;
   patchTake(id: string, patch: Partial<Take>): Promise<void>;
+  getSectionEdit(id: string): Promise<SectionEdit | null>;
+  patchSectionEdit(id: string, patch: Partial<SectionEdit>): Promise<void>;
   upsertRender(render: Omit<Render, "id">): Promise<Render>;
   getRender(versionId: string, kind: Render["kind"]): Promise<Render | null>;
   getRenderById(id: string): Promise<Render | null>;
@@ -350,9 +391,45 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(error.message);
     return (data ?? []) as Take[];
   }
+  async getTake(id: string): Promise<Take | null> {
+    const { data, error } = await this.client
+      .from("takes")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as Take | null) ?? null;
+  }
   async patchTake(id: string, patch: Partial<Take>): Promise<void> {
     const { error } = await this.client
       .from("takes")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+  async getSectionEdit(id: string): Promise<SectionEdit | null> {
+    const { data, error } = await this.client
+      .from("section_edits")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const row = data as SectionEdit;
+    // numeric columns arrive as strings.
+    return {
+      ...row,
+      start_s: Number(row.start_s),
+      end_s: Number(row.end_s),
+      duration_s: Number(row.duration_s),
+    };
+  }
+  async patchSectionEdit(
+    id: string,
+    patch: Partial<SectionEdit>,
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("section_edits")
       .update(patch)
       .eq("id", id);
     if (error) throw new Error(error.message);
@@ -505,6 +582,7 @@ export class InMemoryDb implements Db {
   public publications: Publication[] = [];
   public workers: WorkerUpdate[] = [];
   public profiles: { id: string; role: string }[] = [];
+  public sectionEdits: SectionEdit[] = [];
   constructor(
     public jobs: Job[] = [],
     public versions: Version[] = [],
@@ -636,8 +714,20 @@ export class InMemoryDb implements Db {
   async getTakes(versionId: string) {
     return this.takes.filter((item) => item.version_id === versionId);
   }
+  async getTake(id: string) {
+    return this.takes.find((item) => item.id === id) ?? null;
+  }
   async patchTake(id: string, patch: Partial<Take>) {
     Object.assign(this.takes.find((item) => item.id === id) ?? {}, patch);
+  }
+  async getSectionEdit(id: string) {
+    return this.sectionEdits.find((item) => item.id === id) ?? null;
+  }
+  async patchSectionEdit(id: string, patch: Partial<SectionEdit>) {
+    Object.assign(
+      this.sectionEdits.find((item) => item.id === id) ?? {},
+      patch,
+    );
   }
   async upsertRender(render: Omit<Render, "id">) {
     const item = this.renders.find(

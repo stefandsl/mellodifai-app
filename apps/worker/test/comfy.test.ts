@@ -81,12 +81,14 @@ describe("engine availability from files", () => {
         installed: true,
         passedLangs: ["it"],
         minutesPerAudioMinute: 1.6,
+        features: [],
         checkedAt: "2026-11-01T10:00:00.000Z",
       },
       "ace-step": {
         installed: false,
         passedLangs: ["it"],
         minutesPerAudioMinute: 0.8,
+        features: ["rewrite", "cover"],
         checkedAt: "2026-11-01T10:00:00.000Z",
       },
     });
@@ -119,6 +121,7 @@ describe("engine availability from files", () => {
         installed: true,
         passedLangs: ["it" as const],
         minutesPerAudioMinute: 1.6,
+        features: [],
         checkedAt: "x",
       },
     }));

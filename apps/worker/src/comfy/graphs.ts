@@ -92,6 +92,31 @@ export function aceGraph(
   });
 }
 
+// The nodes an ACE-Step graph needs to start from existing audio (both native in the pinned
+// ComfyUI 0.43.0; /object_info listed them in the T12 run).
+export const AUDIO_INPUT_NODES = ["LoadAudio", "VAEEncodeAudio"];
+
+// Audio-to-audio, the pattern of ComfyUI's ACE-Step m2m editing template: `audio` (a file under
+// ComfyUI's input directory) is encoded into the latent the sampler starts from, and the
+// sampler changes it as much as `denoise` allows. The empty latent is no longer used.
+export function withSourceAudio(
+  graph: ComfyGraph,
+  options: { audio: string; denoise: number },
+): ComfyGraph {
+  const result = structuredClone(graph);
+  const sampler = result["3"];
+  if (!sampler) throw new Error("graph node 3 is missing");
+  result["200"] = { class_type: "LoadAudio", inputs: { audio: options.audio } };
+  result["201"] = {
+    class_type: "VAEEncodeAudio",
+    inputs: { audio: ["200", 0], vae: ["106", 0] },
+  };
+  sampler.inputs.latent_image = ["201", 0];
+  sampler.inputs.denoise = options.denoise;
+  delete result["98"];
+  return result;
+}
+
 // The keys the ACE-Step text encoder accepts (comfy_extras/nodes_ace.py, keyscale combo).
 const KEYSCALES = new Set(
   ["major", "minor"].flatMap((quality) =>

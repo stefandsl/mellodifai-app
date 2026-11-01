@@ -126,6 +126,8 @@ export function createFakeStages(
     "set_privacy",
     "stems",
     "visualizer",
+    "replace_section",
+    "import_audio",
   ];
   for (const stage of names)
     registry[stage] = async (ctx) => {
@@ -376,6 +378,45 @@ export function createFakeStages(
           });
           await ctx.progress(100, "Video pronto");
           return {};
+        }
+        case "replace_section": {
+          // The fake tone stands in for both alternatives, as stages/replace-section.ts stores them.
+          const editId = ((ctx.job.payload ?? {}) as { edit_id?: string })
+            .edit_id;
+          const edit = editId ? await ctx.db.getSectionEdit(editId) : null;
+          if (!edit) throw new Error("Fake rewrite needs its request");
+          const alternatives = [];
+          for (const n of [1, 2])
+            alternatives.push({
+              path: await copy(
+                fixtures.audio,
+                join(ctx.ws.outDir, `section-${edit.id.slice(0, 8)}-${n}.mp3`),
+                "audio/mpeg",
+              ),
+              duration: 10,
+            });
+          await ctx.db.patchSectionEdit(edit.id, { alternatives });
+          await ctx.progress(100, "Alternative pronte");
+          return {};
+        }
+        case "import_audio": {
+          const take = await ctx.db.createTake({
+            ...(ctx.version.owner_id ? { owner_id: ctx.version.owner_id } : {}),
+            version_id: ctx.version.id,
+            generation: ctx.version.generation_count ?? 1,
+            take_number: 1,
+            engine: "import",
+            audio_preview_path: await copy(
+              fixtures.audio,
+              join(ctx.ws.outDir, "take-1-preview.mp3"),
+              "audio/mpeg",
+            ),
+            source: { kind: "import" },
+          });
+          return {
+            versionStatus: "audio_ready",
+            patch: { chosen_take_id: take.id },
+          };
         }
       }
       const following = next[stage];

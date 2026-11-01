@@ -3,9 +3,11 @@ import type { StageRegistry } from "../loop.js";
 import { art } from "./art.js";
 import { draftLyrics } from "./draft-lyrics.js";
 import { generateSong } from "./generate-song.js";
+import { importAudio } from "./import-audio.js";
 import { publish, setPrivacy } from "./publish.js";
 import { qa } from "./qa.js";
 import { renderHook, renderMaster } from "./render.js";
+import { replaceSection } from "./replace-section.js";
 import { stems } from "./stems.js";
 import { storyboard } from "./storyboard.js";
 import { timing } from "./timing.js";
@@ -23,6 +25,8 @@ export const stages: StageRegistry = {
   set_privacy: setPrivacy,
   stems,
   visualizer,
+  replace_section: replaceSection,
+  import_audio: importAudio,
 };
 for (const stage of Object.keys(STAGE_STATUS) as Stage[]) {
   const handler = stages[stage];

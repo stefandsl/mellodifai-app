@@ -28,6 +28,8 @@ export type LocalRuntime = {
   >;
   // ComfyUI's --output-directory, where a finished take can be found again after a crash.
   outputDir: string;
+  // ComfyUI's --input-directory, where LoadAudio reads a source the worker copies in.
+  inputDir?: string;
   freeVramMb(): Promise<number | null>;
   fetch?: typeof fetch;
   connect?: Connect;

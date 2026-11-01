@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type TakeScores, TakeScoresSchema } from "@mellodifai/shared";
+import {
+  type TakeScores,
+  TakeScoresSchema,
+  type TimedWord,
+  timingFromWords,
+} from "@mellodifai/shared";
 import type { Take } from "../db.js";
 import type { StageContext } from "../loop.js";
 import { ENGINE_ROOT, language } from "./utils.js";
@@ -22,6 +27,33 @@ function scoresByTake(report: unknown): Map<number, TakeScores> {
     if (number && parsed.success) found.set(Number(number), parsed.data);
   }
   return found;
+}
+
+// The words score_takes.py heard in each take (take-N.words.json) laid over the song's lyrics:
+// the times "Riscrivi una parte" lights lines with until the timing stage measures the take.
+export async function storeHeardTiming(
+  context: StageContext,
+  takes: Take[],
+): Promise<void> {
+  const lyrics = (context.version.lyric_pack as { lyrics?: unknown } | null)
+    ?.lyrics;
+  if (typeof lyrics !== "string" || !lyrics.trim()) return;
+  for (const take of takes) {
+    try {
+      const heard = JSON.parse(
+        await readFile(
+          join(context.ws.outDir, `take-${take.take_number}.words.json`),
+          "utf8",
+        ),
+      ) as TimedWord[];
+      const timing = Array.isArray(heard)
+        ? timingFromWords(lyrics, heard, "whisper")
+        : null;
+      if (timing) await context.db.patchTake(take.id, { lyric_timing: timing });
+    } catch {
+      /* No words for this take: the owner marks the lines himself. */
+    }
+  }
 }
 
 // Hears each take with Groq Whisper and stores takes.scores, so the studio can suggest one.
@@ -72,6 +104,7 @@ export async function scoreTakes(
         scores: cut ? { ...own, truncated: true } : own,
       });
     }
+    await storeHeardTiming(context, takes);
   } catch (error) {
     try {
       await context.log(

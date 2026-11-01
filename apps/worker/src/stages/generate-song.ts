@@ -16,6 +16,7 @@ import {
 import type { StageContext, StageHandler } from "../loop.js";
 import { generateLocal, songEngine } from "./local-engine.js";
 import { scoreTakes } from "./score-takes.js";
+import { songSource, submitSourceTask } from "./source-audio.js";
 import {
   ENGINE_ROOT,
   engine,
@@ -41,6 +42,20 @@ export async function sunoCoverUrls(outDir: string): Promise<string[]> {
     ) as { data?: { response?: { data?: { image_url?: unknown }[] } } };
     return (record.data?.response?.data ?? []).map((item) =>
       typeof item.image_url === "string" ? item.image_url : "",
+    );
+  } catch {
+    return [];
+  }
+}
+
+// Suno's track ids per take, as kie.mjs wait saved them in takes.json (the replace-section input).
+export async function kieTrackIds(outDir: string): Promise<(string | null)[]> {
+  try {
+    const tracks = JSON.parse(
+      await readFile(join(outDir, "takes.json"), "utf8"),
+    ) as { id?: unknown }[];
+    return tracks.map((track) =>
+      typeof track.id === "string" ? track.id : null,
     );
   } catch {
     return [];
@@ -202,17 +217,32 @@ export const generateSong: StageHandler = async (context) => {
       { flag: "wx" },
     );
     let stderr = "";
-    const submit = await context.engine.run(
-      "node",
-      ["tools/kie.mjs", "generate", lang],
-      {
-        cwd: ENGINE_ROOT,
-        allowNonZero: true,
-        onStderr: (line) => {
-          stderr += `${line}\n`;
-        },
-      },
-    );
+    const source = songSource(context.project.song_settings);
+    // A cover, reference or extension starts from audio: kie's upload endpoints instead of
+    // `kie.mjs generate`, the same task.json and the same two outcomes on a failure.
+    const submit = source
+      ? await submitSourceTask(context, source, {
+          ...pack,
+          style: withMusicTags(
+            pack.style,
+            readControls(context.project.song_settings),
+          ),
+        }).then(
+          () => ({ code: 0 }),
+          (error: unknown) => {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            stderr = message;
+            return { code: /not charged/u.test(message) ? 4 : 1 };
+          },
+        )
+      : await context.engine.run("node", ["tools/kie.mjs", "generate", lang], {
+          cwd: ENGINE_ROOT,
+          allowNonZero: true,
+          onStderr: (line) => {
+            stderr += `${line}\n`;
+          },
+        });
     if (submit.code !== 0) {
       const refused =
         submit.code === 4 ||
@@ -275,13 +305,16 @@ export const generateSong: StageHandler = async (context) => {
   }
   if (waited.code !== 0)
     throw new Error("kie task still pending: Retry checks again for free");
+  // Word timestamps of a song made from audio are a nicety: kie may not align them.
+  const fromAudio = songSource(context.project.song_settings) !== null;
   for (const take of [1, 2])
     await context.engine.run(
       "node",
       ["tools/kie.mjs", "lyrics-ts", lang, String(take)],
-      { cwd: ENGINE_ROOT },
+      { cwd: ENGINE_ROOT, ...(fromAudio ? { allowNonZero: true } : {}) },
     );
   const covers = await sunoCoverUrls(context.ws.outDir);
+  const audioIds = await kieTrackIds(context.ws.outDir);
   const takes = [];
   for (const take of [1, 2]) {
     const source = join(context.ws.outDir, `take-${take}.mp3`);
@@ -300,6 +333,7 @@ export const generateSong: StageHandler = async (context) => {
         generation,
         take_number: take,
         kie_task_id: taskId,
+        ...(audioIds[take - 1] ? { kie_audio_id: audioIds[take - 1] } : {}),
         audio_preview_path: await upload(context, preview, "audio/mpeg"),
         engine: "kie",
         cover_path: await saveCover(

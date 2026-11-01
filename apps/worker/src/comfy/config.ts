@@ -32,6 +32,9 @@ export function comfyUrl(config: ComfyConfig): string {
 export function comfyOutputDir(config: ComfyConfig): string {
   return join(config.dataDir, "output");
 }
+export function comfyInputDir(config: ComfyConfig): string {
+  return join(config.dataDir, "input");
+}
 
 // The launch command of the bake-off (tools/start_comfy.sh, design 5.2), run from the portable root.
 export function comfyLaunch(config: ComfyConfig) {
@@ -98,6 +101,8 @@ export type LocalEngineSpec = {
   minutesPerAudioMinute: number;
   graph: string;
   saveNode: string;
+  // What the engine can do with existing audio (T12): rewrite a part of a take, cover a song.
+  features: ("rewrite" | "cover")[];
 };
 
 export const LOCAL_ENGINES: Record<LocalSongEngine, LocalEngineSpec> = {
@@ -118,6 +123,7 @@ export const LOCAL_ENGINES: Record<LocalSongEngine, LocalEngineSpec> = {
     minutesPerAudioMinute: 1.6,
     graph: "yue2-text2music.api.json",
     saveNode: "10",
+    features: [],
   },
   "ace-step": {
     files: [
@@ -145,5 +151,6 @@ export const LOCAL_ENGINES: Record<LocalSongEngine, LocalEngineSpec> = {
     minutesPerAudioMinute: 0.8,
     graph: "ace15-sft-30steps.api.json",
     saveNode: "107",
+    features: ["rewrite", "cover"],
   },
 };
