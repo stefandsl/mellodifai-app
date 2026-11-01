@@ -76,7 +76,15 @@ export const SongSourceSchema = z.object({
   // The uploaded file, in the uploads bucket (<owner>/audio/<uuid>.<ext>).
   upload: optionalText(300),
 });
-export type SongSource = z.infer<typeof SongSourceSchema>;
+export type SongSource = {
+  kind: SourceKind;
+  title?: string | undefined;
+  author?: string | undefined;
+  url?: string | undefined;
+  licence: SourceLicence;
+  versionId?: string | undefined;
+  upload?: string | undefined;
+};
 
 export function parseSongSource(raw: unknown): SongSource | null {
   const parsed = SongSourceSchema.safeParse(raw);

@@ -177,6 +177,8 @@ export function AudioCard({ engine }: { engine: SongEngine }) {
   const modes = sourceModesFor(engine);
   const mode: SourceMode = audio?.mode ?? f.audioMode;
 
+  // A new source stops and forgets the old one's player.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the source changes.
   useEffect(() => {
     element.current?.pause();
     element.current = null;
@@ -277,7 +279,8 @@ export function AudioCard({ engine }: { engine: SongEngine }) {
       open={f.open.audio}
       onToggle={() => f.toggleCard("audio")}
     >
-      <div
+      <section
+        aria-label={st(lang, "aud.drop")}
         onDragOver={(event) => {
           if (
             event.dataTransfer.types.includes(SONG_DRAG_TYPE) ||
@@ -451,7 +454,7 @@ export function AudioCard({ engine }: { engine: SongEngine }) {
             event.target.value = "";
           }}
         />
-      </div>
+      </section>
       <LibraryPicker
         open={picking}
         onOpenChange={setPicking}
