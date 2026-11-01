@@ -13,6 +13,7 @@ import {
   readControls,
   withMusicTags,
 } from "@mellodifai/shared";
+import { assertKieAllowed } from "../kie/guard.js";
 import type { StageContext, StageHandler } from "../loop.js";
 import { generateLocal, songEngine } from "./local-engine.js";
 import { scoreTakes } from "./score-takes.js";
@@ -140,6 +141,8 @@ export const generateSong: StageHandler = async (context) => {
   // Local engines branch off before any kie state is read or written (design 5.1).
   const songEngineId = songEngine(context.project.song_settings);
   if (songEngineId !== "kie") return generateLocal(context, songEngineId);
+  // Paid from here on: never for a test account or a test song.
+  await assertKieAllowed(context);
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   // The chosen tempo, key and time signature reach kie as style tags; the stored pack keeps the
   // style as drafted.
