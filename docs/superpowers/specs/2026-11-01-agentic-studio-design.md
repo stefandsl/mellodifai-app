@@ -302,3 +302,43 @@ possible.
   located through config or PATH.
 
 M7 (after M6): capability-aware queue, doctor, installers, self-update, then desktop apps.
+
+## 14. Owner additions (01/11 evening) and findings
+
+- **Per-song storyboard (bug found 01/11).** New songs inside the imported "Va bene, passa (VBP)"
+  project reuse that project's scene template (`storyboard-l10n.json`): the lyrics are new and in
+  sync, but the scenes (PR bar, `ssh root@prod`, review stopwatch), the thumbnail ("VBP Va bene,
+  passa!") and the YouTube title and description come from the old song
+  (`apps/worker/src/legacy-import.ts`, `stages/draft-lyrics.ts`, `stages/utils.ts`). Every song
+  must get its own storyboard, thumbnail and metadata from its own lyrics (R5 and the publish kit
+  below); the VBP template stays only as one selectable style.
+- **Preview quality.** The app's video preview is an 854x480 copy at about 0.3 Mbit/s, which reads
+  as low quality; masters are 1920x1080. Previews move to 1080p within the storage budget; masters
+  render 1080p by default and 4K on request (Remotion renders vector graphics natively at 4K, so
+  no upscaling is needed for them). A free local upscaler (Real-ESRGAN class, for example Video2X)
+  is used only for generated footage (Higgsfield, ComfyUI clips) before compositing.
+- **Project page as the publishing hub.** The project page with its language chips (IT, RU, RO,
+  JA, EN, ES, DE, ZH, PT, KO, FR) becomes the hub: "Aggiungi lingua" generates a new language
+  version (T17 adaptation), and each language has a publish kit: title, description, tags and
+  hashtags, chapters, captions (auto-generated SRT from word timing, per language), thumbnail,
+  target playlist, schedule, and per-platform posts (section 8), all generated, editable, checked.
+- **Thumbnails that convert, not clickbait.** A thumbnail generator per video (two to three
+  candidates from the video's own key frames, title and generated art), following click-through
+  practice: one focal subject, three words or fewer of large text, strong contrast, readable at
+  small size, consistent channel style, faces or characters with clear emotion, no misleading
+  claims; scored by the visual jury on a phone-size render. The daily loop learns from YouTube
+  click-through rate per thumbnail style, and YouTube's own thumbnail test is used when available.
+- **Karaoke mode** (like Spotify's): the listening view shows lyrics synced line by line with the
+  current line and word highlighted (word timing already exists), plus a karaoke switch that
+  lowers or removes the vocal using the stems or the T11b vocal removal.
+- **Agents edit songs and videos by talking.** Every editor action (cut, fade, normalise, replace a
+  section, regenerate a section, re-render the video, change the storyboard) is an MCP tool, so an
+  agent on the user's Claude or ChatGPT subscription edits from a conversation without driving the
+  screen; the web UI stays fully labelled and accessible, so computer-use agents can also operate
+  it as a fallback.
+- **Video editor in the project.** A timeline editor for the video (scenes, text, timing, assets)
+  inside the project. Candidates: HyperFrames (HeyGen, HTML-based compositions rendered to video,
+  agent-friendly) and Remotion (already used, React compositions, `@remotion/player` for in-app
+  preview). An evaluation picks one, or a split (for example HyperFrames for agent-authored scenes,
+  Remotion for rendering), on output quality, editability, licence, speed on the PC and fit with
+  the existing pipeline.
