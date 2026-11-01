@@ -361,6 +361,7 @@ export const RewrittenLineSchema = z.object({
   }),
   ending: EndingSchema,
   fits: z.boolean(),
+  endingMatch: z.boolean(),
   originality: LineOriginalitySchema,
 });
 export type RewrittenLine = z.infer<typeof RewrittenLineSchema>;
@@ -390,6 +391,7 @@ export const RewriteResultSchema = z.object({
     maxLexical: unit,
     maxSemantic: unit,
     semanticAvailable: z.boolean(),
+    semanticError: z.string().optional(),
   }),
   jury: z.object({
     passed: z.boolean(),
