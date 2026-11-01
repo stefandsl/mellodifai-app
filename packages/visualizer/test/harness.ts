@@ -3,6 +3,8 @@
 // with the shared renderer, as the Video Studio preview does.
 import {
   ANALYSIS_RATE,
+  type AnalysisFrame,
+  createAudioHistory,
   createVisualizerRenderer,
   normalizeVisualizerParams,
   type Picture,
@@ -51,14 +53,17 @@ async function previewFrame(
   source.connect(analyser);
   analyser.connect(ctx.destination);
   // Read the analyser at every video frame up to the one compared, as the render does.
+  // The studio keeps the frames it read in the same history the preview uses.
   let bands: Float32Array | null = null;
   let wave: Float32Array = new Float32Array(0);
+  const history = createAudioHistory();
   for (let f = 0; f <= job.frame; f++) {
     const at = f / 30;
     void ctx.suspend(at).then(() => {
       const read = readAnalyser(analyser, bands, 1 / 30);
       bands = read.bands;
       wave = read.wave;
+      history.push(at, read as AnalysisFrame);
       void ctx.resume();
     });
   }
@@ -90,6 +95,7 @@ async function previewFrame(
     duration: job.duration,
     bands: bands ?? new Float32Array(64),
     wave,
+    history: history.frames(job.frame / 30),
     title: job.title,
     fontFamily: VISUALIZER_FONT,
     images: {

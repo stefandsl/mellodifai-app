@@ -5,6 +5,7 @@ import "@fontsource/oswald/500.css";
 import "@fontsource/oswald/600.css";
 
 import {
+  createAudioHistory,
   createVisualizerRenderer,
   type Picture,
   silentFrame,
@@ -114,6 +115,8 @@ export function VisualizerPreview({
     const started = last;
     let bands: Float32Array | null = null;
     const quiet = silentFrame();
+    // The frames read so far, for the looks that trail the music (peaks, echoes, contours).
+    const history = createAudioHistory();
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const el = canvas.current;
@@ -139,6 +142,7 @@ export function VisualizerPreview({
         bands = read.bands;
         wave = read.wave;
       } else bands = smoothBands(bands, quiet.bands, dt);
+      history.push(time, { bands, wave });
       // A background video loops in step with the song.
       const v = video.current;
       let backdrop: Picture | null = state.background;
@@ -159,6 +163,7 @@ export function VisualizerPreview({
         duration,
         bands,
         wave,
+        history: history.frames(time),
         title: state.title,
         fontFamily: VISUALIZER_FONT,
         images: {

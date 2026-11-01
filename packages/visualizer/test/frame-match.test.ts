@@ -169,6 +169,7 @@ const fonts = () =>
     ]),
   );
 
+let shots = 0;
 async function compareFrame(
   params: VisualizerParams,
   previewParams: VisualizerParams = params,
@@ -193,7 +194,7 @@ async function compareFrame(
   });
   const out = join(
     dir,
-    `${params.preset}-${params.aspect.replace(":", "x")}.png`,
+    `${params.preset}-${params.aspect.replace(":", "x")}-${shots++}.png`,
   );
   await renderStill({
     composition,
@@ -249,27 +250,70 @@ async function compareFrame(
 }
 
 describe("preview and render draw the same frame", () => {
-  const cases: VisualizerParams[] = [
-    ...VISUALIZER_PRESETS.map((preset) => ({
-      ...defaultVisualizerParams(),
-      preset,
-    })),
-    { ...defaultVisualizerParams(), preset: "classico", aspect: "9:16" },
-    {
-      ...defaultVisualizerParams(),
-      preset: "spectrum",
-      particles: 80,
-      effects: defaultVisualizerParams().effects.map((e) => ({
-        ...e,
-        enabled: ["grain", "scanlines", "vignette", "aberration"].includes(
-          e.id,
-        ),
-        intensity: 70,
-      })),
-    },
+  const base = defaultVisualizerParams();
+  const cases: [string, VisualizerParams][] = [
+    ...VISUALIZER_PRESETS.map((preset): [string, VisualizerParams] => [
+      `${preset} 16:9`,
+      { ...base, preset },
+    ]),
+    ["classico 9:16", { ...base, preset: "classico", aspect: "9:16" }],
+    [
+      "spectrum 16:9 with effects",
+      {
+        ...base,
+        preset: "spectrum",
+        particles: 80,
+        effects: base.effects.map((e) => ({
+          ...e,
+          enabled: ["grain", "scanlines", "vignette", "aberration"].includes(
+            e.id,
+          ),
+          intensity: 70,
+        })),
+      },
+    ],
+    // The catalogue looks' variants and the badges overlay, some in 9:16.
+    [
+      "crown one-sided bars 9:16",
+      {
+        ...base,
+        preset: "crown",
+        aspect: "9:16",
+        look: { ...base.look, teeth: "bar", mirrored: false },
+      },
+    ],
+    [
+      "crown pins with badges 16:9",
+      {
+        ...base,
+        preset: "crown",
+        look: { ...base.look, teeth: "pin" },
+        badges: { enabled: true, text: "Nuovo singolo" },
+      },
+    ],
+    [
+      "contours ridges 16:9",
+      {
+        ...base,
+        preset: "contours",
+        look: { ...base.look, contour: "ridges" },
+      },
+    ],
+    [
+      "shaped hearts from a ring 9:16",
+      {
+        ...base,
+        preset: "shaped",
+        aspect: "9:16",
+        look: { ...base.look, shape: "heart", flow: "radial" },
+      },
+    ],
+    ["playercard 9:16", { ...base, preset: "playercard", aspect: "9:16" }],
+    ["synthwave 9:16", { ...base, preset: "synthwave", aspect: "9:16" }],
+    ["editorial 9:16", { ...base, preset: "editorial", aspect: "9:16" }],
   ];
-  for (const params of cases)
-    it(`${params.preset} ${params.aspect}${params.particles === 80 ? " with effects" : ""}`, async () => {
+  for (const [name, params] of cases)
+    it(name, async () => {
       const diff = await compareFrame(params);
       expect(diff.mean).toBeLessThan(4);
       expect(diff.far).toBeLessThan(0.02);

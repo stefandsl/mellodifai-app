@@ -5,6 +5,7 @@ import "@fontsource/oswald/600.css";
 import {
   createVisualizerRenderer,
   frameOf,
+  historyOf,
   normalizeVisualizerParams,
   type Picture,
   silentFrame,
@@ -140,6 +141,8 @@ export function Visualizer(props: VisualizerProps) {
       duration: props.duration,
       bands: audio.bands,
       wave: audio.wave,
+      // The frames before this one, for the looks that trail the music.
+      history: loaded.analysis ? historyOf(loaded.analysis, frame) : [],
       title: props.title,
       fontFamily: VISUALIZER_FONT,
       images: {

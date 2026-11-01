@@ -13,8 +13,55 @@ export const VISUALIZER_PRESETS = [
   "waveform",
   "particles",
   "minimal",
+  // Looks recreated from the owner's VideoHive catalogue (research/videohive), drawn from
+  // scratch in viz-looks.ts.
+  "dotline",
+  "burst",
+  "crown",
+  "wirering",
+  "lens",
+  "pills",
+  "edgebars",
+  "coverframe",
+  "playercard",
+  "contours",
+  "synthwave",
+  "editorial",
+  "shaped",
 ] as const;
 export type VisualizerPreset = (typeof VISUALIZER_PRESETS)[number];
+
+// The presets that show the artist and album lines of the Testo tab (stored with Classico's).
+export const PRESETS_WITH_SONG_LINES: readonly VisualizerPreset[] = [
+  "classico",
+  "lens",
+  "coverframe",
+  "playercard",
+  "synthwave",
+  "editorial",
+];
+
+// Variants of the catalogue looks, each read only by its preset.
+// Corona: the shape of the teeth round the ring.
+export const CROWN_TEETH = ["wedge", "bar", "fin", "pin", "tick"] as const;
+export type CrownTeeth = (typeof CROWN_TEETH)[number];
+// Particelle a Forme: the outline each particle draws, and where they flow.
+export const PARTICLE_SHAPES = [
+  "circle",
+  "square",
+  "heart",
+  "diamond",
+  "triangle",
+  "hexagon",
+  "plus",
+  "star",
+] as const;
+export type ParticleShape = (typeof PARTICLE_SHAPES)[number];
+export const PARTICLE_FLOWS = ["up", "down", "both", "radial"] as const;
+export type ParticleFlow = (typeof PARTICLE_FLOWS)[number];
+// Contorni: concentric rings or ridge lines.
+export const CONTOUR_STYLES = ["rings", "ridges"] as const;
+export type ContourStyle = (typeof CONTOUR_STYLES)[number];
 
 export const VISUALIZER_ASPECTS = ["16:9", "9:16"] as const;
 export type VisualizerAspect = (typeof VISUALIZER_ASPECTS)[number];
@@ -112,6 +159,38 @@ export const EffectSchema = z.object({
 });
 export type EffectSetting = z.infer<typeof EffectSchema>;
 
+export const LookSchema = z.object({
+  teeth: z.enum(CROWN_TEETH),
+  // Corona: bass at the top mirrored left and right, or the spectrum once round the ring.
+  mirrored: z.boolean(),
+  shape: z.enum(PARTICLE_SHAPES),
+  flow: z.enum(PARTICLE_FLOWS),
+  contour: z.enum(CONTOUR_STYLES),
+});
+export type VisualizerLook = z.infer<typeof LookSchema>;
+
+// Badge Rotanti: an overlay of two text rings turning in the corners, over any preset.
+export const BadgesSchema = z.object({
+  enabled: z.boolean(),
+  // Empty: the song title and the artist.
+  text: z.string().max(40),
+});
+export type VisualizerBadges = z.infer<typeof BadgesSchema>;
+
+export function defaultLook(): VisualizerLook {
+  return {
+    teeth: "wedge",
+    mirrored: true,
+    shape: "circle",
+    flow: "up",
+    contour: "rings",
+  };
+}
+
+export function defaultBadges(): VisualizerBadges {
+  return { enabled: false, text: "" };
+}
+
 export const VisualizerParamsSchema = z.object({
   preset: z.enum(VISUALIZER_PRESETS),
   aspect: z.enum(VISUALIZER_ASPECTS),
@@ -144,6 +223,9 @@ export const VisualizerParamsSchema = z.object({
     // Intro "ARTIST / PRESENTS", the subscribe callout at 1:30 and the end card.
     cards: z.boolean(),
   }),
+  // Added with the catalogue looks: rows saved before them read the defaults.
+  look: LookSchema.default(defaultLook),
+  badges: BadgesSchema.default(defaultBadges),
 });
 export type VisualizerParams = z.infer<typeof VisualizerParamsSchema>;
 
@@ -173,6 +255,8 @@ export function defaultVisualizerParams(): VisualizerParams {
       gramophone: "red",
       cards: true,
     },
+    look: defaultLook(),
+    badges: defaultBadges(),
   };
 }
 
@@ -197,6 +281,8 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
   const colors = field(input, "colors");
   const center = field(input, "centerImage");
   const classico = field(input, "classico");
+  const look = field(input, "look");
+  const badges = field(input, "badges");
   const savedEffects = Array.isArray(field(input, "effects"))
     ? (field(input, "effects") as unknown[])
     : [];
@@ -271,6 +357,29 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
         field(classico, "cards"),
         d.classico.cards,
       ),
+    },
+    look: {
+      teeth: pick(LookSchema.shape.teeth, field(look, "teeth"), d.look.teeth),
+      mirrored: pick(
+        LookSchema.shape.mirrored,
+        field(look, "mirrored"),
+        d.look.mirrored,
+      ),
+      shape: pick(LookSchema.shape.shape, field(look, "shape"), d.look.shape),
+      flow: pick(LookSchema.shape.flow, field(look, "flow"), d.look.flow),
+      contour: pick(
+        LookSchema.shape.contour,
+        field(look, "contour"),
+        d.look.contour,
+      ),
+    },
+    badges: {
+      enabled: pick(
+        BadgesSchema.shape.enabled,
+        field(badges, "enabled"),
+        d.badges.enabled,
+      ),
+      text: pick(BadgesSchema.shape.text, field(badges, "text"), d.badges.text),
     },
   };
 }

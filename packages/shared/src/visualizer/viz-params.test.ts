@@ -4,10 +4,12 @@ import {
   backgroundAsset,
   CLASSICO_COLORS,
   COLOR_PRESETS,
+  CROWN_TEETH,
   classicoLines,
   colorPresetOf,
   defaultVisualizerParams,
   normalizeVisualizerParams,
+  PARTICLE_SHAPES,
   rerollSeed,
   STOCK_BACKGROUNDS,
   stockBackground,
@@ -30,6 +32,53 @@ describe("visualizer parameters", () => {
       "classico",
     ])
       expect(VISUALIZER_PRESETS).toContain(id);
+  });
+
+  it("adds the thirteen catalogue looks, each once", () => {
+    const looks = [
+      "dotline",
+      "burst",
+      "crown",
+      "wirering",
+      "lens",
+      "pills",
+      "edgebars",
+      "coverframe",
+      "playercard",
+      "contours",
+      "synthwave",
+      "editorial",
+      "shaped",
+    ];
+    for (const id of looks) expect(VISUALIZER_PRESETS).toContain(id);
+    expect(new Set(VISUALIZER_PRESETS).size).toBe(VISUALIZER_PRESETS.length);
+    expect(CROWN_TEETH).toHaveLength(5);
+    expect(PARTICLE_SHAPES).toHaveLength(8);
+  });
+
+  it("reads rows saved before the catalogue looks with the default look and no badges", () => {
+    const { look, badges, ...old } = defaultVisualizerParams();
+    const parsed = VisualizerParamsSchema.parse(old);
+    expect(parsed.look).toEqual(look);
+    expect(parsed.badges).toEqual({ enabled: false, text: "" });
+    expect(normalizeVisualizerParams(old)).toEqual(defaultVisualizerParams());
+    const kept = normalizeVisualizerParams({
+      preset: "crown",
+      look: { teeth: "pin", mirrored: false, shape: "nope" },
+      badges: { enabled: true, text: "Nuovo singolo" },
+    });
+    expect(kept.look).toMatchObject({
+      teeth: "pin",
+      mirrored: false,
+      shape: "circle",
+    });
+    expect(kept.badges).toEqual({ enabled: true, text: "Nuovo singolo" });
+    expect(
+      VisualizerParamsSchema.safeParse({
+        ...kept,
+        badges: { enabled: true, text: "x".repeat(41) },
+      }).success,
+    ).toBe(false);
   });
 
   it("has the six effects of T13 in the order they are applied", () => {

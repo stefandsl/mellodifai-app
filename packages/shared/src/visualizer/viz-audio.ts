@@ -272,3 +272,59 @@ export function silentFrame(): AnalysisFrame {
     wave: new Float32Array(WAVE_POINTS),
   };
 }
+
+// How many video frames back a frame can look (the trails, peak caps and contour rings of the
+// catalogue looks): 36 frames, 1.2 s at 30 fps.
+export const HISTORY_FRAMES = 36;
+
+// The render's history for `frame`: frame, frame-1, ... back to frame 0 or HISTORY_FRAMES.
+export function historyOf(
+  data: Uint8Array,
+  frame: number,
+  count = HISTORY_FRAMES,
+): AnalysisFrame[] {
+  const out: AnalysisFrame[] = [];
+  for (let k = 0; k < Math.min(count, Math.max(0, frame) + 1); k++)
+    out.push(frameOf(data, frame - k));
+  return out;
+}
+
+// The preview's history: every frame it read, with the song time it was read at. It answers
+// with one frame per video frame (1/30 s) back from a time, the read nearest each step, so a
+// 60 or 144 Hz screen trails the audio exactly as the 30 fps render does. A seek starts it again.
+export function createAudioHistory(fps = 30) {
+  let reads: { time: number; frame: AnalysisFrame }[] = [];
+  return {
+    push(time: number, frame: AnalysisFrame): void {
+      const last = reads[reads.length - 1];
+      if (last && (time < last.time - 0.05 || time > last.time + 0.5))
+        reads = [];
+      reads.push({ time, frame });
+      const keep = time - (HISTORY_FRAMES + 2) / fps;
+      while (reads.length > 2 && (reads[0] as { time: number }).time < keep)
+        reads.shift();
+    },
+    frames(time: number): AnalysisFrame[] {
+      const out: AnalysisFrame[] = [];
+      if (reads.length === 0) return out;
+      const first = (reads[0] as { time: number }).time;
+      let at = reads.length - 1;
+      for (let k = 0; k < HISTORY_FRAMES; k++) {
+        const target = time - k / fps;
+        if (target < first - 0.5 / fps) break;
+        while (
+          at > 0 &&
+          Math.abs((reads[at - 1] as { time: number }).time - target) <=
+            Math.abs((reads[at] as { time: number }).time - target)
+        )
+          at--;
+        out.push((reads[at] as { frame: AnalysisFrame }).frame);
+      }
+      return out;
+    },
+    clear(): void {
+      reads = [];
+    },
+  };
+}
+export type AudioHistory = ReturnType<typeof createAudioHistory>;
