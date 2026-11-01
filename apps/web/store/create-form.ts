@@ -176,6 +176,8 @@ export function blocker(form: CreateFormState): Blocker | null {
   if (form.mode === "simple" && !form.prompt.trim()) return "needPrompt";
   if (
     form.mode === "advanced" &&
+    // A song made from audio needs nothing else: the audio is its content.
+    !form.audio &&
     !form.lyrics.trim() &&
     !form.styles.trim() &&
     !form.title.trim() &&

@@ -95,3 +95,20 @@ it("fails when the first song cannot be made", async () => {
   expect(await createSong(input({ count: 2 }))).toMatchObject({ ok: false });
   expect(calls()).toHaveLength(1);
 });
+
+it("names a song made from audio alone after its source and sends the source", async () => {
+  const take = "9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d";
+  const result = await createSong(
+    input(
+      { mode: "advanced", prompt: "" },
+      { source: { mode: "reference", takeId: take, title: "Solo un caffè" } },
+    ),
+  );
+  expect(result).toMatchObject({ ok: true });
+  expect(calls()[0]?.[1]).toMatchObject({ p_prompt: "Solo un caffè" });
+  expect(sent(0).source).toEqual({
+    mode: "reference",
+    takeId: take,
+    title: "Solo un caffè",
+  });
+});

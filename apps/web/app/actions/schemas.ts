@@ -35,7 +35,13 @@ export const CreateSongInput = z
     (v) =>
       v.mode === "simple"
         ? v.prompt.length > 0
-        : Boolean(v.prompt || v.lyrics || v.styles || v.settings.title),
+        : Boolean(
+            v.prompt ||
+              v.lyrics ||
+              v.styles ||
+              v.settings.title ||
+              v.settings.source,
+          ),
     { message: "Describe the song or add lyrics, styles or a title" },
   );
 

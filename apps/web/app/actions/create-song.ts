@@ -22,7 +22,10 @@ export async function createSong(input: unknown) {
       : v.prompt ||
         v.settings.title ||
         firstLyricLine(v.lyrics) ||
-        v.styles.slice(0, 250);
+        v.styles.slice(0, 250) ||
+        // A song made from audio alone is named after its source.
+        v.settings.source?.title ||
+        "";
     const ids: string[] = [];
     for (let i = 0; i < v.count; i += 1) {
       // A fixed seed gives take 1 the seed and take 2 the next one, so each further song of the
