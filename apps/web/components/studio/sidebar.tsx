@@ -6,11 +6,14 @@ import {
   Film,
   Languages,
   Library,
+  ListMusic,
   LogOut,
   Moon,
   Music2,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
+  Search,
   Settings,
   Sun,
 } from "lucide-react";
@@ -22,6 +25,9 @@ import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
 import { st } from "@/lib/studio/i18n";
 import { createClient } from "@/lib/supabase/browser";
+import { NewPlaylistDialog } from "./new-playlist-dialog";
+import { LikedTile, PlaylistArt } from "./playlist-art";
+import { usePlaylists } from "./playlists-context";
 import { Tip } from "./ui";
 import { useWorkerState } from "./worker-state";
 
@@ -46,6 +52,8 @@ export function Logo({ compact }: { compact?: boolean }) {
 const NAV = [
   { href: "/create", key: "nav.create", icon: Music2 },
   { href: "/library", key: "nav.library", icon: Library },
+  { href: "/playlists", key: "nav.playlists", icon: ListMusic },
+  { href: "/search", key: "nav.search", icon: Search },
   { href: "/library?tab=videos", key: "nav.videos", icon: Film },
   { href: "/credits", key: "nav.credits", icon: CircleDollarSign },
   { href: "/settings", key: "nav.settings", icon: Settings },
@@ -53,8 +61,98 @@ const NAV = [
 
 function isActive(href: string, pathname: string, tab: string | null) {
   const [path, query] = href.split("?");
-  if (pathname !== path) return false;
+  // A playlist page belongs to the Playlist entry.
+  if (
+    path === "/playlists"
+      ? !pathname.startsWith("/playlists")
+      : pathname !== path
+  )
+    return false;
   return query ? query === `tab=${tab}` : !tab || path !== "/library";
+}
+
+// The playlists under the main entries: "Mi piace" first, then the user's own, and a button to
+// make a new one. Shown when the sidebar is wide; the Playlist entry covers the narrow rail.
+function PlaylistList({ collapsed }: { collapsed: boolean }) {
+  const lang = useLocale();
+  const pathname = usePathname();
+  const { playlists, likedCount } = usePlaylists();
+  const [creating, setCreating] = useState(false);
+  const item =
+    "flex h-9 items-center gap-2.5 rounded-full px-3 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)]";
+  const entries = [
+    { id: "liked", name: st(lang, "pl.liked"), count: likedCount },
+    ...playlists.map((list) => ({
+      id: list.id,
+      name: list.name,
+      count: list.songCount,
+    })),
+  ];
+  return (
+    <div
+      className={cn(
+        "mt-5 hidden min-h-0 flex-1 flex-col xl:flex",
+        collapsed && "xl:hidden",
+      )}
+    >
+      <div className="mb-1 flex items-center justify-between px-3">
+        <h2 className="text-[11px] font-semibold tracking-wide text-[var(--fg-subtle)] uppercase">
+          {st(lang, "nav.yourPlaylists")}
+        </h2>
+        <button
+          type="button"
+          aria-label={st(lang, "pl.new")}
+          title={st(lang, "pl.new")}
+          onClick={() => setCreating(true)}
+          className="inline-flex size-6 items-center justify-center rounded-full text-[var(--fg-muted)] outline-none hover:bg-[var(--surface-glass-hover)] hover:text-[var(--fg)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+        >
+          <Plus className="size-4" />
+        </button>
+      </div>
+      <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-thin">
+        {entries.map((entry) => {
+          const href = `/playlists/${entry.id}`;
+          const active = pathname === href;
+          return (
+            <li key={entry.id}>
+              <Link
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  item,
+                  active
+                    ? "bg-[var(--surface-glass-hover)] text-[var(--fg)]"
+                    : "text-[var(--fg-muted)] hover:bg-[var(--surface-glass)] hover:text-[var(--fg)]",
+                )}
+              >
+                {entry.id === "liked" ? (
+                  <LikedTile className="size-5 rounded-md [&_svg]:size-3" />
+                ) : (
+                  <PlaylistArt id={entry.id} className="size-5 rounded-md" />
+                )}
+                <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                <span className="shrink-0 text-[11px] tabular-nums text-[var(--fg-subtle)]">
+                  {entry.count}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        onClick={() => setCreating(true)}
+        className={cn(
+          item,
+          "mt-1 text-[var(--fg-muted)] hover:bg-[var(--surface-glass)] hover:text-[var(--fg)]",
+        )}
+      >
+        <Plus className="size-4" />
+        {st(lang, "pl.new")}
+      </button>
+      <NewPlaylistDialog open={creating} onOpenChange={setCreating} />
+    </div>
+  );
 }
 
 export function StudioSidebar({ email }: { email: string }) {
@@ -169,6 +267,8 @@ export function StudioSidebar({ email }: { email: string }) {
           );
         })}
       </nav>
+
+      <PlaylistList collapsed={collapsed} />
 
       <div className="mt-auto flex flex-col gap-0.5">
         {wrap(
@@ -295,7 +395,12 @@ export function MobileTopBar() {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--hairline)] px-4 min-[900px]:hidden">
       <Link href="/create" aria-label="mellodifai">
-        <Logo />
+        <span className="sm:hidden">
+          <Logo compact />
+        </span>
+        <span className="max-sm:hidden">
+          <Logo />
+        </span>
       </Link>
       <nav aria-label="Main" className="flex items-center gap-1">
         {NAV.map((item) => {

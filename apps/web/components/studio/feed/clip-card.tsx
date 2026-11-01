@@ -5,6 +5,7 @@ import {
   Download,
   Film,
   Info,
+  ListMusic,
   ListPlus,
   Loader2,
   MoreHorizontal,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { useLocale } from "@/components/locale-provider";
@@ -30,10 +32,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
 import { st, stf } from "@/lib/studio/i18n";
+import { reusePrompt } from "@/lib/studio/reuse-prompt";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
-import { initialForm, useCreateForm } from "@/store/create-form";
+import { useDetails } from "@/store/details";
 import { type Track, usePlayer } from "@/store/player";
+import { CoverFace } from "../cover-face";
+import { AddToPlaylistDialog } from "../playlist-dialog";
 import { ReactionButtons } from "../reaction-buttons";
+import { ShareDialog } from "../share-dialog";
 import { clipBadge, detailFor } from "./clip-detail";
 import { hasNextStep, NextStep } from "./next-step";
 
@@ -43,6 +49,10 @@ import { TitleEditor } from "./title-editor";
 
 // Select mode: the checkbox state of one card, owned by the feed.
 export type Selection = { selected: boolean; onToggle: () => void };
+
+// Elements that keep their own click: a click on them is not a pick of the card.
+const INTERACTIVE =
+  "a,button,input,select,textarea,label,[role=menuitem],[role=checkbox],[role=radio]";
 
 export function trackFor(clip: Clip): Track | null {
   if (!clip.audioUrl) return null;
@@ -59,7 +69,7 @@ export function trackFor(clip: Clip): Track | null {
   };
 }
 
-function StatusBadge({ clip }: { clip: Clip }) {
+export function StatusBadge({ clip }: { clip: Clip }) {
   const lang = useLocale();
   const base =
     "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide";
@@ -149,46 +159,7 @@ function Artwork({
       )}
       style={generating ? undefined : { background: clip.art }}
     >
-      {!generating && !clip.hasCover && clip.videoUrl ? (
-        // No thumbnail yet: a frame from the song's own video stands in as the cover.
-        <video
-          aria-hidden
-          src={`${clip.videoUrl}#t=25`}
-          muted
-          playsInline
-          preload="metadata"
-          tabIndex={-1}
-          className="pointer-events-none absolute inset-0 size-full object-cover"
-        />
-      ) : null}
-      {!generating && !clip.hasCover && !clip.videoUrl ? (
-        // No image at all yet: the title on the song's own gradient is its cover.
-        <span
-          aria-hidden
-          className={cn(
-            "absolute inset-x-2 top-2 line-clamp-3 font-semibold leading-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.6)]",
-            size === "list" ? "text-[11px]" : "text-lg",
-          )}
-        >
-          {clip.title}
-        </span>
-      ) : null}
-      {generating ? (
-        <Loader2 className="absolute top-1/2 left-1/2 size-5 -translate-1/2 animate-spin text-[var(--fg-muted)]" />
-      ) : (
-        <span
-          aria-hidden
-          className="absolute bottom-1.5 left-2 font-mono text-[11px] font-semibold text-white/90 [text-shadow:0_1px_3px_rgb(0_0_0/0.8)]"
-        >
-          {clip.lang.toUpperCase()}
-        </span>
-      )}
-      {clip.videoUrl ? (
-        <Film
-          aria-hidden
-          className="absolute top-1.5 right-1.5 size-3.5 text-white/85"
-        />
-      ) : null}
+      <CoverFace clip={clip} size={size} />
       {track ? (
         <button
           type="button"
@@ -221,7 +192,7 @@ function Artwork({
   );
 }
 
-function MoreMenu({
+export function MoreMenu({
   clip,
   onMoved,
 }: {
@@ -231,98 +202,110 @@ function MoreMenu({
   const lang = useLocale();
   const router = useRouter();
   const enqueue = usePlayer((s) => s.enqueue);
-  const setForm = useCreateForm((s) => s.set);
+  const showDetails = useDetails((s) => s.show);
   const track = trackFor(clip);
-  const share = async () => {
-    const url = new URL(clip.href, window.location.origin).toString();
-    await navigator.clipboard.writeText(url);
-    toast.success(st(lang, "clip.copied"));
-  };
+  const [shareOpen, setShareOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={st(lang, "clip.more")}
-        className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--surface-2)] outline-none hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
-      >
-        <MoreHorizontal className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5">
-        <DropdownMenuItem
-          render={<Link href={clip.href} />}
-          className="rounded-lg"
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={st(lang, "clip.more")}
+          className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--surface-2)] outline-none hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
         >
-          <Info />
-          {st(lang, "clip.details")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={!track}
-          onClick={() => {
-            if (!track) return;
-            enqueue(track);
-            toast.success(st(lang, "clip.added"));
-          }}
-          className="rounded-lg"
-        >
-          <ListPlus />
-          {st(lang, "clip.addQueue")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            const settings = clip.settings as Record<string, unknown>;
-            setForm({
-              ...initialForm(clip.lang),
-              mode: clip.lyrics && clip.style ? "advanced" : "simple",
-              prompt: clip.prompt,
-              lyrics: clip.lyrics,
-              styles: clip.style,
-              title: typeof settings.title === "string" ? settings.title : "",
-              languages: [clip.lang],
-            });
-            toast.success(st(lang, "clip.reused"));
-          }}
-          className="rounded-lg"
-        >
-          <RotateCcw />
-          {st(lang, "clip.reuse")}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={share} className="rounded-lg">
-          <Share2 />
-          {st(lang, "clip.share")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={!clip.videoUrl}
-          render={
-            clip.videoUrl ? (
-              // biome-ignore lint/a11y/useAnchorContent: the menu item renders its children here.
-              <a href={clip.videoUrl} download />
-            ) : undefined
-          }
-          className="rounded-lg"
-        >
-          <Download />
-          {st(lang, "clip.downloadVideo")}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() =>
-            void trashSongs([clip.id], lang, {
-              refresh: router.refresh,
-              onMoved,
-            })
-          }
-          className="rounded-lg text-[var(--danger)]"
-        >
-          <Trash2 />
-          {st(lang, "clip.trash")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <MoreHorizontal className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5">
+          <DropdownMenuItem
+            onClick={() => showDetails(clip.id)}
+            className="rounded-lg"
+          >
+            <Info />
+            {st(lang, "clip.details")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!track}
+            onClick={() => {
+              if (!track) return;
+              enqueue(track);
+              toast.success(st(lang, "clip.added"));
+            }}
+            className="rounded-lg"
+          >
+            <ListPlus />
+            {st(lang, "clip.addQueue")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => setListOpen(true)}
+            className="rounded-lg"
+          >
+            <ListMusic />
+            {st(lang, "pl.add")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => reusePrompt(clip, lang)}
+            className="rounded-lg"
+          >
+            <RotateCcw />
+            {st(lang, "clip.reuse")}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setShareOpen(true)}
+            className="rounded-lg"
+          >
+            <Share2 />
+            {st(lang, "clip.share")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!clip.videoUrl}
+            render={
+              clip.videoUrl ? (
+                // biome-ignore lint/a11y/useAnchorContent: the menu item renders its children here.
+                <a href={clip.videoUrl} download />
+              ) : undefined
+            }
+            className="rounded-lg"
+          >
+            <Download />
+            {st(lang, "clip.downloadVideo")}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() =>
+              void trashSongs([clip.id], lang, {
+                refresh: router.refresh,
+                onMoved,
+              })
+            }
+            className="rounded-lg text-[var(--danger)]"
+          >
+            <Trash2 />
+            {st(lang, "clip.trash")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        title={clip.title || st(lang, "clip.untitled")}
+        href={clip.href}
+      />
+      <AddToPlaylistDialog
+        open={listOpen}
+        onOpenChange={setListOpen}
+        versionIds={[clip.id]}
+      />
+    </>
   );
 }
 
 function Actions({ clip }: { clip: Clip }) {
   const lang = useLocale();
+  const [shareOpen, setShareOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const button =
+    "hidden h-8 items-center gap-1.5 rounded-full bg-[var(--surface-2)] text-[13px] outline-none hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] focus-visible:ring-2 focus-visible:ring-[var(--brand)] sm:inline-flex";
   return (
     <div className="flex items-center gap-1.5">
       <ReactionButtons
@@ -334,17 +317,32 @@ function Actions({ clip }: { clip: Clip }) {
       <button
         type="button"
         aria-label={st(lang, "clip.share")}
-        onClick={async () => {
-          await navigator.clipboard.writeText(
-            new URL(clip.href, window.location.origin).toString(),
-          );
-          toast.success(st(lang, "clip.copied"));
-        }}
-        className="hidden h-8 items-center gap-1.5 rounded-full bg-[var(--surface-2)] px-3 text-[13px] outline-none hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] focus-visible:ring-2 focus-visible:ring-[var(--brand)] sm:inline-flex"
+        onClick={() => setShareOpen(true)}
+        className={cn(button, "px-3")}
       >
         <Share2 className="size-3.5" />
         {lang === "it" ? "Condividi" : "Share"}
       </button>
+      <button
+        type="button"
+        aria-label={st(lang, "pl.add")}
+        title={st(lang, "pl.add")}
+        onClick={() => setListOpen(true)}
+        className={cn(button, "w-8 justify-center")}
+      >
+        <ListMusic className="size-3.5" />
+      </button>
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        title={clip.title || st(lang, "clip.untitled")}
+        href={clip.href}
+      />
+      <AddToPlaylistDialog
+        open={listOpen}
+        onOpenChange={setListOpen}
+        versionIds={[clip.id]}
+      />
     </div>
   );
 }
@@ -374,7 +372,7 @@ function RestoreButton({
 }
 
 // Waiting behind other jobs on the render PC.
-function QueueBadge({ clip }: { clip: Clip }) {
+export function QueueBadge({ clip }: { clip: Clip }) {
   const lang = useLocale();
   if (!clip.queuePosition || clip.queuePosition < 2) return null;
   return (
@@ -384,7 +382,7 @@ function QueueBadge({ clip }: { clip: Clip }) {
   );
 }
 
-function StageLine({ clip }: { clip: Clip }) {
+export function StageLine({ clip }: { clip: Clip }) {
   const lang = useLocale();
   const label = st(lang, `stage.${clip.status}` as "stage.drafting");
   const action = needsAction(clip.status);
@@ -464,22 +462,45 @@ export function ClipCard({
 }) {
   const lang = useLocale();
   const current = usePlayer((s) => s.queue[s.index]?.id === clip.id);
+  const detailed = useDetails((s) => s.open && s.selectedId === clip.id);
+  const showDetails = useDetails((s) => s.show);
   const title = clip.title || st(lang, "clip.untitled");
   const playable = !selection && !trash;
+  // A click on the card body (not on one of its buttons or links) picks the song: it opens
+  // the details panel, or ticks the box in select mode.
+  const onCardClick = (event: React.MouseEvent) => {
+    if (trash || event.defaultPrevented) return;
+    if ((event.target as HTMLElement).closest(INTERACTIVE)) return;
+    if (selection) return selection.onToggle();
+    showDetails(clip.id);
+  };
   const card = cn(
     "group/card transition-colors hover-glass",
-    (current || selection?.selected) && "bg-[var(--surface-glass)]",
-    selection?.selected && "ring-1 ring-[var(--brand)]",
+    !trash && "cursor-pointer",
+    detailed && "bg-[var(--surface-glass)] ring-1 ring-[var(--hairline)]",
+    // The playing song: brand tint, an accent edge and a brand title.
+    current &&
+      "bg-[color-mix(in_oklab,var(--brand),transparent_92%)] shadow-[inset_3px_0_0_var(--brand)]",
+    selection?.selected &&
+      "bg-[var(--surface-glass)] ring-1 ring-[var(--brand)]",
   );
   const heading = trash ? (
     <span className="truncate">{title}</span>
   ) : (
-    <TitleEditor clip={clip} title={title} />
+    <TitleEditor
+      clip={clip}
+      title={title}
+      className={current ? "text-[var(--brand)]" : undefined}
+    />
   );
   if (view === "grid")
     return (
+      // biome-ignore lint/a11y/useKeyWithClickEvents: the card menu and buttons carry the keyboard path.
       <article
         aria-label={title}
+        aria-current={current ? "true" : undefined}
+        data-selected={detailed ? "true" : undefined}
+        onClick={onCardClick}
         className={cn("flex flex-col gap-2 rounded-[20px] p-2.5", card)}
       >
         <div className="relative">
@@ -527,8 +548,12 @@ export function ClipCard({
       </article>
     );
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the card menu and buttons carry the keyboard path.
     <article
       aria-label={title}
+      aria-current={current ? "true" : undefined}
+      data-selected={detailed ? "true" : undefined}
+      onClick={onCardClick}
       className={cn(
         "flex h-[110px] items-center gap-3 rounded-[20px] p-3",
         card,

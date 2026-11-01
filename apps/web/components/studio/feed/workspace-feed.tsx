@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   List,
   ListChecks,
+  ListMusic,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -27,8 +28,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
 import { st, stf } from "@/lib/studio/i18n";
+import { matchClip } from "@/lib/studio/search";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
+import { useDetailsClips } from "@/store/details";
 import { useReactions } from "@/store/reactions";
+import { AddToPlaylistDialog } from "../playlist-dialog";
 import { ClipCard } from "./clip-card";
 import { useLiveRefresh } from "./use-live-refresh";
 
@@ -117,6 +121,7 @@ export function WorkspaceFeed({
   const lang = useLocale();
   const router = useRouter();
   useLiveRefresh();
+  useDetailsClips(clips);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [sort, setSort] = usePersisted<Sort>("mellodifai-feed-sort", "new");
@@ -129,6 +134,7 @@ export function WorkspaceFeed({
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   // Songs moved to or out of the trash, hidden until the refreshed data arrives.
   const [gone, setGone] = useState<Set<string>>(new Set());
 
@@ -141,10 +147,7 @@ export function WorkspaceFeed({
   }, [clips]);
 
   useEffect(() => {
-    const timer = setTimeout(
-      () => setDebounced(query.trim().toLowerCase()),
-      200,
-    );
+    const timer = setTimeout(() => setDebounced(query.trim()), 200);
     return () => clearTimeout(timer);
   }, [query]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new query, filter or sort starts at page one.
@@ -153,13 +156,7 @@ export function WorkspaceFeed({
   const visible = useMemo(() => {
     const matched = clips.filter((clip) => {
       if (gone.has(clip.id)) return false;
-      if (
-        debounced &&
-        !`${clip.title} ${clip.style} ${clip.prompt}`
-          .toLowerCase()
-          .includes(debounced)
-      )
-        return false;
+      if (debounced && !matchClip(clip, debounced)) return false;
       return filters.every((filter) => MATCH[filter](clip));
     });
     return matched.sort((a, b) =>
@@ -427,6 +424,20 @@ export function WorkspaceFeed({
             >
               {st(lang, "feed.selectNone")}
             </button>
+            {trash ? null : (
+              <button
+                type="button"
+                disabled={picked.length === 0}
+                onClick={() => setListOpen(true)}
+                className={cn(
+                  PILL,
+                  "h-7 bg-[var(--surface-2)] text-xs disabled:opacity-40",
+                )}
+              >
+                <ListMusic className="size-3.5" />
+                {st(lang, "pl.add")}
+              </button>
+            )}
             <button
               type="button"
               disabled={picked.length === 0 || busy}
@@ -447,6 +458,17 @@ export function WorkspaceFeed({
               {st(lang, trash ? "feed.restoreSelected" : "feed.trashSelected")}
             </button>
           </div>
+        ) : null}
+        {selecting && !trash ? (
+          <AddToPlaylistDialog
+            open={listOpen}
+            onOpenChange={setListOpen}
+            versionIds={picked}
+            onDone={() => {
+              setSelected(new Set());
+              setSelecting(false);
+            }}
+          />
         ) : null}
       </header>
 

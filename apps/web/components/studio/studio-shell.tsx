@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { DetailsPanel } from "./details-panel";
 import { PlayerBar } from "./player-bar";
+import { PlaylistsProvider, type PlaylistsState } from "./playlists-context";
 import { MobileTopBar, StudioSidebar } from "./sidebar";
 import { type WorkerInfo, WorkerProvider } from "./worker-state";
 
@@ -10,30 +12,35 @@ export function StudioShell({
   email,
   worker,
   isAdmin,
+  playlists,
   children,
 }: {
   email: string;
   worker: WorkerInfo;
   isAdmin: boolean;
+  playlists: PlaylistsState;
   children: React.ReactNode;
 }) {
   return (
     <TooltipProvider delay={300}>
       <WorkerProvider initial={worker} isAdmin={isAdmin}>
-        <div className="flex h-dvh flex-col overflow-hidden bg-[var(--bg)] text-[var(--fg)]">
-          <div className="flex min-h-0 flex-1">
-            <Suspense>
-              <StudioSidebar email={email} />
-            </Suspense>
-            <div className="flex min-w-0 flex-1 flex-col">
+        <PlaylistsProvider value={playlists}>
+          <div className="flex h-dvh flex-col overflow-hidden bg-[var(--bg)] text-[var(--fg)]">
+            <div className="flex min-h-0 flex-1">
               <Suspense>
-                <MobileTopBar />
+                <StudioSidebar email={email} />
               </Suspense>
-              <main className="min-h-0 flex-1">{children}</main>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <Suspense>
+                  <MobileTopBar />
+                </Suspense>
+                <main className="min-h-0 flex-1">{children}</main>
+              </div>
+              <DetailsPanel />
             </div>
+            <PlayerBar />
           </div>
-          <PlayerBar />
-        </div>
+        </PlaylistsProvider>
       </WorkerProvider>
     </TooltipProvider>
   );

@@ -309,7 +309,7 @@ describe("actions", () => {
     ).toHaveAttribute("download", "Lunedì.mp3");
   });
 
-  it("copies the song's link", async () => {
+  it("opens the share window and copies the song's link from it", async () => {
     const writeText = vi.fn(async () => {});
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -319,6 +319,10 @@ describe("actions", () => {
     const dialog = await open();
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Condividi" }),
+    );
+    const share = await screen.findByRole("dialog", { name: "Condividi" });
+    await userEvent.click(
+      within(share).getByRole("button", { name: "Copia il link" }),
     );
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(
@@ -342,7 +346,15 @@ describe("actions", () => {
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Condividi" }),
     );
-    await waitFor(() => expect(mock.toast.error).toHaveBeenCalled());
+    const share = await screen.findByRole("dialog", { name: "Condividi" });
+    await userEvent.click(
+      within(share).getByRole("button", { name: "Copia il link" }),
+    );
+    await waitFor(() =>
+      expect(mock.toast.error).toHaveBeenCalledWith(
+        "Non riesco a copiare il link",
+      ),
+    );
   });
 
   it("links to the project and closes when followed", async () => {

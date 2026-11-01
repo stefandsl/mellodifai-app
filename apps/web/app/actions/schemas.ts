@@ -95,3 +95,23 @@ export const SetPrivacyInput = z
       path: ["publishAt"],
     },
   );
+
+export const PlaylistNameInput = z.object({
+  name: z.string().trim().min(1).max(100),
+});
+export const PlaylistIdInput = z.object({ playlistId: Id });
+export const PlaylistRenameInput = z.object({
+  playlistId: Id,
+  name: z.string().trim().min(1).max(100),
+});
+export const PlaylistSongsInput = z.object({
+  playlistId: Id,
+  versionIds: z.array(Id).min(1).max(500),
+});
+export const PlaylistReorderInput = z.object({
+  playlistId: Id,
+  versionIds: z.array(Id).min(1).max(1000),
+});
+export const MembershipInput = z.object({
+  versionIds: z.array(Id).min(1).max(500),
+});

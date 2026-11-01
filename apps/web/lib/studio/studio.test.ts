@@ -493,6 +493,48 @@ describe("feed", () => {
       'url("https://s/q/fr/thumbnail-1280x720.png")',
     );
   });
+
+  it("narrows the query to given songs and to liked songs, newest like first", async () => {
+    const calls: string[] = [];
+    const supabase = {
+      from: () => {
+        // biome-ignore lint/suspicious/noExplicitAny: a chainable test double refers to itself.
+        const chain: any = Object.assign(Promise.resolve({ data: [] }), {
+          select: () => chain,
+          order: (column: string, options: { nullsFirst?: boolean }) => {
+            calls.push(`order ${column} nullsFirst=${options.nullsFirst}`);
+            return chain;
+          },
+          limit: () => chain,
+          in: (column: string, values: string[]) => {
+            calls.push(`in ${column} ${values.join(",")}`);
+            return chain;
+          },
+          eq: (column: string, value: unknown) => {
+            calls.push(`eq ${column} ${String(value)}`);
+            return chain;
+          },
+          is: () => chain,
+          not: () => chain,
+        });
+        return chain;
+      },
+      rpc: async () => ({ data: null }),
+    };
+    await loadClips(supabase as never, 10, { ids: ["a", "b"] });
+    expect(calls).toContain("in id a,b");
+    calls.length = 0;
+    await loadClips(supabase as never, 10, { liked: true });
+    expect(calls).toEqual([
+      "eq liked true",
+      "order liked_at nullsFirst=false",
+      "order created_at nullsFirst=undefined",
+    ]);
+    // An empty list of ids is an empty playlist: no query at all.
+    calls.length = 0;
+    expect(await loadClips(supabase as never, 10, { ids: [] })).toEqual([]);
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("player", () => {

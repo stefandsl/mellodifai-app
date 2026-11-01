@@ -5,9 +5,13 @@ import { actionProfile } from "./auth";
 import { getLocale } from "./locale";
 
 export async function runAction(
-  work: (
-    db: Awaited<ReturnType<typeof actionProfile>>["supabase"],
-  ) => Promise<{ versionId?: string; projectId?: string; count?: number }>,
+  work: (db: Awaited<ReturnType<typeof actionProfile>>["supabase"]) => Promise<{
+    versionId?: string;
+    projectId?: string;
+    // Overrides the id the result carries (a new playlist, for instance).
+    id?: string;
+    count?: number;
+  }>,
 ): Promise<ActionResult> {
   try {
     const { supabase } = await actionProfile();
@@ -23,11 +27,15 @@ export async function runAction(
       projectId = data.project_id;
     }
     if (projectId) revalidatePath(`/projects/${projectId}`);
+    const resultId = result.id ?? projectId;
     revalidatePath("/library");
     revalidatePath("/create");
+    revalidatePath("/playlists");
+    revalidatePath("/playlists/[id]", "page");
+    revalidatePath("/search");
     return {
       ok: true,
-      ...(projectId ? { id: projectId } : {}),
+      ...(resultId ? { id: resultId } : {}),
       ...(result.count === undefined ? {} : { count: result.count }),
     };
   } catch (error) {

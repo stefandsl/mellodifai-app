@@ -6,6 +6,10 @@ import {
 } from "@mellodifai/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { artFor } from "./cover-art";
+
+export { artFor };
+
 // One card in the studio feed: a language version of a project, with signed media URLs.
 export type Clip = {
   id: string;
@@ -94,16 +98,6 @@ type Row = {
   } | null;
 };
 
-// A stable artwork gradient per song until generated covers exist.
-export function artFor(id: string): string {
-  let hash = 0;
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  const hue = 345 + (hash % 50);
-  const hue2 = (hue + 25 + ((hash >> 8) % 60)) % 360;
-  const angle = hash % 360;
-  return `linear-gradient(${angle}deg, hsl(${hue % 360} 78% 46%), hsl(${hue2} 70% 22%) 70%, #101012)`;
-}
-
 function coverArt(cover: string | null | undefined, id: string): string {
   return cover
     ? `center / cover no-repeat url("${cover.replaceAll('"', "%22")}"), ${artFor(id)}`
@@ -130,19 +124,38 @@ export function needsAction(status: VersionStatus): boolean {
   return STATUS_WITH_ACTION.includes(status);
 }
 
+// What loadClips asks for. Without options it returns the songs that are not in the trash.
+export type LoadOptions = {
+  // The trash view: only trashed songs.
+  trash?: boolean;
+  // Only these songs (a playlist), in no particular order; the caller sorts them.
+  ids?: string[];
+  // Only liked songs, newest like first.
+  liked?: boolean;
+};
+
 // The feed and Library show songs that are not in the trash; the trash view shows the rest.
 export async function loadClips(
   supabase: SupabaseClient,
   limit = 200,
-  { trash = false }: { trash?: boolean } = {},
+  { trash = false, ids: only, liked = false }: LoadOptions = {},
 ): Promise<Clip[]> {
+  if (only && only.length === 0) return [];
   const base = supabase
     .from("versions")
     .select(
       "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings)",
     );
+  let query = trash
+    ? base.not("trashed_at", "is", null)
+    : base.is("trashed_at", null);
+  if (only) query = query.in("id", only);
+  if (liked)
+    query = query
+      .eq("liked", true)
+      .order("liked_at", { ascending: false, nullsFirst: false });
   const [{ data }, positions] = await Promise.all([
-    (trash ? base.not("trashed_at", "is", null) : base.is("trashed_at", null))
+    query
       .order(trash ? "trashed_at" : "created_at", { ascending: false })
       .limit(limit),
     // Trashed songs are not in the queue, so the trash view needs no positions.

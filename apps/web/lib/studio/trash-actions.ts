@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 
 import { restoreVersions, trashVersions } from "@/app/actions/library";
+import { dropFromDetails } from "@/store/details";
 import { usePlayer } from "@/store/player";
 import { st, stf } from "./i18n";
 
@@ -44,6 +45,7 @@ export async function trashSongs(
     return 0;
   }
   usePlayer.getState().drop(ids);
+  dropFromDetails(ids);
   hooks.onMoved?.(ids);
   const undo = {
     label: st(lang, "clip.undo"),

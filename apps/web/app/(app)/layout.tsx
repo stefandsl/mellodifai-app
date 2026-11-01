@@ -1,5 +1,6 @@
 import { StudioShell } from "@/components/studio/studio-shell";
 import { requireProfile } from "@/lib/auth";
+import { loadPlaylists } from "@/lib/studio/playlists";
 
 export default async function PrivateLayout({
   children,
@@ -7,12 +8,15 @@ export default async function PrivateLayout({
   children: React.ReactNode;
 }) {
   const { supabase, user, profile } = await requireProfile();
-  const { data: worker } = await supabase
-    .from("workers")
-    .select("id,last_seen,kie_balance,engines")
-    .order("last_seen", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [{ data: worker }, playlists] = await Promise.all([
+    supabase
+      .from("workers")
+      .select("id,last_seen,kie_balance,engines")
+      .order("last_seen", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    loadPlaylists(supabase),
+  ]);
   return (
     <StudioShell
       email={user.email ?? ""}
@@ -24,6 +28,7 @@ export default async function PrivateLayout({
         renderedAt: Date.now(),
       }}
       isAdmin={profile.role === "admin"}
+      playlists={playlists}
     >
       {children}
     </StudioShell>

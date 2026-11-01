@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { useState } from "react";
 
 import { useLocale } from "@/components/locale-provider";
 import { st, stf } from "@/lib/studio/i18n";
@@ -26,6 +26,7 @@ import {
 } from "@/store/player";
 import { DownloadButton, RepeatButton, SpeedMenu } from "./player-controls";
 import { ReactionButtons } from "./reaction-buttons";
+import { ShareDialog } from "./share-dialog";
 import { IconButton } from "./ui";
 
 const TAG_LINE = /^\s*\[[^\]\n]*\]\s*$/u;
@@ -69,7 +70,7 @@ function Lyrics({ text }: { text: string }) {
 
 // A take is previewed as its own track (it cannot be liked or counted); the take the song itself
 // plays goes back to the song.
-function takeTrack(track: Track, detail: TrackDetail, number: number) {
+export function takeTrack(track: Track, detail: TrackDetail, number: number) {
   const take = detail.takes.find((item) => item.number === number);
   if (!take?.audioUrl) return null;
   const { takeNumber: _previewing, ...song } = detail;
@@ -103,16 +104,7 @@ function NowPlayingBody({ track }: { track: Track }) {
   const current = detail ? activeTake(detail) : null;
   const created = detail ? dateText(lang, detail.createdAt) : "";
   const pct = p.duration ? (p.time / p.duration) * 100 : 0;
-
-  async function share() {
-    const url = new URL(track.href, window.location.origin).toString();
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(st(lang, "now.copied"));
-    } catch {
-      toast.error(st(lang, "now.downloadFailed"));
-    }
-  }
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <>
@@ -217,7 +209,7 @@ function NowPlayingBody({ track }: { track: Track }) {
             ) : null}
             <IconButton
               label={st(lang, "clip.share")}
-              onClick={() => void share()}
+              onClick={() => setShareOpen(true)}
               className="bg-transparent"
             >
               <Share2 />
@@ -305,6 +297,12 @@ function NowPlayingBody({ track }: { track: Track }) {
           </div>
         </div>
       </div>
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        title={detail?.own.title ?? track.title}
+        href={track.href}
+      />
     </>
   );
 }
