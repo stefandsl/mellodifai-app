@@ -133,6 +133,7 @@ export interface Db {
   ): Promise<void>;
   createTake(take: Omit<Take, "id">): Promise<Take>;
   getTakes(versionId: string): Promise<Take[]>;
+  patchTake(id: string, patch: Partial<Take>): Promise<void>;
   upsertRender(render: Omit<Render, "id">): Promise<Render>;
   getRender(versionId: string, kind: Render["kind"]): Promise<Render | null>;
   patchRender(id: string, patch: Partial<Render>): Promise<void>;
@@ -324,6 +325,13 @@ export class SupabaseDb implements Db {
       .eq("version_id", versionId);
     if (error) throw new Error(error.message);
     return (data ?? []) as Take[];
+  }
+  async patchTake(id: string, patch: Partial<Take>): Promise<void> {
+    const { error } = await this.client
+      .from("takes")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
   }
   async upsertRender(render: Omit<Render, "id">): Promise<Render> {
     const existing = await this.getRender(render.version_id, render.kind);
@@ -566,6 +574,9 @@ export class InMemoryDb implements Db {
   }
   async getTakes(versionId: string) {
     return this.takes.filter((item) => item.version_id === versionId);
+  }
+  async patchTake(id: string, patch: Partial<Take>) {
+    Object.assign(this.takes.find((item) => item.id === id) ?? {}, patch);
   }
   async upsertRender(render: Omit<Render, "id">) {
     const item = this.renders.find(

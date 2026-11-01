@@ -22,6 +22,8 @@ export type EngineOptions = {
   allowNonZero?: boolean;
   clearOutputs?: string[];
   env?: Record<string, string>;
+  // Names from secrets.values this child may see; every other secret stays out of its environment.
+  secretEnv?: string[];
   outputs?: string[];
   cwd?: string;
 };
@@ -140,6 +142,12 @@ export class Engine {
             ...options.env,
           },
           this.dependencies.secrets,
+        ),
+        ...Object.fromEntries(
+          (options.secretEnv ?? []).flatMap((name) => {
+            const value = this.dependencies.secrets?.values[name];
+            return value ? [[name, value]] : [];
+          }),
         ),
         PYTHONIOENCODING: "utf-8",
         TMP: "E:\\mellodifai\\tmp",

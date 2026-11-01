@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import { LyricPackSchema } from "@mellodifai/shared";
 import type { StageContext, StageHandler } from "../loop.js";
+import { scoreTakes } from "./score-takes.js";
 import {
   ENGINE_ROOT,
   engine,
@@ -295,6 +296,7 @@ export const generateSong: StageHandler = async (context) => {
     );
   }
   await refreshBalance(context);
+  await scoreTakes(context, takes);
   await context.log(`Generated ${takes.length} takes`);
   return {
     versionStatus: "takes_review",

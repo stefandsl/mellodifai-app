@@ -1,6 +1,6 @@
 "use client";
 
-import { validateLyricPack } from "@mellodifai/shared";
+import { suggestTake, validateLyricPack } from "@mellodifai/shared";
 import { cn } from "cn";
 import {
   ArrowRight,
@@ -159,7 +159,12 @@ function TakesDialog({
   const lang = useLocale();
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [chosen, setChosen] = useState(clip.takes[0]?.id ?? null);
+  // The suggestion follows the scores as they land until the owner picks a take by hand.
+  const suggestion = suggestTake(
+    clip.takes.map((take) => ({ id: take.id, scores: take.scores })),
+  );
+  const [picked, setPicked] = useState<string | null>(null);
+  const chosen = picked ?? suggestion?.takeId ?? clip.takes[0]?.id ?? null;
   const current = usePlayer((s) => s.queue[s.index]?.id);
   const playing = usePlayer((s) => s.playing);
   const play = usePlayer((s) => s.play);
@@ -214,6 +219,11 @@ function TakesDialog({
             const isPlaying = current === id && playing;
             const selected = chosen === take.id;
             const name = `${st(lang, "next.take")} ${take.number}`;
+            const suggested = suggestion?.takeId === take.id;
+            const reason =
+              suggestion?.reason === "fidelity" && take.scores
+                ? `${st(lang, "next.heardWords")} ${Math.round(take.scores.fidelity * 100)}%`
+                : st(lang, "next.wholeEnding");
             return (
               <div
                 key={take.id}
@@ -254,11 +264,23 @@ function TakesDialog({
                   type="button"
                   role="radio"
                   aria-checked={selected}
-                  aria-label={name}
-                  onClick={() => setChosen(take.id)}
+                  aria-label={
+                    suggested ? `${name}, ${st(lang, "next.suggested")}` : name
+                  }
+                  onClick={() => setPicked(take.id)}
                   className="flex min-w-0 flex-1 items-center justify-between gap-3 self-stretch rounded-xl px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
                 >
-                  <span className="font-medium">{name}</span>
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="font-medium">{name}</span>
+                    {suggested ? (
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--fg-muted)]">
+                        <span className="rounded-full bg-[color-mix(in_oklab,var(--brand),transparent_85%)] px-2 py-0.5 font-medium text-[var(--brand)]">
+                          {st(lang, "next.suggested")}
+                        </span>
+                        <span>{reason}</span>
+                      </span>
+                    ) : null}
+                  </span>
                   <span
                     className={cn(
                       "inline-flex size-5 items-center justify-center rounded-full ring-2",

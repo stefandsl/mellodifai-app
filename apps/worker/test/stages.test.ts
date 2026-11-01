@@ -172,6 +172,145 @@ it.each([
     }
   },
 );
+describe("take scoring at the end of generate_song", () => {
+  const GROQ = "groq-test-secret-value";
+  async function scoringSetup() {
+    const result = await setup();
+    result.ctx.secrets.values = {
+      ...result.ctx.secrets.values,
+      GROQ_API_KEY: GROQ,
+    };
+    result.ctx.secrets.redact = (line) => line.replaceAll(GROQ, "***");
+    return result;
+  }
+  const scoreCalls = (calls: Awaited<ReturnType<typeof setup>>["calls"]) =>
+    calls.filter((call) =>
+      call.args.some((arg) => arg.endsWith("score_takes.py")),
+    );
+
+  it("scores both takes with Groq and stores the scores on each take", async () => {
+    const { ctx, db, calls } = await scoringSetup();
+    const result = await stages.generate_song?.(ctx);
+    expect(result?.versionStatus).toBe("takes_review");
+    const [call, ...others] = scoreCalls(calls);
+    expect(others).toHaveLength(0);
+    expect(call).toMatchObject({
+      cmd: "python",
+      args: [
+        "-I",
+        "-X",
+        "utf8",
+        "tools/score_takes.py",
+        "fr",
+        "--workspace",
+        ctx.ws.root,
+        "--min-duration",
+        "0",
+      ],
+      cwd: ENGINE_ROOT,
+      env: { GROQ_API_KEY: GROQ },
+    });
+    const generated = db.takes.filter(
+      (take) => take.generation === 1 && take.take_number,
+    );
+    expect(generated.map((take) => take.scores)).toEqual([
+      {
+        fidelity: 0.91,
+        duration: 212.4,
+        endDropDb: 30.5,
+        weakSections: [],
+        truncated: false,
+      },
+      {
+        fidelity: 0.62,
+        duration: 198,
+        endDropDb: 4,
+        weakSections: ["Bridge 20%"],
+        truncated: true,
+      },
+    ]);
+  });
+  it("removes the previous report first so an old generation is never read", async () => {
+    const { ctx } = await scoringSetup();
+    const run = vi.spyOn(ctx.engine, "run");
+    await stages.generate_song?.(ctx);
+    const options = run.mock.calls.find(([, args]) =>
+      args.some((arg) => arg.endsWith("score_takes.py")),
+    )?.[2];
+    expect(options?.clearOutputs).toEqual([
+      join(ctx.ws.outDir, "takes-score.json"),
+    ]);
+  });
+  it("never lets the Groq key reach the log", async () => {
+    const { ctx } = await scoringSetup();
+    const run = ctx.engine.run.bind(ctx.engine);
+    vi.spyOn(ctx.engine, "run").mockImplementation(async (cmd, args, opts) => {
+      if (args.some((arg) => arg.endsWith("score_takes.py")))
+        throw new Error(`Groq HTTP 401 for ${GROQ}`);
+      return run(cmd, args, opts);
+    });
+    await stages.generate_song?.(ctx);
+    const logged = vi.mocked(ctx.log).mock.calls.map(([line]) => line);
+    expect(logged.some((line) => line.includes("Take scoring failed"))).toBe(
+      true,
+    );
+    expect(logged.join(" ")).not.toContain(GROQ);
+  });
+  it.each([
+    ["the scorer exits with an error", "exit"],
+    ["takes-score.json is not JSON", "garbage"],
+    ["takes-score.json has no usable rows", "empty"],
+  ])("still finishes the version when %s", async (_name, failure) => {
+    const { ctx, db, output } = await scoringSetup();
+    if (failure === "garbage") output.scores = "not json at all";
+    if (failure === "empty") output.scores = { rows: [{ take: "take-9.mp3" }] };
+    if (failure === "exit") {
+      const run = ctx.engine.run.bind(ctx.engine);
+      vi.spyOn(ctx.engine, "run").mockImplementation(
+        async (cmd, args, opts) => {
+          if (args.some((arg) => arg.endsWith("score_takes.py")))
+            throw new Error("python exited 1");
+          return run(cmd, args, opts);
+        },
+      );
+    }
+    await expect(stages.generate_song?.(ctx)).resolves.toMatchObject({
+      versionStatus: "takes_review",
+    });
+    const generated = db.takes.filter(
+      (take) => take.generation === 1 && take.take_number,
+    );
+    expect(generated).toHaveLength(2);
+    expect(generated.every((take) => take.scores === undefined)).toBe(true);
+  });
+  it("tolerates a log sink that is down while scoring fails", async () => {
+    const { ctx } = await scoringSetup();
+    const run = ctx.engine.run.bind(ctx.engine);
+    vi.spyOn(ctx.engine, "run").mockImplementation(async (cmd, args, opts) => {
+      if (args.some((arg) => arg.endsWith("score_takes.py")))
+        throw new Error("python exited 1");
+      return run(cmd, args, opts);
+    });
+    const log = ctx.log;
+    ctx.log = async (line) => {
+      if (line.includes("Take scoring failed")) throw new Error("log down");
+      return log(line);
+    };
+    await expect(stages.generate_song?.(ctx)).resolves.toMatchObject({
+      versionStatus: "takes_review",
+    });
+  });
+  it("does not score, and says so, when the worker has no Groq key", async () => {
+    const { ctx, calls } = await setup();
+    await stages.generate_song?.(ctx);
+    expect(scoreCalls(calls)).toHaveLength(0);
+    expect(
+      vi
+        .mocked(ctx.log)
+        .mock.calls.some(([line]) => line.includes("GROQ_API_KEY")),
+    ).toBe(true);
+  });
+});
 describe("round 2 hardening", () => {
   it("balance refresh also tolerates an unavailable log sink", async () => {
     const { ctx } = await setup();
@@ -558,6 +697,20 @@ describe("round 2 hardening", () => {
     expect(calls[1]?.args).toContain("52");
     expect(result?.versionStatus).toBe("producing");
   });
+  it("times a take that has no kie alignment without passing an aligned file", async () => {
+    const { ctx, calls } = await setup();
+    // A local engine leaves only out/<lang>/take-N.mp3; kie also writes aligned-take<N>.json.
+    await writeFile(join(ctx.ws.outDir, "take-1.mp3"), "audio");
+    await expect(
+      readFile(join(ctx.ws.outDir, "aligned-take1.json")),
+    ).rejects.toThrow();
+    const result = await stages.timing?.(ctx);
+    expect(result?.versionStatus).toBe("producing");
+    expect(calls[0]?.args).toEqual(["tools/workspace_pipeline.sh", "fr", "1"]);
+    expect(calls.flatMap((call) => call.args).join(" ")).not.toContain(
+      "aligned",
+    );
+  });
   it("art creates and uploads SRT before video_review", async () => {
     const { ctx, calls } = await setup();
     await stages.art?.(ctx);
@@ -914,6 +1067,30 @@ async function setup() {
         { name: "Final Chorus", lines: [{ words: [{ start: 60, end: 61 }] }] },
       ],
     } as unknown,
+    // takes-score.json as score_takes.py writes it.
+    scores: {
+      rows: [
+        {
+          take: "take-1.mp3",
+          duration: 212.4,
+          lufs: -14,
+          end_drop_db: 30.5,
+          fidelity: 0.91,
+          weak_sections: [],
+          truncated: false,
+        },
+        {
+          take: "take-2.mp3",
+          duration: 198,
+          lufs: -13.1,
+          end_drop_db: 4,
+          fidelity: 0.62,
+          weak_sections: ["Bridge 20%"],
+          truncated: true,
+        },
+      ],
+      recommended: "take-1.mp3",
+    } as unknown,
   };
   const spawn: Spawn = (cmd, args, options) => {
     calls.push({
@@ -933,6 +1110,11 @@ async function setup() {
           child.emit("close", output.submitCode);
           return;
         }
+        if (args.some((arg) => arg.endsWith("score_takes.py")))
+          await writeFile(
+            join(ws.outDir, "takes-score.json"),
+            JSON.stringify(output.scores),
+          );
         if (cmd === "bash")
           await writeFile(
             join(ws.publicDir, "data", "fr", "timing.json"),

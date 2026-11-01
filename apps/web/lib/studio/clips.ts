@@ -1,4 +1,9 @@
-import type { Lang, VersionStatus } from "@mellodifai/shared";
+import {
+  type Lang,
+  parseTakeScores,
+  type TakeScores,
+  type VersionStatus,
+} from "@mellodifai/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // One card in the studio feed: a language version of a project, with signed media URLs.
@@ -23,7 +28,13 @@ export type Clip = {
   // False when art is only the gradient; the card then shows a frame of the video if any.
   hasCover: boolean;
   // Takes of the current generation, in take order, with playable previews.
-  takes: { id: string; number: number; audioUrl: string | null }[];
+  // scores is null until the worker has heard the take.
+  takes: {
+    id: string;
+    number: number;
+    audioUrl: string | null;
+    scores: TakeScores | null;
+  }[];
   chosenTakeId: string | null;
   settings: Record<string, unknown>;
   // The drafted lyric pack as stored, sent back unchanged when lyrics are approved from the feed.
@@ -113,7 +124,7 @@ export async function loadClips(
     supabase
       .from("takes")
       .select(
-        "id,version_id,audio_preview_path,cover_path,generation,take_number",
+        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores",
       )
       .in("version_id", ids),
     supabase
@@ -125,7 +136,12 @@ export async function loadClips(
 
   const currentTakes = new Map<
     string,
-    { id: string; number: number; path: string | null }[]
+    {
+      id: string;
+      number: number;
+      path: string | null;
+      scores: TakeScores | null;
+    }[]
   >();
   for (const row of rows)
     currentTakes.set(
@@ -141,6 +157,7 @@ export async function loadClips(
           id: take.id,
           number: take.take_number ?? i + 1,
           path: take.audio_preview_path,
+          scores: parseTakeScores(take.scores),
         })),
     );
 
@@ -246,6 +263,7 @@ export async function loadClips(
         id: take.id,
         number: take.number,
         audioUrl: url(take.path),
+        scores: take.scores,
       })),
       chosenTakeId: row.chosen_take_id,
       jury: row.lyric_jury,

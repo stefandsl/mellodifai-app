@@ -7,6 +7,14 @@ import { blocker, initialForm, useCreateForm } from "@/store/create-form";
 import { usePlayer } from "@/store/player";
 import { artFor, loadClips } from "./clips";
 
+const TAKE_SCORES = {
+  fidelity: 0.91,
+  duration: 212,
+  endDropDb: 30,
+  weakSections: [],
+  truncated: false,
+};
+
 describe("create form", () => {
   it("maps the form to kie settings: percent to 0-1, Auto duration to null", () => {
     const form = {
@@ -140,6 +148,7 @@ describe("feed", () => {
           audio_preview_path: "a/t1.mp3",
           generation: 1,
           take_number: 1,
+          scores: TAKE_SCORES,
         },
         {
           id: "t2",
@@ -148,6 +157,8 @@ describe("feed", () => {
           cover_path: "a/cover-1-2.jpg",
           generation: 1,
           take_number: 2,
+          // Scoring has not landed yet.
+          scores: {},
         },
         // Imported songs keep a take row without a preview file.
         {
@@ -230,6 +241,8 @@ describe("feed", () => {
       hookUrl: null,
       href: "/projects/p1?lang=it",
     });
+    // Stored scores are exposed per take; an empty jsonb means "not scored yet".
+    expect(clip?.takes.map((take) => take.scores)).toEqual([TAKE_SCORES, null]);
     // The chosen take's Suno artwork wins over the video thumbnail.
     expect(clip?.art).toContain('url("https://s/a/cover-1-2.jpg")');
     expect(clip?.art).not.toContain("thumbnail.png");

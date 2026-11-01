@@ -167,7 +167,14 @@ export function createFakeStages(
               generation: ctx.version.generation_count ?? 1,
               kie_task_id: `fake-${ctx.version.id}`,
               audio_preview_path: path,
-              scores: { take: n },
+              // Take 1 reads clearly better, so the studio shows a suggestion in fake mode.
+              scores: {
+                fidelity: n === 1 ? 0.92 : 0.74,
+                duration: 30,
+                endDropDb: 30,
+                weakSections: [],
+                truncated: false,
+              },
             });
           }
           result.versionStatus = "takes_review";

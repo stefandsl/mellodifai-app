@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import type { TakeScores } from "@mellodifai/shared";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Clip } from "@/lib/studio/clips";
@@ -9,9 +10,15 @@ import { NextStep } from "./next-step";
 
 const mock = vi.hoisted(() => ({
   approve: vi.fn(async () => ({ ok: true as const })),
+  pick: vi.fn(async () => ({ ok: true as const })),
+  keep: vi.fn(async () => ({ ok: true as const })),
   refresh: vi.fn(),
 }));
-vi.mock("@/app/actions/checkpoints", () => ({ approveLyrics: mock.approve }));
+vi.mock("@/app/actions/checkpoints", () => ({
+  approveLyrics: mock.approve,
+  pickTake: mock.pick,
+  keepAudio: mock.keep,
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mock.refresh }),
 }));
@@ -47,6 +54,8 @@ function clip(patch: Partial<Clip> = {}): Clip {
 
 beforeEach(() => {
   mock.approve.mockClear();
+  mock.pick.mockClear();
+  mock.keep.mockClear();
   mock.refresh.mockClear();
 });
 
@@ -96,8 +105,8 @@ it("links the other waiting steps to the song page", () => {
 
 it("suggests the video by default and audio only when the form turned video off", async () => {
   const takes = [
-    { id: "t1", number: 1, audioUrl: "https://s/t1.mp3" },
-    { id: "t2", number: 2, audioUrl: "https://s/t2.mp3" },
+    { id: "t1", number: 1, audioUrl: "https://s/t1.mp3", scores: null },
+    { id: "t2", number: 2, audioUrl: "https://s/t2.mp3", scores: null },
   ];
   const primary = () =>
     screen
@@ -124,4 +133,79 @@ it("suggests the video by default and audio only when the form turned video off"
     screen.getByRole("button", { name: /Scegli la take/u }),
   );
   expect(primary()).toHaveTextContent("Tieni solo l'audio");
+});
+
+const scores = (patch: Partial<TakeScores> = {}): TakeScores => ({
+  fidelity: 0.8,
+  duration: 200,
+  endDropDb: 30,
+  weakSections: [],
+  truncated: false,
+  ...patch,
+});
+const scored = (first: TakeScores | null, second: TakeScores | null) => [
+  { id: "t1", number: 1, audioUrl: "https://s/t1.mp3", scores: first },
+  { id: "t2", number: 2, audioUrl: "https://s/t2.mp3", scores: second },
+];
+const openTakes = async (takes: Clip["takes"]) => {
+  render(<NextStep clip={clip({ status: "takes_review", takes })} />);
+  await userEvent.click(
+    screen.getByRole("button", { name: /Scegli la take/u }),
+  );
+};
+
+it("marks the suggested take with the share of words heard and preselects it", async () => {
+  await openTakes(
+    scored(scores({ fidelity: 0.72 }), scores({ fidelity: 0.91 })),
+  );
+  const dialog = within(screen.getByRole("dialog"));
+  expect(dialog.getByRole("radio", { name: /Take 2/u })).toBeChecked();
+  expect(dialog.getByRole("radio", { name: /Take 1/u })).not.toBeChecked();
+  expect(dialog.getAllByText("Consigliata")).toHaveLength(1);
+  expect(dialog.getByText("parole riconosciute 91%")).toBeVisible();
+  await userEvent.click(dialog.getByRole("button", { name: "Crea il video" }));
+  await waitFor(() =>
+    expect(mock.pick).toHaveBeenCalledWith({ versionId: "v1", takeId: "t2" }),
+  );
+});
+
+it("explains a suggestion that comes from the ending, not from the words", async () => {
+  await openTakes(
+    scored(
+      scores({ fidelity: 0.7, truncated: true }),
+      scores({ fidelity: 0.7 }),
+    ),
+  );
+  const dialog = within(screen.getByRole("dialog"));
+  expect(dialog.getByRole("radio", { name: /Take 2/u })).toBeChecked();
+  expect(dialog.getByText("finale completo")).toBeVisible();
+  expect(dialog.queryByText(/parole riconosciute/u)).toBeNull();
+});
+
+it("suggests nothing and keeps take 1 selected when the scores do not decide", async () => {
+  await openTakes(
+    scored(scores({ fidelity: 0.84 }), scores({ fidelity: 0.83 })),
+  );
+  const dialog = within(screen.getByRole("dialog"));
+  expect(dialog.queryByText("Consigliata")).toBeNull();
+  expect(dialog.getByRole("radio", { name: /Take 1/u })).toBeChecked();
+});
+
+it("shows no badge before scoring has landed", async () => {
+  await openTakes(scored(null, null));
+  const dialog = within(screen.getByRole("dialog"));
+  expect(dialog.queryByText("Consigliata")).toBeNull();
+  expect(dialog.getByRole("radio", { name: /Take 1/u })).toBeChecked();
+});
+
+it("lets the owner pick the other take over the suggestion", async () => {
+  await openTakes(
+    scored(scores({ fidelity: 0.72 }), scores({ fidelity: 0.91 })),
+  );
+  const dialog = within(screen.getByRole("dialog"));
+  await userEvent.click(dialog.getByRole("radio", { name: /Take 1/u }));
+  await userEvent.click(dialog.getByRole("button", { name: "Crea il video" }));
+  await waitFor(() =>
+    expect(mock.pick).toHaveBeenCalledWith({ versionId: "v1", takeId: "t1" }),
+  );
 });

@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
       "./song-settings.js": "../../packages/shared/src/song-settings.ts",
       "./stages.js": "../../packages/shared/src/stages.ts",
       "./status.js": "../../packages/shared/src/status.ts",
+      "./suggest-take.js": "../../packages/shared/src/suggest-take.ts",
     },
     rules: {
       "*.css": {

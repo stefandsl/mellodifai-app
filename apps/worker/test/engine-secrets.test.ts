@@ -87,3 +87,32 @@ it("catches failed async log delivery and drains trailing output", async () => {
   expect(log.mock.calls).toEqual([["line"], ["last"]]);
   expect(report).toHaveBeenCalled();
 });
+
+it("hands a child only the secrets the caller names, and still redacts its output", async () => {
+  const spawn = vi.fn<Spawn>(() => {
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+    });
+    queueMicrotask(() => {
+      child.stdout.write("key is groq-secret-value\n");
+      child.emit("close", 0);
+    });
+    return child;
+  });
+  const secrets = {
+    values: {
+      GROQ_API_KEY: "groq-secret-value",
+      OTHER_API_KEY: "other-secret-value",
+    },
+    redact: (text: string) => text.replaceAll("groq-secret-value", "***"),
+  };
+  const log = vi.fn(async () => {});
+  const engine = new Engine({ spawn, log, secrets });
+  await engine.run("tool", []);
+  await engine.run("tool", [], { secretEnv: ["GROQ_API_KEY"] });
+  const envs = spawn.mock.calls.map((call) => call[2].env ?? {});
+  expect(envs[0]).not.toHaveProperty("GROQ_API_KEY");
+  expect(envs[1]).toMatchObject({ GROQ_API_KEY: "groq-secret-value" });
+  expect(envs[1]).not.toHaveProperty("OTHER_API_KEY");
+  expect(log).toHaveBeenCalledWith("key is ***");
+});
