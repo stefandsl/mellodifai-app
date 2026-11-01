@@ -36,7 +36,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { canStartFrom, startFromSong } from "@/lib/studio/audio-source";
+import {
+  canStartFrom,
+  SONG_DRAG_TYPE,
+  startFromSong,
+} from "@/lib/studio/audio-source";
 import { openStems } from "@/lib/studio/audio-tools";
 import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
 import { st, stf } from "@/lib/studio/i18n";
@@ -590,6 +594,16 @@ export function ClipCard({
   const showDetails = useDetails((s) => s.show);
   const title = clip.title || st(lang, "clip.untitled");
   const playable = !selection && !trash;
+  // A song with audio can be dragged onto the create panel's audio card (T12).
+  const dragProps = canStartFrom(clip)
+    ? {
+        draggable: true,
+        onDragStart: (event: React.DragEvent) => {
+          event.dataTransfer.setData(SONG_DRAG_TYPE, clip.id);
+          event.dataTransfer.effectAllowed = "copy";
+        },
+      }
+    : {};
   // A click on the card body (not on one of its buttons or links) picks the song: it opens
   // the details panel, or ticks the box in select mode.
   const onCardClick = (event: React.MouseEvent) => {
@@ -625,6 +639,7 @@ export function ClipCard({
         aria-current={current ? "true" : undefined}
         data-selected={detailed ? "true" : undefined}
         onClick={onCardClick}
+        {...dragProps}
         className={cn("flex flex-col gap-2 rounded-[20px] p-2.5", card)}
       >
         <div className="relative">
@@ -682,6 +697,7 @@ export function ClipCard({
       aria-current={current ? "true" : undefined}
       data-selected={detailed ? "true" : undefined}
       onClick={onCardClick}
+      {...dragProps}
       className={cn(
         "flex h-[110px] items-center gap-3 rounded-[20px] p-3",
         card,

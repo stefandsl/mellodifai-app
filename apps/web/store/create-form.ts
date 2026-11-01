@@ -75,6 +75,8 @@ export type CreateFormState = {
   video: { mode: VideoMode; aspect: Aspect; overlay: boolean };
   open: Record<CardId, boolean>;
   audio: CreateAudio | null;
+  // The mode the audio card shows before any audio is chosen.
+  audioMode: SourceMode;
 };
 
 type Actions = {
@@ -132,6 +134,7 @@ export function initialForm(lang: Lang = "it"): CreateFormState {
       audio: true,
     },
     audio: null,
+    audioMode: "cover",
   };
 }
 
@@ -219,6 +222,9 @@ export function sanitizeDraft(saved: Partial<CreateFormState>) {
     // A draft saved before a card existed has no entry for it.
     open: { ...defaults.open, ...saved.open },
     audio: cleanAudio(saved.audio),
+    audioMode: SOURCE_MODES.includes(saved.audioMode as SourceMode)
+      ? (saved.audioMode as SourceMode)
+      : "cover",
     songCount: within(saved.songCount, 1, MAX_SONGS_PER_CLICK, 1),
     lyricsHeight: within(
       saved.lyricsHeight,
