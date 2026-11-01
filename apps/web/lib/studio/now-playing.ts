@@ -9,6 +9,9 @@ export function stylePhrases(style: string, count: number): string[] {
     .slice(0, count);
 }
 
+// Resolves the app's own relative links, like /media/...
+const BASE = "http://app.invalid";
+
 // A file name for the download: the title without characters Windows refuses, and the
 // extension of the audio file itself (mp3 when it has none).
 export function downloadName(title: string, audioUrl: string): string {
@@ -19,21 +22,24 @@ export function downloadName(title: string, audioUrl: string): string {
     .slice(0, 100);
   let ext = "mp3";
   try {
-    const found = /\.([a-z0-9]{2,4})$/iu.exec(new URL(audioUrl).pathname);
+    const found = /\.([a-z0-9]{2,4})$/iu.exec(new URL(audioUrl, BASE).pathname);
     if (found?.[1]) ext = found[1].toLowerCase();
   } catch {
-    /* A relative URL: keep mp3. */
+    /* Not a URL: keep mp3. */
   }
   return `${base || "mellodifai"}.${ext}`;
 }
 
-// The audio lives on another origin, where the download attribute is ignored. The storage
-// service sends a file as an attachment under the name given in its download parameter.
+// /media redirects to the storage service, on another origin, where the download attribute is
+// ignored. The name travels in the download parameter, and storage sends an attachment under it.
 export function downloadHref(audioUrl: string, name: string): string {
+  if (!/^(https?:\/)?\//u.test(audioUrl)) return audioUrl;
   try {
-    const url = new URL(audioUrl);
+    const url = new URL(audioUrl, BASE);
     url.searchParams.set("download", name);
-    return url.toString();
+    return url.origin === BASE
+      ? `${url.pathname}${url.search}`
+      : url.toString();
   } catch {
     return audioUrl;
   }

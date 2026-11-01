@@ -1,5 +1,6 @@
 import { EDIT_STATUSES, STEMS_STATUSES } from "@mellodifai/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mediaUrl } from "@/lib/media";
 
 import { type Clip, loadClips } from "./clips";
 import type { StudioKey } from "./i18n";
@@ -153,15 +154,15 @@ export async function loadStemsPage(
         stored.map((track) => track.path),
         3600,
       );
-    const signed = new Map(
+    const readable = new Set(
       (urls ?? []).flatMap((item) =>
-        item.path && item.signedUrl ? [[item.path, item.signedUrl]] : [],
+        item.path && item.signedUrl ? [item.path] : [],
       ),
     );
-    if (stored.every((track) => signed.has(track.path)))
+    if (stored.every((track) => readable.has(track.path)))
       tracks = stored.map((track) => ({
         name: track.name,
-        url: signed.get(track.path) as string,
+        url: mediaUrl(track.path),
         peaks: track.peaks,
       }));
   }

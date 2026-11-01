@@ -167,10 +167,10 @@ describe("loadStemsPage", () => {
     const { client } = database({ stems: STEMS });
     const page = await loadStemsPage(client as never, "v1");
     expect(page?.tracks).toEqual([
-      { name: "vocals", url: "https://s/s/vocals.mp3", peaks: [0.5, 1] },
-      { name: "drums", url: "https://s/s/drums.mp3", peaks: [0.1] },
-      { name: "bass", url: "https://s/s/bass.mp3", peaks: [] },
-      { name: "other", url: "https://s/s/other.mp3", peaks: [] },
+      { name: "vocals", url: "/media/s/vocals.mp3", peaks: [0.5, 1] },
+      { name: "drums", url: "/media/s/drums.mp3", peaks: [0.1] },
+      { name: "bass", url: "/media/s/bass.mp3", peaks: [] },
+      { name: "other", url: "/media/s/other.mp3", peaks: [] },
     ]);
     expect(page).toMatchObject({
       takeId: "t1",

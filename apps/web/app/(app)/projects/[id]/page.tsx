@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
 import { getLocale } from "@/lib/locale";
+import { mediaUrl } from "@/lib/media";
 import { songMetadata } from "@/lib/studio/song-metadata";
 import { orderedVersions, selectedVersion } from "@/lib/versions";
 
@@ -134,12 +135,13 @@ export default async function ProjectPage({
         .order("id", { ascending: false })
         .limit(200)
     : { data: [] };
+  // Signing tells whether the file exists and is readable; the page links it through /media.
   async function signed(path: string | null) {
     if (!path) return null;
     const { data } = await supabase.storage
       .from("previews")
       .createSignedUrl(path, 3600);
-    return data?.signedUrl ?? null;
+    return data?.signedUrl ? mediaUrl(path) : null;
   }
   const renders = await Promise.all(
     (renderRows ?? []).map(async (r) => ({

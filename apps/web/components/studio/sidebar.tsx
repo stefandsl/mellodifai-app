@@ -95,8 +95,8 @@ function PlaylistList({ collapsed }: { collapsed: boolean }) {
   return (
     <div
       className={cn(
-        "mt-5 hidden min-h-0 flex-1 flex-col xl:flex",
-        collapsed && "xl:hidden",
+        "mt-5 hidden min-h-0 flex-1 flex-col overflow-hidden",
+        !collapsed && "tall:xl:flex",
       )}
     >
       <div className="mb-1 flex items-center justify-between px-3">
@@ -113,7 +113,7 @@ function PlaylistList({ collapsed }: { collapsed: boolean }) {
           <Plus className="size-4" />
         </button>
       </div>
-      <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-thin">
+      <ul className="min-h-0 space-y-0.5 overflow-y-auto scrollbar-thin">
         {entries.map((entry) => {
           const href = `/playlists/${entry.id}`;
           const active = pathname === href;
@@ -185,6 +185,9 @@ export function StudioSidebar({ email }: { email: string }) {
 
   const row =
     "flex h-10 items-center gap-3 rounded-full px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)] [&_svg]:size-5 [&_svg]:shrink-0";
+  const iconRow =
+    "inline-flex h-10 w-11 items-center justify-center rounded-full text-[var(--fg-muted)] outline-none transition-colors hover:bg-[var(--surface-glass)] hover:text-[var(--fg)] focus-visible:ring-2 focus-visible:ring-[var(--brand)] [&_svg]:size-5";
+  const tipSide = collapsed ? "right" : "top";
   const wrap = (label: string, node: React.ReactElement) =>
     collapsed ? (
       <Tip key={label} label={label} side="right">
@@ -198,7 +201,7 @@ export function StudioSidebar({ email }: { email: string }) {
     <aside
       data-collapsed={collapsed}
       className={cn(
-        "group/sidebar hidden h-full shrink-0 flex-col border-r border-[var(--hairline)] bg-[var(--bg)] px-3 pt-4 pb-3 min-[900px]:flex",
+        "group/sidebar hidden h-full shrink-0 flex-col overflow-x-hidden overflow-y-auto scrollbar-thin border-r border-[var(--hairline)] bg-[var(--bg)] px-3 pt-4 pb-3 min-[900px]:flex",
         "w-[72px] xl:w-[var(--sidebar-w)]",
         collapsed && "xl:w-[72px]",
       )}
@@ -313,79 +316,57 @@ export function StudioSidebar({ email }: { email: string }) {
             </span>
           </Link>,
         )}
-        {wrap(
-          st(lang, dark ? "theme.light" : "theme.dark"),
-          <button
-            type="button"
-            onClick={() => setTheme(dark ? "light" : "dark")}
-            className={cn(
-              row,
-              "text-[var(--fg-muted)] hover:bg-[var(--surface-glass)] hover:text-[var(--fg)]",
-            )}
-          >
-            {dark ? <Sun /> : <Moon />}
-            <span className={cn("hidden xl:inline", collapsed && "xl:hidden")}>
-              {st(lang, dark ? "theme.light" : "theme.dark")}
-            </span>
-          </button>,
-        )}
-        {wrap(
-          st(lang, "lang.switch"),
-          <button
-            type="button"
-            onClick={() => {
-              // biome-ignore lint/suspicious/noDocumentCookie: locale persistence needs a browser cookie.
-              document.cookie = `mellodifai_lang=${lang === "it" ? "en" : "it"}; path=/; max-age=31536000`;
-              router.refresh();
-            }}
-            className={cn(
-              row,
-              "text-[var(--fg-muted)] hover:bg-[var(--surface-glass)] hover:text-[var(--fg)]",
-            )}
-          >
-            <Languages />
-            <span className={cn("hidden xl:inline", collapsed && "xl:hidden")}>
-              {st(lang, "lang.switch")}
-            </span>
-          </button>,
-        )}
         <div className="my-2 h-px bg-[var(--hairline)]" />
-        {wrap(
-          `${st(lang, "nav.signOut")} (${email})`,
-          <button
-            type="button"
-            onClick={async () => {
-              await createClient().auth.signOut();
-              router.push("/login");
-              router.refresh();
-            }}
-            className={cn(
-              row,
-              "text-[var(--fg-muted)] hover:bg-[var(--surface-glass)] hover:text-[var(--fg)]",
-            )}
+        {/* Theme, language and sign-out are icons: one row when the sidebar is wide, a column on
+            the rail, so the footer stays short enough for a low window. */}
+        <div
+          className={cn(
+            "flex flex-col gap-0.5 xl:flex-row xl:gap-1",
+            collapsed && "xl:flex-col xl:gap-0.5",
+          )}
+        >
+          <Tip
+            label={st(lang, dark ? "theme.light" : "theme.dark")}
+            side={tipSide}
           >
-            <span
-              aria-hidden
-              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] font-semibold text-[var(--fg)] uppercase"
+            <button
+              type="button"
+              aria-label={st(lang, dark ? "theme.light" : "theme.dark")}
+              onClick={() => setTheme(dark ? "light" : "dark")}
+              className={iconRow}
             >
-              {email.charAt(0)}
-            </span>
-            <span
-              className={cn(
-                "hidden min-w-0 flex-1 truncate text-left text-xs xl:block",
-                collapsed && "xl:hidden",
-              )}
+              {dark ? <Sun /> : <Moon />}
+            </button>
+          </Tip>
+          <Tip label={st(lang, "lang.switch")} side={tipSide}>
+            <button
+              type="button"
+              aria-label={st(lang, "lang.switch")}
+              onClick={() => {
+                // biome-ignore lint/suspicious/noDocumentCookie: locale persistence needs a browser cookie.
+                document.cookie = `mellodifai_lang=${lang === "it" ? "en" : "it"}; path=/; max-age=31536000`;
+                router.refresh();
+              }}
+              className={iconRow}
             >
-              {email}
-            </span>
-            <LogOut
-              className={cn(
-                "hidden size-4! xl:block",
-                collapsed && "xl:hidden",
-              )}
-            />
-          </button>,
-        )}
+              <Languages />
+            </button>
+          </Tip>
+          <Tip label={`${st(lang, "nav.signOut")} (${email})`} side={tipSide}>
+            <button
+              type="button"
+              aria-label={`${st(lang, "nav.signOut")} (${email})`}
+              onClick={async () => {
+                await createClient().auth.signOut();
+                router.push("/login");
+                router.refresh();
+              }}
+              className={iconRow}
+            >
+              <LogOut />
+            </button>
+          </Tip>
+        </div>
       </div>
     </aside>
   );

@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 import { countPlay } from "@/app/actions/library";
 import { useLocale } from "@/components/locale-provider";
@@ -263,6 +264,11 @@ export function PlayerBar() {
           onEnded={() => {
             plays.current?.reset();
             p.ended();
+          }}
+          // A file that cannot load would otherwise leave the bar "playing" at 0:00.
+          onError={() => {
+            p.set({ playing: false });
+            toast.error(st(lang, "player.loadFailed"), { id: "player-load" });
           }}
         >
           <track kind="captions" />

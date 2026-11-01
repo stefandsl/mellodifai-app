@@ -6,6 +6,7 @@ import {
 } from "@mellodifai/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { mediaUrl } from "@/lib/media";
 import { artFor } from "./cover-art";
 
 export { artFor };
@@ -340,16 +341,18 @@ export async function loadClips(
       ...[...coverCandidates.values()].flat(),
     ]),
   ];
-  const signed = new Map<string, string>();
+  // Signing in one batch tells which files exist and are readable; the page links them through
+  // /media so the links outlive the signature.
+  const readable = new Set<string>();
   if (paths.length > 0) {
     const { data: urls } = await supabase.storage
       .from("previews")
       .createSignedUrls(paths, 3600);
     for (const item of urls ?? [])
-      if (item.path && item.signedUrl) signed.set(item.path, item.signedUrl);
+      if (item.path && item.signedUrl) readable.add(item.path);
   }
   const url = (path: string | null | undefined) =>
-    path ? (signed.get(path) ?? null) : null;
+    path && readable.has(path) ? mediaUrl(path) : null;
 
   return rows.map((row) => {
     const cover =

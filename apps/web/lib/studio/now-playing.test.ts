@@ -48,6 +48,12 @@ describe("downloadHref", () => {
     expect(url.searchParams.get("token")).toBe("abc");
     expect(url.searchParams.get("download")).toBe("Song.mp3");
   });
+  it("keeps the app's own /media link relative", () => {
+    expect(downloadHref("/media/p/a.mp3", "Song A.mp3")).toBe(
+      "/media/p/a.mp3?download=Song+A.mp3",
+    );
+    expect(downloadName("Song", "/media/p/a.flac")).toBe("Song.flac");
+  });
   it("returns something unparseable unchanged", () => {
     expect(downloadHref("not a url", "x.mp3")).toBe("not a url");
   });

@@ -466,19 +466,19 @@ describe("feed", () => {
       title: "Lunedi",
       style: "italo pop",
       model: "V6_WILD",
-      audioUrl: "https://s/a/t2.mp3",
-      videoUrl: "https://s/r/new.mp4",
+      audioUrl: "/media/a/t2.mp3",
+      videoUrl: "/media/r/new.mp4",
       hookUrl: null,
       href: "/projects/p1?lang=it",
     });
     // Stored scores are exposed per take; an empty jsonb means "not scored yet".
     expect(clip?.takes.map((take) => take.scores)).toEqual([TAKE_SCORES, null]);
     // The chosen take's Suno artwork wins over the video thumbnail.
-    expect(clip?.art).toContain('url("https://s/a/cover-1-2.jpg")');
+    expect(clip?.art).toContain('url("/media/a/cover-1-2.jpg")');
     expect(clip?.art).not.toContain("thumbnail.png");
     expect(imported).toMatchObject({
-      audioUrl: "https://s/q/fr/video-720p.mp4",
-      videoUrl: "https://s/q/fr/video-720p.mp4",
+      audioUrl: "/media/q/fr/video-720p.mp4",
+      videoUrl: "/media/q/fr/video-720p.mp4",
     });
     // Likes, plays and the queue position come with the clip; a rename wins over the pack title.
     expect(clip).toMatchObject({
@@ -511,7 +511,7 @@ describe("feed", () => {
     await loadClips(supabase as never, 50, { trash: true });
     expect(trashFilters).toEqual(["not trashed_at"]);
     expect(imported?.art).toContain(
-      'url("https://s/q/fr/thumbnail-1280x720.png")',
+      'url("/media/q/fr/thumbnail-1280x720.png")',
     );
   });
 

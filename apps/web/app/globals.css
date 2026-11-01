@@ -3,6 +3,12 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* A window tall enough for the sidebar playlists above its footer. */
+@custom-variant tall {
+  @media (min-height: 760px) {
+    @slot;
+  }
+}
 
 @theme inline {
   --color-background: var(--background);

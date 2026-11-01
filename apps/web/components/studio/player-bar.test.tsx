@@ -103,6 +103,18 @@ it("likes the playing song from the player bar and clears it again", async () =>
   expect(dislike).toHaveAttribute("aria-pressed", "false");
 });
 
+it("stops and says so when the audio cannot load, instead of playing at 0:00", () => {
+  const audio = bar();
+  act(() => {
+    fireEvent.error(audio);
+  });
+  expect(usePlayer.getState().playing).toBe(false);
+  expect(mock.toast.error).toHaveBeenCalledWith(
+    "Questo audio non si carica. Ricarica la pagina e riprova.",
+    { id: "player-load" },
+  );
+});
+
 it("shows the reaction the feed already knows", () => {
   useReactions.setState({ server: { v1: "dislike" } });
   bar();

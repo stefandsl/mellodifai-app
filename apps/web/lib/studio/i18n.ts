@@ -248,6 +248,8 @@ const it = {
   "player.video": "Mini video",
   "player.info": "Dettagli",
   "player.idle": "Scegli una canzone da ascoltare",
+  "player.loadFailed":
+    "Questo audio non si carica. Ricarica la pagina e riprova.",
   "credits.title": "Crediti",
   "credits.kie": "Saldo kie",
   "credits.songs": "canzoni ancora possibili (12 crediti l'una)",
@@ -807,6 +809,8 @@ const en: Record<StudioKey, string> = {
   "player.video": "Mini video",
   "player.info": "Details",
   "player.idle": "Pick a song to listen to",
+  "player.loadFailed":
+    "This audio will not load. Reload the page and try again.",
   "credits.title": "Credits",
   "credits.kie": "kie balance",
   "credits.songs": "songs still possible (12 credits each)",

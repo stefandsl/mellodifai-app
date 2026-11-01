@@ -101,8 +101,7 @@ it("renders ordered tabs, a brand-red active language and exactly one status bad
   expect(screen.getAllByText("Approvato")).toHaveLength(1);
   expect(mock.workspace.mock.calls[0][0]).toMatchObject({
     version: { lang: "it" },
-    thumbnailUrl:
-      "https://example.test/previews/owner/p/it/thumbnail-1280x720.png",
+    thumbnailUrl: "/media/previews/owner/p/it/thumbnail-1280x720.png",
   });
   expect(mock.signed).toHaveBeenCalledWith(
     "previews/owner/p/it/video-720p.mp4",
