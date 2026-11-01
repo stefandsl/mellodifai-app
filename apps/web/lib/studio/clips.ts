@@ -112,7 +112,9 @@ export async function loadClips(
   const [{ data: takes }, { data: renders }] = await Promise.all([
     supabase
       .from("takes")
-      .select("id,version_id,audio_preview_path,generation,take_number")
+      .select(
+        "id,version_id,audio_preview_path,cover_path,generation,take_number",
+      )
       .in("version_id", ids),
     supabase
       .from("renders")
@@ -177,8 +179,23 @@ export async function loadClips(
     ]);
   }
 
+  // Suno's artwork saved per take: the chosen take's, else the first current take's.
+  const takeCover = new Map<string, string>();
+  for (const row of rows) {
+    const own = (takes ?? []).filter(
+      (take) => take.version_id === row.id && take.cover_path,
+    );
+    const take =
+      own.find((item) => item.id === row.chosen_take_id) ??
+      own
+        .filter((item) => item.generation === row.generation_count)
+        .sort((a, b) => (a.take_number ?? 0) - (b.take_number ?? 0))[0];
+    if (take?.cover_path) takeCover.set(row.id, take.cover_path);
+  }
+
   const paths = [
     ...new Set([
+      ...takeCover.values(),
       ...audioPath.values(),
       ...[...currentTakes.values()]
         .flat()
@@ -199,7 +216,9 @@ export async function loadClips(
     path ? (signed.get(path) ?? null) : null;
 
   return rows.map((row) => {
-    const cover = (coverCandidates.get(row.id) ?? []).map(url).find(Boolean);
+    const cover =
+      url(takeCover.get(row.id)) ??
+      (coverCandidates.get(row.id) ?? []).map(url).find(Boolean);
     const pack = row.lyric_pack ?? {};
     const project = row.projects;
     const settings = project?.song_settings ?? {};

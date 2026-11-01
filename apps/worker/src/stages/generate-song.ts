@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { LyricPackSchema } from "@mellodifai/shared";
-import type { StageHandler } from "../loop.js";
+import type { StageContext, StageHandler } from "../loop.js";
 import {
   ENGINE_ROOT,
   engine,
@@ -27,6 +27,45 @@ async function exists(path: string): Promise<boolean> {
     return false;
   }
 }
+// Suno's artwork per take, as kie returned it in record.json (data.response.data[].image_url).
+export async function sunoCoverUrls(outDir: string): Promise<string[]> {
+  try {
+    const record = JSON.parse(
+      await readFile(join(outDir, "record.json"), "utf8"),
+    ) as { data?: { response?: { data?: { image_url?: unknown }[] } } };
+    return (record.data?.response?.data ?? []).map((item) =>
+      typeof item.image_url === "string" ? item.image_url : "",
+    );
+  } catch {
+    return [];
+  }
+}
+
+// Downloads one cover and uploads it next to the previews. A cover is a nicety: any failure
+// is logged and the take keeps no cover, never failing the song.
+async function saveCover(
+  context: StageContext,
+  url: string | undefined,
+  generation: number,
+  take: number,
+): Promise<string | null> {
+  if (!url?.startsWith("https://")) return null;
+  try {
+    const response = await fetch(url, { signal: context.signal });
+    if (!response.ok) throw new Error(`cover download ${response.status}`);
+    const file = join(context.ws.outDir, `cover-${generation}-${take}.jpg`);
+    await writeFile(file, Buffer.from(await response.arrayBuffer()));
+    return await upload(context, file, "image/jpeg");
+  } catch (error) {
+    await context.log(
+      context.secrets.redact(
+        `Cover not saved for take ${take}: ${String(error)}`,
+      ),
+    );
+    return null;
+  }
+}
+
 export async function refreshBalance(
   context: Pick<
     Parameters<StageHandler>[0],
@@ -225,6 +264,7 @@ export const generateSong: StageHandler = async (context) => {
       ["tools/kie.mjs", "lyrics-ts", lang, String(take)],
       { cwd: ENGINE_ROOT },
     );
+  const covers = await sunoCoverUrls(context.ws.outDir);
   const takes = [];
   for (const take of [1, 2]) {
     const source = join(context.ws.outDir, `take-${take}.mp3`);
@@ -244,6 +284,13 @@ export const generateSong: StageHandler = async (context) => {
         take_number: take,
         kie_task_id: taskId,
         audio_preview_path: await upload(context, preview, "audio/mpeg"),
+        engine: "kie",
+        cover_path: await saveCover(
+          context,
+          covers[take - 1],
+          generation,
+          take,
+        ),
       }),
     );
   }

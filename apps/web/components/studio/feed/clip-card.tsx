@@ -151,6 +151,18 @@ function Artwork({
           className="pointer-events-none absolute inset-0 size-full object-cover"
         />
       ) : null}
+      {!generating && !clip.hasCover && !clip.videoUrl ? (
+        // No image at all yet: the title on the song's own gradient is its cover.
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-x-2 top-2 line-clamp-3 font-semibold leading-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.6)]",
+            size === "list" ? "text-[11px]" : "text-lg",
+          )}
+        >
+          {clip.title}
+        </span>
+      ) : null}
       {generating ? (
         <Loader2 className="absolute top-1/2 left-1/2 size-5 -translate-1/2 animate-spin text-[var(--fg-muted)]" />
       ) : (

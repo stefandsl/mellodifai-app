@@ -609,6 +609,32 @@ it("keeps only the audio of the chosen take and makes the video later on request
     ).error,
   ).toBeNull();
 });
+it("lets only the admin choose a local song engine and rejects unknown engines", async () => {
+  const song = (engine?: string) => ({
+    p_prompt: "Una canzone sul caffè",
+    p_lyrics: "",
+    p_languages: ["it"],
+    p_style: "",
+    p_vocal_gender: null,
+    p_settings: engine ? { model: "V6", engine } : { model: "V6" },
+  });
+  expect((await client.rpc("create_song", song("yue2"))).error).toBeNull();
+  expect((await client.rpc("create_song", song("kie"))).error).toBeNull();
+  expect((await client.rpc("create_song", song())).error).toBeNull();
+  expect(
+    (await client.rpc("create_song", song("udio"))).error?.message,
+  ).toContain("invalid engine");
+  const otherId = users[1];
+  await service.from("profiles").update({ role: "customer" }).eq("id", otherId);
+  try {
+    expect(
+      (await other.rpc("create_song", song("ace-step"))).error?.message,
+    ).toContain("admin only");
+    expect((await other.rpc("create_song", song("kie"))).error).toBeNull();
+  } finally {
+    await service.from("profiles").update({ role: "admin" }).eq("id", otherId);
+  }
+});
 it("records failed-QA override and approver, uses current attempt and rerenders atomically", async () => {
   const v = await fixture("video_review");
   const r = await service

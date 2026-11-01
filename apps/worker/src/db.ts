@@ -54,6 +54,7 @@ export type WorkerUpdate = {
   kie_balance?: number | null;
   youtube_uploads_today?: number;
   youtube_quota_day?: string | null;
+  engines?: Record<string, unknown>;
 };
 export type Take = {
   take_number?: number;
@@ -64,6 +65,10 @@ export type Take = {
   kie_task_id?: string | null;
   audio_preview_path?: string | null;
   scores?: unknown;
+  engine?: "kie" | "ace-step" | "yue2";
+  seed?: number | null;
+  cover_path?: string | null;
+  abc?: string | null;
 };
 export type Render = {
   render_attempt?: number;

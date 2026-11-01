@@ -145,6 +145,7 @@ describe("feed", () => {
           id: "t2",
           version_id: "v1",
           audio_preview_path: "a/t2.mp3",
+          cover_path: "a/cover-1-2.jpg",
           generation: 1,
           take_number: 2,
         },
@@ -187,6 +188,7 @@ describe("feed", () => {
       "r/new.mp4",
       "r/old.mp4",
       "r/thumbnail.png",
+      "a/cover-1-2.jpg",
       "q/fr/video-720p.mp4",
       "q/fr/thumbnail-1280x720.png",
     ]);
@@ -228,7 +230,9 @@ describe("feed", () => {
       hookUrl: null,
       href: "/projects/p1?lang=it",
     });
-    expect(clip?.art).toContain('url("https://s/r/thumbnail.png")');
+    // The chosen take's Suno artwork wins over the video thumbnail.
+    expect(clip?.art).toContain('url("https://s/a/cover-1-2.jpg")');
+    expect(clip?.art).not.toContain("thumbnail.png");
     expect(imported).toMatchObject({
       audioUrl: "https://s/q/fr/video-720p.mp4",
       videoUrl: "https://s/q/fr/video-720p.mp4",

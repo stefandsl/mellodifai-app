@@ -85,13 +85,13 @@ export async function upload(
             : live
           ).add(r.preview_path);
       }
-      for (const take of rows.takes) {
-        if (take.audio_preview_path)
-          ((take.generation ?? 1) < (context.version.generation_count ?? 1)
-            ? obsolete
-            : live
-          ).add(take.audio_preview_path);
-      }
+      for (const take of rows.takes)
+        for (const file of [take.audio_preview_path, take.cover_path])
+          if (file)
+            ((take.generation ?? 1) < (context.version.generation_count ?? 1)
+              ? obsolete
+              : live
+            ).add(file);
       await context.storage.remove([...obsolete].filter((p) => !live.has(p)));
     }
   } catch (error) {
