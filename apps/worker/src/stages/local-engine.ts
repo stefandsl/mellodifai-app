@@ -11,7 +11,6 @@ import {
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
-  ACE_COVER_DENOISE,
   aceStepSeconds,
   type LocalSongEngine,
   type LyricPack,
@@ -29,13 +28,11 @@ import {
 } from "../comfy/client.js";
 import { LOCAL_ENGINES } from "../comfy/config.js";
 import {
-  AUDIO_INPUT_NODES,
   aceGraph,
   bpmAndKey,
   type ComfyGraph,
   loadGraph,
   toYue2Lyrics,
-  withSourceAudio,
   yue2Graph,
 } from "../comfy/graphs.js";
 import { PROMPT_NAMESPACE, uuidv5 } from "../comfy/ids.js";
@@ -46,9 +43,8 @@ import {
 } from "../comfy/runtime.js";
 import type { Take } from "../db.js";
 import type { StageContext, StageResult } from "../loop.js";
-import { encode, probeSeconds } from "./audio-util.js";
 import { scoreTakes } from "./score-takes.js";
-import { fetchSource, songSource } from "./source-audio.js";
+import { songSource } from "./source-audio.js";
 import { ENGINE_ROOT, language, upload, writePack } from "./utils.js";
 
 // Owner decision (design 14): a ceiling, not a length; YuE2 stops at its own end token.
@@ -221,8 +217,6 @@ export class LocalGeneration {
   private get generation() {
     return this.context.version.generation_count ?? 1;
   }
-  // A cover: the source in ComfyUI's input directory and its length.
-  source: { audio: string; seconds: number } | null = null;
 
   async checkNodes(extra: string[] = []) {
     const nodes = [...LOCAL_ENGINES[this.engine].nodes, ...extra];
@@ -251,7 +245,7 @@ export class LocalGeneration {
       style: styleWithout(pack.style, controls),
       lyrics: pack.lyrics,
       seed,
-      duration: this.source?.seconds ?? aceDuration(pack),
+      duration: aceDuration(pack),
       bpm: controls.bpm ?? drafted.bpm,
       keyscale: controls.keyscale ?? drafted.keyscale,
       ...(controls.timeSignature
@@ -264,12 +258,7 @@ export class LocalGeneration {
       language: language(this.context),
       prefix,
     });
-    return this.source
-      ? withSourceAudio(graph, {
-          audio: this.source.audio,
-          denoise: ACE_COVER_DENOISE,
-        })
-      : graph;
+    return graph;
   }
 
   // At most one progress event every 2 s, labelled with the part of the take that runs.
@@ -555,29 +544,13 @@ export async function generateLocal(
   }
   const results: TakeResult[] = [];
   const takes: Take[] = [];
-  // A cover: the source goes into ComfyUI's input directory, and the song is as long as it.
-  const source = songSource(context.project.song_settings);
-  let sourceFile: string | null = null;
-  if (source) {
-    if (engine !== "ace-step" || source.mode !== "cover" || !runtime.inputDir)
-      throw new Error(LOCAL_TEXT.noSource);
-    const dir = join(context.ws.root, "source");
-    const fetched = await fetchSource(context, source, dir);
-    const flac = join(dir, "source.flac");
-    await encode(context, fetched, flac, "flac");
-    const relative = `mellodifai/${context.version.id}-source.flac`;
-    sourceFile = join(runtime.inputDir, ...relative.split("/"));
-    await mkdir(join(runtime.inputDir, "mellodifai"), { recursive: true });
-    await copyFile(flac, sourceFile);
-    run.source = {
-      audio: relative,
-      seconds: Math.round((await probeSeconds(context, flac)) * 100) / 100,
-    };
-  }
+  // No local engine starts from audio (shared sourceModesFor); create_song refuses it too.
+  if (songSource(context.project.song_settings))
+    throw new Error(LOCAL_TEXT.noSource);
   try {
     await context.log(`Starting ComfyUI for ${ENGINE_NAMES[engine]}`);
     await runtime.supervisor.ensureStarted();
-    await run.checkNodes(source ? AUDIO_INPUT_NODES : []);
+    await run.checkNodes();
     // Take 2 is submitted only after take 1 ends (ComfyUI #16416).
     for (const take of [1, 2]) {
       const result = await run.take(pack, take, seeds[take - 1] ?? 0);
@@ -585,7 +558,6 @@ export async function generateLocal(
       takes.push(await run.saveTake(result));
     }
   } finally {
-    if (sourceFile) await rm(sourceFile, { force: true }).catch(() => {});
     // Demucs (timing) and Remotion need the whole GPU.
     try {
       await runtime.supervisor.stop();

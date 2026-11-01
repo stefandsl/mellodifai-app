@@ -151,6 +151,7 @@ export const LOCAL_ENGINES: Record<LocalSongEngine, LocalEngineSpec> = {
     minutesPerAudioMinute: 0.8,
     graph: "ace15-sft-30steps.api.json",
     saveNode: "107",
-    features: ["rewrite", "cover"],
+    // No cover: whole-song audio-to-audio came out as noise in the T12 tests.
+    features: ["rewrite"],
   },
 };

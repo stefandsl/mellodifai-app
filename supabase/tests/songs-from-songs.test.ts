@@ -583,7 +583,7 @@ describe("create_song from audio and the source record", () => {
   it("starts a cover from a take of the owner's and records where it came from", async () => {
     const s = await song();
     const r = await create(client, {
-      engine: "ace-step",
+      engine: "kie",
       source: { mode: "cover", takeId: s.take, title: "Solo un caffè" },
     });
     expect(r.error).toBeNull();
@@ -616,6 +616,7 @@ describe("create_song from audio and the source record", () => {
     await park(p?.versions[0]?.id as string);
     for (const settings of [
       { engine: "ace-step", source: { mode: "reference", upload: file.path } },
+      { engine: "ace-step", source: { mode: "cover", upload: file.path } },
       { engine: "yue2", source: { mode: "cover", upload: file.path } },
       { engine: "kie", source: { mode: "remix", upload: file.path } },
       { engine: "kie", source: { mode: "cover" } },

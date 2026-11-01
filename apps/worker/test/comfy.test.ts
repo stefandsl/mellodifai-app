@@ -88,7 +88,7 @@ describe("engine availability from files", () => {
         installed: false,
         passedLangs: ["it"],
         minutesPerAudioMinute: 0.8,
-        features: ["rewrite", "cover"],
+        features: ["rewrite"],
         checkedAt: "2026-11-01T10:00:00.000Z",
       },
     });

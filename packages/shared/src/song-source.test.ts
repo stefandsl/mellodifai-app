@@ -77,7 +77,7 @@ describe("audio source of a new song", () => {
   });
   it("offers each engine only what it can do", () => {
     expect(sourceModesFor("kie")).toEqual(["cover", "reference", "extend"]);
-    expect(sourceModesFor("ace-step")).toEqual(["cover"]);
+    expect(sourceModesFor("ace-step")).toEqual([]);
     expect(sourceModesFor("yue2")).toEqual([]);
   });
 });

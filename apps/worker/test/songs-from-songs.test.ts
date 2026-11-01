@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  ACE_COVER_DENOISE,
   KIE_AUDIO_WEIGHT,
   type LyricPack,
   LyricPackSchema,
@@ -16,6 +15,7 @@ import type { StageContext } from "../src/loop.js";
 import { kieTrackIds } from "../src/stages/generate-song.js";
 import { IMPORT_TEXT } from "../src/stages/import-audio.js";
 import { stages } from "../src/stages/index.js";
+import { LOCAL_TEXT } from "../src/stages/local-engine.js";
 import { storeHeardTiming } from "../src/stages/score-takes.js";
 import {
   kieSourceTask,
@@ -328,68 +328,29 @@ describe("songs from audio on kie", () => {
   });
 });
 
-describe("ACE-Step cover", () => {
-  it("encodes the source into the sampler at the cover strength, as long as the source", async () => {
-    const { ctx } = await setup(
-      { engine: "ace-step", source: { mode: "cover", takeId: TAKE } },
-      95.5,
-    );
-    await ctx.db.createTake({
-      id: TAKE,
-      owner_id: OWNER,
-      version_id: "other-song",
-      generation: 1,
-      take_number: 1,
-      engine: "kie",
-      audio_preview_path: "previews/x/take-1-preview.mp3",
-    } as never);
-    // createTake makes its own id; point the source at it.
-    const stored = (ctx.db as InMemoryDb).takes[0];
-    if (!stored) throw new Error("no take");
-    stored.id = TAKE;
-    const comfy = await fakeComfy();
-    servers.push(comfy);
-    comfy.state.nodes.add("LoadAudio");
-    comfy.state.nodes.add("VAEEncodeAudio");
-    comfy.onSubmit((promptId) =>
-      setTimeout(() => {
-        const prompt = comfy.state.prompts.get(promptId);
-        const prefix = String(prompt?.graph["107"]?.inputs.filename_prefix);
-        comfy.finish(promptId, {
-          "107": {
-            audio: [
-              {
-                filename: `${prefix.split("/").at(-1)}_00001.flac`,
-                subfolder: prefix.split("/").slice(0, -1).join("/"),
-              },
-            ],
-          },
-        });
-      }, 5),
-    );
+describe("local engines and audio", () => {
+  it("refuses a song from audio on ACE-Step before starting ComfyUI", async () => {
+    const { ctx } = await setup({
+      engine: "ace-step",
+      source: { mode: "cover", takeId: TAKE },
+    });
+    const ensureStarted = vi.fn(async () => {});
     ctx.comfy = {
       supervisor: {
-        baseUrl: comfy.url,
-        ensureStarted: vi.fn(async () => {}),
+        baseUrl: "http://127.0.0.1:1",
+        ensureStarted,
         stop: vi.fn(async () => {}),
         restart: vi.fn(async () => {}),
         isUp: vi.fn(async () => true),
       },
       outputDir: join(ctx.ws.root, "comfy-out"),
-      inputDir: join(ctx.ws.root, "comfy-in"),
       freeVramMb: async () => 7000,
-      connect: (url) => comfy.connect(url),
-      limits: { stallMs: 400, takeMs: 10_000, pollMs: 5, progressMs: 2_000 },
     };
     ctx.job = { ...ctx.job, stage: "generate_song", payload: {} };
-    await stages.generate_song?.(ctx);
-    const graphs = [...comfy.state.prompts.values()].map((p) => p.graph);
-    expect(graphs).toHaveLength(2);
-    for (const graph of graphs) {
-      expect(graph["200"]?.inputs.audio).toBe("mellodifai/version-source.flac");
-      expect(graph["3"]?.inputs.denoise).toBe(ACE_COVER_DENOISE);
-      expect(graph["94"]?.inputs.duration).toBe(95.5);
-    }
+    await expect(stages.generate_song?.(ctx)).rejects.toThrow(
+      LOCAL_TEXT.noSource,
+    );
+    expect(ensureStarted).not.toHaveBeenCalled();
   });
 });
 

@@ -126,22 +126,16 @@ export const AudioSourceSchema = z
   });
 export type AudioSource = z.infer<typeof AudioSourceSchema>;
 
-// Which engine can start from audio, and how (the worker's stages implement exactly these):
-// kie's upload-and-cover-audio (cover, and reference with a low audio weight) and
-// upload-and-extend-audio; ACE-Step covers through audio-to-audio (VAEEncodeAudio into the
-// sampler at ACE_COVER_DENOISE). ComfyUI's ReferenceTimbreAudio node sang no words in the T12
-// test (E:/mellodifai/research/t12/ace-cover), so ACE-Step offers no reference or extension.
-// YuE2 takes no audio.
+// Which engine can start from audio, and how (the worker implements exactly these): kie's
+// upload-and-cover-audio (cover, and reference with a low audio weight) and
+// upload-and-extend-audio. ACE-Step is offered none: with the installed ComfyUI nodes
+// ReferenceTimbreAudio sang no words, and audio-to-audio kept the words on a one-minute excerpt
+// but came out as saturated noise on whole songs (281 s, four settings, T12 tests in
+// E:/mellodifai/research/t12/ace-cover). YuE2 takes no audio.
 export function sourceModesFor(engine: string): readonly SourceMode[] {
   if (engine === "kie") return SOURCE_MODES;
-  if (engine === "ace-step") return ["cover"];
   return [];
 }
-
-// How much of the source ACE-Step may change for a cover: at 0.8 the words stay intelligible
-// and the sound follows the new style (spectral centroid 1953 Hz to 1514 Hz towards the asked
-// acoustic style in the T12 test).
-export const ACE_COVER_DENOISE = 0.8;
 
 // kie's audio_weight for each mode: a cover follows the source closely, a reference loosely.
 export const KIE_AUDIO_WEIGHT: Record<"cover" | "reference", number> = {
