@@ -1,13 +1,23 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { ACE_GUIDANCE, ACE_STEPS, SEED_MAX } from "@mellodifai/shared";
+import { cn } from "cn";
+import { ChevronRight, Dices, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { useLocale } from "@/components/locale-provider";
 import { engineControls } from "@/lib/studio/engines";
 import { st } from "@/lib/studio/i18n";
 import { LIMITS, useCreateForm } from "@/store/create-form";
 import { formatTime } from "@/store/player";
-import { IconButton, InfoTip, PanelCard, Segmented, TickSlider } from "../ui";
+import {
+  EditableSlider,
+  IconButton,
+  InfoTip,
+  PanelCard,
+  Segmented,
+} from "../ui";
+import { ClearButton } from "./clear-field";
 import { useEngineChoice } from "./use-engine";
 
 function Row({
@@ -26,6 +36,115 @@ function Row({
         {tip ? <InfoTip label={tip} /> : null}
       </span>
       {children}
+    </div>
+  );
+}
+
+// "1:30" or "90" (seconds) typed into the duration value.
+function parseDuration(text: string): number {
+  const [minutes, seconds] = text.split(":");
+  if (seconds === undefined) return Number(minutes);
+  return Number(minutes) * 60 + Number(seconds);
+}
+
+// Local engines: a random seed per song, or one fixed number (take 1 uses it, take 2 the next).
+function SeedRow() {
+  const lang = useLocale();
+  const f = useCreateForm();
+  const fixed = f.seedMode === "fixed";
+  const roll = () => Math.floor(Math.random() * (SEED_MAX + 1));
+  return (
+    <div className="space-y-2">
+      <Row label={st(lang, "create.seed")} tip={st(lang, "create.seedTip")}>
+        <Segmented<"random" | "fixed">
+          label={st(lang, "create.seed")}
+          value={f.seedMode}
+          size="sm"
+          onChange={(seedMode) => {
+            if (!seedMode) return;
+            // Switching to a fixed seed starts from a real number, not from 0.
+            f.set({
+              seedMode,
+              ...(seedMode === "fixed" && f.seed === 0 ? { seed: roll() } : {}),
+            });
+          }}
+          options={[
+            { value: "random", label: st(lang, "create.seedRandom") },
+            { value: "fixed", label: st(lang, "create.seedFixed") },
+          ]}
+        />
+      </Row>
+      {fixed ? (
+        <div className="flex items-center gap-2">
+          <input
+            aria-label={st(lang, "create.seedValue")}
+            inputMode="numeric"
+            value={String(f.seed)}
+            onChange={(event) => {
+              const digits = event.target.value.replace(/\D/gu, "");
+              f.set({ seed: Math.min(SEED_MAX, Number(digits || "0")) });
+            }}
+            className="h-10 min-w-0 flex-1 rounded-xl bg-[var(--surface-2)] px-3 tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+          />
+          <IconButton
+            label={st(lang, "create.seedRoll")}
+            onClick={() => f.set({ seed: roll() })}
+          >
+            <Dices />
+          </IconButton>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ACE-Step only: how many sampling steps and how closely it follows the prompt.
+function ExpertSection() {
+  const lang = useLocale();
+  const f = useCreateForm();
+  const [open, setOpen] = useState(
+    f.steps !== ACE_STEPS.default || f.guidance !== ACE_GUIDANCE.default,
+  );
+  return (
+    <div className="space-y-4">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 rounded-lg text-[13px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+      >
+        <ChevronRight
+          className={cn(
+            "size-4 text-[var(--fg-muted)] transition-transform",
+            open && "rotate-90",
+          )}
+        />
+        {st(lang, "create.expert")}
+      </button>
+      {open ? (
+        <>
+          <p className="text-xs text-[var(--fg-subtle)]">
+            {st(lang, "create.expertTip")}
+          </p>
+          <EditableSlider
+            label={st(lang, "create.steps")}
+            tip={st(lang, "create.stepsTip")}
+            value={f.steps}
+            min={ACE_STEPS.min}
+            max={ACE_STEPS.max}
+            onChange={(steps) => f.set({ steps })}
+          />
+          <EditableSlider
+            label={st(lang, "create.guidance")}
+            tip={st(lang, "create.guidanceTip")}
+            value={f.guidance}
+            min={ACE_GUIDANCE.min}
+            max={ACE_GUIDANCE.max}
+            step={ACE_GUIDANCE.step}
+            onChange={(guidance) => f.set({ guidance })}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
@@ -53,7 +172,7 @@ export function MoreOptionsCard() {
     >
       <div className="space-y-4">
         {controls.tuning ? (
-          <div>
+          <div className="relative">
             <label htmlFor="exclude" className="sr-only">
               {st(lang, "create.exclude")}
             </label>
@@ -63,7 +182,11 @@ export function MoreOptionsCard() {
               maxLength={LIMITS.exclude}
               onChange={(event) => f.set({ exclude: event.target.value })}
               placeholder={`${st(lang, "create.exclude")}: ${st(lang, "create.excludePlaceholder")}`}
-              className="h-10 w-full rounded-xl bg-[var(--surface-2)] px-3 outline-none placeholder:text-[var(--fg-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+              className="h-10 w-full rounded-xl bg-[var(--surface-2)] py-0 pr-11 pl-3 outline-none placeholder:text-[var(--fg-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+            />
+            <ClearButton
+              field="exclude"
+              className="absolute top-1 right-1 bg-transparent"
             />
           </div>
         ) : null}
@@ -101,7 +224,7 @@ export function MoreOptionsCard() {
           </Row>
         ) : null}
         {controls.duration && f.durationMode === "custom" ? (
-          <TickSlider
+          <EditableSlider
             label={st(lang, "create.duration")}
             hideLabel
             value={f.duration}
@@ -109,12 +232,14 @@ export function MoreOptionsCard() {
             max={360}
             step={5}
             display={formatTime(f.duration)}
+            parse={parseDuration}
+            format={(seconds) => formatTime(seconds)}
             onChange={(duration) => f.set({ duration })}
           />
         ) : null}
         {controls.tuning ? (
           <>
-            <TickSlider
+            <EditableSlider
               label={st(lang, "create.weirdness")}
               value={f.weirdness}
               display={`${f.weirdness}%`}
@@ -126,7 +251,7 @@ export function MoreOptionsCard() {
               )}
               onChange={(weirdness) => f.set({ weirdness })}
             />
-            <TickSlider
+            <EditableSlider
               label={st(lang, "create.styleInfluence")}
               value={f.styleInfluence}
               display={`${f.styleInfluence}%`}
@@ -140,7 +265,7 @@ export function MoreOptionsCard() {
               )}
               onChange={(styleInfluence) => f.set({ styleInfluence })}
             />
-            <TickSlider
+            <EditableSlider
               label={st(lang, "create.variety")}
               value={f.variety}
               min={0}
@@ -151,6 +276,8 @@ export function MoreOptionsCard() {
             />
           </>
         ) : null}
+        {controls.seed ? <SeedRow /> : null}
+        {controls.expert ? <ExpertSection /> : null}
       </div>
     </PanelCard>
   );

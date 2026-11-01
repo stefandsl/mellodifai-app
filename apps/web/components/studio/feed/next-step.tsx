@@ -34,6 +34,7 @@ import type { Clip } from "@/lib/studio/clips";
 import { engineName, isLocal, minutesPhrase } from "@/lib/studio/engines";
 import { st, stf } from "@/lib/studio/i18n";
 import { usePlayer } from "@/store/player";
+import { detailFor } from "./clip-detail";
 import { JuryPanel } from "./jury-panel";
 
 const PILL =
@@ -267,6 +268,7 @@ function TakesDialog({
                       href: clip.href,
                       art: clip.art,
                       reaction: null,
+                      detail: detailFor(clip, take.number),
                     });
                   }}
                   className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] disabled:opacity-40"

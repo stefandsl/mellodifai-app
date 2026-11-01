@@ -415,6 +415,41 @@ describe("graph fill maps", () => {
     expect(graph["104"]?.inputs.unet_name).toBe("acestep_v1.5_sft.safetensors");
     expect(graph["107"]?.inputs.filename_prefix).toBe("mellodifai/v/g1/take-2");
   });
+  it("passes the time signature, steps and guidance to ACE-Step when they are chosen", async () => {
+    const graph = aceGraph(await loadGraph("ace-step"), {
+      style: "Pop",
+      lyrics: "[Verse]\nCiao",
+      seed: 7,
+      duration: 153,
+      bpm: 90,
+      keyscale: "D minor",
+      timesignature: "3",
+      steps: 45,
+      guidance: 9.5,
+      language: "it",
+      prefix: "p",
+    });
+    expect(graph["94"]?.inputs).toMatchObject({
+      bpm: 90,
+      keyscale: "D minor",
+      timesignature: "3",
+    });
+    expect(graph["3"]?.inputs).toMatchObject({ steps: 45, cfg: 9.5 });
+  });
+  it("keeps the template's 4/4, 30 steps and guidance 7 when they are Auto", async () => {
+    const graph = aceGraph(await loadGraph("ace-step"), {
+      style: "Pop",
+      lyrics: "x",
+      seed: 7,
+      duration: 153,
+      bpm: 90,
+      keyscale: "D minor",
+      language: "it",
+      prefix: "p",
+    });
+    expect(graph["94"]?.inputs.timesignature).toBe("4");
+    expect(graph["3"]?.inputs).toMatchObject({ steps: 30, cfg: 7 });
+  });
   it.each([
     ["Italian pop, 118 BPM, E-flat major", 118, "Eb major"],
     ["124 BPM, F major groove", 124, "F major"],

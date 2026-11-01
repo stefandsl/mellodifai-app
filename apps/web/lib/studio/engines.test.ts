@@ -5,9 +5,11 @@ import {
   engineLabel,
   engineOptions,
   expectedMinutes,
+  kieCredits,
   localCost,
   minutesPhrase,
   parseEngines,
+  songsTotal,
   unavailableReason,
 } from "./engines";
 
@@ -167,12 +169,22 @@ describe("labels", () => {
   });
 });
 
+describe("kieCredits and the cost of several songs", () => {
+  it("counts every song of every language at 12 credits", () => {
+    expect(songsTotal(1, 1)).toBe(1);
+    expect(songsTotal(3, 2)).toBe(6);
+    expect(kieCredits(6)).toBe(72);
+  });
+});
+
 describe("engineControls", () => {
   it("shows every control for kie", () => {
     expect(engineControls("kie")).toEqual({
       model: true,
       tuning: true,
       duration: true,
+      seed: false,
+      expert: false,
     });
   });
 
@@ -181,11 +193,15 @@ describe("engineControls", () => {
       model: false,
       tuning: false,
       duration: true,
+      seed: true,
+      expert: true,
     });
     expect(engineControls("yue2")).toEqual({
       model: false,
       tuning: false,
       duration: false,
+      seed: true,
+      expert: false,
     });
   });
 });

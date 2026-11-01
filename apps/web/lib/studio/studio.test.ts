@@ -8,7 +8,12 @@ import {
   type Filter,
   MATCH,
 } from "@/components/studio/feed/workspace-feed";
-import { blocker, initialForm, useCreateForm } from "@/store/create-form";
+import {
+  blocker,
+  initialForm,
+  sanitizeDraft,
+  useCreateForm,
+} from "@/store/create-form";
 import { usePlayer } from "@/store/player";
 import { artFor, loadClips } from "./clips";
 
@@ -85,6 +90,127 @@ describe("create form", () => {
       duration: null,
       video: "lyric",
       engine: "yue2",
+    });
+  });
+
+  it("sends tempo, key and time signature only when they are not Auto", () => {
+    const base = {
+      ...initialForm("it"),
+      mode: "advanced" as const,
+      styles: "pop",
+    };
+    for (const key of ["bpm", "keyscale", "timeSignature"])
+      expect(payloadFor(base).settings).not.toHaveProperty(key);
+    const chosen = payloadFor({
+      ...base,
+      bpm: 96,
+      keyscale: "D minor",
+      timeSignature: "3",
+    });
+    expect(chosen.settings).toMatchObject({
+      bpm: 96,
+      keyscale: "D minor",
+      timeSignature: "3",
+    });
+    // The tempo slider's minimum is Auto.
+    expect(payloadFor({ ...base, bpm: 40 }).settings).not.toHaveProperty("bpm");
+    // Every engine takes them: kie and YuE2 as tags, ACE-Step as encoder inputs.
+    for (const engine of ["kie", "yue2", "ace-step"] as const)
+      expect(payloadFor({ ...base, engine, bpm: 96 }).settings).toMatchObject({
+        bpm: 96,
+      });
+    expect(SongSettingsSchema.parse(chosen.settings)).toMatchObject(
+      chosen.settings,
+    );
+  });
+
+  it("sends a fixed seed to local engines only", () => {
+    const base = {
+      ...initialForm("it"),
+      mode: "advanced" as const,
+      styles: "pop",
+      seedMode: "fixed" as const,
+      seed: 4242,
+    };
+    expect(payloadFor({ ...base, engine: "ace-step" }).settings.seed).toBe(
+      4242,
+    );
+    expect(payloadFor({ ...base, engine: "yue2" }).settings.seed).toBe(4242);
+    expect(payloadFor({ ...base, engine: "kie" }).settings).not.toHaveProperty(
+      "seed",
+    );
+    expect(
+      payloadFor({ ...base, engine: "ace-step", seedMode: "random" }).settings,
+    ).not.toHaveProperty("seed");
+  });
+
+  it("sends steps and guidance for ACE-Step when they differ from the defaults", () => {
+    const base = {
+      ...initialForm("it"),
+      mode: "advanced" as const,
+      styles: "pop",
+      engine: "ace-step" as const,
+    };
+    expect(payloadFor(base).settings).not.toHaveProperty("steps");
+    expect(payloadFor(base).settings).not.toHaveProperty("guidance");
+    expect(
+      payloadFor({ ...base, steps: 50, guidance: 9.5 }).settings,
+    ).toMatchObject({ steps: 50, guidance: 9.5 });
+    expect(
+      payloadFor({ ...base, engine: "yue2", steps: 50 }).settings,
+    ).not.toHaveProperty("steps");
+    expect(
+      payloadFor({ ...base, engine: "kie", guidance: 9 }).settings,
+    ).not.toHaveProperty("guidance");
+  });
+
+  it("repairs a saved draft: ranges, unknown keys and signatures", () => {
+    const fixed = sanitizeDraft({
+      songCount: 9,
+      lyricsHeight: 5,
+      bpm: 999,
+      keyscale: "H major",
+      timeSignature: "7" as never,
+      seed: -4,
+      seedMode: "weird" as never,
+      steps: 1,
+      guidance: 99,
+    });
+    expect(fixed).toMatchObject({
+      songCount: 4,
+      lyricsHeight: 120,
+      bpm: 240,
+      keyscale: "auto",
+      timeSignature: "auto",
+      seed: 0,
+      seedMode: "random",
+      steps: 10,
+      guidance: 15,
+    });
+    // A draft saved before these controls existed gets the defaults.
+    expect(sanitizeDraft({ prompt: "ciao" })).toMatchObject({
+      prompt: "ciao",
+      songCount: 1,
+      steps: 30,
+      guidance: 7,
+      keyscale: "auto",
+    });
+  });
+
+  it("keeps the song count and the lyrics height when the form is cleared", () => {
+    useCreateForm.setState({
+      ...initialForm("it"),
+      songCount: 3,
+      lyricsHeight: 400,
+      bpm: 100,
+      seed: 5,
+    });
+    useCreateForm.getState().clear();
+    expect(useCreateForm.getState()).toMatchObject({
+      songCount: 3,
+      lyricsHeight: 400,
+      bpm: 40,
+      seed: 0,
     });
   });
 

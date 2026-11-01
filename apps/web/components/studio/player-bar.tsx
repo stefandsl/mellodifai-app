@@ -5,9 +5,9 @@ import {
   Film,
   Info,
   ListMusic,
+  Maximize2,
   Pause,
   Play,
-  Repeat,
   Shuffle,
   SkipBack,
   SkipForward,
@@ -24,6 +24,8 @@ import { useLocale } from "@/components/locale-provider";
 import { st } from "@/lib/studio/i18n";
 import { createPlayCounter } from "@/lib/studio/play-counter";
 import { formatTime, usePlayer } from "@/store/player";
+import { NowPlaying } from "./now-playing";
+import { DownloadButton, RepeatButton, SpeedMenu } from "./player-controls";
 import { ReactionButtons } from "./reaction-buttons";
 import { IconButton, Tip } from "./ui";
 
@@ -177,6 +179,7 @@ export function PlayerBar() {
   const audio = useRef<HTMLAudioElement>(null);
   const p = usePlayer();
   const track = p.queue[p.index];
+  const source = track?.audioUrl;
   // Counts a play once 30 s of this track were heard; a failed count is not worth a message.
   const plays = useRef<ReturnType<typeof createPlayCounter>>(null);
   plays.current ??= createPlayCounter((id) => {
@@ -191,8 +194,23 @@ export function PlayerBar() {
     else el.pause();
   }, [p.playing, track, p.set]);
   useEffect(() => {
-    if (audio.current) audio.current.currentTime = p.seekTo.at;
+    const el = audio.current;
+    if (!el) return;
+    el.currentTime = p.seekTo.at;
+    // A song that ended stands still: a repeat (seek to 0 while playing) must start it again.
+    if (usePlayer.getState().playing && el.paused && p.seekTo.n > 0)
+      void el.play().catch(() => usePlayer.getState().set({ playing: false }));
   }, [p.seekTo]);
+  // The remembered speed loads after hydration; every new source resets the rate to its default,
+  // so both are set.
+  useEffect(() => {
+    void usePlayer.persist.rehydrate();
+  }, []);
+  useEffect(() => {
+    if (!audio.current || !source) return;
+    audio.current.defaultPlaybackRate = p.speed;
+    audio.current.playbackRate = p.speed;
+  }, [p.speed, source]);
   useEffect(() => {
     if (!audio.current) return;
     audio.current.volume = p.volume;
@@ -225,6 +243,7 @@ export function PlayerBar() {
     <>
       <MiniVideo audio={audio} />
       <QueueDrawer />
+      <NowPlaying />
       <section
         aria-label="Player"
         className="relative z-30 grid h-[var(--player-h)] shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-t border-[var(--hairline)] bg-[var(--bg)] px-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] sm:px-4"
@@ -250,20 +269,30 @@ export function PlayerBar() {
         </audio>
 
         <div className="flex min-w-0 items-center gap-3">
-          <span
-            aria-hidden
-            className="size-10 shrink-0 rounded-md bg-[var(--surface-2)]"
-            style={track ? { background: track.art } : undefined}
-          />
+          {track ? (
+            <button
+              type="button"
+              aria-label={st(lang, "player.expand")}
+              onClick={() => p.set({ showNow: true })}
+              className="size-10 shrink-0 rounded-md bg-[var(--surface-2)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+              style={{ background: track.art }}
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="size-10 shrink-0 rounded-md bg-[var(--surface-2)]"
+            />
+          )}
           {track ? (
             <>
               <div className="min-w-0">
-                <Link
-                  href={track.href}
-                  className="block truncate text-sm font-medium hover:underline"
+                <button
+                  type="button"
+                  onClick={() => p.set({ showNow: true })}
+                  className="block max-w-full truncate rounded text-left text-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
                 >
                   {track.title}
-                </Link>
+                </button>
                 <p className="truncate text-xs text-[var(--fg-muted)]">
                   {track.subtitle}
                 </p>
@@ -323,14 +352,7 @@ export function PlayerBar() {
             >
               <SkipForward className="fill-current" />
             </IconButton>
-            <IconButton
-              label={st(lang, "player.repeat")}
-              active={p.repeat}
-              onClick={() => p.set({ repeat: !p.repeat })}
-              className="bg-transparent"
-            >
-              <Repeat />
-            </IconButton>
+            <RepeatButton className="bg-transparent" />
           </div>
           <div className="flex w-full max-w-xl items-center gap-2 text-[11px] tabular-nums text-[var(--fg-muted)]">
             <span className="w-9 text-right">{formatTime(p.time)}</span>
@@ -410,6 +432,19 @@ export function PlayerBar() {
               }
             />
           </span>
+          {track ? <SpeedMenu className="max-lg:hidden" /> : null}
+          {track ? (
+            <DownloadButton track={track} className="max-sm:hidden" />
+          ) : null}
+          {track ? (
+            <IconButton
+              label={st(lang, "player.expand")}
+              onClick={() => p.set({ showNow: true })}
+              className="bg-transparent max-sm:hidden"
+            >
+              <Maximize2 />
+            </IconButton>
+          ) : null}
           {track ? (
             <Tip label={st(lang, "player.info")}>
               <Link

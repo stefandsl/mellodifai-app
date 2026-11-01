@@ -141,12 +141,25 @@ export function minutesPhrase(lang: "it" | "en", minutes: number): string {
 
 // Which create-form controls an engine uses. Local engines have no Suno model menu and none of
 // the kie tuning sliders or the exclude field; only ACE-Step follows a chosen duration.
+// The seed is for local engines; steps and guidance ("Esperto") are ACE-Step's own.
 export function engineControls(engine: SongEngine) {
   return {
     model: engine === "kie",
     tuning: engine === "kie",
     duration: engine !== "yue2",
+    seed: isLocal(engine),
+    expert: engine === "ace-step",
   };
+}
+
+// kie charges 12 credits per song, when the lyrics are approved.
+export const KIE_CREDITS_PER_SONG = 12;
+export function kieCredits(songs: number): number {
+  return songs * KIE_CREDITS_PER_SONG;
+}
+// One click makes `count` projects, and each makes one song per language.
+export function songsTotal(count: number, languages: number): number {
+  return count * Math.max(1, languages);
 }
 
 // A song generated on the PC: no credits, the minutes the worker reported (null if it did not).

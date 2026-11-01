@@ -33,20 +33,16 @@ import { st, stf } from "@/lib/studio/i18n";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { initialForm, useCreateForm } from "@/store/create-form";
 import { type Track, usePlayer } from "@/store/player";
-import { modelLabel } from "../create/model-select";
 import { ReactionButtons } from "../reaction-buttons";
+import { clipBadge, detailFor } from "./clip-detail";
 import { hasNextStep, NextStep } from "./next-step";
+
+export { clipBadge };
+
 import { TitleEditor } from "./title-editor";
 
 // Select mode: the checkbox state of one card, owned by the feed.
 export type Selection = { selected: boolean; onToggle: () => void };
-
-// What made the song: the local engine's name, else the kie model ("v6").
-export function clipBadge(clip: Pick<Clip, "model" | "settings">): string {
-  if (clip.settings.engine === "yue2") return "YuE2";
-  if (clip.settings.engine === "ace-step") return "ACE-Step";
-  return modelLabel(clip.model);
-}
 
 export function trackFor(clip: Clip): Track | null {
   if (!clip.audioUrl) return null;
@@ -59,6 +55,7 @@ export function trackFor(clip: Clip): Track | null {
     href: clip.href,
     art: clip.art,
     reaction: clip.reaction,
+    detail: detailFor(clip),
   };
 }
 

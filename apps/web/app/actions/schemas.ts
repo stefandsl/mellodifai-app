@@ -1,4 +1,9 @@
-import { LANGS, LyricPackSchema, SongSettingsSchema } from "@mellodifai/shared";
+import {
+  LANGS,
+  LyricPackSchema,
+  MAX_SONGS_PER_CLICK,
+  SongSettingsSchema,
+} from "@mellodifai/shared";
 import { z } from "zod";
 
 const Id = z.string().uuid();
@@ -21,6 +26,8 @@ export const CreateSongInput = z
     languages: z.array(z.enum(LANGS)).min(1),
     vocalGender: z.enum(["m", "f"]).nullable(),
     settings: SongSettingsSchema,
+    // Songs made by one click: each is its own project (and one song per language).
+    count: z.number().int().min(1).max(MAX_SONGS_PER_CLICK).default(1),
   })
   .refine(
     (v) =>
@@ -29,6 +36,10 @@ export const CreateSongInput = z
         : Boolean(v.prompt || v.lyrics || v.styles || v.settings.title),
     { message: "Describe the song or add lyrics, styles or a title" },
   );
+
+export const FormatStyleInput = z.object({
+  styles: z.string().trim().min(1).max(1000),
+});
 
 export const UpdateLyricsInput = z.object({
   versionId: Id,

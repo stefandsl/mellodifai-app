@@ -212,6 +212,26 @@
   }
 }
 
+/* Listening view: the bars that move while a song plays. */
+@keyframes eq-bar {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.eq-bar {
+  height: 1.25rem;
+  animation: eq-bar 700ms ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eq-bar {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
 /* Range inputs: thin track filled up to the thumb, brand thumb. */
 .studio-range {
   appearance: none;

@@ -1,4 +1,5 @@
 import { t } from "@mellodifai/shared";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LiveTimeline, type TimelineJob } from "@/components/live-timeline";
@@ -12,7 +13,72 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
 import { getLocale } from "@/lib/locale";
+import { songMetadata } from "@/lib/studio/song-metadata";
 import { orderedVersions, selectedVersion } from "@/lib/versions";
+
+// The song's title and cover for the browser tab and for a pasted link. The project page is
+// behind the sign-in (there is no public song route), so a preview appears wherever the
+// reader is signed in.
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ lang?: string }>;
+}): Promise<Metadata> {
+  const [{ id }, query, { supabase }, lang] = await Promise.all([
+    params,
+    searchParams,
+    requireProfile(),
+    getLocale(),
+  ]);
+  const { data: project } = await supabase
+    .from("projects")
+    .select(
+      "topic,style,versions(id,lang,display_title,lyric_pack,chosen_take_id,generation_count)",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  const version = selectedVersion(
+    (project?.versions ?? []) as {
+      id: string;
+      lang: string;
+      display_title: string | null;
+      lyric_pack: { title?: string; style?: string } | null;
+      chosen_take_id: string | null;
+      generation_count: number;
+    }[],
+    query.lang,
+  );
+  if (!project || !version) return {};
+  const { data: takes } = await supabase
+    .from("takes")
+    .select("id,take_number,generation,audio_preview_path,cover_path")
+    .eq("version_id", version.id)
+    .eq("generation", version.generation_count)
+    .order("take_number");
+  const take =
+    (takes ?? []).find((item) => item.id === version.chosen_take_id) ??
+    (takes ?? []).find((item) => item.cover_path || item.audio_preview_path);
+  const sign = async (path: string | null | undefined) =>
+    path
+      ? ((await supabase.storage.from("previews").createSignedUrl(path, 86_400))
+          .data?.signedUrl ?? null)
+      : null;
+  const [cover, audio] = await Promise.all([
+    sign(take?.cover_path),
+    sign(take?.audio_preview_path),
+  ]);
+  return songMetadata({
+    title: version.display_title || version.lyric_pack?.title || project.topic,
+    style: version.lyric_pack?.style || project.style || "",
+    cover,
+    audio,
+    path: `/projects/${id}?lang=${version.lang}`,
+    siteName: t(lang, "app.name"),
+  });
+}
+
 export default async function ProjectPage({
   params,
   searchParams,

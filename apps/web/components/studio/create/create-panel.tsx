@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  ACE_GUIDANCE,
+  ACE_STEPS,
+  BPM_RANGE,
+  MAX_SONGS_PER_CLICK,
+} from "@mellodifai/shared";
 import { cn } from "cn";
 import { Music2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -18,8 +24,10 @@ import { Button } from "@/components/ui/button";
 import {
   engineControls,
   engineLabel,
+  kieCredits,
   localCost,
   minutesPhrase,
+  songsTotal,
 } from "@/lib/studio/engines";
 import { st, stf } from "@/lib/studio/i18n";
 import {
@@ -29,12 +37,14 @@ import {
   LIMITS,
   useCreateForm,
 } from "@/store/create-form";
-import { Counter, Segmented, Tip } from "../ui";
+import { Counter, InfoTip, Segmented, Tip } from "../ui";
+import { ClearButton } from "./clear-field";
 import { EngineSelect } from "./engine-select";
 import { LanguagePicker } from "./language-picker";
 import { LyricsCard } from "./lyrics-card";
 import { ModelSelect } from "./model-select";
 import { MoreOptionsCard } from "./more-options-card";
+import { MusicCard } from "./music-card";
 import { PROMPT_EXAMPLES, RotatingPlaceholder } from "./rotating-placeholder";
 import { StylesCard } from "./styles-card";
 import { useEngineChoice } from "./use-engine";
@@ -59,6 +69,20 @@ export function payloadFor(form: CreateFormState) {
             styleWeight: Math.round(form.styleInfluence) / 100,
             variety: form.variety,
           }
+        : {}),
+      ...(form.bpm > BPM_RANGE.min ? { bpm: form.bpm } : {}),
+      ...(form.keyscale !== "auto" ? { keyscale: form.keyscale } : {}),
+      ...(form.timeSignature !== "auto"
+        ? { timeSignature: form.timeSignature }
+        : {}),
+      ...(controls.seed && form.seedMode === "fixed"
+        ? { seed: form.seed }
+        : {}),
+      ...(controls.expert && form.steps !== ACE_STEPS.default
+        ? { steps: form.steps }
+        : {}),
+      ...(controls.expert && form.guidance !== ACE_GUIDANCE.default
+        ? { guidance: form.guidance }
         : {}),
       duration:
         controls.duration && form.durationMode === "custom"
@@ -101,13 +125,12 @@ function SimplePrompt() {
         onChange={(event) => set({ prompt: event.target.value })}
         className="relative block min-h-[150px] w-full resize-none bg-transparent leading-6 outline-none scrollbar-thin"
       />
-      {prompt.length >= 400 ? (
-        <Counter
-          value={prompt.length}
-          max={LIMITS.prompt}
-          className="absolute right-4 bottom-3"
-        />
-      ) : null}
+      <div className="mt-1 -mb-1 flex items-center justify-between">
+        <ClearButton field="prompt" />
+        {prompt.length >= 400 ? (
+          <Counter value={prompt.length} max={LIMITS.prompt} />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -153,22 +176,59 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
     choice.engines,
     controls.duration && form.durationMode === "custom" ? form.duration : null,
   );
+  // One click makes songCount projects, each with one song per language.
+  const total = songsTotal(form.songCount, form.languages.length);
+  const many = total > 1;
   const cost =
     engine === "kie"
-      ? st(lang, "create.cost")
+      ? many
+        ? stf(lang, "create.costMany", { n: String(total) })
+        : st(lang, "create.cost")
       : minutes === null
-        ? st(lang, "create.costLocalNoEstimate")
-        : stf(lang, "create.costLocal", { m: minutesPhrase(lang, minutes) });
+        ? many
+          ? stf(lang, "create.costLocalManyNoEstimate", { n: String(total) })
+          : st(lang, "create.costLocalNoEstimate")
+        : many
+          ? stf(lang, "create.costLocalMany", {
+              n: String(total),
+              m: minutesPhrase(lang, minutes * total),
+            })
+          : stf(lang, "create.costLocal", { m: minutesPhrase(lang, minutes) });
+  const submitText = many
+    ? stf(lang, "create.submitMany", {
+        n: String(total),
+        cost:
+          engine === "kie"
+            ? stf(lang, "create.costCredits", { c: String(kieCredits(total)) })
+            : st(lang, "create.costFree"),
+      })
+    : st(lang, "create.submit");
 
   function submit() {
     if (block || pending) return;
     start(async () => {
-      const result = await createSong(payloadFor({ ...form, engine }));
+      const result = await createSong({
+        ...payloadFor({ ...form, engine }),
+        count: form.songCount,
+      });
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      toast.success(st(lang, "create.created"));
+      const made = result.count ?? 1;
+      if (made < form.songCount)
+        toast.error(
+          stf(lang, "create.createdPartial", {
+            done: String(songsTotal(made, form.languages.length)),
+            n: String(total),
+          }),
+        );
+      else
+        toast.success(
+          many
+            ? stf(lang, "create.createdMany", { n: String(total) })
+            : st(lang, "create.created"),
+        );
       router.refresh();
       onCreated?.();
     });
@@ -247,6 +307,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
           <>
             <LyricsCard />
             <StylesCard />
+            <MusicCard />
             <VideoCard />
             <MoreOptionsCard />
             <div className="flex h-11 items-center gap-2 rounded-2xl bg-[var(--surface-1)] px-4 focus-within:ring-2 focus-within:ring-[var(--brand)]">
@@ -265,6 +326,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
               {form.title ? (
                 <Counter value={form.title.length} max={LIMITS.title} />
               ) : null}
+              <ClearButton field="title" className="-mr-2 bg-transparent" />
             </div>
           </>
         )}
@@ -283,6 +345,24 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
             {cost}
           </p>
         )}
+        <div className="mb-3 flex items-center justify-between gap-2 text-[13px]">
+          <span className="flex items-center gap-1.5 text-[var(--fg-muted)]">
+            {st(lang, "create.count")}
+            <InfoTip label={st(lang, "create.countTip")} />
+          </span>
+          <Segmented<"1" | "2" | "3" | "4">
+            label={st(lang, "create.count")}
+            size="sm"
+            value={String(form.songCount) as "1"}
+            onChange={(value) =>
+              value && form.set({ songCount: Number(value) })
+            }
+            options={Array.from({ length: MAX_SONGS_PER_CLICK }, (_, i) => ({
+              value: String(i + 1) as "1",
+              label: String(i + 1),
+            }))}
+          />
+        </div>
         <div className="flex items-center gap-2">
           <Tip label={st(lang, "create.clear")}>
             <button
@@ -298,7 +378,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
           </Tip>
           <button
             type="submit"
-            aria-label={st(lang, "create.submitLabel")}
+            aria-label={many ? submitText : st(lang, "create.submitLabel")}
             aria-disabled={Boolean(block) || pending}
             className={cn(
               "inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full text-[17px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--fg)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]",
@@ -308,9 +388,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
             )}
           >
             <Music2 className="size-5" />
-            {pending
-              ? st(lang, "create.submitting")
-              : st(lang, "create.submit")}
+            {pending ? st(lang, "create.submitting") : submitText}
           </button>
         </div>
       </div>

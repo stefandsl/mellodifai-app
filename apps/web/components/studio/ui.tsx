@@ -3,7 +3,7 @@
 import { cn } from "cn";
 import { ChevronRight, Info } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 
 import {
   Tooltip,
@@ -153,8 +153,93 @@ export function InfoTip({ label }: { label: string }) {
   );
 }
 
-// Slider with 11 ticks, brand thumb, label left and value right (brief section 2.3).
-export function TickSlider({
+// A value inside [min, max] on the step grid that starts at min.
+export function snapToStep(
+  value: number,
+  min: number,
+  max: number,
+  step: number,
+): number {
+  const clamped = Math.min(max, Math.max(min, value));
+  const snapped = min + Math.round((clamped - min) / step) * step;
+  return Number(Math.min(max, snapped).toFixed(6));
+}
+
+function EditableValue({
+  label,
+  value,
+  shown,
+  onCommit,
+  parse,
+  format,
+}: {
+  label: string;
+  value: number;
+  // What the label reads when not editing ("50%", "Auto", "3:00").
+  shown: string;
+  // Called with the typed number, or null when the text could not be read.
+  onCommit: (value: number | null) => void;
+  parse: (text: string) => number;
+  format: (value: number) => string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  // Escape and a commit both unmount the field, and unmounting blurs it: only the first counts.
+  const settled = useRef(false);
+  function finish(commit: boolean) {
+    if (settled.current) return;
+    settled.current = true;
+    setEditing(false);
+    if (!commit) return;
+    const parsed = parse(text.trim().replace(",", "."));
+    onCommit(Number.isFinite(parsed) && text.trim() !== "" ? parsed : null);
+  }
+  if (editing)
+    return (
+      <input
+        // biome-ignore lint/a11y/noAutofocus: the person just clicked the value to type it.
+        autoFocus
+        aria-label={label}
+        inputMode="decimal"
+        value={text}
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            finish(true);
+          } else if (event.key === "Escape") {
+            // Only this field: an open window around it stays open.
+            event.preventDefault();
+            event.stopPropagation();
+            finish(false);
+          }
+        }}
+        onBlur={() => finish(true)}
+        className="h-6 w-16 rounded-md bg-[var(--surface-2)] px-1.5 text-right tabular-nums outline-none ring-1 ring-[var(--brand)]"
+      />
+    );
+  return (
+    <button
+      type="button"
+      aria-label={`${label}: ${shown}`}
+      title={label}
+      onClick={() => {
+        settled.current = false;
+        setText(format(value));
+        setEditing(true);
+      }}
+      className="-m-1 rounded-md p-1 tabular-nums text-[var(--fg-muted)] outline-none hover:bg-[var(--surface-2)] hover:text-[var(--fg)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+    >
+      {shown}
+    </button>
+  );
+}
+
+// Slider with 11 ticks, brand thumb and label left; the value on the right is a button that
+// turns into a field: type an exact value, Enter commits, Esc cancels, out-of-range values clamp
+// (brief section 2.3). `autoAtMin` names the minimum (usually "Auto") where the setting has one.
+export function EditableSlider({
   label,
   value,
   onChange,
@@ -162,6 +247,9 @@ export function TickSlider({
   max = 100,
   step = 1,
   display,
+  autoAtMin,
+  parse = Number,
+  format = String,
   caption,
   tip,
   hideLabel,
@@ -173,12 +261,21 @@ export function TickSlider({
   min?: number;
   max?: number;
   step?: number;
-  display: string;
+  // The value as shown; the number itself when omitted.
+  display?: string;
+  autoAtMin?: string;
+  // Reads typed text (default: a plain number) and writes the number into the field.
+  parse?: (text: string) => number;
+  format?: (value: number) => string;
   caption?: string;
   tip?: string;
 }) {
   const id = useId();
   const pct = ((value - min) / (max - min)) * 100;
+  const shown =
+    autoAtMin !== undefined && value <= min
+      ? autoAtMin
+      : (display ?? String(value));
   return (
     <div className="group/slider">
       <div className="mb-1.5 flex items-center justify-between gap-3 text-[13px]">
@@ -188,7 +285,16 @@ export function TickSlider({
           </label>
           {tip ? <InfoTip label={tip} /> : null}
         </span>
-        <span className="tabular-nums text-[var(--fg-muted)]">{display}</span>
+        <EditableValue
+          label={label}
+          value={value}
+          shown={shown}
+          parse={parse}
+          format={format}
+          onCommit={(typed) => {
+            if (typed !== null) onChange(snapToStep(typed, min, max, step));
+          }}
+        />
       </div>
       <div className="relative h-5">
         <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-between px-[7px]">
@@ -212,7 +318,7 @@ export function TickSlider({
           max={max}
           step={step}
           value={value}
-          aria-valuetext={display}
+          aria-valuetext={shown}
           onChange={(event) => onChange(Number(event.target.value))}
           className="studio-range absolute inset-0 w-full"
           style={{ "--pct": `${pct}%` } as React.CSSProperties}

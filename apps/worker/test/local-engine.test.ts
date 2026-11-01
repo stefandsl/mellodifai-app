@@ -45,7 +45,11 @@ const saveNode = { "ace-step": "107", yue2: "10" } as const;
 
 async function setup(
   engine: "ace-step" | "yue2" = "ace-step",
-  options: { role?: string; duration?: number | null } = {},
+  options: {
+    role?: string;
+    duration?: number | null;
+    settings?: Record<string, unknown>;
+  } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "mellodifai-local-"));
   roots.push(root);
@@ -188,7 +192,7 @@ async function setup(
       owner_id: "owner",
       topic: "Test",
       theme: "vbp",
-      song_settings: { model: "V6", engine },
+      song_settings: { model: "V6", engine, ...options.settings },
     },
     ws,
     db,
@@ -360,6 +364,81 @@ describe("generate_song with a local engine", () => {
     await generate(ctx);
     expect(comfy.state.prompts.get(id(1))?.graph["98"]?.inputs.seconds).toBe(
       95,
+    );
+  });
+  it("hands ACE-Step the chosen tempo, key, time signature, steps and guidance", async () => {
+    const { ctx, comfy } = await setup("ace-step", {
+      settings: {
+        bpm: 96,
+        keyscale: "G minor",
+        timeSignature: "3",
+        steps: 50,
+        guidance: 9,
+      },
+    });
+    await generate(ctx);
+    const graph = comfy.state.prompts.get(id(1))?.graph;
+    expect(graph?.["94"]?.inputs).toMatchObject({
+      bpm: 96,
+      keyscale: "G minor",
+      timesignature: "3",
+    });
+    // The drafted style said 118 BPM and E-flat major: the choice wins, not both.
+    expect(graph?.["94"]?.inputs.tags).toBe(
+      "Italian pop rock, E-flat major, female vocals",
+    );
+    expect(graph?.["3"]?.inputs).toMatchObject({ steps: 50, cfg: 9 });
+    expect(comfy.state.prompts.get(id(2))?.graph["3"]?.inputs).toMatchObject({
+      steps: 50,
+      cfg: 9,
+    });
+  });
+  it("leaves the style and the template defaults alone when everything is Auto", async () => {
+    const { ctx, comfy, pack } = await setup("ace-step");
+    await generate(ctx);
+    const inputs = comfy.state.prompts.get(id(1))?.graph["94"]?.inputs;
+    expect(inputs?.tags).toBe(pack.style);
+    expect(inputs?.timesignature).toBe("4");
+    expect(comfy.state.prompts.get(id(1))?.graph["3"]?.inputs).toMatchObject({
+      steps: 30,
+      cfg: 7,
+    });
+  });
+  it("ignores a stored control that is out of range", async () => {
+    const { ctx, comfy } = await setup("ace-step", {
+      settings: { bpm: 5000, steps: 3, keyscale: "H major" },
+    });
+    await generate(ctx);
+    expect(comfy.state.prompts.get(id(1))?.graph["94"]?.inputs).toMatchObject({
+      bpm: 118,
+      keyscale: "Eb major",
+    });
+    expect(comfy.state.prompts.get(id(1))?.graph["3"]?.inputs.steps).toBe(30);
+  });
+  it("uses a fixed seed for take 1 and the next one for take 2, and stores both", async () => {
+    const { ctx, comfy, db } = await setup("ace-step", {
+      settings: { seed: 424242 },
+    });
+    await generate(ctx);
+    expect(comfy.state.prompts.get(id(1))?.graph["3"]?.inputs.seed).toBe(
+      424242,
+    );
+    expect(comfy.state.prompts.get(id(2))?.graph["3"]?.inputs.seed).toBe(
+      424243,
+    );
+    expect(comfy.state.prompts.get(id(1))?.graph["94"]?.inputs.seed).toBe(
+      424242,
+    );
+    expect(db.takes.map((take) => take.seed)).toEqual([424242, 424243]);
+    expect(db.jobs[0]?.payload?.seeds).toEqual({ "1": 424242, "2": 424243 });
+  });
+  it("gives YuE2 the tempo, key and signature as style tags", async () => {
+    const { ctx, comfy } = await setup("yue2", {
+      settings: { bpm: 100, keyscale: "A minor", timeSignature: "6" },
+    });
+    await generate(ctx);
+    expect(comfy.state.prompts.get(id(1))?.graph["24"]?.inputs.style).toBe(
+      "Italian pop rock, E-flat major, female vocals, 100 BPM, A minor, 6/8 time",
     );
   });
   it("sends YuE2 the mapped lyrics with the 420 s ceiling and keeps the ABC score", async () => {

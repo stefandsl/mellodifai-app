@@ -1,13 +1,18 @@
 "use client";
 
+import { BPM_RANGE, TIME_SIGNATURE_LABELS } from "@mellodifai/shared";
 import { cn } from "cn";
-import { RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
+import { formatStyle } from "@/app/actions/format-style";
 import { useLocale } from "@/components/locale-provider";
-import { st } from "@/lib/studio/i18n";
+import { st, stf } from "@/lib/studio/i18n";
 import { LIMITS, useCreateForm } from "@/store/create-form";
 import { Counter, IconButton, PanelCard } from "../ui";
+import { ClearButton } from "./clear-field";
+import { keyLabel } from "./music-card";
 import { RotatingPlaceholder, STYLE_EXAMPLES } from "./rotating-placeholder";
 
 const SEED_CHIPS = [
@@ -42,6 +47,94 @@ function parts(text: string): string[] {
     .filter(Boolean);
 }
 
+// "Formatta con AI": the styles become a music prompt, and BPM, key and time signature that are
+// still on Auto are filled in. Undo puts everything back while the styles are untouched.
+function AiFormatButton() {
+  const lang = useLocale();
+  const styles = useCreateForm((s) => s.styles);
+  const [busy, setBusy] = useState(false);
+  const empty = !styles.trim();
+
+  async function run() {
+    if (busy || empty) return;
+    setBusy(true);
+    try {
+      const result = await formatStyle({ styles });
+      if (!result.ok) {
+        toast.error(
+          st(
+            lang,
+            result.error === "noKey"
+              ? "create.aiFormatNoKey"
+              : result.error === "limit"
+                ? "create.aiFormatLimit"
+                : "create.aiFormatError",
+          ),
+        );
+        return;
+      }
+      const form = useCreateForm.getState();
+      const before = {
+        styles: form.styles,
+        bpm: form.bpm,
+        keyscale: form.keyscale,
+        timeSignature: form.timeSignature,
+      };
+      const patch: Partial<typeof before> = { styles: result.styles };
+      const filled: string[] = [];
+      if (result.bpm && form.bpm <= BPM_RANGE.min) {
+        patch.bpm = result.bpm;
+        filled.push(`BPM ${result.bpm}`);
+      }
+      if (result.keyscale && form.keyscale === "auto") {
+        patch.keyscale = result.keyscale;
+        filled.push(
+          `${st(lang, "create.key")} ${keyLabel(lang, result.keyscale)}`,
+        );
+      }
+      if (result.timeSignature && form.timeSignature === "auto") {
+        patch.timeSignature = result.timeSignature;
+        filled.push(
+          `${st(lang, "create.timeSignature")} ${TIME_SIGNATURE_LABELS[result.timeSignature]}`,
+        );
+      }
+      form.set(patch);
+      toast.success(
+        filled.length
+          ? stf(lang, "create.aiFormatFilled", { fields: filled.join(", ") })
+          : st(lang, "create.aiFormatDone"),
+        {
+          duration: 8000,
+          action: {
+            label: st(lang, "create.undo"),
+            onClick: () => {
+              if (useCreateForm.getState().styles === result.styles)
+                useCreateForm.getState().set(before);
+            },
+          },
+        },
+      );
+    } catch {
+      toast.error(st(lang, "create.aiFormatError"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <IconButton
+      label={st(lang, "create.aiFormat")}
+      soon={empty ? st(lang, "create.aiFormatNeedStyles") : undefined}
+      aria-busy={busy}
+      disabled={busy}
+      onClick={() => void run()}
+      className="bg-transparent"
+    >
+      {busy ? <Loader2 className="animate-spin" /> : <Sparkles />}
+    </IconButton>
+  );
+}
+
 export function StylesCard() {
   const lang = useLocale();
   const styles = useCreateForm((s) => s.styles);
@@ -58,6 +151,12 @@ export function StylesCard() {
       title={st(lang, "create.styles")}
       open={open}
       onToggle={() => toggle("styles")}
+      actions={
+        <>
+          <AiFormatButton />
+          <ClearButton field="styles" />
+        </>
+      }
     >
       <div className="relative">
         <RotatingPlaceholder

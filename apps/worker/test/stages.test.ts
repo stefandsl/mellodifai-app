@@ -188,6 +188,29 @@ describe("take scoring at the end of generate_song", () => {
       call.args.some((arg) => arg.endsWith("score_takes.py")),
     );
 
+  it("adds the chosen tempo, key and time signature to the style kie receives", async () => {
+    const { ctx } = await scoringSetup();
+    ctx.project.song_settings = {
+      engine: "kie",
+      bpm: 128,
+      keyscale: "F# minor",
+      timeSignature: "3",
+    };
+    await stages.generate_song?.(ctx);
+    const style = await readFile(join(ctx.ws.versionsDir, "style.txt"), "utf8");
+    expect(style).toBe(`${pack.style}, 128 BPM, F# minor, 3/4 time`);
+    // The stored lyric pack keeps the style as drafted.
+    expect((ctx.version.lyric_pack as { style: string }).style).toBe(
+      pack.style,
+    );
+  });
+  it("sends kie the style as drafted when tempo, key and signature are Auto", async () => {
+    const { ctx } = await scoringSetup();
+    await stages.generate_song?.(ctx);
+    expect(await readFile(join(ctx.ws.versionsDir, "style.txt"), "utf8")).toBe(
+      pack.style,
+    );
+  });
   it("scores both takes with Groq and stores the scores on each take", async () => {
     const { ctx, db, calls } = await scoringSetup();
     const result = await stages.generate_song?.(ctx);

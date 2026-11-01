@@ -65,7 +65,13 @@ beforeEach(() => {
   localStorage.clear();
   useCreateForm.setState({
     ...initialForm("it"),
-    open: { lyrics: true, styles: true, video: true, more: true },
+    open: {
+      lyrics: true,
+      styles: true,
+      video: true,
+      music: true,
+      more: true,
+    },
   });
 });
 

@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LocaleProvider } from "@/components/locale-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { type Track, usePlayer } from "@/store/player";
@@ -73,7 +73,12 @@ beforeEach(() => {
     duration: 200,
     showQueue: false,
     showVideo: false,
+    showNow: false,
+    repeat: "off",
+    speed: 1,
+    shuffle: false,
   });
+  localStorage.clear();
 });
 
 it("likes the playing song from the player bar and clears it again", async () => {
@@ -143,4 +148,143 @@ it("does not count previews or a skip to the middle of a song", () => {
     for (let t = 0; t <= 60; t += 0.5) at(audio, t);
   });
   expect(mock.countPlay).not.toHaveBeenCalled();
+});
+
+const two = () => [track({ id: "v1" }), track({ id: "v2", title: "Martedì" })];
+
+describe("repeat", () => {
+  it("cycles off, all, one, off and says which one is on", async () => {
+    bar();
+    const press = async (name: string) => {
+      await userEvent.click(screen.getByRole("button", { name }));
+    };
+    expect(screen.getByRole("button", { name: "Ripeti: no" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await press("Ripeti: no");
+    expect(
+      screen.getByRole("button", { name: "Ripeti: tutte" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await press("Ripeti: tutte");
+    expect(screen.getByRole("button", { name: "Ripeti: una" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await press("Ripeti: una");
+    expect(screen.getByRole("button", { name: "Ripeti: no" })).toBeVisible();
+    expect(usePlayer.getState().repeat).toBe("off");
+  });
+
+  it("repeat one plays the song again from the start, and counts it again", async () => {
+    usePlayer.setState({ repeat: "one", queue: two(), index: 0 });
+    const audio = bar();
+    const play = HTMLMediaElement.prototype.play as ReturnType<typeof vi.fn>;
+    act(() => {
+      for (let t = 0; t <= 31; t += 0.5) at(audio, t);
+    });
+    await waitFor(() => expect(mock.countPlay).toHaveBeenCalledTimes(1));
+    play.mockClear();
+    // The element has ended and is paused: a repeat has to start it again.
+    Object.defineProperty(audio, "paused", { configurable: true, value: true });
+    act(() => {
+      fireEvent.ended(audio);
+    });
+    expect(usePlayer.getState()).toMatchObject({ index: 0, playing: true });
+    expect(audio.currentTime).toBe(0);
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    act(() => {
+      for (let t = 0; t <= 31; t += 0.5) at(audio, t);
+    });
+    await waitFor(() => expect(mock.countPlay).toHaveBeenCalledTimes(2));
+  });
+
+  it("repeat all goes from the last song back to the first", () => {
+    usePlayer.setState({ repeat: "all", queue: two(), index: 1 });
+    const audio = bar();
+    act(() => {
+      fireEvent.ended(audio);
+    });
+    expect(usePlayer.getState()).toMatchObject({ index: 0, playing: true });
+  });
+
+  it("repeat off stops after the last song", () => {
+    usePlayer.setState({ queue: two(), index: 1 });
+    const audio = bar();
+    act(() => {
+      fireEvent.ended(audio);
+    });
+    expect(usePlayer.getState()).toMatchObject({ index: 1, playing: false });
+  });
+});
+
+describe("speed", () => {
+  it("offers 0.5x to 2x and applies the choice to the audio", async () => {
+    const audio = bar();
+    expect(audio.playbackRate).toBe(1);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Velocità di riproduzione: 1x" }),
+    );
+    const items = await screen.findAllByRole("menuitemradio");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "0.5x",
+      "0.75x",
+      "Normale",
+      "1.25x",
+      "1.5x",
+      "1.75x",
+      "2x",
+    ]);
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "1.5x" }));
+    expect(audio.playbackRate).toBe(1.5);
+    expect(audio.defaultPlaybackRate).toBe(1.5);
+    expect(
+      screen.getByRole("button", { name: "Velocità di riproduzione: 1.5x" }),
+    ).toBeVisible();
+  });
+
+  it("is remembered: a new visit starts at the saved speed", async () => {
+    localStorage.setItem(
+      "mellodifai-player",
+      JSON.stringify({ state: { speed: 0.75 }, version: 1 }),
+    );
+    const audio = bar();
+    await waitFor(() => expect(audio.playbackRate).toBe(0.75));
+    expect(
+      screen.getByRole("button", { name: "Velocità di riproduzione: 0.75x" }),
+    ).toBeVisible();
+  });
+
+  it("keeps the speed for the next song", async () => {
+    usePlayer.setState({ queue: two(), index: 0, speed: 1.25 });
+    const audio = bar();
+    act(() => usePlayer.getState().next());
+    await waitFor(() => expect(usePlayer.getState().index).toBe(1));
+    expect(audio.playbackRate).toBe(1.25);
+  });
+});
+
+describe("download", () => {
+  it("is a download of the current audio under the song's title", () => {
+    bar();
+    const link = screen.getByRole("link", { name: "Scarica l'audio" });
+    expect(link).toHaveAttribute("download", "Lunedì.mp3");
+    const url = new URL(link.getAttribute("href") ?? "");
+    expect(url.origin + url.pathname).toBe("https://s/v1.mp3");
+    expect(url.searchParams.get("download")).toBe("Lunedì.mp3");
+  });
+  it("follows the song that plays", () => {
+    usePlayer.setState({ queue: two(), index: 1 });
+    bar();
+    expect(
+      screen.getByRole("link", { name: "Scarica l'audio" }),
+    ).toHaveAttribute("download", "Martedì.mp3");
+  });
+  it("is not there with nothing playing", () => {
+    usePlayer.setState({ queue: [], index: -1 });
+    bar();
+    expect(
+      screen.queryByRole("link", { name: "Scarica l'audio" }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -1,13 +1,14 @@
 "use client";
 
 import { cn } from "cn";
-import { Expand, FilePlus2, Minimize2, Redo2, Undo2 } from "lucide-react";
+import { Expand, Minimize2, Redo2, Undo2 } from "lucide-react";
 import { Fragment, useRef, useState } from "react";
 
 import { useLocale } from "@/components/locale-provider";
 import { st } from "@/lib/studio/i18n";
-import { LIMITS, useCreateForm } from "@/store/create-form";
+import { LIMITS, LYRICS_HEIGHT, useCreateForm } from "@/store/create-form";
 import { Counter, IconButton, PanelCard } from "../ui";
+import { ClearButton } from "./clear-field";
 
 const TAGS = [
   "Intro",
@@ -42,6 +43,60 @@ function Highlight({ text }: { text: string }) {
   );
 }
 
+const KEY_STEP = 24;
+
+// A grip under the box: drag (or Up and Down) to change its height; the height is remembered.
+function ResizeHandle() {
+  const lang = useLocale();
+  const height = useCreateForm((s) => s.lyricsHeight);
+  const set = useCreateForm((s) => s.set);
+  const drag = useRef<{ y: number; height: number } | null>(null);
+  const to = (value: number) =>
+    set({
+      lyricsHeight: Math.round(
+        Math.min(LYRICS_HEIGHT.max, Math.max(LYRICS_HEIGHT.min, value)),
+      ),
+    });
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a drag grip, not a content divider.
+    <div
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label={st(lang, "create.resizeLyrics")}
+      aria-valuemin={LYRICS_HEIGHT.min}
+      aria-valuemax={LYRICS_HEIGHT.max}
+      aria-valuenow={height}
+      tabIndex={0}
+      title={st(lang, "create.resizeLyrics")}
+      onPointerDown={(event) => {
+        drag.current = { y: event.clientY, height };
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (drag.current)
+          to(drag.current.height + event.clientY - drag.current.y);
+      }}
+      onPointerUp={() => {
+        drag.current = null;
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowDown") to(height + KEY_STEP);
+        else if (event.key === "ArrowUp") to(height - KEY_STEP);
+        else if (event.key === "Home") to(LYRICS_HEIGHT.min);
+        else if (event.key === "End") to(LYRICS_HEIGHT.max);
+        else return;
+        event.preventDefault();
+      }}
+      className="group/grip flex h-4 cursor-ns-resize touch-none items-center justify-center outline-none"
+    >
+      <span className="h-1 w-12 rounded-full bg-[var(--hairline)] transition-colors group-hover/grip:bg-[var(--fg-subtle)] group-focus-visible/grip:bg-[var(--brand)]" />
+    </div>
+  );
+}
+
 export function LyricsCard() {
   const lang = useLocale();
   const lyrics = useCreateForm((s) => s.lyrics);
@@ -50,6 +105,7 @@ export function LyricsCard() {
   const toggle = useCreateForm((s) => s.toggleCard);
   const area = useRef<HTMLTextAreaElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
+  const height = useCreateForm((s) => s.lyricsHeight);
   const [full, setFull] = useState(false);
   const [tagAt, setTagAt] = useState<number | null>(null);
   const it = lang === "it";
@@ -108,21 +164,7 @@ export function LyricsCard() {
             >
               <Redo2 />
             </IconButton>
-            <IconButton
-              label={it ? "Nuova bozza" : "New draft"}
-              className="bg-transparent"
-              onClick={() => {
-                if (
-                  !lyrics ||
-                  window.confirm(
-                    it ? "Cancellare il testo?" : "Discard these lyrics?",
-                  )
-                )
-                  set({ lyrics: "" });
-              }}
-            >
-              <FilePlus2 />
-            </IconButton>
+            <ClearButton field="lyrics" />
             <IconButton
               label={
                 full
@@ -147,8 +189,9 @@ export function LyricsCard() {
             aria-hidden
             className={cn(
               "pointer-events-none absolute inset-x-0 top-0 overflow-hidden px-0.5 leading-6 break-words whitespace-pre-wrap text-[var(--fg)]",
-              full ? "h-[calc(100dvh-15rem)]" : "h-56",
+              full && "h-[calc(100dvh-15rem)]",
             )}
+            style={full ? undefined : { height }}
           >
             <Highlight text={lyrics} />
           </div>
@@ -171,9 +214,11 @@ export function LyricsCard() {
             }}
             className={cn(
               "relative block w-full resize-none bg-transparent px-0.5 leading-6 break-words whitespace-pre-wrap text-transparent caret-[var(--fg)] outline-none scrollbar-thin placeholder:text-[var(--fg-subtle)] selection:bg-[color-mix(in_oklab,var(--brand),transparent_55%)]",
-              full ? "h-[calc(100dvh-15rem)]" : "h-56",
+              full && "h-[calc(100dvh-15rem)]",
             )}
+            style={full ? undefined : { height }}
           />
+          {full ? null : <ResizeHandle />}
           {tagAt !== null ? (
             <div
               role="listbox"

@@ -14,8 +14,11 @@ import {
   type LocalSongEngine,
   type LyricPack,
   LyricPackSchema,
+  readControls,
   type SongEngine,
   SongSettingsSchema,
+  styleWithout,
+  withMusicTags,
 } from "@mellodifai/shared";
 import {
   ComfyClient,
@@ -134,16 +137,18 @@ function validSeed(value: unknown): value is number {
 }
 
 // Seeds are drawn once per generate_song job and saved before the first submit, so a requeued
-// job rebuilds the same graphs (below 2^48: exact in JavaScript and in a bigint column).
+// job rebuilds the same graphs (below 2^48: exact in JavaScript and in a bigint column). A seed
+// the user fixed in the form is take 1's, and take 2 uses the next one.
 async function takeSeeds(context: StageContext): Promise<[number, number]> {
   const payload = context.job.payload ?? {};
   const saved = payload.seeds as Record<string, unknown> | undefined;
   if (validSeed(saved?.["1"]) && validSeed(saved?.["2"]))
     return [saved["1"], saved["2"]];
-  const seeds: [number, number] = [
-    randomInt(0, 2 ** 48 - 1),
-    randomInt(0, 2 ** 48 - 1),
-  ];
+  const fixed = readControls(context.project.song_settings).seed;
+  const seeds: [number, number] =
+    fixed === undefined
+      ? [randomInt(0, 2 ** 48 - 1), randomInt(0, 2 ** 48 - 1)]
+      : [fixed, fixed + 1];
   const next = { ...payload, seeds: { "1": seeds[0], "2": seeds[1] } };
   await context.db.patchJobPayload(
     context.job.id,
@@ -211,20 +216,32 @@ class LocalGeneration {
 
   async graph(pack: LyricPack, seed: number, prefix: string) {
     const template = await loadGraph(this.engine);
+    const controls = readControls(this.context.project.song_settings);
     if (this.engine === "yue2")
       return yue2Graph(template, {
-        style: pack.style,
+        style: withMusicTags(pack.style, controls),
         lyrics: toYue2Lyrics(pack.lyrics),
         seed,
         maxDuration: YUE2_MAX_DURATION,
         prefix,
       });
+    // ACE-Step takes tempo, key and signature as encoder inputs, so a chosen value replaces the
+    // one the drafted style names; Auto reads the style as before.
+    const drafted = bpmAndKey(pack.style);
     return aceGraph(template, {
-      style: pack.style,
+      style: styleWithout(pack.style, controls),
       lyrics: pack.lyrics,
       seed,
       duration: aceDuration(pack),
-      ...bpmAndKey(pack.style),
+      bpm: controls.bpm ?? drafted.bpm,
+      keyscale: controls.keyscale ?? drafted.keyscale,
+      ...(controls.timeSignature
+        ? { timesignature: controls.timeSignature }
+        : {}),
+      ...(controls.steps === undefined ? {} : { steps: controls.steps }),
+      ...(controls.guidance === undefined
+        ? {}
+        : { guidance: controls.guidance }),
       language: language(this.context),
       prefix,
     });

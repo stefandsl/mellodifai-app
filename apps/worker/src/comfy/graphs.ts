@@ -62,6 +62,10 @@ export function aceGraph(
     keyscale: string;
     language: string;
     prefix: string;
+    // Auto (left out) keeps the template's 4/4, 30 sampler steps and guidance 7.
+    timesignature?: string;
+    steps?: number;
+    guidance?: number;
   },
 ): ComfyGraph {
   const { lyrics, seed, bpm, keyscale, language, duration } = options;
@@ -74,9 +78,16 @@ export function aceGraph(
       duration,
       keyscale,
       language,
+      ...(options.timesignature
+        ? { timesignature: options.timesignature }
+        : {}),
     },
     "98": { seconds: duration },
-    "3": { seed },
+    "3": {
+      seed,
+      ...(options.steps === undefined ? {} : { steps: options.steps }),
+      ...(options.guidance === undefined ? {} : { cfg: options.guidance }),
+    },
     "107": { filename_prefix: options.prefix },
   });
 }

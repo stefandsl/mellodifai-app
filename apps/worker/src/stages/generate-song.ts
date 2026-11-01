@@ -8,7 +8,11 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { LyricPackSchema } from "@mellodifai/shared";
+import {
+  LyricPackSchema,
+  readControls,
+  withMusicTags,
+} from "@mellodifai/shared";
 import type { StageContext, StageHandler } from "../loop.js";
 import { generateLocal, songEngine } from "./local-engine.js";
 import { scoreTakes } from "./score-takes.js";
@@ -122,7 +126,15 @@ export const generateSong: StageHandler = async (context) => {
   const songEngineId = songEngine(context.project.song_settings);
   if (songEngineId !== "kie") return generateLocal(context, songEngineId);
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
-  await writePack(context, pack);
+  // The chosen tempo, key and time signature reach kie as style tags; the stored pack keeps the
+  // style as drafted.
+  await writePack(context, {
+    ...pack,
+    style: withMusicTags(
+      pack.style,
+      readControls(context.project.song_settings),
+    ),
+  });
   const lang = language(context);
   const taskFile = join(context.ws.outDir, "task.json");
   const generation = context.version.generation_count ?? 1;
