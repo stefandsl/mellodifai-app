@@ -2,6 +2,7 @@
 
 import { cn } from "cn";
 import {
+  Clapperboard,
   Download,
   Film,
   Info,
@@ -40,6 +41,7 @@ import { canEdit, canSeparate, editorHref } from "@/lib/studio/stems";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { useDetails } from "@/store/details";
 import { type Track, usePlayer } from "@/store/player";
+import { useVideoStudio } from "@/store/video-studio";
 import { CoverFace } from "../cover-face";
 import { AddToPlaylistDialog } from "../playlist-dialog";
 import { ReactionButtons } from "../reaction-buttons";
@@ -58,6 +60,61 @@ export type Selection = { selected: boolean; onToggle: () => void };
 // Elements that keep their own click: a click on them is not a pick of the card.
 const INTERACTIVE =
   "a,button,input,select,textarea,label,[role=menuitem],[role=checkbox],[role=radio]";
+
+// A finished video of the song: the lyric video, else a Video Studio render (wide first).
+export function songVideo(
+  clip: Clip,
+): { url: string; download: string } | null {
+  if (clip.videoUrl) return { url: clip.videoUrl, download: clip.videoUrl };
+  const visualizer = clip.visualizers?.find(
+    (item) => item.url && item.downloadUrl,
+  );
+  return visualizer?.url && visualizer.downloadUrl
+    ? { url: visualizer.url, download: visualizer.downloadUrl }
+    : null;
+}
+
+// The Video Studio can render a song whose chosen take has audio (request_visualizer).
+export function canMakeVideo(clip: Clip): boolean {
+  return canSeparate(clip);
+}
+
+// The song card's video button: opens the Video Studio for the song.
+export function VideoButton({
+  clip,
+  className,
+}: {
+  clip: Clip;
+  className?: string;
+}) {
+  const lang = useLocale();
+  const openFor = useVideoStudio((s) => s.openFor);
+  const label = st(lang, "vs.create");
+  const busy = clip.visualizers?.some(
+    (item) => item.status === "queued" || item.status === "running",
+  );
+  return (
+    <button
+      type="button"
+      aria-label={`${label}: ${clip.title || st(lang, "clip.untitled")}`}
+      title={label}
+      disabled={!canMakeVideo(clip)}
+      onClick={() => openFor(clip)}
+      className={cn(
+        "relative inline-flex size-8 items-center justify-center rounded-full bg-[var(--surface-2)] outline-none hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] focus-visible:ring-2 focus-visible:ring-[var(--brand)] disabled:hidden",
+        className,
+      )}
+    >
+      <Clapperboard className="size-3.5" />
+      {busy ? (
+        <span
+          aria-hidden
+          className="absolute top-0.5 right-0.5 size-2 animate-pulse rounded-full bg-[var(--brand)]"
+        />
+      ) : null}
+    </button>
+  );
+}
 
 export function trackFor(clip: Clip): Track | null {
   if (!clip.audioUrl) return null;
@@ -109,7 +166,11 @@ export function StatusBadge({ clip }: { clip: Clip }) {
         {st(lang, "badge.rendering")}
       </span>
     );
-  if (clip.status === "audio_ready")
+  // An audio-only song with a Video Studio render shows that video instead.
+  if (
+    clip.status === "audio_ready" &&
+    !clip.visualizers?.some((item) => item.url)
+  )
     return (
       <span
         className={cn(base, "bg-[var(--surface-2)] text-[var(--fg-muted)]")}
@@ -119,8 +180,10 @@ export function StatusBadge({ clip }: { clip: Clip }) {
       </span>
     );
   if (
-    clip.videoUrl &&
-    ["approved", "published", "publishing"].includes(clip.status)
+    (clip.videoUrl &&
+      ["approved", "published", "publishing"].includes(clip.status)) ||
+    (clip.status === "audio_ready" &&
+      clip.visualizers?.some((item) => item.url))
   )
     return (
       <span
@@ -208,7 +271,9 @@ export function MoreMenu({
   const router = useRouter();
   const enqueue = usePlayer((s) => s.enqueue);
   const showDetails = useDetails((s) => s.show);
+  const openStudio = useVideoStudio((s) => s.openFor);
   const track = trackFor(clip);
+  const video = songVideo(clip);
   const [shareOpen, setShareOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   return (
@@ -270,6 +335,14 @@ export function MoreMenu({
             <Layers />
             {st(lang, "tool.stems")}
           </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canMakeVideo(clip)}
+            onClick={() => openStudio(clip)}
+            className="rounded-lg"
+          >
+            <Clapperboard />
+            {st(lang, "vs.create")}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setShareOpen(true)}
@@ -279,11 +352,11 @@ export function MoreMenu({
             {st(lang, "clip.share")}
           </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={!clip.videoUrl}
+            disabled={!video}
             render={
-              clip.videoUrl ? (
+              video ? (
                 // biome-ignore lint/a11y/useAnchorContent: the menu item renders its children here.
-                <a href={clip.videoUrl} download />
+                <a href={video.download} download />
               ) : undefined
             }
             className="rounded-lg"
@@ -353,6 +426,7 @@ function Actions({ clip }: { clip: Clip }) {
       >
         <ListMusic className="size-3.5" />
       </button>
+      <VideoButton clip={clip} className="max-sm:hidden" />
       <ShareDialog
         open={shareOpen}
         onOpenChange={setShareOpen}
@@ -563,7 +637,10 @@ export function ClipCard({
                 initial={clip.reaction}
                 className="-ml-1.5"
               />
-              <MoreMenu clip={clip} onMoved={onMoved} />
+              <span className="flex items-center gap-1.5">
+                <VideoButton clip={clip} />
+                <MoreMenu clip={clip} onMoved={onMoved} />
+              </span>
             </div>
           )}
         </div>

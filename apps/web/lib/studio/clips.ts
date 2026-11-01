@@ -1,8 +1,11 @@
 import {
   type Lang,
+  normalizeVisualizerParams,
   parseTakeScores,
   type TakeScores,
   type VersionStatus,
+  type VisualizerAspect,
+  type VisualizerParams,
 } from "@mellodifai/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -54,7 +57,109 @@ export type Clip = {
   queuePosition: number | null;
   // The stems of the chosen take: ready, or the separation asked for; null when never asked.
   stems: StemsState | null;
+  // The song's own artwork as a picture (null when the card shows only a generated gradient):
+  // what the Video Studio draws for "Copertina".
+  coverUrl?: string | null;
+  // Video Studio renders, one per aspect, with the parameters they were (or are being) made with.
+  visualizers?: VisualizerVideo[];
 };
+
+export type VisualizerVideo = {
+  aspect: VisualizerAspect;
+  renderId: string;
+  params: VisualizerParams;
+  // The stored video and its still frame, once rendered.
+  url: string | null;
+  posterUrl: string | null;
+  downloadUrl: string | null;
+  // The render job: waiting, running, finished or failed; null for a video without a job.
+  status: "queued" | "running" | "done" | "failed" | null;
+  jobId: string | null;
+  error: string | null;
+  startedAt: string | null;
+  // While queued: 1 + the jobs ahead on the render PC.
+  queuePosition: number | null;
+};
+
+export type VisualizerRow = {
+  id: string;
+  version_id: string;
+  kind: string;
+  aspect: VisualizerAspect | null;
+  preview_path: string | null;
+  visualizer_params: unknown;
+};
+export type VisualizerJob = {
+  id: string;
+  version_id: string;
+  status: string;
+  error: string | null;
+  started_at: string | null;
+  render_id: string | null;
+};
+
+export function downloadName(title: string, suffix: string): string {
+  const base =
+    title
+      .replace(/[\\/:*?"<>|]+/gu, " ")
+      .replace(/\s+/gu, " ")
+      .trim() || "MellodifAI";
+  return `${base} - ${suffix}`;
+}
+
+export const posterPath = (videoPath: string) =>
+  videoPath.replace(/\.mp4$/u, ".jpg");
+
+// The Video Studio renders of one song, wide first.
+export function visualizersOf(
+  rows: VisualizerRow[],
+  jobs: VisualizerJob[],
+  queue: { version_id: string; aspect: string; queue_position: number }[],
+  url: (path: string | null | undefined) => string | null,
+  title: string,
+): VisualizerVideo[] {
+  return rows
+    .filter((row) => row.kind === "visualizer" && row.aspect)
+    .map((row) => {
+      const aspect = row.aspect as VisualizerAspect;
+      const job = jobs.find((item) => item.render_id === row.id) ?? null;
+      const video = url(row.preview_path);
+      const poster = row.preview_path
+        ? url(posterPath(row.preview_path))
+        : null;
+      const status: VisualizerVideo["status"] = job
+        ? job.status === "queued" || job.status === "running"
+          ? job.status
+          : job.status === "done"
+            ? "done"
+            : "failed"
+        : video
+          ? "done"
+          : null;
+      return {
+        aspect,
+        renderId: row.id,
+        params: normalizeVisualizerParams(row.visualizer_params),
+        url: video,
+        posterUrl: poster,
+        downloadUrl: video
+          ? `${video}?download=${encodeURIComponent(downloadName(title, `visualizer ${aspect.replace(":", "x")}.mp4`))}`
+          : null,
+        status,
+        jobId: job?.id ?? null,
+        error: status === "failed" ? (job?.error ?? null) : null,
+        startedAt: job?.started_at ?? null,
+        queuePosition:
+          status === "queued"
+            ? (queue.find(
+                (item) =>
+                  item.version_id === row.version_id && item.aspect === aspect,
+              )?.queue_position ?? null)
+            : null,
+      };
+    })
+    .sort((a, b) => (a.aspect === b.aspect ? 0 : a.aspect === "16:9" ? -1 : 1));
+}
 
 export type StemsState = {
   takeId: string;
@@ -206,14 +311,16 @@ export async function loadClips(
     query = query
       .eq("liked", true)
       .order("liked_at", { ascending: false, nullsFirst: false });
-  const [{ data }, positions, stemsPositions] = await Promise.all([
-    query
-      .order(trash ? "trashed_at" : "created_at", { ascending: false })
-      .limit(limit),
-    // Trashed songs are not in the queue, so the trash view needs no positions.
-    trash ? { data: null } : supabase.rpc("my_queue_positions"),
-    trash ? { data: null } : supabase.rpc("my_stems_queue"),
-  ]);
+  const [{ data }, positions, stemsPositions, visualizerPositions] =
+    await Promise.all([
+      query
+        .order(trash ? "trashed_at" : "created_at", { ascending: false })
+        .limit(limit),
+      // Trashed songs are not in the queue, so the trash view needs no positions.
+      trash ? { data: null } : supabase.rpc("my_queue_positions"),
+      trash ? { data: null } : supabase.rpc("my_stems_queue"),
+      trash ? { data: null } : supabase.rpc("my_visualizer_queue"),
+    ]);
   const rows = (data ?? []) as unknown as Row[];
   if (rows.length === 0) return [];
   const queuePosition = new Map<string, number>(
@@ -230,29 +337,44 @@ export async function loadClips(
     ).map((item) => [item.version_id, item.queue_position]),
   );
   const ids = rows.map((row) => row.id);
-  const [{ data: takes }, { data: renders }, { data: stemsJobs }] =
-    await Promise.all([
-      supabase
-        .from("takes")
-        // Only whether the stems exist: the full set carries four waveforms.
-        .select(
-          "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,stems_at:stems->>created_at",
-        )
-        .in("version_id", ids),
-      supabase
-        .from("renders")
-        .select("version_id,kind,preview_path,render_attempt,created_at")
-        .in("version_id", ids)
-        .order("created_at", { ascending: false }),
-      trash
-        ? { data: null }
-        : supabase
-            .from("jobs")
-            .select("id,version_id,status,take_id:payload->>take_id")
-            .eq("stage", "stems")
-            .in("version_id", ids)
-            .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: takes },
+    { data: renders },
+    { data: stemsJobs },
+    { data: visualizerJobs },
+  ] = await Promise.all([
+    supabase
+      .from("takes")
+      // Only whether the stems exist: the full set carries four waveforms.
+      .select(
+        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,stems_at:stems->>created_at",
+      )
+      .in("version_id", ids),
+    supabase
+      .from("renders")
+      .select(
+        "id,version_id,kind,aspect,preview_path,render_attempt,created_at,visualizer_params",
+      )
+      .in("version_id", ids)
+      .order("created_at", { ascending: false }),
+    trash
+      ? { data: null }
+      : supabase
+          .from("jobs")
+          .select("id,version_id,status,take_id:payload->>take_id")
+          .eq("stage", "stems")
+          .in("version_id", ids)
+          .order("created_at", { ascending: false }),
+    trash
+      ? { data: null }
+      : supabase
+          .from("jobs")
+          .select(
+            "id,version_id,status,error,started_at,render_id:payload->>render_id",
+          )
+          .eq("stage", "visualizer")
+          .in("version_id", ids),
+  ]);
 
   const currentTakes = new Map<
     string,
@@ -296,6 +418,8 @@ export async function loadClips(
   }
   const renderPath = new Map<string, string>();
   for (const render of renders ?? []) {
+    // Visualizer renders belong to no render attempt; they are listed per song below.
+    if (render.kind === "visualizer") continue;
     const row = rows.find((item) => item.id === render.version_id);
     if (!row || render.render_attempt !== row.render_attempt) continue;
     const key = `${render.version_id}:${render.kind}`;
@@ -339,6 +463,11 @@ export async function loadClips(
         .flatMap((take) => (take.path ? [take.path] : [])),
       ...renderPath.values(),
       ...[...coverCandidates.values()].flat(),
+      ...(renders ?? []).flatMap((render) =>
+        render.kind === "visualizer" && render.preview_path
+          ? [render.preview_path, posterPath(render.preview_path)]
+          : [],
+      ),
     ]),
   ];
   // Signing in one batch tells which files exist and are readable; the page links them through
@@ -361,16 +490,17 @@ export async function loadClips(
     const pack = row.lyric_pack ?? {};
     const project = row.projects;
     const settings = project?.song_settings ?? {};
+    const title =
+      row.display_title ||
+      pack.title ||
+      (settings.title as string) ||
+      project?.topic ||
+      "";
     return {
       id: row.id,
       projectId: project?.id ?? "",
       lang: row.lang,
-      title:
-        row.display_title ||
-        pack.title ||
-        (settings.title as string) ||
-        project?.topic ||
-        "",
+      title,
       style: pack.style || project?.style || "",
       prompt: project?.topic ?? "",
       lyrics: pack.lyrics || project?.brief || "",
@@ -411,6 +541,22 @@ export async function loadClips(
       ),
       settings,
       pack: row.lyric_pack,
+      coverUrl: cover ?? null,
+      visualizers: visualizersOf(
+        ((renders ?? []) as VisualizerRow[]).filter(
+          (render) => render.version_id === row.id,
+        ),
+        ((visualizerJobs ?? []) as VisualizerJob[]).filter(
+          (job) => job.version_id === row.id,
+        ),
+        (visualizerPositions.data ?? []) as {
+          version_id: string;
+          aspect: string;
+          queue_position: number;
+        }[],
+        url,
+        title,
+      ),
     };
   });
 }

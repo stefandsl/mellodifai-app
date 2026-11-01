@@ -9,7 +9,6 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Film } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import { LocaleProvider } from "@/components/locale-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Clip } from "@/lib/studio/clips";
@@ -18,6 +17,7 @@ import { useCreateForm } from "@/store/create-form";
 import { useDetails, useDetailsClips, useKnownClips } from "@/store/details";
 import { usePlayer } from "@/store/player";
 import { useReactions } from "@/store/reactions";
+import { useVideoStudio } from "@/store/video-studio";
 import { DetailsPanel } from "./details-panel";
 import { PlaylistsProvider } from "./playlists-context";
 
@@ -563,7 +563,7 @@ describe("actions", () => {
 });
 
 describe("tools", () => {
-  it("offers only what is built: the prompt, the audio editor and the stems", () => {
+  it("offers only what is built: the prompt, the video studio, the audio editor and the stems", () => {
     select();
     panel();
     const tools = within(aside()).getByRole("region", { name: "Strumenti" });
@@ -571,14 +571,32 @@ describe("tools", () => {
       within(tools)
         .getAllByRole("button")
         .map((button) => button.textContent),
-    ).toEqual(["Riusa il prompt", "Modifica audio", "Estrai stems"]);
+    ).toEqual([
+      "Riusa il prompt",
+      "Crea video visualizer",
+      "Modifica audio",
+      "Estrai stems",
+    ]);
     for (const gone of [
-      /video/iu,
       /cover|copertina/iu,
       /riferimento|reference/iu,
       /repaint|ridipingi/iu,
     ])
       expect(within(tools).queryByRole("button", { name: gone })).toBeNull();
+  });
+
+  it("opens the Video Studio for the song", async () => {
+    select();
+    panel();
+    const tools = within(aside()).getByRole("region", { name: "Strumenti" });
+    await userEvent.click(
+      within(tools).getByRole("button", { name: "Crea video visualizer" }),
+    );
+    const studio = useVideoStudio.getState();
+    expect(studio.open).toBe(true);
+    expect(studio.clip?.id).toBe("v1");
+    expect(studio.setup).toBe(false);
+    useVideoStudio.setState({ open: false, clip: null });
   });
 
   it("opens the audio editor and the stems page of the song", async () => {

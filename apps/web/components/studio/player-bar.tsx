@@ -24,6 +24,7 @@ import { countPlay } from "@/app/actions/library";
 import { useLocale } from "@/components/locale-provider";
 import { st } from "@/lib/studio/i18n";
 import { createPlayCounter } from "@/lib/studio/play-counter";
+import { registerPlayerAudio } from "@/lib/studio/visualizer/audio-tap";
 import { formatTime, usePlayer } from "@/store/player";
 import { NowPlaying } from "./now-playing";
 import { DownloadButton, RepeatButton, SpeedMenu } from "./player-controls";
@@ -206,6 +207,8 @@ export function PlayerBar() {
   // so both are set.
   useEffect(() => {
     void usePlayer.persist.rehydrate();
+    // The Video Studio's live preview listens to this element (lib/studio/visualizer/audio-tap).
+    registerPlayerAudio(audio.current);
   }, []);
   useEffect(() => {
     if (!audio.current || !source) return;
@@ -252,6 +255,8 @@ export function PlayerBar() {
         <audio
           ref={audio}
           src={track?.audioUrl}
+          // Lets the Video Studio's analyser read the samples of the signed storage file.
+          crossOrigin="anonymous"
           preload="metadata"
           onTimeUpdate={(event) => {
             p.set({ time: event.currentTarget.currentTime });

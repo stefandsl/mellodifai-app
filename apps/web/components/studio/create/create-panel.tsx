@@ -1,5 +1,6 @@
 "use client";
 
+import type { VisualizerParams } from "@mellodifai/shared";
 import {
   ACE_GUIDANCE,
   ACE_STEPS,
@@ -11,7 +12,6 @@ import { Music2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-
 import { createSong } from "@/app/actions/create-song";
 import { useLocale } from "@/components/locale-provider";
 import {
@@ -37,6 +37,7 @@ import {
   LIMITS,
   useCreateForm,
 } from "@/store/create-form";
+import { useVideoStudio } from "@/store/video-studio";
 import { Counter, InfoTip, Segmented, Tip } from "../ui";
 import { ClearButton } from "./clear-field";
 import { EngineSelect } from "./engine-select";
@@ -50,7 +51,10 @@ import { StylesCard } from "./styles-card";
 import { useEngineChoice } from "./use-engine";
 import { VideoCard, VideoRow } from "./video-card";
 
-export function payloadFor(form: CreateFormState) {
+export function payloadFor(
+  form: CreateFormState,
+  visualizer: VisualizerParams | null = null,
+) {
   const controls = engineControls(form.engine);
   return {
     mode: form.mode,
@@ -88,7 +92,14 @@ export function payloadFor(form: CreateFormState) {
         controls.duration && form.durationMode === "custom"
           ? form.duration
           : null,
-      video: form.video.mode === "off" ? ("off" as const) : ("lyric" as const),
+      video:
+        form.video.mode === "off"
+          ? ("off" as const)
+          : form.video.mode === "visualizer"
+            ? ("visualizer" as const)
+            : ("lyric" as const),
+      // The Video Studio's remembered look, rendered once the take is picked.
+      ...(form.video.mode === "visualizer" && visualizer ? { visualizer } : {}),
       engine: form.engine,
     },
   };
@@ -208,7 +219,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
     if (block || pending) return;
     start(async () => {
       const result = await createSong({
-        ...payloadFor({ ...form, engine }),
+        ...payloadFor({ ...form, engine }, useVideoStudio.getState().params),
         count: form.songCount,
       });
       if (!result.ok) {

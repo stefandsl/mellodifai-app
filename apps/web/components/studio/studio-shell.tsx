@@ -5,6 +5,8 @@ import { DetailsPanel } from "./details-panel";
 import { PlayerBar } from "./player-bar";
 import { PlaylistsProvider, type PlaylistsState } from "./playlists-context";
 import { MobileTopBar, StudioSidebar } from "./sidebar";
+import { VideoStudio } from "./video/video-studio";
+import { VisualizerWatcher } from "./video/visualizer-watcher";
 import { type WorkerInfo, WorkerProvider } from "./worker-state";
 
 // Sidebar | page, with the player bar fixed along the bottom (brief section 1.1).
@@ -40,6 +42,8 @@ export function StudioShell({
             </div>
             <PlayerBar />
           </div>
+          <VideoStudio />
+          <VisualizerWatcher />
         </PlaylistsProvider>
       </WorkerProvider>
     </TooltipProvider>

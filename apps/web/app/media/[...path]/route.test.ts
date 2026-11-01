@@ -4,9 +4,15 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { mediaUrl } from "@/lib/media";
 
 const sign = vi.hoisted(() => vi.fn());
+const bucket = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
-    storage: { from: () => ({ createSignedUrl: sign }) },
+    storage: {
+      from: (name: string) => {
+        bucket(name);
+        return { createSignedUrl: sign };
+      },
+    },
   }),
 }));
 
@@ -20,7 +26,10 @@ const call = (url: string) =>
     }),
   });
 
-beforeEach(() => sign.mockReset());
+beforeEach(() => {
+  sign.mockReset();
+  bucket.mockReset();
+});
 
 it("links a stored path under /media, escaping each segment", () => {
   expect(mediaUrl(path)).toBe("/media/previews/u/p/it/take-2%20preview.mp3");
@@ -45,4 +54,14 @@ it("answers 404 when the file is missing or not the reader's", async () => {
   sign.mockResolvedValue({ data: null, error: { message: "not found" } });
   const response = await call(mediaUrl(path));
   expect(response.status).toBe(404);
+});
+
+it("signs Video Studio uploads from the uploads bucket", async () => {
+  sign.mockResolvedValue({ data: { signedUrl: "http://s/sign/u?token=t" } });
+  const response = await call("/media/uploads/u1/a%20b.png");
+  expect(bucket).toHaveBeenCalledWith("uploads");
+  expect(sign).toHaveBeenCalledWith("u1/a b.png", 3600, undefined);
+  expect(response.status).toBe(307);
+  await call(mediaUrl(path));
+  expect(bucket).toHaveBeenLastCalledWith("previews");
 });

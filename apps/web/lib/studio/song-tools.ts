@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import { Layers, RotateCcw, Scissors } from "lucide-react";
-
+import { Clapperboard, Layers, RotateCcw, Scissors } from "lucide-react";
+import { useVideoStudio } from "@/store/video-studio";
 import { openStems } from "./audio-tools";
 import type { Clip } from "./clips";
 import type { StudioKey } from "./i18n";
@@ -68,4 +68,14 @@ registerSongTool({
   order: 30,
   available: canSeparate,
   run: ({ clip, lang, navigate }) => void openStems(clip, lang, navigate),
+});
+
+// The Video Studio, for a song whose chosen take has audio (request_visualizer).
+registerSongTool({
+  id: "video",
+  label: "vs.create",
+  icon: Clapperboard,
+  order: 15,
+  available: canSeparate,
+  run: ({ clip }) => useVideoStudio.getState().openFor(clip),
 });

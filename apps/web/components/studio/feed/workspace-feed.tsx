@@ -50,7 +50,9 @@ const PAGE = 20;
 
 export const MATCH: Record<Filter, (clip: Clip) => boolean> = {
   action: (clip) => needsAction(clip.status),
-  video: (clip) => Boolean(clip.videoUrl),
+  video: (clip) =>
+    Boolean(clip.videoUrl) ||
+    Boolean(clip.visualizers?.some((item) => item.url)),
   audio: (clip) => Boolean(clip.audioUrl),
   liked: (clip) => clip.reaction === "like",
   creating: (clip) => isGenerating(clip.status),

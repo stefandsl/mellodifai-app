@@ -14,7 +14,13 @@ import {
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type VideoMode = "off" | "lyric" | "ai" | "slideshow" | "footage";
+export type VideoMode =
+  | "off"
+  | "lyric"
+  | "visualizer"
+  | "ai"
+  | "slideshow"
+  | "footage";
 export type Aspect = "9:16" | "1:1" | "16:9";
 export type CardId = "lyrics" | "styles" | "video" | "music" | "more";
 

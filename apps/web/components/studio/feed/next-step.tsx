@@ -1,6 +1,10 @@
 "use client";
 
-import { suggestTake, validateLyricPack } from "@mellodifai/shared";
+import {
+  normalizeVisualizerParams,
+  suggestTake,
+  validateLyricPack,
+} from "@mellodifai/shared";
 import { cn } from "cn";
 import {
   ArrowRight,
@@ -22,6 +26,7 @@ import {
   makeVideo,
   pickTake,
 } from "@/app/actions/checkpoints";
+import { keepAudioWithVisualizer } from "@/app/actions/visualizer";
 import { useLocale } from "@/components/locale-provider";
 import { useSongEngine } from "@/components/studio/worker-state";
 import {
@@ -188,28 +193,56 @@ function TakesDialog({
   const play = usePlayer((s) => s.play);
   const toggle = usePlayer((s) => s.toggle);
   const videoOff = clip.settings.video === "off";
-  const run = (action: "audio" | "video") =>
+  const visualizer = clip.settings.video === "visualizer";
+  type Action = "audio" | "video" | "visualizer";
+  const run = (action: Action) =>
     start(async () => {
       if (!chosen) return;
       const input = { versionId: clip.id, takeId: chosen };
       const result =
-        action === "audio" ? await keepAudio(input) : await pickTake(input);
+        action === "audio"
+          ? await keepAudio(input)
+          : action === "visualizer"
+            ? await keepAudioWithVisualizer({
+                ...input,
+                // The look picked in the Video Studio when the song was created.
+                params: normalizeVisualizerParams(clip.settings.visualizer),
+              })
+            : await pickTake(input);
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
       toast.success(
-        st(lang, action === "audio" ? "next.audioKept" : "next.videoStarted"),
+        st(
+          lang,
+          action === "audio"
+            ? "next.audioKept"
+            : action === "visualizer"
+              ? "next.visualizerStarted"
+              : "next.videoStarted",
+        ),
       );
       onOpenChange(false);
       router.refresh();
     });
   // The form's video choice decides which action is the primary one.
-  const first = videoOff ? "audio" : "video";
-  const second = videoOff ? "video" : "audio";
-  const label = (action: "audio" | "video") =>
-    st(lang, action === "audio" ? "next.keepAudio" : "next.makeVideo");
-  const icon = (action: "audio" | "video") =>
+  const first: Action = videoOff
+    ? "audio"
+    : visualizer
+      ? "visualizer"
+      : "video";
+  const second: Action = videoOff ? "video" : "audio";
+  const label = (action: Action) =>
+    st(
+      lang,
+      action === "audio"
+        ? "next.keepAudio"
+        : action === "visualizer"
+          ? "next.makeVisualizer"
+          : "next.makeVideo",
+    );
+  const icon = (action: Action) =>
     action === "audio" ? (
       <Music2 className="size-4" />
     ) : (
