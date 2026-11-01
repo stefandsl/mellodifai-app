@@ -23,7 +23,7 @@ import {
   songSource,
   submitSourceTask,
 } from "../src/stages/source-audio.js";
-import { type FakeComfy, fakeComfy } from "./fake-comfy.js";
+import type { FakeComfy } from "./fake-comfy.js";
 
 const roots: string[] = [];
 const servers: FakeComfy[] = [];

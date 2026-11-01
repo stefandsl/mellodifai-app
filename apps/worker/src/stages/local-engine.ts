@@ -2,7 +2,6 @@ import { randomInt } from "node:crypto";
 import {
   access,
   copyFile,
-  mkdir,
   readdir,
   readFile,
   rm,
