@@ -49,11 +49,18 @@ function emDashErrors(value: unknown, path = ""): string[] {
   return [];
 }
 
-function sungLineCount(lyrics: string): number {
+export function sungLineCount(lyrics: string): number {
   return lyrics.split(/\r?\n/u).filter((line) => {
     const trimmed = line.trim();
     return trimmed.length > 0 && !trimmed.startsWith("[");
   }).length;
+}
+
+// ACE-Step renders exactly the length it is given and has no ending of its own, so the length
+// follows the lyrics: 3.2 s per sung line plus 25 s, between 120 and 300 s (bake-off, design 14).
+export function aceStepSeconds(lyrics: string): number {
+  const seconds = Math.round(3.2 * sungLineCount(lyrics) + 25);
+  return Math.min(300, Math.max(120, seconds));
 }
 
 export function validateLyricPack(

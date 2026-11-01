@@ -19,6 +19,7 @@ it("filters every terminal/requeue write by job id, owning worker, and running s
     () => db.finishJob("job", {}, "worker"),
     () => db.failJob("job", "error", "worker"),
     () => db.requeue("job", "worker"),
+    () => db.patchJobPayload("job", "worker", { seeds: { "1": 5 } }),
   ]) {
     mocks.eq.mockClear();
     await operation();

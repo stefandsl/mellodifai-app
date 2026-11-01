@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import frPack from "../test/fixtures/fr-pack.json" with { type: "json" };
 
-import { LyricPackSchema, validateLyricPack } from "./lyric-pack.js";
+import {
+  aceStepSeconds,
+  LyricPackSchema,
+  validateLyricPack,
+} from "./lyric-pack.js";
 
 describe("validateLyricPack", () => {
   it("rejects an em dash and names the affected field", () => {
@@ -60,5 +64,20 @@ describe("validateLyricPack", () => {
         settings: { model: "V6", vocalGender: "f" },
       }).settings.duration,
     ).toBe(310);
+  });
+});
+
+describe("aceStepSeconds", () => {
+  const lines = (count: number) =>
+    ["[Verse 1]", ...Array.from({ length: count }, () => "una riga")].join(
+      "\n",
+    );
+  it("gives 3.2 s per sung line plus 25 s, without counting tags", () => {
+    expect(aceStepSeconds(lines(40))).toBe(153);
+  });
+  it("keeps the length between 120 and 300 s", () => {
+    expect(aceStepSeconds(lines(5))).toBe(120);
+    expect(aceStepSeconds(lines(80))).toBe(281);
+    expect(aceStepSeconds(lines(120))).toBe(300);
   });
 });

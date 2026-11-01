@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import { LyricPackSchema } from "@mellodifai/shared";
 import type { StageContext, StageHandler } from "../loop.js";
+import { generateLocal, songEngine } from "./local-engine.js";
 import { scoreTakes } from "./score-takes.js";
 import {
   ENGINE_ROOT,
@@ -117,6 +118,9 @@ export async function refreshBalance(
   }
 }
 export const generateSong: StageHandler = async (context) => {
+  // Local engines branch off before any kie state is read or written (design 5.1).
+  const songEngineId = songEngine(context.project.song_settings);
+  if (songEngineId !== "kie") return generateLocal(context, songEngineId);
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   await writePack(context, pack);
   const lang = language(context);

@@ -36,9 +36,11 @@ describe("create form", () => {
       duration: null,
       video: "lyric",
     });
-    expect(SongSettingsSchema.parse(payload.settings)).toEqual(
-      payload.settings,
-    );
+    // The engine defaults to kie until the studio offers a choice.
+    expect(SongSettingsSchema.parse(payload.settings)).toEqual({
+      ...payload.settings,
+      engine: "kie",
+    });
     expect(CreateSongInput.parse(payload).mode).toBe("advanced");
     expect(
       payloadFor({ ...form, durationMode: "custom", duration: 95 }).settings

@@ -1,5 +1,6 @@
 import type { JobStatus, Lang, Stage, VersionStatus } from "@mellodifai/shared";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { EngineAvailability } from "./comfy/availability.js";
 
 export type Job = {
   owner_id?: string;
@@ -54,7 +55,8 @@ export type WorkerUpdate = {
   kie_balance?: number | null;
   youtube_uploads_today?: number;
   youtube_quota_day?: string | null;
-  engines?: Record<string, unknown>;
+  // Local engines found on this PC (file checks), read by the studio's engine selector.
+  engines?: Record<string, EngineAvailability>;
 };
 export type Take = {
   take_number?: number;
@@ -141,6 +143,15 @@ export interface Db {
   getPublicationForVersion(versionId: string): Promise<Publication | null>;
   patchPublication(id: string, patch: Partial<Publication>): Promise<void>;
   getWorker(id: string): Promise<WorkerUpdate | null>;
+  // profiles.role of a song's owner: local engines are for the admin only (design 5.5).
+  getOwnerRole(ownerId: string): Promise<string | null>;
+  // Replaces jobs.payload of a job this worker runs; local engines keep their seeds there
+  // before the first submit.
+  patchJobPayload(
+    jobId: string,
+    workerId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void>;
 }
 
 function requireData<T>(data: T | null, error: { message: string } | null): T {
@@ -413,6 +424,28 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(error.message);
     return data as WorkerUpdate | null;
   }
+  async getOwnerRole(ownerId: string): Promise<string | null> {
+    const { data, error } = await this.client
+      .from("profiles")
+      .select("role")
+      .eq("id", ownerId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as { role?: string } | null)?.role ?? null;
+  }
+  async patchJobPayload(
+    jobId: string,
+    workerId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("jobs")
+      .update({ payload })
+      .eq("id", jobId)
+      .eq("worker_id", workerId)
+      .eq("status", "running");
+    if (error) throw new Error(error.message);
+  }
   async reserveUpload(render: Render, workerId: string) {
     const { data, error } = await this.client.rpc(
       "reserve_publication_upload",
@@ -449,6 +482,7 @@ export class InMemoryDb implements Db {
   public renders: Render[] = [];
   public publications: Publication[] = [];
   public workers: WorkerUpdate[] = [];
+  public profiles: { id: string; role: string }[] = [];
   constructor(
     public jobs: Job[] = [],
     public versions: Version[] = [],
@@ -641,6 +675,18 @@ export class InMemoryDb implements Db {
   }
   async getWorker(id: string) {
     return this.workers.find((item) => item.id === id) ?? null;
+  }
+  async getOwnerRole(ownerId: string) {
+    return this.profiles.find((item) => item.id === ownerId)?.role ?? null;
+  }
+  async patchJobPayload(
+    jobId: string,
+    workerId: string,
+    payload: Record<string, unknown>,
+  ) {
+    const job = this.findJob(jobId);
+    if (job.worker_id !== workerId || job.status !== "running") return;
+    job.payload = { ...payload };
   }
   async reserveUpload(
     render: Render,

@@ -1,6 +1,14 @@
 import { mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { publishEngines } from "./comfy/availability.js";
+import { COMFY_CONFIG, comfyOutputDir } from "./comfy/config.js";
+import type { LocalRuntime } from "./comfy/runtime.js";
+import {
+  type ComfySupervisor,
+  createComfySupervisor,
+  nvidiaFreeVramMb,
+} from "./comfy/supervisor.js";
 import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
@@ -11,7 +19,8 @@ import { stages } from "./stages/index.js";
 import { SupabaseStorage } from "./storage.js";
 import { WorkspaceFactory } from "./workspace.js";
 
-export function startBalanceRefresh(refresh: () => Promise<void>) {
+// Runs refresh now and every ten minutes, never two at once; the returned function stops it.
+export function startPeriodicRefresh(refresh: () => Promise<void>) {
   let pending: Promise<void> | undefined;
   const tick = () => {
     if (!pending)
@@ -26,6 +35,33 @@ export function startBalanceRefresh(refresh: () => Promise<void>) {
   return async () => {
     clearInterval(timer);
     await pending;
+  };
+}
+export const startBalanceRefresh = startPeriodicRefresh;
+
+// The ComfyUI server belongs to the worker process: a local generate_song starts it and stops it
+// at the end of the stage, and a server left by a crashed worker is adopted on start, so its
+// running prompt can be followed again by the requeued job.
+export async function startLocalEngines(options: {
+  supervisor: Pick<ComfySupervisor, "adopt" | "stop">;
+  publish: () => Promise<void>;
+  report: (line: string) => void;
+}) {
+  try {
+    if (await options.supervisor.adopt())
+      options.report("Adopted the ComfyUI server already running on this PC");
+  } catch (error) {
+    options.report(`ComfyUI adoption failed: ${String(error)}`);
+  }
+  const stopPublish = startPeriodicRefresh(() =>
+    options.publish().catch((error: unknown) => {
+      options.report(`Engine availability refresh failed: ${String(error)}`);
+    }),
+  );
+  return async () => {
+    await stopPublish();
+    // Never leave the GPU held by a server nobody will stop.
+    await options.supervisor.stop().catch(() => {});
   };
 }
 
@@ -103,6 +139,20 @@ async function main() {
             log: async (line) => report(line),
           }),
         );
+  const supervisor = createComfySupervisor({ secrets, report });
+  const comfy: LocalRuntime = {
+    supervisor,
+    outputDir: comfyOutputDir(COMFY_CONFIG),
+    freeVramMb: nvidiaFreeVramMb,
+  };
+  const stopLocal =
+    process.env.WORKER_FAKE === "1"
+      ? async () => {}
+      : await startLocalEngines({
+          supervisor,
+          publish: () => publishEngines(db, workerId),
+          report,
+        });
   const loop = new WorkerLoop({
     db,
     workerId,
@@ -112,16 +162,19 @@ async function main() {
     storage: new SupabaseStorage(createClient(url, key)),
     secrets,
     report,
+    comfy,
   });
   const removeSignals = installSignals(
     {
       stop: async () => {
         balanceAbort.abort();
         await Promise.all([loop.stop(), stopBalance()]);
+        await stopLocal();
       },
       forceStop: async () => {
         balanceAbort.abort();
         await Promise.all([loop.forceStop(), stopBalance()]);
+        await stopLocal();
       },
     },
     process,
@@ -133,6 +186,7 @@ async function main() {
   } finally {
     balanceAbort.abort();
     await stopBalance();
+    await stopLocal();
     removeSignals();
   }
 }

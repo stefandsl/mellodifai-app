@@ -1,0 +1,96 @@
+{
+  "15": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "yue2_3b_int8_convrot.safetensors"
+    }
+  },
+  "24": {
+    "class_type": "YuE2GenerateABC",
+    "inputs": {
+      "clip": ["15", 1],
+      "style": "<STYLE>",
+      "lyrics": "<YUE2_LYRICS>",
+      "seed": 123456789,
+      "mode": "full",
+      "max_abc_tokens": 8192,
+      "temperature": 0.9,
+      "top_p": 0.9,
+      "top_k": 30,
+      "repetition_penalty": 1.005,
+      "penalty_window": 100
+    }
+  },
+  "14": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": ["24", 0]
+    }
+  },
+  "25": {
+    "class_type": "YuE2GenerateMusic",
+    "inputs": {
+      "clip": ["15", 1],
+      "style": "<STYLE>",
+      "lyrics": "<YUE2_LYRICS>",
+      "abc": ["24", 0],
+      "seed": 123456789,
+      "mode": "full",
+      "max_duration": 330,
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 100,
+      "repetition_penalty": 1.2,
+      "cfg_scale": 1.0
+    }
+  },
+  "23": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": ["25", 1]
+    }
+  },
+  "18": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": ["25", 0]
+    }
+  },
+  "5": {
+    "class_type": "EmptyYuE2LatentAudio",
+    "inputs": {
+      "seconds": ["25", 1],
+      "batch_size": 1
+    }
+  },
+  "8": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["15", 0],
+      "positive": ["25", 0],
+      "negative": ["18", 0],
+      "latent_image": ["5", 0],
+      "seed": 123456789,
+      "steps": 32,
+      "cfg": 1.0,
+      "sampler_name": "dpm_2",
+      "scheduler": "sgm_uniform",
+      "denoise": 1.0
+    }
+  },
+  "9": {
+    "class_type": "VAEDecodeAudio",
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["15", 2]
+    }
+  },
+  "10": {
+    "class_type": "SaveAudioAdvanced",
+    "inputs": {
+      "audio": ["9", 0],
+      "filename_prefix": "<PREFIX>",
+      "format": "flac"
+    }
+  }
+}

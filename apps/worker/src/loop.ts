@@ -1,5 +1,6 @@
 import type { Stage, VersionStatus } from "@mellodifai/shared";
 import { AuthorizationDenied, authorizeStage } from "./authorization.js";
+import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
 import type { Secrets } from "./secrets.js";
@@ -14,10 +15,13 @@ export type StageContext = {
   engine: Engine;
   storage: Storage;
   log(line: string): Promise<void>;
-  progress(pct: number): Promise<void>;
+  // message replaces the default "Progress: N%" text of the event.
+  progress(pct: number, message?: string): Promise<void>;
   secrets: Secrets;
   db: Db;
   signal: AbortSignal;
+  // The ComfyUI server of this PC, owned by main.ts; absent on workers without local engines.
+  comfy?: LocalRuntime;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
@@ -69,6 +73,7 @@ export class WorkerLoop {
       secrets?: Secrets;
       engineVersion?: string;
       report?: (message: string) => void;
+      comfy?: LocalRuntime;
     },
   ) {}
   private redact(message: string) {
@@ -254,14 +259,19 @@ export class WorkerLoop {
         db,
         signal,
         log,
-        progress: async (pct) => {
+        progress: async (pct, message) => {
           signal.throwIfAborted();
           try {
-            await db.appendEvent(job.id, this.redact(`Progress: ${pct}%`), pct);
+            await db.appendEvent(
+              job.id,
+              this.redact(message ?? `Progress: ${pct}%`),
+              pct,
+            );
           } catch (error) {
             this.report(error);
           }
         },
+        ...(this.options.comfy ? { comfy: this.options.comfy } : {}),
       });
     };
     // Keep the render lock until child termination and pending log delivery complete.

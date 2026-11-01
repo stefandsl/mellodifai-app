@@ -11,6 +11,11 @@ export const SONG_MODELS = [
 ] as const;
 export type SongModel = (typeof SONG_MODELS)[number];
 
+// kie is the paid Suno service; the others run on the worker PC through ComfyUI (admin only).
+export const SONG_ENGINES = ["kie", "ace-step", "yue2"] as const;
+export type SongEngine = (typeof SONG_ENGINES)[number];
+export type LocalSongEngine = Exclude<SongEngine, "kie">;
+
 // What the studio create form stores on a project for the worker.
 // duration null means Auto (no target length sent to kie).
 export const SongSettingsSchema = z.object({
@@ -23,5 +28,6 @@ export const SongSettingsSchema = z.object({
   duration: z.number().int().min(10).max(360).nullable().optional(),
   // "off" makes Keep audio only the suggested choice when picking the take.
   video: z.enum(["lyric", "off"]).optional(),
+  engine: z.enum(SONG_ENGINES).default("kie"),
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;

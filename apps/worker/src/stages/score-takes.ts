@@ -26,9 +26,12 @@ function scoresByTake(report: unknown): Map<number, TakeScores> {
 
 // Hears each take with Groq Whisper and stores takes.scores, so the studio can suggest one.
 // Scores are a nicety: any failure is logged and the takes keep no scores, never failing the song.
+// ceiling: an engine length limit (YuE2 max_duration); a take ending within 5 s of it, or one
+// listed in truncated (its log reported the token budget), was cut by the engine.
 export async function scoreTakes(
   context: StageContext,
   takes: Take[],
+  options: { ceiling?: number; truncated?: ReadonlySet<number> } = {},
 ): Promise<void> {
   try {
     if (!context.secrets.values.GROQ_API_KEY) {
@@ -59,8 +62,15 @@ export async function scoreTakes(
     const report: unknown = JSON.parse(await readFile(reportFile, "utf8"));
     const scores = scoresByTake(report);
     for (const take of takes) {
-      const own = take.take_number && scores.get(take.take_number);
-      if (own) await context.db.patchTake(take.id, { scores: own });
+      const number = take.take_number;
+      const own = number && scores.get(number);
+      if (!own) continue;
+      const cut =
+        options.truncated?.has(number) ||
+        (options.ceiling !== undefined && own.duration >= options.ceiling - 5);
+      await context.db.patchTake(take.id, {
+        scores: cut ? { ...own, truncated: true } : own,
+      });
     }
   } catch (error) {
     try {
