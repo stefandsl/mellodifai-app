@@ -203,7 +203,11 @@ export function createClient(options: {
       90_000,
     )) as { choices?: { message?: { content?: string } }[]; usage?: Usage };
     record(request.step, request.model, json.usage);
-    const content = json.choices?.[0]?.message?.content ?? "";
+    // Owner rule: no em or en dash characters anywhere in what the engine writes.
+    const content = (json.choices?.[0]?.message?.content ?? "").replace(
+      /[—–]/gu,
+      "-",
+    );
     if (!content.trim())
       throw new Error(
         `${request.model} returned an empty reply (${request.step})`,

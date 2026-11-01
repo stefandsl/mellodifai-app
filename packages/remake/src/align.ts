@@ -19,14 +19,19 @@ const ENTITIES: Record<string, string> = {
 };
 
 export function cleanCaption(text: string): string {
-  return text
-    .replace(/<[^>]*>/gu, "")
-    .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/gu, (e) => ENTITIES[e] ?? e)
-    .replace(/\[[^\]]*\]|\((?:music|instrumental|applause|laughs?)\)/giu, "")
-    .replace(/[♪♫♬]/gu, "")
-    .replace(/^\s*(?:>>|-)\s*/u, "")
-    .replace(/\s+/gu, " ")
-    .trim();
+  return (
+    text
+      .replace(/<[^>]*>/gu, "")
+      .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/gu, (e) => ENTITIES[e] ?? e)
+      .replace(/\[[^\]]*\]|\((?:music|instrumental|applause|laughs?)\)/giu, "")
+      .replace(/[♪♫♬]/gu, "")
+      // Lyric captions stretch sung vowels ("Leeeeave", "DOOOOON'T"): one letter is enough.
+      .replace(/(\p{L})\1{2,}/gu, "$1")
+      .replace(/\s*[—–]\s*/gu, " - ")
+      .replace(/^\s*(?:>>|-)\s*/u, "")
+      .replace(/\s+/gu, " ")
+      .trim()
+  );
 }
 
 function vttTime(value: string): number {
@@ -182,14 +187,15 @@ export function buildSections(input: {
     !cuts.some((c) => Math.abs(c - last.end) < 2)
   )
     cuts.push(snap(last.end));
-  // A boundary inside a sung line moves to the line start (or the downbeat just before).
+  // A section starting with a line starts on its downbeat when one is that close.
+  const snapLine = (t: number) => {
+    const d = nearest(input.downbeats, t);
+    return d !== undefined && Math.abs(d - t) <= 0.4 ? d : t;
+  };
+  // A boundary inside a sung line moves to the line start.
   cuts = cuts.map((c) => {
     const inside = lines.find((l) => c > l.start + 0.3 && c < l.end - 0.3);
-    if (!inside) return c;
-    const before = input.downbeats.filter(
-      (d) => d <= inside.start && inside.start - d <= 0.6,
-    );
-    return before.at(-1) ?? inside.start;
+    return inside ? snapLine(inside.start) : c;
   });
   cuts.sort((a, b) => a - b);
   const edges = [0];
@@ -223,6 +229,29 @@ export function buildSections(input: {
   });
 
   const repeated = findRepeatedLines(lines);
+  // The lyrics refine the audio: a segment whose new lines give way to repeated ones
+  // (a bridge running into the last chorus) splits where the repetition starts.
+  segments = segments.flatMap((s) => {
+    const flags = s.lines.map((l) => repeated.has(l));
+    for (let k = 2; k <= flags.length - 2; k++) {
+      const before = flags.slice(0, k);
+      const after = flags.slice(k);
+      const line = lines[s.lines[k] ?? -1];
+      if (
+        line &&
+        before.every((f) => f === before[0]) &&
+        after.every((f) => f !== before[0])
+      ) {
+        const cut = round(snapLine(line.start));
+        if (cut - s.start < 4 || s.end - cut < 4) break;
+        return [
+          { ...s, end: cut, lines: s.lines.slice(0, k) },
+          { ...s, start: cut, lines: s.lines.slice(k) },
+        ];
+      }
+    }
+    return [s];
+  });
   const lyric = segments.filter((s) => s.lines.length > 0);
   const firstLyric = segments.indexOf(lyric[0] as Segment);
   const lastLyric = segments.indexOf(lyric.at(-1) as Segment);
@@ -280,12 +309,27 @@ export function buildSections(input: {
       s.kind = "bridge";
     else if (
       next?.kind === "chorus" &&
-      previous &&
-      !previous.kind &&
+      previous?.kind === "verse" &&
       s.end - s.start < 12
     )
       s.kind = "pre-chorus";
     else s.kind = "verse";
+  });
+  // A chorus that the audio split late takes back its first repeated lines.
+  segments.forEach((s, i) => {
+    const previous = segments[i - 1];
+    if (s.kind !== "chorus" || !previous || previous.kind === "chorus") return;
+    while (previous.lines.length > 1) {
+      const l = previous.lines.at(-1) ?? -1;
+      const line = lines[l];
+      if (!line || !repeated.has(l)) break;
+      const cut = round(snapLine(line.start));
+      if (cut <= previous.start) break;
+      previous.lines.pop();
+      s.lines.unshift(l);
+      previous.end = cut;
+      s.start = cut;
+    }
   });
 
   // Merge runs of the same kind that belong together.

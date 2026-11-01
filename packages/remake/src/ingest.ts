@@ -33,6 +33,8 @@ const WHISPER_LANGS = new Set([
 const FONT = "C\\:/Windows/Fonts/consola.ttf";
 const SHEET = { cols: 5, rows: 4 };
 
+const slash = (path: string) => path.replaceAll("\\", "/");
+
 export function parseVideoId(url: string): string | null {
   const patterns = [
     /[?&]v=([\w-]{11})/u,
@@ -340,7 +342,13 @@ export async function ingest(
     language,
     tags: info.tags ?? [],
     description: (info.description ?? "").slice(0, 3000),
-    files: { dir, audio, video, info: infoPath, captions },
+    files: {
+      dir,
+      audio: slash(audio),
+      video: video ? slash(video) : null,
+      info: slash(infoPath),
+      captions: captions ? slash(captions) : null,
+    },
     transcript,
     frames: { sceneCuts, contactSheets },
     createdAt: new Date().toISOString(),

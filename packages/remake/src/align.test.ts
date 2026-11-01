@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   analyseLines,
@@ -57,6 +59,12 @@ describe("captions", () => {
     expect(cleanCaption("[Music]")).toBe("");
     expect(cleanCaption("&gt;&gt; Hold on &amp; stay")).toBe("Hold on & stay");
     expect(cleanCaption("(Instrumental)")).toBe("");
+    expect(cleanCaption("Leeeeave us, DOOOOOON'T shut")).toBe(
+      "Leave us, DON'T shut",
+    );
+    expect(cleanCaption("Alone, alone— in the crowd")).toBe(
+      "Alone, alone - in the crowd",
+    );
   });
 
   it("parses manual captions", () => {
@@ -247,6 +255,57 @@ describe("buildSections", () => {
       "bridge",
       "chorus",
     ]);
+  });
+});
+
+describe("buildSections on a real song", () => {
+  // Measured on "Alone" by The Sixsters (CC BY): beat_this downbeats, novelty
+  // boundaries and captions. The audio misses the bridge-to-chorus change and splits
+  // the first chorus one line late; the lyrics fix both.
+  const fixture = JSON.parse(
+    readFileSync(
+      join(
+        import.meta.dirname,
+        "..",
+        "test",
+        "fixtures",
+        "alone-structure.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    durationS: number;
+    boundaries: number[];
+    labels: string[];
+    downbeats: number[];
+    lines: { start: number; end: number; text: string }[];
+  };
+  const sections = buildSections({ ...fixture, energy: [] });
+
+  it("finds intro, verses, three choruses, the bridge and the outro", () => {
+    expect(sections.map((s) => s.label)).toEqual([
+      "Intro",
+      "Verse 1",
+      "Chorus 1",
+      "Verse 2",
+      "Chorus 2",
+      "Bridge",
+      "Chorus 3",
+      "Outro",
+    ]);
+  });
+
+  it("starts each chorus on its first repeated line", () => {
+    const starts = Object.fromEntries(sections.map((s) => [s.id, s.start]));
+    expect(starts["chorus-1"]).toBeCloseTo(42.22, 1);
+    expect(starts["chorus-3"]).toBeCloseTo(131.44, 1);
+    const lines = analyseLines(fixture.lines, sections, [], "en");
+    expect(lines.find((l) => l.text.startsWith("Alone"))?.sectionId).toBe(
+      "chorus-1",
+    );
+    expect(lines.find((l) => l.text.startsWith("The edge"))?.sectionId).toBe(
+      "bridge-1",
+    );
   });
 });
 
