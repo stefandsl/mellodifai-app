@@ -1,4 +1,4 @@
-import type { Lang, SongModel } from "@mellodifai/shared";
+import type { Lang, SongEngine, SongModel } from "@mellodifai/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -8,6 +8,7 @@ export type CardId = "lyrics" | "styles" | "video" | "more";
 
 export type CreateFormState = {
   mode: "simple" | "advanced";
+  engine: SongEngine;
   model: SongModel;
   languages: Lang[];
   prompt: string;
@@ -46,6 +47,7 @@ export const MORE_DEFAULTS = {
 export function initialForm(lang: Lang = "it"): CreateFormState {
   return {
     mode: "simple",
+    engine: "kie",
     model: "V6",
     languages: [lang],
     prompt: "",
@@ -118,6 +120,7 @@ export const useCreateForm = create<CreateFormState & Actions>()(
         set((s) => ({
           ...initialForm(s.languages[0]),
           mode: s.mode,
+          engine: s.engine,
           model: s.model,
           languages: s.languages,
           open: s.open,

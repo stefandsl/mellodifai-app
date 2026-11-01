@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { st } from "@/lib/studio/i18n";
+import { useAceStepStatus } from "@/lib/studio/use-ace-step";
 import {
   blocker,
   type CreateFormState,
@@ -24,6 +25,7 @@ import {
   useCreateForm,
 } from "@/store/create-form";
 import { Counter, Segmented, Tip } from "../ui";
+import { EngineSelect } from "./engine-select";
 import { LanguagePicker } from "./language-picker";
 import { LyricsCard } from "./lyrics-card";
 import { ModelSelect } from "./model-select";
@@ -41,6 +43,7 @@ export function payloadFor(form: CreateFormState) {
     languages: form.languages,
     vocalGender: form.vocalGender,
     settings: {
+      ...(form.engine === "ace-step" ? { engine: "ace-step" as const } : {}),
       model: form.model,
       ...(form.title.trim() ? { title: form.title.trim() } : {}),
       ...(form.exclude.trim() ? { exclude: form.exclude.trim() } : {}),
@@ -105,6 +108,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   const block = blocker(form);
+  const aceStep = useAceStepStatus();
 
   function submit() {
     if (block || pending) return;
@@ -155,12 +159,19 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
               value={form.languages}
               onChange={(languages) => form.set({ languages })}
             />
-            <ModelSelect
-              value={form.model}
-              onChange={(model) => form.set({ model })}
-            />
+            {form.engine === "kie" ? (
+              <ModelSelect
+                value={form.model}
+                onChange={(model) => form.set({ model })}
+              />
+            ) : null}
           </div>
         </div>
+        <EngineSelect
+          value={form.engine}
+          onChange={(engine) => form.set({ engine })}
+          status={aceStep}
+        />
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-4 scrollbar-thin">
@@ -206,7 +217,10 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
           </p>
         ) : (
           <p className="mb-2 text-center text-xs text-[var(--fg-subtle)]">
-            {st(lang, "create.cost")}
+            {st(
+              lang,
+              form.engine === "ace-step" ? "create.costLocal" : "create.cost",
+            )}
           </p>
         )}
         <div className="flex items-center gap-2">

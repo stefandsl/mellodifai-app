@@ -13,7 +13,13 @@ export type SongModel = (typeof SONG_MODELS)[number];
 
 // What the studio create form stores on a project for the worker.
 // duration null means Auto (no target length sent to kie).
+// Song engines: kie (Suno, paid credits) or ACE-Step running on the PC (free).
+export const SONG_ENGINES = ["kie", "ace-step"] as const;
+export type SongEngine = (typeof SONG_ENGINES)[number];
+
 export const SongSettingsSchema = z.object({
+  // Absent means kie, so projects created before the engine choice keep working.
+  engine: z.enum(SONG_ENGINES).optional(),
   model: z.enum(SONG_MODELS).default("V6"),
   title: z.string().trim().max(80).optional(),
   exclude: z.string().trim().max(1000).optional(),

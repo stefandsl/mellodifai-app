@@ -8,8 +8,9 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { LyricPackSchema } from "@mellodifai/shared";
+import { LyricPackSchema, SongSettingsSchema } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
+import { generateAceStep } from "./ace-step.js";
 import {
   ENGINE_ROOT,
   engine,
@@ -79,6 +80,12 @@ export async function refreshBalance(
 export const generateSong: StageHandler = async (context) => {
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   await writePack(context, pack);
+  // ACE-Step runs on this PC and never touches kie: no credits, no kie task state.
+  const settings = SongSettingsSchema.safeParse(
+    context.project.song_settings ?? {},
+  );
+  if (settings.success && settings.data.engine === "ace-step")
+    return generateAceStep(context, pack, context.aceStep);
   const lang = language(context);
   const taskFile = join(context.ws.outDir, "task.json");
   const generation = context.version.generation_count ?? 1;

@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { createAceStepSupervisor } from "./ace-step/runtime.js";
 import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
@@ -85,6 +86,20 @@ async function main() {
     secrets,
     report,
   });
+  // ACE-Step is installed and driven by the worker itself; MELLODIFAI_ACE_STEP=off disables it.
+  const aceStep =
+    process.env.WORKER_FAKE === "1" || process.env.MELLODIFAI_ACE_STEP === "off"
+      ? undefined
+      : createAceStepSupervisor({
+          engine: engine.withWorkspace(
+            "E:\\mellodifai\\ace-step",
+            async (line) => report(line),
+          ),
+          db,
+          workerId,
+          secrets,
+        });
+  await aceStep?.announce();
   const balanceAbort = new AbortController();
   const stopBalance =
     process.env.WORKER_FAKE === "1"
@@ -112,16 +127,19 @@ async function main() {
     storage: new SupabaseStorage(createClient(url, key)),
     secrets,
     report,
+    ...(aceStep ? { aceStep } : {}),
   });
   const removeSignals = installSignals(
     {
       stop: async () => {
         balanceAbort.abort();
         await Promise.all([loop.stop(), stopBalance()]);
+        await aceStep?.shutdown();
       },
       forceStop: async () => {
         balanceAbort.abort();
         await Promise.all([loop.forceStop(), stopBalance()]);
+        await aceStep?.shutdown();
       },
     },
     process,
@@ -133,6 +151,7 @@ async function main() {
   } finally {
     balanceAbort.abort();
     await stopBalance();
+    await aceStep?.shutdown();
     removeSignals();
   }
 }

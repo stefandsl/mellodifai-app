@@ -6,6 +6,7 @@ import { dayLabel } from "@/components/studio/feed/workspace-feed";
 import { blocker, initialForm, useCreateForm } from "@/store/create-form";
 import { usePlayer } from "@/store/player";
 import { artFor, loadClips } from "./clips";
+import { aceStepView } from "./use-ace-step";
 
 describe("create form", () => {
   it("maps the form to kie settings: percent to 0-1, Auto duration to null", () => {
@@ -40,6 +41,36 @@ describe("create form", () => {
       payloadFor({ ...form, video: { ...form.video, mode: "off" } }).settings
         .video,
     ).toBe("off");
+  });
+
+  it("sends the free PC engine only when chosen, and the schema keeps it", () => {
+    const form = { ...initialForm("it"), prompt: "Una canzone sul mare" };
+    expect(form.engine).toBe("kie");
+    expect("engine" in payloadFor(form).settings).toBe(false);
+    const local = payloadFor({ ...form, engine: "ace-step" });
+    expect(local.settings).toMatchObject({ engine: "ace-step" });
+    expect(SongSettingsSchema.parse(local.settings).engine).toBe("ace-step");
+  });
+
+  it("reads the local engine state the worker publishes", () => {
+    const now = Date.parse("2026-11-01T10:00:00Z");
+    const seen = "2026-11-01T09:59:50Z";
+    expect(
+      aceStepView(
+        {
+          last_seen: seen,
+          engines: { "ace-step": { state: "installing", step: "install" } },
+        },
+        now,
+      ),
+    ).toEqual({
+      status: { state: "installing", step: "install" },
+      online: true,
+    });
+    expect(aceStepView({ last_seen: seen, engines: {} }, now).status).toEqual({
+      state: "not_installed",
+    });
+    expect(aceStepView(null, now).online).toBe(false);
   });
 
   it("blocks Create with the reason the panel shows", () => {

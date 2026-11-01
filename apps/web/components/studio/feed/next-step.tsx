@@ -53,6 +53,7 @@ function ApproveDialog({
   const router = useRouter();
   const [pending, start] = useTransition();
   const valid = validateLyricPack(clip.pack, "vbp").ok;
+  const local = clip.settings?.engine === "ace-step";
   const approve = () =>
     start(async () => {
       const result = await approveLyrics({
@@ -105,7 +106,7 @@ function ApproveDialog({
           <ol className="space-y-1.5 text-[13px] text-[var(--fg-muted)]">
             <li className="flex gap-2">
               <Music2 className="mt-0.5 size-3.5 shrink-0 text-[var(--brand)]" />
-              {st(lang, "next.approveCost")}
+              {st(lang, local ? "next.approveCostLocal" : "next.approveCost")}
             </li>
             <li className="flex gap-2">
               <Clapperboard className="mt-0.5 size-3.5 shrink-0 text-[var(--brand)]" />
@@ -138,7 +139,9 @@ function ApproveDialog({
               )}
             >
               <Check className="size-4" />
-              {pending ? st(lang, "next.approving") : st(lang, "next.confirm")}
+              {pending
+                ? st(lang, "next.approving")
+                : st(lang, local ? "next.confirmLocal" : "next.confirm")}
             </button>
           </div>
         </div>

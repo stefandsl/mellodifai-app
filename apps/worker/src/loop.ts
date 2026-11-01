@@ -3,6 +3,7 @@ import { AuthorizationDenied, authorizeStage } from "./authorization.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
 import type { Secrets } from "./secrets.js";
+import type { AceStepRuntime } from "./stages/ace-step.js";
 import type { Storage } from "./storage.js";
 import type { Workspace } from "./workspace.js";
 
@@ -18,6 +19,7 @@ export type StageContext = {
   secrets: Secrets;
   db: Db;
   signal: AbortSignal;
+  aceStep?: AceStepRuntime;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
@@ -69,6 +71,7 @@ export class WorkerLoop {
       secrets?: Secrets;
       engineVersion?: string;
       report?: (message: string) => void;
+      aceStep?: AceStepRuntime;
     },
   ) {}
   private redact(message: string) {
@@ -254,6 +257,7 @@ export class WorkerLoop {
         db,
         signal,
         log,
+        ...(this.options.aceStep ? { aceStep: this.options.aceStep } : {}),
         progress: async (pct) => {
           signal.throwIfAborted();
           try {
