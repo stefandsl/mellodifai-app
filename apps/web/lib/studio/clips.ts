@@ -1,8 +1,11 @@
 import {
   type Lang,
   normalizeVisualizerParams,
+  parseSongSource,
   parseTakeScores,
+  type SongSource,
   type TakeScores,
+  uploadUrlOf,
   type VersionStatus,
   type VisualizerAspect,
   type VisualizerParams,
@@ -42,6 +45,8 @@ export type Clip = {
     number: number;
     audioUrl: string | null;
     scores: TakeScores | null;
+    // Made by "Riscrivi una parte" from another take of the song.
+    rewritten?: boolean;
   }[];
   chosenTakeId: string | null;
   settings: Record<string, unknown>;
@@ -62,6 +67,10 @@ export type Clip = {
   coverUrl?: string | null;
   // Video Studio renders, one per aspect, with the parameters they were (or are being) made with.
   visualizers?: VisualizerVideo[];
+  // Where the song's audio came from (imported, a cover, ...), with its licence; null otherwise.
+  source?: SongSource | null;
+  // A playable link to the source audio ("Ascolta" in Fonti): the upload or the library song.
+  sourceAudioUrl?: string | null;
 };
 
 export type VisualizerVideo = {
@@ -252,6 +261,7 @@ type Row = {
     style: string | null;
     brief: string | null;
     song_settings: Record<string, unknown> | null;
+    source?: unknown;
   } | null;
 };
 
@@ -259,6 +269,13 @@ function coverArt(cover: string | null | undefined, id: string): string {
   return cover
     ? `center / cover no-repeat url("${cover.replaceAll('"', "%22")}"), ${artFor(id)}`
     : artFor(id);
+}
+
+// The source audio of a song made from other audio: an upload plays from the uploads bucket, a
+// library song from its own page's audio (/media signs either for the owner only).
+function sourceAudio(source: SongSource | null): string | null {
+  if (source?.upload) return uploadUrlOf(source.upload);
+  return null;
 }
 
 // The pipeline is working on the song: a card shows a spinner instead of its artwork.
@@ -301,7 +318,7 @@ export async function loadClips(
   const base = supabase
     .from("versions")
     .select(
-      "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings)",
+      "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings,source)",
     );
   let query = trash
     ? base.not("trashed_at", "is", null)
@@ -347,7 +364,7 @@ export async function loadClips(
       .from("takes")
       // Only whether the stems exist: the full set carries four waveforms.
       .select(
-        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,stems_at:stems->>created_at",
+        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,stems_at:stems->>created_at,source_kind:source->>kind",
       )
       .in("version_id", ids),
     supabase
@@ -383,6 +400,7 @@ export async function loadClips(
       number: number;
       path: string | null;
       scores: TakeScores | null;
+      rewritten: boolean;
     }[]
   >();
   for (const row of rows)
@@ -400,6 +418,7 @@ export async function loadClips(
           number: take.take_number ?? i + 1,
           path: take.audio_preview_path,
           scores: parseTakeScores(take.scores),
+          rewritten: take.source_kind === "replace",
         })),
     );
 
@@ -521,6 +540,7 @@ export async function loadClips(
         number: take.number,
         audioUrl: url(take.path),
         scores: take.scores,
+        ...(take.rewritten ? { rewritten: true } : {}),
       })),
       chosenTakeId: row.chosen_take_id,
       jury: row.lyric_jury,
@@ -542,6 +562,8 @@ export async function loadClips(
       settings,
       pack: row.lyric_pack,
       coverUrl: cover ?? null,
+      source: parseSongSource(project?.source),
+      sourceAudioUrl: sourceAudio(parseSongSource(project?.source)),
       visualizers: visualizersOf(
         ((renders ?? []) as VisualizerRow[]).filter(
           (render) => render.version_id === row.id,

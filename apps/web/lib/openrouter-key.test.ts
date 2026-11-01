@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
-import { openRouterKey } from "./openrouter-key";
+import { groqKey, openRouterKey } from "./openrouter-key";
 
 const files = (map: Record<string, string>) => async (file: string) => {
   const text = map[file];
@@ -41,4 +41,11 @@ it("skips a missing file and returns null when there is no key anywhere", async 
     ),
   ).toBeNull();
   expect(await openRouterKey({})).toBeNull();
+});
+
+it("finds the Groq key for transcriptions the same way", async () => {
+  const read = files({ "a.env": "# GROQ_API_KEY=\nGROQ_API_KEY=gsk-test\n" });
+  expect(await groqKey({ WORKER_ENV_FILES: "a.env" }, read)).toBe("gsk-test");
+  expect(await groqKey({ GROQ_API_KEY: "env" }, read)).toBe("env");
+  expect(await groqKey({}, read)).toBeNull();
 });

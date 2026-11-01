@@ -2,7 +2,9 @@ import {
   LANGS,
   LyricPackSchema,
   MAX_SONGS_PER_CLICK,
+  REWRITE_ENGINES,
   SongSettingsSchema,
+  SongSourceSchema,
 } from "@mellodifai/shared";
 import { z } from "zod";
 
@@ -124,4 +126,49 @@ export const SaveEditInput = z.object({
       /^edits\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.mp3$/u,
       "invalid edit path",
     ),
+});
+
+// "Riscrivi una parte": the range and the new lyrics, as request_section_edit checks them again.
+export const SectionEditInput = z.object({
+  versionId: Id,
+  takeId: Id,
+  engine: z.enum(REWRITE_ENGINES),
+  start: z.number().min(0).max(3600),
+  end: z.number().min(0).max(3600),
+  duration: z.number().positive().max(3600),
+  lines: z.array(z.number().int().min(0).max(2000)).max(500),
+  section: z.string().trim().min(1).max(5000),
+  full: z.string().max(5000),
+});
+export const SectionKeepInput = z.object({
+  editId: Id,
+  alternative: z.number().int().min(0).max(7),
+});
+export const SectionIdInput = z.object({ editId: Id });
+export const ChooseTakeInput = z.object({ versionId: Id, takeId: Id });
+// "Importa da Suno": an uploaded recording of the caller (<owner>/audio/<uuid>.<ext>).
+export const ImportSongInput = z.object({
+  title: z.string().trim().min(1).max(100),
+  style: z.string().trim().max(1000),
+  lyrics: z.string().max(5000),
+  lang: z.enum(LANGS),
+  upload: z
+    .string()
+    .regex(/^[0-9a-f-]{36}\/audio\/[0-9a-f-]{36}\.(mp3|wav|flac)$/u),
+  source: SongSourceSchema.pick({
+    kind: true,
+    title: true,
+    author: true,
+    url: true,
+    licence: true,
+  }),
+});
+export const SongSourceInput = z.object({
+  versionId: Id,
+  source: SongSourceSchema.pick({
+    title: true,
+    author: true,
+    url: true,
+    licence: true,
+  }),
 });
