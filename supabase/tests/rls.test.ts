@@ -471,7 +471,11 @@ describe("row level security", () => {
           .eq("id", b.id)
       ).error,
     ).toBeNull();
-    const paths = [`${a.id}/security.txt`, `${b.id}/security.txt`];
+    // Stored as the worker stores previews: previews/<owner>/... (migration 20261101000021).
+    const paths = [
+      `previews/${a.id}/security.txt`,
+      `previews/${b.id}/security.txt`,
+    ];
     try {
       for (const path of paths) {
         expect(
