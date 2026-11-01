@@ -5,7 +5,7 @@ import {
   IngestManifestSchema,
   RewriteResultSchema,
 } from "./schemas.js";
-import { analysisFixture, blueprintFixture } from "./test-fixtures.js";
+import { analysisFixture, blueprintFixture, must } from "./test-fixtures.js";
 
 describe("blueprint schema", () => {
   it("accepts a valid blueprint", () => {
@@ -16,19 +16,19 @@ describe("blueprint schema", () => {
 
   it("rejects overlapping or unsorted shots", () => {
     const bp = blueprintFixture();
-    bp.shots[1] = { ...bp.shots[1]!, start: 1 };
+    bp.shots[1] = { ...must(bp.shots[1]), start: 1 };
     expect(BlueprintSchema.safeParse(bp).success).toBe(false);
   });
 
   it("rejects a shot that ends after the video", () => {
     const bp = blueprintFixture();
-    bp.shots.at(-1)!.end = bp.durationS + 5;
+    must(bp.shots.at(-1)).end = bp.durationS + 5;
     expect(BlueprintSchema.safeParse(bp).success).toBe(false);
   });
 
   it("rejects colours that are not hex", () => {
     const bp = blueprintFixture();
-    bp.palette[0]!.hex = "red";
+    must(bp.palette[0]).hex = "red";
     expect(BlueprintSchema.safeParse(bp).success).toBe(false);
   });
 
@@ -48,7 +48,7 @@ describe("analysis schema", () => {
 
   it("rejects a line that points at a missing section", () => {
     const a = analysisFixture();
-    a.lines[0]!.sectionId = "nope";
+    must(a.lines[0]).sectionId = "nope";
     const result = AnalysisSchema.safeParse(a);
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain("unknown section");
@@ -56,21 +56,21 @@ describe("analysis schema", () => {
 
   it("rejects a meaning map entry for a missing section", () => {
     const a = analysisFixture();
-    a.meaning[0]!.sectionId = "ghost";
+    must(a.meaning[0]).sectionId = "ghost";
     expect(AnalysisSchema.safeParse(a).success).toBe(false);
   });
 
   it("rejects blueprint shots pointing at a missing section", () => {
     const a = analysisFixture();
-    a.blueprint.shots[0]!.sectionId = "ghost";
+    must(a.blueprint.shots[0]).sectionId = "ghost";
     expect(AnalysisSchema.safeParse(a).success).toBe(false);
   });
 
   it("rejects sections out of order", () => {
     const a = analysisFixture();
     const [s0, s1] = a.music.sections;
-    a.music.sections[0] = s1!;
-    a.music.sections[1] = s0!;
+    a.music.sections[0] = must(s1);
+    a.music.sections[1] = must(s0);
     expect(AnalysisSchema.safeParse(a).success).toBe(false);
   });
 

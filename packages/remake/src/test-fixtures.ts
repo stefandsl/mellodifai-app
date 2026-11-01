@@ -1,6 +1,12 @@
 // Small hand-made fixtures shared by the unit tests (no network, no media).
 import type { Analysis, Blueprint } from "./schemas.js";
 
+export function must<T>(value: T | undefined | null): T {
+  if (value === undefined || value === null)
+    throw new Error("fixture value missing");
+  return value;
+}
+
 export function blueprintFixture(): Blueprint {
   return {
     schemaVersion: 1,

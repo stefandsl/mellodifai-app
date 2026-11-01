@@ -280,13 +280,12 @@ export const AnalysisSchema = z
           message: `unknown section ${sectionId}`,
         });
     };
-    a.lines.forEach((l, i) => check(l.sectionId, ["lines", i, "sectionId"]));
-    a.meaning.forEach((m, i) =>
-      check(m.sectionId, ["meaning", i, "sectionId"]),
-    );
-    a.blueprint.shots.forEach((s, i) =>
-      check(s.sectionId, ["blueprint", "shots", i, "sectionId"]),
-    );
+    for (const [i, l] of a.lines.entries())
+      check(l.sectionId, ["lines", i, "sectionId"]);
+    for (const [i, m] of a.meaning.entries())
+      check(m.sectionId, ["meaning", i, "sectionId"]);
+    for (const [i, s] of a.blueprint.shots.entries())
+      check(s.sectionId, ["blueprint", "shots", i, "sectionId"]);
   });
 export type Analysis = z.infer<typeof AnalysisSchema>;
 

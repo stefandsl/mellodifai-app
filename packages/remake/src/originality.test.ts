@@ -21,9 +21,9 @@ describe("lexical measures", () => {
   });
 
   it("trigram dice is low for unrelated text", () => {
-    expect(charTrigramDice("the empty streets", "una barca nel mare")).toBeLessThan(
-      0.15,
-    );
+    expect(
+      charTrigramDice("the empty streets", "una barca nel mare"),
+    ).toBeLessThan(0.15);
   });
 
   it("finds the longest shared run of words", () => {
@@ -75,7 +75,12 @@ describe("checkOriginality", () => {
       lang: "en",
       sourceLang: "en",
     });
-    expect(report.lines.map((l) => l.flagged)).toEqual([true, true, false, false]);
+    expect(report.lines.map((l) => l.flagged)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
     expect(report.lines[0]?.lexical).toBe(1);
     expect(report.lines[0]?.closestSource).toBe(0);
     expect(report.lines[1]?.sharedRun).toBeGreaterThanOrEqual(4);
@@ -86,7 +91,10 @@ describe("checkOriginality", () => {
 
   it("flags a line that is the literal translation when the language changes", async () => {
     const report = await checkOriginality({
-      lines: ["Cammino da solo per le strade vuote", "Una barca di carta nel fosso"],
+      lines: [
+        "Cammino da solo per le strade vuote",
+        "Una barca di carta nel fosso",
+      ],
       sourceLines: source.slice(0, 2),
       translationLines: [
         "Cammino da solo per le strade vuote",
@@ -95,7 +103,10 @@ describe("checkOriginality", () => {
       lang: "it",
       sourceLang: "en",
     });
-    expect(report.lines[0]).toMatchObject({ flagged: true, against: "translation" });
+    expect(report.lines[0]).toMatchObject({
+      flagged: true,
+      against: "translation",
+    });
     expect(report.lines[1]?.flagged).toBe(false);
   });
 
@@ -108,7 +119,10 @@ describe("checkOriginality", () => {
       [source[1] ?? ""]: [0.12, 1, 0],
     };
     const report = await checkOriginality({
-      lines: ["Tieniti stretto a questa luce stanotte", "Una barca di carta nel fosso"],
+      lines: [
+        "Tieniti stretto a questa luce stanotte",
+        "Una barca di carta nel fosso",
+      ],
       sourceLines: source.slice(0, 2),
       lang: "it",
       sourceLang: "en",
@@ -116,7 +130,9 @@ describe("checkOriginality", () => {
     });
     expect(report.semanticAvailable).toBe(true);
     expect(report.lines[0]).toMatchObject({ flagged: true, closestSource: 1 });
-    expect(report.lines[0]?.semantic).toBeGreaterThan(DEFAULT_THRESHOLDS.semantic);
+    expect(report.lines[0]?.semantic).toBeGreaterThan(
+      DEFAULT_THRESHOLDS.semantic,
+    );
     expect(report.lines[1]?.flagged).toBe(false);
     expect(report.maxSemantic).toBeGreaterThan(0.9);
   });

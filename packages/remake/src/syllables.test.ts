@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { countSyllables, fitLine, lineEnding, singingRate } from "./syllables.js";
+import {
+  countSyllables,
+  fitLine,
+  lineEnding,
+  singingRate,
+} from "./syllables.js";
 
 describe("countSyllables", () => {
   it.each([

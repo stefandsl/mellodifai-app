@@ -146,7 +146,10 @@ function wordSyllables(word: string, lang: string): Syllables {
     return { min: n, max: n };
   }
   if ([...word].some((c) => CYRILLIC_VOWELS.has(c) || /[а-я]/u.test(c))) {
-    const n = Math.max(1, [...word].filter((c) => CYRILLIC_VOWELS.has(c)).length);
+    const n = Math.max(
+      1,
+      [...word].filter((c) => CYRILLIC_VOWELS.has(c)).length,
+    );
     return { min: n, max: n };
   }
   if (lang === "en") {
@@ -202,13 +205,18 @@ export function lineEnding(line: string, lang: string): Ending {
       return /[aeiou]$/u.test(last) ? "unstressed" : "stressed";
     case "es":
     case "pt": {
-      const accent = [...last].findLastIndex((c) => ACCENTED.test(c));
+      const chars = [...last];
+      let accent = -1;
+      for (const [i, c] of chars.entries()) if (ACCENTED.test(c)) accent = i;
       if (accent >= 0) {
-        const after = last.slice(accent + 1);
+        const after = chars.slice(accent + 1).join("");
         return /[aeiou]/u.test(after) ? "unstressed" : "stressed";
       }
-      if (l === "es") return /[aeiouns]$/u.test(last) ? "unstressed" : "stressed";
-      return /(?:[aeo]|[aeo]s|am|em|ens)$/u.test(last) ? "unstressed" : "stressed";
+      if (l === "es")
+        return /[aeiouns]$/u.test(last) ? "unstressed" : "stressed";
+      return /(?:[aeo]|[aeo]s|am|em|ens)$/u.test(last)
+        ? "unstressed"
+        : "stressed";
     }
     case "fr":
       return /(?:e|es|ent)$/u.test(last) ? "unstressed" : "stressed";
@@ -242,8 +250,15 @@ export function fitLine(
   const cMin = candidate.min - shift;
   const cMax = candidate.max - shift;
   const delta =
-    cMin > target.max ? cMin - target.max : cMax < target.min ? cMax - target.min : 0;
-  const tolerance = Math.max(1, Math.round(0.12 * ((target.min + target.max) / 2)));
+    cMin > target.max
+      ? cMin - target.max
+      : cMax < target.min
+        ? cMax - target.min
+        : 0;
+  const tolerance = Math.max(
+    1,
+    Math.round(0.12 * ((target.min + target.max) / 2)),
+  );
   return { fits: Math.abs(delta) <= tolerance, endingMatch, delta };
 }
 

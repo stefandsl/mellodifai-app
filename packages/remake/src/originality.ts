@@ -6,7 +6,11 @@
 import type { LineOriginality } from "./schemas.js";
 import { baseLang, words } from "./syllables.js";
 
-export type Thresholds = { lexical: number; semantic: number; sharedRun: number };
+export type Thresholds = {
+  lexical: number;
+  semantic: number;
+  sharedRun: number;
+};
 // Calibrated on the live run recorded in the task 24 report: a faithful re-expression of
 // a line's idea scores 0.6-0.8 on bge-m3, a literal translation 0.9 or more.
 export const DEFAULT_THRESHOLDS: Thresholds = {
@@ -114,7 +118,9 @@ export function scoreLexical(
   // Containment of one or two words says little; it counts from three content words.
   const containment = smaller >= 3 ? shared / smaller : 0;
   return {
-    lexical: Math.round(Math.max(charTrigramDice(line, other), containment) * 1000) / 1000,
+    lexical:
+      Math.round(Math.max(charTrigramDice(line, other), containment) * 1000) /
+      1000,
     sharedRun: longestSharedRun(line, other),
   };
 }
@@ -153,8 +159,16 @@ export async function checkOriginality(input: {
   embed?: Embed;
 }): Promise<OriginalityReport> {
   const thresholds = input.thresholds ?? DEFAULT_THRESHOLDS;
-  const references: { text: string; index: number; kind: "source" | "translation" }[] = [
-    ...input.sourceLines.map((text, index) => ({ text, index, kind: "source" as const })),
+  const references: {
+    text: string;
+    index: number;
+    kind: "source" | "translation";
+  }[] = [
+    ...input.sourceLines.map((text, index) => ({
+      text,
+      index,
+      kind: "source" as const,
+    })),
     ...(input.translationLines ?? []).map((text, index) => ({
       text,
       index,
@@ -166,7 +180,10 @@ export async function checkOriginality(input: {
   let semanticError: string | undefined;
   if (input.embed && input.lines.length > 0 && references.length > 0) {
     try {
-      const all = await input.embed([...input.lines, ...references.map((r) => r.text)]);
+      const all = await input.embed([
+        ...input.lines,
+        ...references.map((r) => r.text),
+      ]);
       if (all.length !== input.lines.length + references.length)
         throw new Error("embedding count mismatch");
       vectors = all;
@@ -189,12 +206,20 @@ export async function checkOriginality(input: {
       const lex = scoreLexical(line, ref.text, lang);
       const sem =
         vectors?.[i] && vectors[input.lines.length + r]
-          ? Math.max(0, cosine(vectors[i] ?? [], vectors[input.lines.length + r] ?? []))
+          ? Math.max(
+              0,
+              cosine(vectors[i] ?? [], vectors[input.lines.length + r] ?? []),
+            )
           : 0;
       lexical = Math.max(lexical, lex.lexical);
       sharedRun = Math.max(sharedRun, lex.sharedRun);
-      if (semantic !== null) semantic = Math.max(semantic, Math.round(sem * 1000) / 1000);
-      const score = Math.max(lex.lexical, sem, lex.sharedRun >= thresholds.sharedRun ? 1 : 0);
+      if (semantic !== null)
+        semantic = Math.max(semantic, Math.round(sem * 1000) / 1000);
+      const score = Math.max(
+        lex.lexical,
+        sem,
+        lex.sharedRun >= thresholds.sharedRun ? 1 : 0,
+      );
       if (score > best) {
         best = score;
         closestSource = ref.index;
@@ -206,7 +231,15 @@ export async function checkOriginality(input: {
       (lexical >= thresholds.lexical ||
         sharedRun >= thresholds.sharedRun ||
         (semantic ?? 0) >= thresholds.semantic);
-    return { lexical, semantic, sharedRun, closestSource, against, flagged, exempt };
+    return {
+      lexical,
+      semantic,
+      sharedRun,
+      closestSource,
+      against,
+      flagged,
+      exempt,
+    };
   });
 
   const scored = lines.filter((l) => !l.exempt);
