@@ -1,4 +1,14 @@
-export function localSupabaseUrl(value = process.env.SUPABASE_URL): string {
+// The live local stack (supabase_*_mellodifai, API on 54321) is the owner's: its render PC worker
+// claims every queued job and runs the paid engines, so a full-flow test there spends real kie
+// credits (it did on 2026-11-01). E2E runs against the separate stack (supabase_*_mellodifai_e2e,
+// API on 45621) unless E2E_ALLOW_LIVE_STACK=1 says otherwise.
+export const LIVE_STACK_PORTS = ["54321"];
+export const E2E_STACK_URL = "http://127.0.0.1:45621";
+
+export function localSupabaseUrl(
+  value = process.env.SUPABASE_URL,
+  env: Record<string, string | undefined> = process.env,
+): string {
   let url: URL;
   try {
     url = new URL(value ?? "");
@@ -10,5 +20,9 @@ export function localSupabaseUrl(value = process.env.SUPABASE_URL): string {
     !["http:", "https:"].includes(url.protocol)
   )
     throw new Error("E2E requires a local SUPABASE_URL");
+  if (LIVE_STACK_PORTS.includes(url.port) && env.E2E_ALLOW_LIVE_STACK !== "1")
+    throw new Error(
+      `E2E refuses the live Supabase stack (${url.host}): its worker runs paid engines. Use the e2e stack (${E2E_STACK_URL}) or set E2E_ALLOW_LIVE_STACK=1.`,
+    );
   return url.href;
 }

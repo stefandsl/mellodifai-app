@@ -1,7 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import { localSupabaseUrl } from "./e2e/local-env";
 
-const supabaseUrl = process.env.SUPABASE_URL ?? "";
+// Refuses the live stack before anything starts (e2e/local-env.ts). The app under test is its own
+// dev server on E2E_PORT (3210), never the owner's server on 3000, which talks to the live stack.
+const supabaseUrl = localSupabaseUrl();
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
+const port = Number(process.env.E2E_PORT ?? 3210);
+const base = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -11,21 +16,20 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: base,
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command:
-      "pnpm --filter @mellodifai/web dev --hostname 127.0.0.1 --port 3000",
-    url: "http://127.0.0.1:3000",
+    command: `pnpm --filter @mellodifai/web dev --hostname 127.0.0.1 --port ${port}`,
+    url: base,
     timeout: 120_000,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     env: {
       ...process.env,
       NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
-      NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000",
+      NEXT_PUBLIC_SITE_URL: base,
     },
   },
 });
