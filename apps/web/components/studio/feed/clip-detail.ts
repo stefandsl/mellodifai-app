@@ -5,7 +5,12 @@ import type { TrackDetail } from "@/store/player";
 import { modelLabel } from "../create/model-select";
 
 // What made the song: the local engine's name, else the kie model ("v6").
-export function clipBadge(clip: Pick<Clip, "model" | "settings">): string {
+export function clipBadge(
+  clip: Pick<Clip, "model" | "settings" | "source">,
+): string {
+  // An imported recording was not made here: name where it came from, not a model.
+  if (clip.source?.kind === "suno") return "Suno";
+  if (clip.source?.kind === "upload") return "Audio";
   if (clip.settings.engine === "yue2") return "YuE2";
   if (clip.settings.engine === "ace-step") return "ACE-Step";
   return modelLabel(clip.model);

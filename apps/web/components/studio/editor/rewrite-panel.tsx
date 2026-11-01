@@ -531,7 +531,7 @@ export function RewritePanel({
               audition.playing === "part" ? "rw.stopPart" : "rw.playPart",
             )}
           </button>
-          <div className="grid min-w-0 flex-1 grid-cols-3 gap-3">
+          <div className="grid min-w-0 flex-1 grid-cols-3 gap-3 max-sm:basis-full">
             <ClockField
               label={st(lang, "rw.from")}
               value={range.start}

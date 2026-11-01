@@ -44,7 +44,7 @@ function decodeEntities(text: string): string {
 
 function meta(html: string, name: string): string | null {
   const pattern = new RegExp(
-    `<meta[^>]+(?:property|name)=["']${name.replace(/[:.]/gu, "\\$&")}["'][^>]*content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${name.replace(/[:.]/gu, "\\$&")}["']`,
+    `<meta[^>]+(?:property|name)=["']${name.replace(/[.]/gu, "\\$&")}["'][^>]*content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${name.replace(/[.]/gu, "\\$&")}["']`,
     "iu",
   );
   const match = pattern.exec(html);
