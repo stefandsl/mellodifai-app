@@ -125,7 +125,11 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
   const [fallback, setFallback] = useState<string | null>(null);
   // The persisted draft loads after hydration; render the server default until then.
   const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
+  useEffect(() => {
+    void Promise.resolve(useCreateForm.persist.rehydrate()).then(() =>
+      setReady(true),
+    );
+  }, []);
   const block = blocker(form);
 
   // A local engine that stops qualifying (PC offline, language added) hands the form back to

@@ -127,6 +127,8 @@ export const useCreateForm = create<CreateFormState & Actions>()(
           open: s.open,
         })),
     }),
-    { name: "mellodifai-create-form", version: 1 },
+    // The saved draft is loaded after hydration (CreatePanel), so the first client render
+    // matches the server's default form.
+    { name: "mellodifai-create-form", version: 1, skipHydration: true },
   ),
 );

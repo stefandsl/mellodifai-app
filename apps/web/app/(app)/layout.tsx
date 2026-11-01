@@ -21,6 +21,7 @@ export default async function PrivateLayout({
         lastSeen: worker?.last_seen ?? null,
         balance: worker?.kie_balance ?? null,
         engines: worker?.engines ?? {},
+        renderedAt: Date.now(),
       }}
       isAdmin={profile.role === "admin"}
     >

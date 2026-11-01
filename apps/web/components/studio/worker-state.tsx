@@ -19,6 +19,9 @@ export type WorkerInfo = {
   lastSeen: string | null;
   balance: number | null;
   engines: unknown;
+  // Server clock at render time: the first client render judges freshness with the same
+  // clock, so the online dot and the engine choice hydrate exactly as the server drew them.
+  renderedAt: number;
 };
 
 export type WorkerState = {
@@ -49,7 +52,7 @@ const WorkerContext = createContext<WorkerState>(NO_WORKER);
 // engine choice all follow the same heartbeat.
 export function useWorker(initial: WorkerInfo) {
   const [worker, setWorker] = useState(initial);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(initial.renderedAt);
   useEffect(() => {
     const db = createClient();
     let cancelled = false;
@@ -65,13 +68,15 @@ export function useWorker(initial: WorkerInfo) {
       // judged against a newer clock (that would flicker the engine choice).
       setNow(Date.now());
       if (data)
-        setWorker({
+        setWorker((current) => ({
+          ...current,
           id: data.id,
           lastSeen: data.last_seen,
           balance: data.kie_balance,
           engines: data.engines,
-        });
+        }));
     };
+    void refresh();
     const timer = setInterval(() => void refresh(), 15000);
     return () => {
       cancelled = true;
