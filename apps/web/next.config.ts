@@ -9,7 +9,9 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "./i18n.js": "../../packages/shared/src/i18n.ts",
       "./lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
+      "./rewrite.js": "../../packages/shared/src/rewrite.ts",
       "./song-settings.js": "../../packages/shared/src/song-settings.ts",
+      "./song-source.js": "../../packages/shared/src/song-source.ts",
       "./stages.js": "../../packages/shared/src/stages.ts",
       "./status.js": "../../packages/shared/src/status.ts",
       "./suggest-take.js": "../../packages/shared/src/suggest-take.ts",

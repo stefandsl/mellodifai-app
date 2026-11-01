@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AudioSourceSchema } from "./song-source.js";
 import { VisualizerParamsSchema } from "./visualizer/viz-params.js";
 
 // Models offered by the studio model selector, as kie names them.
@@ -92,6 +93,8 @@ export const SongSettingsSchema = z.object({
     .max(ACE_GUIDANCE.max)
     .multipleOf(ACE_GUIDANCE.step)
     .optional(),
+  // The audio the song starts from: a cover, a reference or an extension (T12).
+  source: AudioSourceSchema.optional(),
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;
 

@@ -63,14 +63,23 @@ export const EDIT_STATUSES: readonly VersionStatus[] = [
   "published",
 ];
 
+// Statuses in which a part of a take may be rewritten: the takes are heard (takes_review) or the
+// song is not being produced or published. The same list as request_section_edit (migration
+// 20261101000023).
+export const REWRITE_STATUSES: readonly VersionStatus[] = [
+  "takes_review",
+  ...EDIT_STATUSES,
+];
+
 export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
   // A visualizer renders the same chosen take the stems separate (request_visualizer).
   if (stage === "stems" || stage === "visualizer")
     return STEMS_STATUSES.includes(status);
+  if (stage === "replace_section") return REWRITE_STATUSES.includes(status);
   const allowed: Record<VersionStatus, readonly Stage[]> = {
     drafting: ["draft_lyrics"],
     lyrics_review: ["draft_lyrics"],
-    song_queued: ["generate_song"],
+    song_queued: ["generate_song", "import_audio"],
     takes_review: [],
     audio_ready: [],
     producing: [
@@ -93,6 +102,7 @@ export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
 export const STAGE_STATUS: Partial<Record<Stage, VersionStatus>> = {
   draft_lyrics: "lyrics_review",
   generate_song: "takes_review",
+  import_audio: "audio_ready",
   timing: "producing",
   art: "video_review",
   publish: "approved",

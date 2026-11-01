@@ -30,13 +30,21 @@ export const STAGES = [
   "stems",
   // On demand: renders an audio-reactive visualizer video of the chosen take (Video Studio).
   "visualizer",
+  // On demand: makes alternatives of a part of a take with new lyrics ("Riscrivi una parte").
+  "replace_section",
+  // Turns an uploaded or imported recording into the song's take ("Importa da Suno").
+  "import_audio",
 ] as const;
 
 export type Stage = (typeof STAGES)[number];
 
 // Stages the owner asks for on a finished song. They never change the song status, not even
-// when they fail, so a failed separation or visualizer render leaves the song as it was.
-export const ON_DEMAND_STAGES: readonly Stage[] = ["stems", "visualizer"];
+// when they fail, so a failed separation, visualizer render or rewrite leaves the song as it was.
+export const ON_DEMAND_STAGES: readonly Stage[] = [
+  "stems",
+  "visualizer",
+  "replace_section",
+];
 export function isOnDemandStage(stage: Stage): boolean {
   return ON_DEMAND_STAGES.includes(stage);
 }

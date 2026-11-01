@@ -137,6 +137,8 @@ export type DictKey =
   | "stage.import_legacy"
   | "stage.stems"
   | "stage.visualizer"
+  | "stage.replace_section"
+  | "stage.import_audio"
   | "job.queued"
   | "job.running"
   | "job.done"
@@ -222,6 +224,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.import_legacy": "Importazione",
     "stage.stems": "Separazione stems",
     "stage.visualizer": "Video visualizer",
+    "stage.replace_section": "Riscrittura di una parte",
+    "stage.import_audio": "Importazione dell'audio",
     "job.queued": "In coda",
     "job.running": "In corso",
     "job.done": "Completato",
@@ -370,6 +374,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.import_legacy": "Import",
     "stage.stems": "Stem separation",
     "stage.visualizer": "Visualizer video",
+    "stage.replace_section": "Rewrite of a part",
+    "stage.import_audio": "Audio import",
     "job.queued": "Queued",
     "job.running": "Running",
     "job.done": "Done",
