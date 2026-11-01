@@ -23,11 +23,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { publicationDefaults } from "@/lib/publication-defaults";
+import { localCostSentence } from "@/lib/studio/engines";
+import { st } from "@/lib/studio/i18n";
 import { ConfirmDialog } from "./confirm-dialog";
 import { ErrorDetails } from "./error-details";
 import { useLocale } from "./locale-provider";
 import { LyricEditor } from "./lyric-editor";
 import { PublishConfirmDialog } from "./publish-confirm-dialog";
+import { useLocalCost } from "./studio/worker-state";
 import { SubmissionResolution } from "./submission-resolution";
 import { type Take, TakePicker } from "./take-picker";
 import { useAction } from "./use-action";
@@ -67,6 +70,7 @@ export function ProjectWorkspace({
   activeJob = false,
   isAdmin = false,
   quotaNotBefore,
+  settings,
 }: {
   version: WorkspaceVersion;
   takes: Take[];
@@ -78,8 +82,11 @@ export function ProjectWorkspace({
   isAdmin?: boolean;
   quotaNotBefore?: string | null;
   thumbnailUrl?: string | null;
+  // The project's song_settings: tells which engine made (or will make) the song.
+  settings?: Record<string, unknown>;
 }) {
   const lang = useLocale();
+  const local = useLocalCost(settings);
   const { pending, run } = useAction();
   const [reason, setReason] = useState("");
   const master = renders.find((r) => r.kind === "master");
@@ -99,6 +106,7 @@ export function ProjectWorkspace({
       <LyricEditor
         pack={version.lyric_pack}
         theme="vbp"
+        local={local}
         onApprove={(pack) => approveLyrics({ versionId: version.id, pack })}
       />
     );
@@ -106,6 +114,7 @@ export function ProjectWorkspace({
     return (
       <TakePicker
         takes={takes}
+        local={local}
         onPick={(takeId) => pickTake({ versionId: version.id, takeId })}
         onGenerateAgain={() =>
           generateAgain({
@@ -241,7 +250,11 @@ export function ProjectWorkspace({
                 {!freeKieRetry && (
                   <ConfirmDialog
                     disabled={pending}
-                    trigger={t(lang, "action.generateAgain")}
+                    trigger={
+                      local
+                        ? st(lang, "project.generateAgainLocal")
+                        : t(lang, "action.generateAgain")
+                    }
                     title={t(lang, "dialog.generation")}
                     onConfirm={() =>
                       run(() =>
@@ -252,7 +265,9 @@ export function ProjectWorkspace({
                       )
                     }
                   >
-                    {t(lang, "dialog.cost")}
+                    {local
+                      ? localCostSentence(lang, local)
+                      : t(lang, "dialog.cost")}
                   </ConfirmDialog>
                 )}
                 {!freeKieRetry && (

@@ -15,7 +15,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { st } from "@/lib/studio/i18n";
+import {
+  engineControls,
+  engineLabel,
+  localCost,
+  minutesPhrase,
+} from "@/lib/studio/engines";
+import { st, stf } from "@/lib/studio/i18n";
 import {
   blocker,
   type CreateFormState,
@@ -24,15 +30,18 @@ import {
   useCreateForm,
 } from "@/store/create-form";
 import { Counter, Segmented, Tip } from "../ui";
+import { EngineSelect } from "./engine-select";
 import { LanguagePicker } from "./language-picker";
 import { LyricsCard } from "./lyrics-card";
 import { ModelSelect } from "./model-select";
 import { MoreOptionsCard } from "./more-options-card";
 import { PROMPT_EXAMPLES, RotatingPlaceholder } from "./rotating-placeholder";
 import { StylesCard } from "./styles-card";
+import { useEngineChoice } from "./use-engine";
 import { VideoCard, VideoRow } from "./video-card";
 
 export function payloadFor(form: CreateFormState) {
+  const controls = engineControls(form.engine);
   return {
     mode: form.mode,
     prompt: form.prompt.trim(),
@@ -41,14 +50,22 @@ export function payloadFor(form: CreateFormState) {
     languages: form.languages,
     vocalGender: form.vocalGender,
     settings: {
-      model: form.model,
+      ...(controls.model ? { model: form.model } : {}),
       ...(form.title.trim() ? { title: form.title.trim() } : {}),
-      ...(form.exclude.trim() ? { exclude: form.exclude.trim() } : {}),
-      weirdness: Math.round(form.weirdness) / 100,
-      styleWeight: Math.round(form.styleInfluence) / 100,
-      variety: form.variety,
-      duration: form.durationMode === "custom" ? form.duration : null,
+      ...(controls.tuning
+        ? {
+            ...(form.exclude.trim() ? { exclude: form.exclude.trim() } : {}),
+            weirdness: Math.round(form.weirdness) / 100,
+            styleWeight: Math.round(form.styleInfluence) / 100,
+            variety: form.variety,
+          }
+        : {}),
+      duration:
+        controls.duration && form.durationMode === "custom"
+          ? form.duration
+          : null,
       video: form.video.mode === "off" ? ("off" as const) : ("lyric" as const),
+      engine: form.engine,
     },
   };
 }
@@ -101,15 +118,48 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
   const form = useCreateForm();
   const [pending, start] = useTransition();
   const [confirmClear, setConfirmClear] = useState(false);
+  const choice = useEngineChoice();
+  const { engine } = choice;
+  const controls = engineControls(engine);
+  // One line saying why a local engine was dropped; gone as soon as the admin picks again.
+  const [fallback, setFallback] = useState<string | null>(null);
   // The persisted draft loads after hydration; render the server default until then.
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   const block = blocker(form);
 
+  // A local engine that stops qualifying (PC offline, language added) hands the form back to
+  // kie; the stored choice follows so the form never keeps a stale engine.
+  const { stored, reason } = choice;
+  const setForm = form.set;
+  useEffect(() => {
+    if (!ready || !reason) return;
+    setForm({ engine: "kie" });
+    if (reason !== "admin")
+      setFallback(
+        stf(lang, "create.engineFallback", {
+          engine: engineLabel(lang, stored),
+          reason: st(lang, `engine.reason.${reason}`),
+        }),
+      );
+  }, [ready, reason, stored, lang, setForm]);
+
+  const minutes = localCost(
+    engine,
+    choice.engines,
+    controls.duration && form.durationMode === "custom" ? form.duration : null,
+  );
+  const cost =
+    engine === "kie"
+      ? st(lang, "create.cost")
+      : minutes === null
+        ? st(lang, "create.costLocalNoEstimate")
+        : stf(lang, "create.costLocal", { m: minutesPhrase(lang, minutes) });
+
   function submit() {
     if (block || pending) return;
     start(async () => {
-      const result = await createSong(payloadFor(form));
+      const result = await createSong(payloadFor({ ...form, engine }));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -140,7 +190,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
     >
       <div className="shrink-0 px-4 pt-3">
         <Heading />
-        <div className="mt-3 flex items-center justify-between gap-2">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <Segmented
             label={`${st(lang, "create.simple")} / ${st(lang, "create.advanced")}`}
             value={form.mode}
@@ -155,12 +205,32 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
               value={form.languages}
               onChange={(languages) => form.set({ languages })}
             />
-            <ModelSelect
-              value={form.model}
-              onChange={(model) => form.set({ model })}
-            />
+            {choice.isAdmin ? (
+              <EngineSelect
+                value={engine}
+                options={choice.options}
+                onChange={(next) => {
+                  setFallback(null);
+                  form.set({ engine: next });
+                }}
+              />
+            ) : null}
+            {controls.model ? (
+              <ModelSelect
+                value={form.model}
+                onChange={(model) => form.set({ model })}
+              />
+            ) : null}
           </div>
         </div>
+        {fallback ? (
+          <p
+            role="status"
+            className="mt-2 rounded-xl bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--fg-muted)]"
+          >
+            {fallback}
+          </p>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-4 scrollbar-thin">
@@ -206,7 +276,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
           </p>
         ) : (
           <p className="mb-2 text-center text-xs text-[var(--fg-subtle)]">
-            {st(lang, "create.cost")}
+            {cost}
           </p>
         )}
         <div className="flex items-center gap-2">

@@ -7,7 +7,7 @@ import { workerIsOnline } from "@/lib/worker";
 const SONG_COST = 12;
 
 export default async function CreditsPage() {
-  const [{ supabase }, lang] = await Promise.all([
+  const [{ supabase, profile }, lang] = await Promise.all([
     requireProfile(),
     getLocale(),
   ]);
@@ -36,6 +36,11 @@ export default async function CreditsPage() {
             </span>{" "}
             {st(lang, "credits.songs")}
           </p>
+          {profile.role === "admin" ? (
+            <p className="mt-3 text-[13px] text-balance text-[var(--fg-muted)]">
+              {st(lang, "credits.local")}
+            </p>
+          ) : null}
         </section>
         <section className="rounded-2xl bg-[var(--surface-1)] p-6">
           <h2 className="text-[13px] text-[var(--fg-muted)]">

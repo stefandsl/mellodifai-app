@@ -6,10 +6,10 @@ export default async function PrivateLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { supabase, user } = await requireProfile();
+  const { supabase, user, profile } = await requireProfile();
   const { data: worker } = await supabase
     .from("workers")
-    .select("id,last_seen,kie_balance")
+    .select("id,last_seen,kie_balance,engines")
     .order("last_seen", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -20,7 +20,9 @@ export default async function PrivateLayout({
         id: worker?.id ?? null,
         lastSeen: worker?.last_seen ?? null,
         balance: worker?.kie_balance ?? null,
+        engines: worker?.engines ?? {},
       }}
+      isAdmin={profile.role === "admin"}
     >
       {children}
     </StudioShell>

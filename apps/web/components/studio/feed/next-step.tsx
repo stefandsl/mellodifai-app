@@ -23,6 +23,7 @@ import {
   pickTake,
 } from "@/app/actions/checkpoints";
 import { useLocale } from "@/components/locale-provider";
+import { useSongEngine } from "@/components/studio/worker-state";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Clip } from "@/lib/studio/clips";
-import { st } from "@/lib/studio/i18n";
+import { engineName, isLocal, minutesPhrase } from "@/lib/studio/engines";
+import { st, stf } from "@/lib/studio/i18n";
 import { usePlayer } from "@/store/player";
 import { JuryPanel } from "./jury-panel";
 
@@ -53,6 +55,19 @@ function ApproveDialog({
   const router = useRouter();
   const [pending, start] = useTransition();
   const valid = validateLyricPack(clip.pack, "vbp").ok;
+  const { engine, minutes } = useSongEngine(clip.settings);
+  const local = isLocal(engine);
+  // A local song costs no credits; the PC needs the minutes the worker reported.
+  const costLine = !local
+    ? st(lang, "next.approveCost")
+    : minutes === null
+      ? stf(lang, "next.approveCostLocalNoEstimate", {
+          engine: engineName(engine),
+        })
+      : stf(lang, "next.approveCostLocal", {
+          engine: engineName(engine),
+          m: minutesPhrase(lang, minutes),
+        });
   const approve = () =>
     start(async () => {
       const result = await approveLyrics({
@@ -105,7 +120,7 @@ function ApproveDialog({
           <ol className="space-y-1.5 text-[13px] text-[var(--fg-muted)]">
             <li className="flex gap-2">
               <Music2 className="mt-0.5 size-3.5 shrink-0 text-[var(--brand)]" />
-              {st(lang, "next.approveCost")}
+              {costLine}
             </li>
             <li className="flex gap-2">
               <Clapperboard className="mt-0.5 size-3.5 shrink-0 text-[var(--brand)]" />
@@ -138,7 +153,9 @@ function ApproveDialog({
               )}
             >
               <Check className="size-4" />
-              {pending ? st(lang, "next.approving") : st(lang, "next.confirm")}
+              {pending
+                ? st(lang, "next.approving")
+                : st(lang, local ? "next.confirmLocal" : "next.confirm")}
             </button>
           </div>
         </div>

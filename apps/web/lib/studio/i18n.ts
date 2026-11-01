@@ -223,6 +223,31 @@ const it = {
   "settings.language": "Lingua dell'interfaccia",
   "settings.theme": "Tema",
   "settings.account": "Account",
+  "create.engine": "Motore",
+  "create.engineFallback":
+    "{engine} non disponibile ({reason}): uso Suno (kie).",
+  "engine.kie": "Suno sul servizio kie: 12 crediti a canzone.",
+  "engine.ace-step": "Sul tuo PC, gratis. Più veloce.",
+  "engine.yue2": "Sul tuo PC, gratis. Più lento.",
+  "engine.reason.admin": "riservato all'amministratore",
+  "engine.reason.installed": "non installato",
+  "engine.reason.offline": "PC offline",
+  "engine.reason.lang": "lingue non coperte",
+  "create.costLocal": "Gratis · circa {m} sul PC",
+  "create.costLocalNoEstimate": "Gratis · sul PC",
+  "next.approveCostLocal":
+    "{engine} genera due versioni della canzone. Gratis · circa {m} sul PC.",
+  "next.approveCostLocalNoEstimate":
+    "{engine} genera due versioni della canzone. Gratis · sul PC.",
+  "next.confirmLocal": "Approva · gratis",
+  "project.approveLocal": "Approva e genera la canzone: gratis",
+  "project.generateAgainLocal": "Genera di nuovo (gratis)",
+  "project.costLocal":
+    "Gratis: il PC genera due versioni della canzone in circa {m}.",
+  "project.costLocalNoEstimate":
+    "Gratis: il PC genera due versioni della canzone.",
+  "credits.local":
+    "ACE-Step e YuE2 girano sul tuo PC: sono gratis e non toccano il saldo kie.",
 } as const;
 
 export type StudioKey = keyof typeof it;
@@ -449,10 +474,45 @@ const en: Record<StudioKey, string> = {
   "settings.language": "Interface language",
   "settings.theme": "Theme",
   "settings.account": "Account",
+  "create.engine": "Engine",
+  "create.engineFallback": "{engine} unavailable ({reason}): using Suno (kie).",
+  "engine.kie": "Suno on the kie service: 12 credits per song.",
+  "engine.ace-step": "On your PC, free. Faster.",
+  "engine.yue2": "On your PC, free. Slower.",
+  "engine.reason.admin": "admin only",
+  "engine.reason.installed": "not installed",
+  "engine.reason.offline": "PC offline",
+  "engine.reason.lang": "languages not covered",
+  "create.costLocal": "Free · about {m} on the PC",
+  "create.costLocalNoEstimate": "Free · on the PC",
+  "next.approveCostLocal":
+    "{engine} generates two versions of the song. Free · about {m} on the PC.",
+  "next.approveCostLocalNoEstimate":
+    "{engine} generates two versions of the song. Free · on the PC.",
+  "next.confirmLocal": "Approve · free",
+  "project.approveLocal": "Approve and generate song: free",
+  "project.generateAgainLocal": "Generate again (free)",
+  "project.costLocal":
+    "Free: the PC generates two versions of the song in about {m}.",
+  "project.costLocalNoEstimate":
+    "Free: the PC generates two versions of the song.",
+  "credits.local":
+    "ACE-Step and YuE2 run on your PC: they are free and leave the kie balance alone.",
 };
 
 const DICT: Record<"it" | "en", Record<StudioKey, string>> = { it, en };
 
 export function st(lang: "it" | "en", key: StudioKey): string {
   return DICT[lang][key];
+}
+
+// A string with {name} placeholders filled in.
+export function stf(
+  lang: "it" | "en",
+  key: StudioKey,
+  vars: Record<string, string>,
+): string {
+  return st(lang, key).replace(/\{(\w+)\}/gu, (whole, name: string) =>
+    name in vars ? (vars[name] as string) : whole,
+  );
 }

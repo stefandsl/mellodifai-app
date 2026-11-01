@@ -22,8 +22,8 @@ import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
 import { st } from "@/lib/studio/i18n";
 import { createClient } from "@/lib/supabase/browser";
-import { workerIsOnline } from "@/lib/worker";
 import { Tip } from "./ui";
+import { useWorkerState } from "./worker-state";
 
 export function Logo({ compact }: { compact?: boolean }) {
   return (
@@ -43,42 +43,6 @@ export function Logo({ compact }: { compact?: boolean }) {
   );
 }
 
-export type WorkerInfo = {
-  id: string | null;
-  lastSeen: string | null;
-  balance: number | null;
-};
-
-export function useWorker(initial: WorkerInfo) {
-  const [worker, setWorker] = useState(initial);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const db = createClient();
-    let cancelled = false;
-    const refresh = async () => {
-      setNow(Date.now());
-      const { data } = await db
-        .from("workers")
-        .select("id,last_seen,kie_balance")
-        .order("last_seen", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data && !cancelled)
-        setWorker({
-          id: data.id,
-          lastSeen: data.last_seen,
-          balance: data.kie_balance,
-        });
-    };
-    const timer = setInterval(() => void refresh(), 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, []);
-  return { ...worker, online: workerIsOnline(worker.lastSeen, now) };
-}
-
 const NAV = [
   { href: "/create", key: "nav.create", icon: Music2 },
   { href: "/library", key: "nav.library", icon: Library },
@@ -93,19 +57,13 @@ function isActive(href: string, pathname: string, tab: string | null) {
   return query ? query === `tab=${tab}` : !tab || path !== "/library";
 }
 
-export function StudioSidebar({
-  email,
-  worker: initialWorker,
-}: {
-  email: string;
-  worker: WorkerInfo;
-}) {
+export function StudioSidebar({ email }: { email: string }) {
   const lang = useLocale();
   const pathname = usePathname();
   const tab = useSearchParams().get("tab");
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const worker = useWorker(initialWorker);
+  const worker = useWorkerState();
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     try {

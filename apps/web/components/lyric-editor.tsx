@@ -9,6 +9,8 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/action-result";
+import { type LocalCost, localCostSentence } from "@/lib/studio/engines";
+import { st } from "@/lib/studio/i18n";
 import { ConfirmDialog } from "./confirm-dialog";
 import { useLocale } from "./locale-provider";
 import { useAction } from "./use-action";
@@ -16,9 +18,12 @@ export function LyricEditor({
   pack,
   theme,
   onApprove,
+  local = null,
 }: {
   pack: LyricPack;
   theme: LyricPackTheme;
+  // Set for a song made on the PC: approving costs no credits.
+  local?: LocalCost | null;
   onApprove: (
     pack: LyricPack,
   ) => void | ActionResult | Promise<void> | Promise<ActionResult>;
@@ -44,6 +49,9 @@ export function LyricEditor({
     jsonError = true;
   }
   const result = validateLyricPack(candidate, theme);
+  const approveLabel = local
+    ? st(lang, "project.approveLocal")
+    : t(lang, "action.approveGeneration");
   return (
     <section className="space-y-4">
       {(["title", "lyrics", "style", "exclude"] as const).map((field) => (
@@ -115,11 +123,11 @@ export function LyricEditor({
       )}
       <ConfirmDialog
         disabled={pending || !result.ok || jsonError}
-        trigger={t(lang, "action.approveGeneration")}
-        title={t(lang, "action.approveGeneration")}
+        trigger={approveLabel}
+        title={approveLabel}
         onConfirm={() => run(() => onApprove(candidate as LyricPack))}
       >
-        {t(lang, "dialog.cost")}
+        {local ? localCostSentence(lang, local) : t(lang, "dialog.cost")}
       </ConfirmDialog>
     </section>
   );

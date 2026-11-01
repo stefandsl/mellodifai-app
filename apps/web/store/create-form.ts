@@ -1,4 +1,4 @@
-import type { Lang, SongModel } from "@mellodifai/shared";
+import type { Lang, SongEngine, SongModel } from "@mellodifai/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -9,6 +9,8 @@ export type CardId = "lyrics" | "styles" | "video" | "more";
 export type CreateFormState = {
   mode: "simple" | "advanced";
   model: SongModel;
+  // kie is Suno; the others run on the PC and are for the admin only.
+  engine: SongEngine;
   languages: Lang[];
   prompt: string;
   lyrics: string;
@@ -47,6 +49,7 @@ export function initialForm(lang: Lang = "it"): CreateFormState {
   return {
     mode: "simple",
     model: "V6",
+    engine: "kie",
     languages: [lang],
     prompt: "",
     lyrics: "",
@@ -119,6 +122,7 @@ export const useCreateForm = create<CreateFormState & Actions>()(
           ...initialForm(s.languages[0]),
           mode: s.mode,
           model: s.model,
+          engine: s.engine,
           languages: s.languages,
           open: s.open,
         })),

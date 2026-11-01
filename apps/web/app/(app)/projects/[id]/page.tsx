@@ -29,7 +29,7 @@ export default async function ProjectPage({
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id,topic,brief,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections,kie_submit_state,kie_task_id,kie_task_state)",
+      "id,topic,brief,song_settings,versions(id,lang,status,lyric_pack,generation_count,render_attempt,storyboard_sections,kie_submit_state,kie_task_id,kie_task_state)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -176,6 +176,10 @@ export default async function ProjectPage({
                   (j) => j.status === "queued" || j.status === "running",
                 )}
                 isAdmin={profile?.role === "admin"}
+                settings={
+                  (project.song_settings as Record<string, unknown> | null) ??
+                  undefined
+                }
                 thumbnailUrl={thumbnailUrl}
               />
             </CardContent>

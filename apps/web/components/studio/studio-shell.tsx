@@ -2,34 +2,39 @@ import { Suspense } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PlayerBar } from "./player-bar";
-import { MobileTopBar, StudioSidebar, type WorkerInfo } from "./sidebar";
+import { MobileTopBar, StudioSidebar } from "./sidebar";
+import { type WorkerInfo, WorkerProvider } from "./worker-state";
 
 // Sidebar | page, with the player bar fixed along the bottom (brief section 1.1).
 export function StudioShell({
   email,
   worker,
+  isAdmin,
   children,
 }: {
   email: string;
   worker: WorkerInfo;
+  isAdmin: boolean;
   children: React.ReactNode;
 }) {
   return (
     <TooltipProvider delay={300}>
-      <div className="flex h-dvh flex-col overflow-hidden bg-[var(--bg)] text-[var(--fg)]">
-        <div className="flex min-h-0 flex-1">
-          <Suspense>
-            <StudioSidebar email={email} worker={worker} />
-          </Suspense>
-          <div className="flex min-w-0 flex-1 flex-col">
+      <WorkerProvider initial={worker} isAdmin={isAdmin}>
+        <div className="flex h-dvh flex-col overflow-hidden bg-[var(--bg)] text-[var(--fg)]">
+          <div className="flex min-h-0 flex-1">
             <Suspense>
-              <MobileTopBar />
+              <StudioSidebar email={email} />
             </Suspense>
-            <main className="min-h-0 flex-1">{children}</main>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <Suspense>
+                <MobileTopBar />
+              </Suspense>
+              <main className="min-h-0 flex-1">{children}</main>
+            </div>
           </div>
+          <PlayerBar />
         </div>
-        <PlayerBar />
-      </div>
+      </WorkerProvider>
     </TooltipProvider>
   );
 }

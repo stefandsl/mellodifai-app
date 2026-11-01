@@ -35,12 +35,11 @@ describe("create form", () => {
       variety: 4,
       duration: null,
       video: "lyric",
-    });
-    // The engine defaults to kie until the studio offers a choice.
-    expect(SongSettingsSchema.parse(payload.settings)).toEqual({
-      ...payload.settings,
       engine: "kie",
     });
+    expect(SongSettingsSchema.parse(payload.settings)).toEqual(
+      payload.settings,
+    );
     expect(CreateSongInput.parse(payload).mode).toBe("advanced");
     expect(
       payloadFor({ ...form, durationMode: "custom", duration: 95 }).settings
@@ -50,6 +49,38 @@ describe("create form", () => {
       payloadFor({ ...form, video: { ...form.video, mode: "off" } }).settings
         .video,
     ).toBe("off");
+  });
+
+  it("sends a local engine without the kie-only controls", () => {
+    const form = {
+      ...initialForm("it"),
+      mode: "advanced" as const,
+      lyrics: "[Verse 1]\nCiao",
+      title: "Lunedi",
+      exclude: "metal",
+      weirdness: 72,
+      styleInfluence: 30,
+      variety: 4,
+      model: "V6_WILD" as const,
+      durationMode: "custom" as const,
+      duration: 95,
+    };
+    // ACE-Step keeps the chosen duration.
+    const ace = payloadFor({ ...form, engine: "ace-step" });
+    expect(ace.settings).toEqual({
+      title: "Lunedi",
+      duration: 95,
+      video: "lyric",
+      engine: "ace-step",
+    });
+    expect(CreateSongInput.parse(ace).settings.engine).toBe("ace-step");
+    // YuE2 decides its own length, so no duration travels.
+    expect(payloadFor({ ...form, engine: "yue2" }).settings).toEqual({
+      title: "Lunedi",
+      duration: null,
+      video: "lyric",
+      engine: "yue2",
+    });
   });
 
   it("blocks Create with the reason the panel shows", () => {
@@ -64,9 +95,10 @@ describe("create form", () => {
     expect(blocker({ ...base, prompt: "x".repeat(501) })).toBe("tooLong");
   });
 
-  it("clear keeps mode, model and languages but empties the fields", () => {
+  it("clear keeps mode, model, engine and languages but empties the fields", () => {
     useCreateForm.getState().set({
       mode: "advanced",
+      engine: "ace-step",
       model: "V6_WILD",
       languages: ["en", "it"],
       lyrics: "testo",
@@ -76,6 +108,7 @@ describe("create form", () => {
     const state = useCreateForm.getState();
     expect(state).toMatchObject({
       mode: "advanced",
+      engine: "ace-step",
       model: "V6_WILD",
       languages: ["en", "it"],
       lyrics: "",

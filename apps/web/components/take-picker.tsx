@@ -2,6 +2,8 @@
 import { t } from "@mellodifai/shared";
 import { Button } from "@/components/ui/button";
 import type { ActionCallback, ActionResult } from "@/lib/action-result";
+import { type LocalCost, localCostSentence } from "@/lib/studio/engines";
+import { st } from "@/lib/studio/i18n";
 import { ConfirmDialog } from "./confirm-dialog";
 import { useLocale } from "./locale-provider";
 import { useAction } from "./use-action";
@@ -14,12 +16,15 @@ export function TakePicker({
   takes,
   onPick,
   onGenerateAgain,
+  local = null,
 }: {
   takes: Take[];
   onPick: (
     id: string,
   ) => void | ActionResult | Promise<void> | Promise<ActionResult>;
   onGenerateAgain: ActionCallback;
+  // Set for a song made on the PC: generating again costs no credits.
+  local?: LocalCost | null;
 }) {
   const lang = useLocale();
   const { pending, run } = useAction();
@@ -49,11 +54,15 @@ export function TakePicker({
       </div>
       <ConfirmDialog
         disabled={pending}
-        trigger={t(lang, "action.generateAgain")}
+        trigger={
+          local
+            ? st(lang, "project.generateAgainLocal")
+            : t(lang, "action.generateAgain")
+        }
         title={t(lang, "dialog.generation")}
         onConfirm={onGenerateAgain}
       >
-        {t(lang, "dialog.cost")}
+        {local ? localCostSentence(lang, local) : t(lang, "dialog.cost")}
       </ConfirmDialog>
     </section>
   );

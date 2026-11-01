@@ -2,7 +2,14 @@ import type { TakeScores } from "@mellodifai/shared";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/components/locale-provider";
+import {
+  NO_WORKER,
+  type WorkerState,
+  WorkerStateProvider,
+} from "@/components/studio/worker-state";
 import type { Clip } from "@/lib/studio/clips";
+import { parseEngines } from "@/lib/studio/engines";
 import frPack from "../../../../../packages/shared/test/fixtures/fr-pack.json" with {
   type: "json",
 };
@@ -207,5 +214,99 @@ it("lets the owner pick the other take over the suggestion", async () => {
   await userEvent.click(dialog.getByRole("button", { name: "Crea il video" }));
   await waitFor(() =>
     expect(mock.pick).toHaveBeenCalledWith({ versionId: "v1", takeId: "t1" }),
+  );
+});
+
+const engines = parseEngines({
+  yue2: { installed: true, passedLangs: ["it"], minutesPerAudioMinute: 1.6 },
+  "ace-step": {
+    installed: true,
+    passedLangs: ["it"],
+    minutesPerAudioMinute: 0.8,
+  },
+});
+const withWorker = (
+  node: React.ReactNode,
+  patch: Partial<WorkerState> = {},
+) => (
+  <WorkerStateProvider value={{ ...NO_WORKER, engines, ...patch }}>
+    {node}
+  </WorkerStateProvider>
+);
+
+it("shows a local song as free, with the PC minutes, in the approval window", async () => {
+  render(
+    withWorker(<NextStep clip={clip({ settings: { engine: "yue2" } })} />),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Approva e crea" }));
+  const dialog = within(screen.getByRole("dialog"));
+  expect(
+    dialog.getByText(
+      "YuE2 genera due versioni della canzone. Gratis · circa 6 minuti sul PC.",
+    ),
+  ).toBeVisible();
+  expect(dialog.queryByText(/crediti/u)).toBeNull();
+  await userEvent.click(
+    dialog.getByRole("button", { name: "Approva · gratis" }),
+  );
+  await waitFor(() =>
+    expect(mock.approve).toHaveBeenCalledWith({
+      versionId: "v1",
+      pack: frPack,
+    }),
+  );
+});
+
+it("follows the chosen duration of an ACE-Step song", async () => {
+  render(
+    withWorker(
+      <NextStep
+        clip={clip({ settings: { engine: "ace-step", duration: 120 } })}
+      />,
+    ),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Approva e crea" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent(
+    "ACE-Step genera due versioni della canzone. Gratis · circa 2 minuti sul PC.",
+  );
+});
+
+it("still says free when the worker has not reported the engine", async () => {
+  render(
+    withWorker(<NextStep clip={clip({ settings: { engine: "ace-step" } })} />, {
+      engines: {},
+    }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Approva e crea" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent(
+    "ACE-Step genera due versioni della canzone. Gratis · sul PC.",
+  );
+  expect(
+    screen.getByRole("button", { name: "Approva · gratis" }),
+  ).toBeVisible();
+});
+
+it("says it in English too", async () => {
+  render(
+    <LocaleProvider value="en">
+      <WorkerStateProvider value={{ ...NO_WORKER, engines }}>
+        <NextStep clip={clip({ settings: { engine: "yue2" } })} />
+      </WorkerStateProvider>
+    </LocaleProvider>,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Approve and create" }),
+  );
+  expect(screen.getByRole("dialog")).toHaveTextContent(
+    "YuE2 generates two versions of the song. Free · about 6 minutes on the PC.",
+  );
+  expect(screen.getByRole("button", { name: "Approve · free" })).toBeVisible();
+});
+
+it("keeps the kie wording for a kie song whatever the worker reports", async () => {
+  render(withWorker(<NextStep clip={clip({ settings: { engine: "kie" } })} />));
+  await userEvent.click(screen.getByRole("button", { name: "Approva e crea" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent(
+    "kie genera due versioni della canzone: 12 crediti.",
   );
 });
