@@ -360,3 +360,10 @@ M7 (after M6): capability-aware queue, doctor, installers, self-update, then des
   kie `upload-and-cover-audio` as the paid option; Italian bake-off first); (4) a free local tier
   (Demucs, ffmpeg effects, ACE-Step repaint); (5) optional Lyria engine through the Gemini API
   (about 0.08 USD per song, no edit endpoints).
+- **Video editor decision** (from `E:/mellodifai/research/hyperframes-vs-remotion.md`): Remotion
+  stays the renderer and in-app preview. The editor is a **JSON timeline document** per video
+  (scenes, text, timing, assets, effects; versioned schema in `packages/shared`) drawn by one
+  generic Remotion composition; the web editor and agents (through MCP tools) edit the same
+  document, and the remake's R5 writes it. HyperFrames (0.8, fast-moving, its GSAP dependency's
+  licence restricts visual editors) is not adopted as the engine; it may later supply pre-rendered
+  scene clips as video layers after a proof of concept. Paid Remotion editor kits are not needed.
