@@ -32,6 +32,7 @@ import {
   parseMigrationList,
   paths,
   restoreCheck,
+  secretValues,
   workerEnvFiles,
   workerOverrides,
 } from "./lib.mjs";
@@ -201,22 +202,25 @@ async function ensureDocker() {
 
 async function supabaseKeys() {
   const status = await supabase(["status", "-o", "env"], { timeout: 120_000 });
-  return status.code === 0 ? localKeys(parseEnv(status.stdout)) : null;
+  if (status.code !== 0) return null;
+  const values = parseEnv(status.stdout);
+  // Every key, secret and password the CLI prints stays out of the logs.
+  secrets = [...new Set([...secrets, ...secretValues(values)])].sort(
+    (a, b) => b.length - a.length,
+  );
+  return localKeys(values);
 }
 
 async function ensureSupabase() {
   let keys = await supabaseKeys();
   if (!keys) {
     say(MSG.dbStarting);
+    // stdout of `supabase start` prints the keys, so only stderr is logged.
     const started = await supabase(["start"], { timeout: 900_000 });
     keys = await supabaseKeys();
-    if (keys) secrets = [keys.anon, keys.service];
-    log(
-      `supabase start exit ${started.code}\n${started.stdout}\n${started.stderr}`,
-    );
+    log(`supabase start exit ${started.code}\n${started.stderr}`);
     if (!keys) fail(MSG.dbFailed);
   }
-  secrets = [keys.anon, keys.service];
   writeFileSync(
     P.supabaseEnv,
     formatEnv({

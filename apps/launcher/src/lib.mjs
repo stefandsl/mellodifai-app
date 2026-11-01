@@ -36,6 +36,18 @@ export function parseEnv(text) {
   return values;
 }
 
+// Values to hide in logs: anything named like a credential, and URLs carrying a password.
+export function secretValues(values) {
+  return Object.entries(values)
+    .filter(
+      ([key, value]) =>
+        value.length >= 8 &&
+        (/KEY|SECRET|TOKEN|PASSWORD|JWT/u.test(key) ||
+          /:\/\/[^/@]*:[^/@]*@/u.test(value)),
+    )
+    .map(([, value]) => value);
+}
+
 export function formatEnv(values) {
   return `${Object.entries(values)
     .map(([key, value]) => `${key}=${value}`)

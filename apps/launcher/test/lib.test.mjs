@@ -11,6 +11,7 @@ import {
   parseMigrationList,
   paths,
   restoreCheck,
+  secretValues,
   workerEnvFiles,
   workerOverrides,
 } from "../src/lib.mjs";
@@ -147,6 +148,24 @@ it("messages are plain Italian without the em dash", () => {
   );
   for (const m of all) expect(m).not.toMatch(/\u2014/u);
   expect(MSG.dockerTimeout).toContain("Docker");
+});
+
+it("secretValues catches every key, secret and password URL", () => {
+  expect(
+    secretValues({
+      API_URL: "http://127.0.0.1:54321",
+      JWT_SECRET: "super-secret-jwt",
+      S3_PROTOCOL_ACCESS_KEY_ID: "abcdefgh12",
+      DB_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      SHORT_KEY: "abc",
+    }).sort(),
+  ).toEqual(
+    [
+      "abcdefgh12",
+      "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      "super-secret-jwt",
+    ].sort(),
+  );
 });
 
 describe("parseMigrationList", () => {
