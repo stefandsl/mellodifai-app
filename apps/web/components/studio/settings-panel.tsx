@@ -1,6 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { exportBackup } from "@/app/actions/backup";
 
 import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
@@ -23,8 +27,15 @@ function Row({
   );
 }
 
-export function SettingsPanel({ email }: { email: string }) {
+export function SettingsPanel({
+  email,
+  canBackup = false,
+}: {
+  email: string;
+  canBackup?: boolean;
+}) {
   const lang = useLocale();
+  const [backingUp, setBackingUp] = useState(false);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   return (
@@ -72,6 +83,30 @@ export function SettingsPanel({ email }: { email: string }) {
           </button>
         </span>
       </Row>
+      {canBackup ? (
+        <Row label={st(lang, "settings.backup")}>
+          <button
+            type="button"
+            disabled={backingUp}
+            onClick={async () => {
+              setBackingUp(true);
+              const result = await exportBackup();
+              setBackingUp(false);
+              if (result.ok)
+                toast.success(
+                  `${st(lang, "settings.backupDone")} ${result.dir}`,
+                );
+              else toast.error(result.error);
+            }}
+            className="h-8 rounded-full bg-[var(--surface-2)] px-3 text-[13px] disabled:opacity-60"
+          >
+            {st(
+              lang,
+              backingUp ? "settings.backupRunning" : "settings.backupExport",
+            )}
+          </button>
+        </Row>
+      ) : null}
     </section>
   );
 }
