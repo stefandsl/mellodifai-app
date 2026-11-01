@@ -4,6 +4,7 @@ import {
   defaultVisualizerParams,
   effectOf,
   normalizeVisualizerParams,
+  VISUALIZER_PRESETS,
 } from "@mellodifai/shared";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -149,6 +150,102 @@ describe("Video Studio", () => {
     );
     expect(params().preset).toBe("classico");
     expect(params().colors).toEqual(CLASSICO_COLORS);
+  });
+
+  it("lists every preset, the catalogue looks with their Italian names", async () => {
+    const dialog = studio();
+    const group = within(dialog).getByRole("radiogroup", { name: "Preset" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(
+      VISUALIZER_PRESETS.length,
+    );
+    for (const name of [
+      "Punti",
+      "Burst",
+      "Corona",
+      "Anello a Filo",
+      "Lente",
+      "Pillole",
+      "Bordi Pixel",
+      "Cornice Cover",
+      "Scheda Player",
+      "Contorni",
+      "Synthwave",
+      "Editoriale",
+      "Particelle a Forme",
+    ])
+      expect(
+        within(group).getByRole("radio", { name: new RegExp(`^${name}`, "u") }),
+      ).toBeInTheDocument();
+    await userEvent.click(
+      within(group).getByRole("radio", { name: /^Scheda Player/u }),
+    );
+    expect(params().preset).toBe("playercard");
+    expect(within(dialog).getByTestId("visualizer-preview")).toHaveAttribute(
+      "data-preset",
+      "playercard",
+    );
+  });
+
+  it("shows a look's options only for the looks that have them", async () => {
+    const dialog = studio();
+    expect(within(dialog).queryByText("Opzioni del preset")).toBeNull();
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Corona/u }),
+    );
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Spillo" }),
+    );
+    expect(params().look.teeth).toBe("pin");
+    await userEvent.click(
+      within(dialog).getByRole("switch", { name: /Simmetrica/u }),
+    );
+    expect(params().look.mirrored).toBe(false);
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Particelle a Forme/u }),
+    );
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Cuore" }));
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Ad anello" }),
+    );
+    expect(params().look).toMatchObject({ shape: "heart", flow: "radial" });
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Contorni/u }),
+    );
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Creste" }),
+    );
+    expect(params().look.contour).toBe("ridges");
+  });
+
+  it("turns the rotating badges on over any preset, with their own text", async () => {
+    const dialog = studio();
+    expect(
+      within(dialog).queryByRole("textbox", { name: "Testo dei badge" }),
+    ).toBeNull();
+    await userEvent.click(
+      within(dialog).getByRole("switch", { name: /Badge Rotanti/u }),
+    );
+    expect(params().badges.enabled).toBe(true);
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: "Testo dei badge" }),
+      "Nuovo singolo",
+    );
+    expect(params().badges.text).toBe("Nuovo singolo");
+    expect(params().preset).toBe("circle");
+  });
+
+  it("asks for artist and album on the looks that show them", async () => {
+    const dialog = studio();
+    useVideoStudio.getState().update((p) => ({ ...p, preset: "playercard" }));
+    await userEvent.click(within(dialog).getByRole("tab", { name: "Testo" }));
+    expect(within(dialog).getByText("Artista e album")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox", { name: "Sito" })).toBeNull();
+    expect(
+      within(dialog).queryByRole("switch", { name: /Schede/u }),
+    ).toBeNull();
+    const album = within(dialog).getByRole("textbox", { name: "Album" });
+    await userEvent.type(album, "Lampioni");
+    expect(params().classico.album).toBe("Lampioni");
   });
 
   it("switches between 16:9 and full-frame 9:16", async () => {
@@ -327,7 +424,9 @@ describe("Video Studio", () => {
 
   it("queues the render with the look on screen and shows its place in the queue", async () => {
     const dialog = studio();
-    await userEvent.click(within(dialog).getByRole("radio", { name: /Onda/u }));
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Onda/u }),
+    );
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Renderizza video \(MP4\)/u }),
     );
