@@ -282,6 +282,44 @@ describe("row level security", () => {
     }
   });
 
+  it("lets every admin read the render PC status, but not customers", async () => {
+    const owner = await createUser(true);
+    const otherAdmin = await createUser(true);
+    const customer = await createUser(true);
+    await service
+      .from("profiles")
+      .update({ role: "customer" })
+      .eq("id", customer.id);
+    const worker = await service
+      .from("workers")
+      .upsert({
+        id: `pc-${owner.id}`,
+        owner_id: owner.id,
+        engines: { "ace-step": { installed: true, passedLangs: ["it"] } },
+      })
+      .select("id")
+      .single();
+    expect(worker.error).toBeNull();
+    const read = (client: typeof owner.client) =>
+      client
+        .from("workers")
+        .select("id,last_seen,kie_balance,engines")
+        .eq("id", `pc-${owner.id}`)
+        .maybeSingle();
+    expect((await read(otherAdmin.client)).data?.engines).toMatchObject({
+      "ace-step": { installed: true },
+    });
+    expect((await read(customer.client)).data).toBeNull();
+    expect(
+      (
+        await otherAdmin.client
+          .from("workers")
+          .update({ engines: {} })
+          .eq("id", `pc-${owner.id}`)
+      ).error?.code,
+    ).toBe("42501");
+  });
+
   it("rejects cross-owner events and publication confirmers, but lets a worker track any job", async () => {
     const a = await createUser(true);
     const b = await createUser(true);
