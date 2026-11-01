@@ -42,6 +42,7 @@ import { DownloadButton } from "./player-controls";
 import { AddToPlaylistDialog } from "./playlist-dialog";
 import { ReactionButtons } from "./reaction-buttons";
 import { ShareDialog } from "./share-dialog";
+import { StemsBadge } from "./stems/stems-badge";
 import { IconButton } from "./ui";
 
 const SECTION = "rounded-2xl bg-[var(--surface-1)] p-4";
@@ -326,6 +327,7 @@ export function DetailsBody({
             </span>
             <StatusBadge clip={clip} />
             <QueueBadge clip={clip} />
+            <StemsBadge clip={clip} done />
           </div>
           {created ? (
             <p className="mt-2 text-[13px] text-[var(--fg-muted)]">

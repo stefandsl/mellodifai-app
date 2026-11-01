@@ -51,7 +51,58 @@ export type Clip = {
   trashedAt: string | null;
   // 1 + the jobs ahead on the render PC while this song waits in the queue; null otherwise.
   queuePosition: number | null;
+  // The stems of the chosen take: ready, or the separation asked for; null when never asked.
+  stems: StemsState | null;
 };
+
+export type StemsState = {
+  takeId: string;
+  status: "queued" | "running" | "done" | "failed";
+  // The stems job, when there is one (stems saved by an older job may outlive it).
+  jobId: string | null;
+  // While queued: 1 + the jobs ahead on the render PC.
+  queuePosition: number | null;
+};
+
+type StemsJob = {
+  id: string;
+  version_id: string;
+  status: string;
+  take_id: string | null;
+};
+
+// What the feed says about the stems of a song's chosen take.
+export function stemsState(
+  takeId: string | null,
+  hasStems: boolean,
+  jobs: StemsJob[],
+  queuePosition: number | null,
+): StemsState | null {
+  if (!takeId) return null;
+  // Newest first: a retry replaces the failed job in place, so there is one per take.
+  const job = jobs.find((item) => item.take_id === takeId) ?? null;
+  if (hasStems)
+    return {
+      takeId,
+      status: "done",
+      jobId: job?.id ?? null,
+      queuePosition: null,
+    };
+  if (!job) return null;
+  const status =
+    job.status === "queued" || job.status === "running"
+      ? job.status
+      : job.status === "failed" || job.status === "cancelled"
+        ? "failed"
+        : null;
+  if (!status) return null;
+  return {
+    takeId,
+    status,
+    jobId: job.id,
+    queuePosition: status === "queued" ? queuePosition : null,
+  };
+}
 
 export type Reaction = "like" | "dislike" | "none";
 
@@ -154,12 +205,13 @@ export async function loadClips(
     query = query
       .eq("liked", true)
       .order("liked_at", { ascending: false, nullsFirst: false });
-  const [{ data }, positions] = await Promise.all([
+  const [{ data }, positions, stemsPositions] = await Promise.all([
     query
       .order(trash ? "trashed_at" : "created_at", { ascending: false })
       .limit(limit),
     // Trashed songs are not in the queue, so the trash view needs no positions.
     trash ? { data: null } : supabase.rpc("my_queue_positions"),
+    trash ? { data: null } : supabase.rpc("my_stems_queue"),
   ]);
   const rows = (data ?? []) as unknown as Row[];
   if (rows.length === 0) return [];
@@ -168,20 +220,38 @@ export async function loadClips(
       (positions.data ?? []) as { version_id: string; queue_position: number }[]
     ).map((item) => [item.version_id, item.queue_position]),
   );
+  const stemsQueue = new Map<string, number>(
+    (
+      (stemsPositions.data ?? []) as {
+        version_id: string;
+        queue_position: number;
+      }[]
+    ).map((item) => [item.version_id, item.queue_position]),
+  );
   const ids = rows.map((row) => row.id);
-  const [{ data: takes }, { data: renders }] = await Promise.all([
-    supabase
-      .from("takes")
-      .select(
-        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores",
-      )
-      .in("version_id", ids),
-    supabase
-      .from("renders")
-      .select("version_id,kind,preview_path,render_attempt,created_at")
-      .in("version_id", ids)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: takes }, { data: renders }, { data: stemsJobs }] =
+    await Promise.all([
+      supabase
+        .from("takes")
+        // Only whether the stems exist: the full set carries four waveforms.
+        .select(
+          "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,stems_at:stems->>created_at",
+        )
+        .in("version_id", ids),
+      supabase
+        .from("renders")
+        .select("version_id,kind,preview_path,render_attempt,created_at")
+        .in("version_id", ids)
+        .order("created_at", { ascending: false }),
+      trash
+        ? { data: null }
+        : supabase
+            .from("jobs")
+            .select("id,version_id,status,take_id:payload->>take_id")
+            .eq("stage", "stems")
+            .in("version_id", ids)
+            .order("created_at", { ascending: false }),
+    ]);
 
   const currentTakes = new Map<
     string,
@@ -325,6 +395,17 @@ export async function loadClips(
       playCount: row.play_count ?? 0,
       trashedAt: row.trashed_at,
       queuePosition: queuePosition.get(row.id) ?? null,
+      stems: stemsState(
+        row.chosen_take_id,
+        Boolean(
+          (takes ?? []).find((take) => take.id === row.chosen_take_id)
+            ?.stems_at,
+        ),
+        ((stemsJobs ?? []) as StemsJob[]).filter(
+          (job) => job.version_id === row.id,
+        ),
+        stemsQueue.get(row.id) ?? null,
+      ),
       settings,
       pack: row.lyric_pack,
     };

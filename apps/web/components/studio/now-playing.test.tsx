@@ -412,3 +412,38 @@ describe("transport inside the view", () => {
     expect(slider).toHaveAttribute("aria-valuetext", "0:12 / 3:20");
   });
 });
+
+describe("audio tools", () => {
+  it("links the editor and the stems page when they apply, and closes the view", async () => {
+    usePlayer.setState({
+      queue: [
+        track({ detail: detail({ tools: { edit: true, stems: true } }) }),
+      ],
+    });
+    bar();
+    const dialog = await open();
+    const edit = within(dialog).getByRole("link", { name: "Modifica audio" });
+    expect(edit).toHaveAttribute("href", "/editor/v1");
+    expect(
+      within(dialog).getByRole("link", { name: "Estrai stems" }),
+    ).toHaveAttribute("href", "/stems/v1");
+    await userEvent.click(edit);
+    expect(usePlayer.getState().showNow).toBe(false);
+  });
+
+  it("shows neither for a song they do not apply to", async () => {
+    usePlayer.setState({
+      queue: [
+        track({ detail: detail({ tools: { edit: false, stems: false } }) }),
+      ],
+    });
+    bar();
+    const dialog = await open();
+    expect(
+      within(dialog).queryByRole("link", { name: "Modifica audio" }),
+    ).toBeNull();
+    expect(
+      within(dialog).queryByRole("link", { name: "Estrai stems" }),
+    ).toBeNull();
+  });
+});

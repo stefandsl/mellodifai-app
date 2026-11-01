@@ -86,7 +86,11 @@ export async function upload(
           ).add(r.preview_path);
       }
       for (const take of rows.takes)
-        for (const file of [take.audio_preview_path, take.cover_path])
+        for (const file of [
+          take.audio_preview_path,
+          take.cover_path,
+          ...stemPaths(take.stems),
+        ])
           if (file)
             ((take.generation ?? 1) < (context.version.generation_count ?? 1)
               ? obsolete
@@ -104,6 +108,21 @@ export async function upload(
     }
   }
   return path;
+}
+// The stored files of a take's stems (stems.ts StemSet), for the preview cleanup.
+export function stemPaths(stems: unknown): string[] {
+  const tracks =
+    stems && typeof stems === "object"
+      ? (stems as { tracks?: unknown }).tracks
+      : undefined;
+  if (!tracks || typeof tracks !== "object") return [];
+  return Object.values(tracks).flatMap((track) => {
+    const path =
+      track && typeof track === "object"
+        ? (track as { path?: unknown }).path
+        : undefined;
+    return typeof path === "string" && path ? [path] : [];
+  });
 }
 export async function engine(
   context: StageContext,

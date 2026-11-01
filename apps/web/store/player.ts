@@ -30,6 +30,8 @@ export type TrackDetail = {
   chosenTakeId: string | null;
   // Set when the track is a preview of this take instead of the song itself.
   takeNumber?: number;
+  // Which song tools apply now (the audio editor, the stems page); absent means none.
+  tools?: { edit: boolean; stems: boolean };
   // The song's own track fields, to go back to it from a take preview.
   own: {
     title: string;

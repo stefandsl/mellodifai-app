@@ -124,6 +124,7 @@ export function createFakeStages(
     "art",
     "publish",
     "set_privacy",
+    "stems",
   ];
   for (const stage of names)
     registry[stage] = async (ctx) => {
@@ -320,6 +321,35 @@ export function createFakeStages(
           });
           result.versionStatus = privacyVersionStatus(publication.privacy);
           break;
+        }
+        case "stems": {
+          // The fake tone stands in for every stem; same shape as stages/stems.ts writes.
+          const takeId =
+            ((ctx.job.payload ?? {}) as { take_id?: string }).take_id ??
+            ctx.version.chosen_take_id;
+          if (!takeId) throw new Error("Fake stems need a chosen take");
+          const tracks: Record<string, { path: string; peaks: number[] }> = {};
+          for (const name of ["vocals", "drums", "bass", "other"])
+            tracks[name] = {
+              path: await copy(
+                fixtures.audio,
+                join(ctx.ws.outDir, `stems-${takeId}-${name}.mp3`),
+                "audio/mpeg",
+              ),
+              peaks: Array.from({ length: 600 }, () => 0.5),
+            };
+          await ctx.db.patchTake(takeId, {
+            stems: {
+              model: "htdemucs",
+              format: "mp3",
+              bitrate: 192,
+              duration: 10,
+              seconds: 1,
+              created_at: new Date().toISOString(),
+              tracks,
+            },
+          });
+          return {};
         }
       }
       const following = next[stage];

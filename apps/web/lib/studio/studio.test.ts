@@ -372,7 +372,14 @@ describe("feed", () => {
           audio_preview_path: null,
           generation: 1,
           take_number: 1,
+          // The stems of a take come back as their creation time only.
+          stems_at: "2026-11-01T10:00:00Z",
         },
+      ],
+      // Newest first, as asked: the running job is the one for the chosen take.
+      jobs: [
+        { id: "j2", version_id: "v1", status: "running", take_id: "t2" },
+        { id: "j1", version_id: "v1", status: "failed", take_id: "t1" },
       ],
       renders: [
         {
@@ -418,6 +425,7 @@ describe("feed", () => {
           order: () => chain,
           limit: () => chain,
           in: () => chain,
+          eq: () => chain,
           is: (column: string) => {
             trashFilters.push(`is ${column}`);
             return chain;
@@ -477,6 +485,19 @@ describe("feed", () => {
       reaction: "like",
       playCount: 7,
       trashedAt: null,
+      queuePosition: null,
+      stems: {
+        takeId: "t2",
+        status: "running",
+        jobId: "j2",
+        queuePosition: null,
+      },
+    });
+    // Stems saved on the chosen take are ready, with or without a job.
+    expect(imported?.stems).toEqual({
+      takeId: "t3",
+      status: "done",
+      jobId: null,
       queuePosition: null,
     });
     expect(imported).toMatchObject({

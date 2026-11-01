@@ -1,9 +1,11 @@
 import type { LucideIcon } from "lucide-react";
-import { RotateCcw } from "lucide-react";
+import { Layers, RotateCcw, Scissors } from "lucide-react";
 
+import { openStems } from "./audio-tools";
 import type { Clip } from "./clips";
 import type { StudioKey } from "./i18n";
 import { reusePrompt } from "./reuse-prompt";
+import { canEdit, canSeparate, editorHref } from "./stems";
 
 // The tool buttons of the song details panel. Later features (video studio, stems, editor,
 // cover, reference, repaint) call `registerSongTool` when they exist, and their button appears
@@ -48,4 +50,22 @@ registerSongTool({
   icon: RotateCcw,
   order: 10,
   run: ({ clip, lang }) => reusePrompt(clip, lang),
+});
+
+registerSongTool({
+  id: "edit-audio",
+  label: "tool.edit",
+  icon: Scissors,
+  order: 20,
+  available: canEdit,
+  run: ({ clip, navigate }) => navigate(editorHref(clip.id)),
+});
+
+registerSongTool({
+  id: "stems",
+  label: "tool.stems",
+  icon: Layers,
+  order: 30,
+  available: canSeparate,
+  run: ({ clip, lang, navigate }) => void openStems(clip, lang, navigate),
 });

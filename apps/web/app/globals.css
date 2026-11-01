@@ -68,6 +68,11 @@
   --danger: #ff6b6b;
   --success: #3ecf8e;
   --warning: #f5b544;
+  /* One colour per separated track (stems page). */
+  --stem-vocals: #ff5c93;
+  --stem-drums: #ff9142;
+  --stem-bass: #a47bff;
+  --stem-other: #45b4ff;
   --sidebar-w: 215px;
   --create-w: 450px;
   --player-h: 72px;
@@ -129,6 +134,10 @@
   --danger: #c92a2a;
   --success: #138a55;
   --warning: #9a6400;
+  --stem-vocals: #d42a69;
+  --stem-drums: #c45a0c;
+  --stem-bass: #6f45d8;
+  --stem-other: #1478c2;
   --input: rgb(16 16 18 / 0.14);
 }
 
@@ -209,6 +218,27 @@
   .shimmer,
   .placeholder-cycle {
     animation: none;
+  }
+}
+
+/* Stems page: a queued separation has no percentage yet. */
+@keyframes stems-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.stems-indeterminate {
+  animation: stems-indeterminate 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stems-indeterminate {
+    animation: none;
+    transform: none;
+    width: 100%;
+    opacity: 0.35;
   }
 }
 

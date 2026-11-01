@@ -41,7 +41,30 @@ export function nextStages(status: VersionStatus): Stage[] {
   return [...STATUS_STAGES[status]];
 }
 
+// Statuses in which the song has a chosen take to separate; the same list as the SQL function
+// stems_allowed_status (migration 20261101000020). A song being produced keeps its take, so
+// stems can run between two video stages (the worker runs one job at a time).
+export const STEMS_STATUSES: readonly VersionStatus[] = [
+  "audio_ready",
+  "producing",
+  "video_review",
+  "approved",
+  "publishing",
+  "published",
+];
+
+// Statuses in which an edit from the audio editor may become the chosen take: the song is not
+// being produced or published right now. The same list as save_edited_take (migration
+// 20261101000020).
+export const EDIT_STATUSES: readonly VersionStatus[] = [
+  "audio_ready",
+  "video_review",
+  "approved",
+  "published",
+];
+
 export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
+  if (stage === "stems") return STEMS_STATUSES.includes(status);
   const allowed: Record<VersionStatus, readonly Stage[]> = {
     drafting: ["draft_lyrics"],
     lyrics_review: ["draft_lyrics"],

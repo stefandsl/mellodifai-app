@@ -6,6 +6,7 @@ import { generateSong } from "./generate-song.js";
 import { publish, setPrivacy } from "./publish.js";
 import { qa } from "./qa.js";
 import { renderHook, renderMaster } from "./render.js";
+import { stems } from "./stems.js";
 import { storyboard } from "./storyboard.js";
 import { timing } from "./timing.js";
 export const stages: StageRegistry = {
@@ -19,6 +20,7 @@ export const stages: StageRegistry = {
   art,
   publish,
   set_privacy: setPrivacy,
+  stems,
 };
 for (const stage of Object.keys(STAGE_STATUS) as Stage[]) {
   const handler = stages[stage];

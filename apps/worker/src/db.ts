@@ -67,10 +67,13 @@ export type Take = {
   kie_task_id?: string | null;
   audio_preview_path?: string | null;
   scores?: unknown;
-  engine?: "kie" | "ace-step" | "yue2";
+  // "edit": saved from the studio's audio editor, its audio lives only in storage.
+  engine?: "kie" | "ace-step" | "yue2" | "edit";
   seed?: number | null;
   cover_path?: string | null;
   abc?: string | null;
+  // Written by the stems stage (stages/stems.ts, StemSet).
+  stems?: unknown;
 };
 export type Render = {
   render_attempt?: number;
@@ -105,7 +108,12 @@ export interface Db {
   requeueStale(seconds: number): Promise<number>;
   finishJob(jobId: string, result: unknown, workerId: string): Promise<void>;
   failJob(jobId: string, error: string, workerId: string): Promise<void>;
-  appendEvent(jobId: string, message: string, progress?: number): Promise<void>;
+  // Events belong to the job's owner (job_events_job_owner_fkey), whoever runs the worker.
+  appendEvent(
+    job: Pick<Job, "id" | "owner_id">,
+    message: string,
+    progress?: number,
+  ): Promise<void>;
   upsertWorker(worker: WorkerUpdate): Promise<void>;
   getVersion(id: string): Promise<Version | null>;
   getProject(id: string): Promise<Project | null>;
@@ -237,13 +245,14 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(error.message);
   }
   async appendEvent(
-    jobId: string,
+    job: Pick<Job, "id" | "owner_id">,
     message: string,
     progress?: number,
   ): Promise<void> {
+    const owner = job.owner_id ?? this.ownerId;
     const event = {
-      ...(this.ownerId ? { owner_id: this.ownerId } : {}),
-      job_id: jobId,
+      ...(owner ? { owner_id: owner } : {}),
+      job_id: job.id,
       message,
       ...(progress === undefined ? {} : { progress }),
     };
@@ -540,7 +549,12 @@ export class InMemoryDb implements Db {
     job.status = "failed";
     job.error = error;
   }
-  async appendEvent(jobId: string, message: string, progress?: number) {
+  async appendEvent(
+    job: Pick<Job, "id" | "owner_id">,
+    message: string,
+    progress?: number,
+  ) {
+    const jobId = job.id;
     this.events.push(
       progress === undefined
         ? { jobId, message }

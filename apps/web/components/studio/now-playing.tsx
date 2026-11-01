@@ -4,8 +4,10 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "cn";
 import {
   ExternalLink,
+  Layers,
   Pause,
   Play,
+  Scissors,
   Share2,
   Shuffle,
   SkipBack,
@@ -18,6 +20,7 @@ import { useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 import { st, stf } from "@/lib/studio/i18n";
 import { activeTake, stylePhrases } from "@/lib/studio/now-playing";
+import { editorHref, stemsHref } from "@/lib/studio/stems";
 import {
   formatTime,
   type Track,
@@ -29,6 +32,8 @@ import { ReactionButtons } from "./reaction-buttons";
 import { ShareDialog } from "./share-dialog";
 import { IconButton } from "./ui";
 
+const TOOL_LINK =
+  "inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--surface-2)] px-3 text-[13px] text-[var(--fg-muted)] outline-none hover:bg-[var(--surface-glass-hover)] hover:text-[var(--fg)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]";
 const TAG_LINE = /^\s*\[[^\]\n]*\]\s*$/u;
 
 // Three bars that move while the song plays (still when motion is reduced, or paused).
@@ -224,6 +229,30 @@ function NowPlayingBody({ track }: { track: Track }) {
               {st(lang, "now.open")}
             </Link>
           </div>
+          {detail?.tools?.edit || detail?.tools?.stems ? (
+            <div className="-mt-3 flex flex-wrap items-center gap-1">
+              {detail?.tools?.edit ? (
+                <Link
+                  href={editorHref(detail.songId)}
+                  onClick={() => p.set({ showNow: false })}
+                  className={TOOL_LINK}
+                >
+                  <Scissors className="size-3.5" />
+                  {st(lang, "tool.edit")}
+                </Link>
+              ) : null}
+              {detail?.tools?.stems ? (
+                <Link
+                  href={stemsHref(detail.songId)}
+                  onClick={() => p.set({ showNow: false })}
+                  className={TOOL_LINK}
+                >
+                  <Layers className="size-3.5" />
+                  {st(lang, "tool.stems")}
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <section

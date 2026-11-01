@@ -1,4 +1,5 @@
 import type { Clip } from "@/lib/studio/clips";
+import { canEdit, canSeparate } from "@/lib/studio/stems";
 import type { TrackDetail } from "@/store/player";
 import { modelLabel } from "../create/model-select";
 
@@ -23,6 +24,7 @@ export function detailFor(clip: Clip, takeNumber?: number): TrackDetail {
     })),
     chosenTakeId: clip.chosenTakeId,
     ...(takeNumber === undefined ? {} : { takeNumber }),
+    tools: { edit: canEdit(clip), stems: canSeparate(clip) },
     own: {
       title: clip.title,
       subtitle: `${clip.lang.toUpperCase()} · ${clipBadge(clip)}`,

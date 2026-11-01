@@ -1,4 +1,11 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Film } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +26,7 @@ const mock = vi.hoisted(() => ({
   renameVersion: vi.fn(async (_input: unknown) => ({ ok: true as boolean })),
   trashVersions: vi.fn(async () => ({ ok: true, count: 1 })),
   restoreVersions: vi.fn(async () => ({ ok: true, count: 1 })),
+  requestStems: vi.fn(async (_input: unknown) => ({ ok: true as boolean })),
   rpc: vi.fn(async (_name: string, _args: unknown) => ({
     data: [] as unknown,
     error: null as unknown,
@@ -34,13 +42,32 @@ vi.mock("@/app/actions/library", () => ({
   trashVersions: mock.trashVersions,
   restoreVersions: mock.restoreVersions,
 }));
+vi.mock("@/app/actions/audio-tools", () => ({
+  requestStems: mock.requestStems,
+  saveEditedTake: vi.fn(),
+}));
 vi.mock("@/app/actions/playlists", () => ({
   addToPlaylist: vi.fn(),
   removeFromPlaylist: vi.fn(),
   createPlaylist: vi.fn(),
 }));
 vi.mock("@/lib/supabase/browser", () => ({
-  createClient: () => ({ rpc: mock.rpc }),
+  createClient: () => {
+    // The running stems badge follows its job's progress events.
+    const query = {
+      select: () => query,
+      eq: () => query,
+      order: () => query,
+      limit: async () => ({ data: [] }),
+    };
+    const channel = { on: () => channel, subscribe: () => channel };
+    return {
+      rpc: mock.rpc,
+      from: () => query,
+      channel: () => channel,
+      removeChannel: async () => {},
+    };
+  },
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mock.refresh, push: mock.push }),
@@ -81,6 +108,7 @@ function clip(patch: Partial<Clip> = {}): Clip {
     playCount: 12,
     trashedAt: null,
     queuePosition: null,
+    stems: null,
     ...patch,
   };
 }
@@ -535,20 +563,87 @@ describe("actions", () => {
 });
 
 describe("tools", () => {
-  it("offers only what is built: reusing the prompt, none of the later features", () => {
+  it("offers only what is built: the prompt, the audio editor and the stems", () => {
     select();
     panel();
     const tools = within(aside()).getByRole("region", { name: "Strumenti" });
-    expect(within(tools).getAllByRole("button")).toHaveLength(1);
+    expect(
+      within(tools)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Riusa il prompt", "Modifica audio", "Estrai stems"]);
     for (const gone of [
       /video/iu,
-      /stem/iu,
-      /editor|modifica audio/iu,
       /cover|copertina/iu,
       /riferimento|reference/iu,
       /repaint|ridipingi/iu,
     ])
       expect(within(tools).queryByRole("button", { name: gone })).toBeNull();
+  });
+
+  it("opens the audio editor and the stems page of the song", async () => {
+    select();
+    panel();
+    const tools = within(aside()).getByRole("region", { name: "Strumenti" });
+    await userEvent.click(
+      within(tools).getByRole("button", { name: "Modifica audio" }),
+    );
+    expect(mock.push).toHaveBeenLastCalledWith("/editor/v1");
+    await userEvent.click(
+      within(tools).getByRole("button", { name: "Estrai stems" }),
+    );
+    // Never asked yet: the stems are asked for, then the page shows their progress.
+    expect(mock.requestStems).toHaveBeenCalledWith({ versionId: "v1" });
+    await waitFor(() =>
+      expect(mock.push).toHaveBeenLastCalledWith("/stems/v1"),
+    );
+  });
+
+  it("opens ready or running stems without asking the render PC again", async () => {
+    for (const status of ["done", "running", "queued"] as const) {
+      mock.requestStems.mockClear();
+      select(
+        clip({
+          stems: { takeId: "t1", status, jobId: "j1", queuePosition: null },
+        }),
+      );
+      panel();
+      const tools = within(aside()).getByRole("region", { name: "Strumenti" });
+      await userEvent.click(
+        within(tools).getByRole("button", { name: "Estrai stems" }),
+      );
+      await waitFor(() =>
+        expect(mock.push).toHaveBeenLastCalledWith("/stems/v1"),
+      );
+      expect(mock.requestStems).not.toHaveBeenCalled();
+      cleanup();
+    }
+  });
+
+  it("shows each audio tool only where it applies", () => {
+    const names = (c: Clip) => {
+      select(c);
+      panel();
+      const tools = within(aside()).queryByRole("region", {
+        name: "Strumenti",
+      });
+      const found = tools
+        ? within(tools)
+            .getAllByRole("button")
+            .map((button) => button.textContent)
+        : [];
+      cleanup();
+      return found;
+    };
+    // A video being rendered keeps its take: stems yes, an edit no.
+    expect(names(clip({ status: "video_review" }))).toContain("Modifica audio");
+    // No chosen take: nothing to edit or separate.
+    expect(names(clip({ status: "takes_review", chosenTakeId: null }))).toEqual(
+      ["Riusa il prompt"],
+    );
+    expect(
+      names(clip({ takes: [], audioUrl: null, chosenTakeId: "t1" })),
+    ).toEqual(["Riusa il prompt"]);
   });
 
   it("fills the create form with the song's prompt", async () => {

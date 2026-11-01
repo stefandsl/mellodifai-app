@@ -21,7 +21,13 @@ const mock = vi.hoisted(() => ({
     error: null as unknown,
   })),
   refresh: vi.fn(),
+  push: vi.fn(),
+  requestStems: vi.fn(async (_input: unknown) => ({ ok: true as boolean })),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
+vi.mock("@/app/actions/audio-tools", () => ({
+  requestStems: mock.requestStems,
+  saveEditedTake: vi.fn(),
 }));
 vi.mock("@/app/actions/library", () => ({
   setReaction: mock.setReaction,
@@ -38,7 +44,7 @@ vi.mock("@/lib/supabase/browser", () => ({
   createClient: () => ({ rpc: mock.rpc }),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: mock.refresh, push: vi.fn() }),
+  useRouter: () => ({ refresh: mock.refresh, push: mock.push }),
 }));
 vi.mock("sonner", () => ({ toast: mock.toast }));
 vi.mock("./use-live-refresh", () => ({ useLiveRefresh: () => {} }));
@@ -71,6 +77,7 @@ function clip(id: string, patch: Partial<Clip> = {}): Clip {
     playCount: 0,
     trashedAt: null,
     queuePosition: null,
+    stems: null,
     ...patch,
   };
 }
@@ -328,5 +335,65 @@ describe("search", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.queryAllByRole("article")).toHaveLength(1);
+  });
+});
+
+describe("audio tools from the card menu", () => {
+  const withTake = (patch: Partial<Clip> = {}) =>
+    clip("a", {
+      status: "audio_ready",
+      chosenTakeId: "t1",
+      takes: [
+        { id: "t1", number: 1, audioUrl: "https://s/t1.mp3", scores: null },
+      ],
+      ...patch,
+    });
+  const menu = async () => {
+    await userEvent.click(
+      inCard("Canzone a").getByRole("button", { name: "Altre opzioni" }),
+    );
+    return {
+      edit: await screen.findByRole("menuitem", { name: "Modifica audio" }),
+      stems: screen.getByRole("menuitem", { name: "Estrai stems" }),
+    };
+  };
+
+  it("opens the editor and asks for the stems of a song with a chosen take", async () => {
+    feed([withTake()]);
+    await userEvent.click((await menu()).edit);
+    expect(mock.push).toHaveBeenLastCalledWith("/editor/a");
+    await userEvent.click((await menu()).stems);
+    expect(mock.requestStems).toHaveBeenCalledWith({ versionId: "a" });
+    await waitFor(() => expect(mock.push).toHaveBeenLastCalledWith("/stems/a"));
+  });
+
+  it("keeps both entries disabled for a song with no chosen take", async () => {
+    feed([clip("a", { status: "takes_review" })]);
+    const { edit, stems } = await menu();
+    expect(edit).toHaveAttribute("aria-disabled", "true");
+    expect(stems).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("lets a song being rendered be separated but not edited", async () => {
+    feed([withTake({ status: "producing" })]);
+    const { edit, stems } = await menu();
+    expect(edit).toHaveAttribute("aria-disabled", "true");
+    expect(stems).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("shows queued stems on the card, linking to their page", () => {
+    feed([
+      withTake({
+        stems: {
+          takeId: "t1",
+          status: "queued",
+          jobId: "j1",
+          queuePosition: 2,
+        },
+      }),
+    ]);
+    expect(
+      inCard("Canzone a").getByRole("link", { name: /Stems in coda #2/u }),
+    ).toHaveAttribute("href", "/stems/a");
   });
 });

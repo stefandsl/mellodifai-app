@@ -5,6 +5,7 @@ import {
   Download,
   Film,
   Info,
+  Layers,
   ListMusic,
   ListPlus,
   Loader2,
@@ -13,6 +14,7 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Scissors,
   Share2,
   Trash2,
   Undo2,
@@ -30,9 +32,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { openStems } from "@/lib/studio/audio-tools";
 import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
 import { st, stf } from "@/lib/studio/i18n";
 import { reusePrompt } from "@/lib/studio/reuse-prompt";
+import { canEdit, canSeparate, editorHref } from "@/lib/studio/stems";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { useDetails } from "@/store/details";
 import { type Track, usePlayer } from "@/store/player";
@@ -40,6 +44,7 @@ import { CoverFace } from "../cover-face";
 import { AddToPlaylistDialog } from "../playlist-dialog";
 import { ReactionButtons } from "../reaction-buttons";
 import { ShareDialog } from "../share-dialog";
+import { StemsBadge } from "../stems/stems-badge";
 import { clipBadge, detailFor } from "./clip-detail";
 import { hasNextStep, NextStep } from "./next-step";
 
@@ -248,6 +253,22 @@ export function MoreMenu({
           >
             <RotateCcw />
             {st(lang, "clip.reuse")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canEdit(clip)}
+            onClick={() => router.push(editorHref(clip.id))}
+            className="rounded-lg"
+          >
+            <Scissors />
+            {st(lang, "tool.edit")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canSeparate(clip)}
+            onClick={() => void openStems(clip, lang, router.push)}
+            className="rounded-lg"
+          >
+            <Layers />
+            {st(lang, "tool.stems")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -526,6 +547,7 @@ export function ClipCard({
               <>
                 <StatusBadge clip={clip} />
                 <QueueBadge clip={clip} />
+                <StemsBadge clip={clip} />
                 {hasNextStep(clip) ? (
                   <NextStep clip={clip} />
                 ) : (
@@ -584,6 +606,7 @@ export function ClipCard({
               <>
                 <Actions clip={clip} />
                 <QueueBadge clip={clip} />
+                <StemsBadge clip={clip} />
                 {hasNextStep(clip) ? (
                   <NextStep clip={clip} />
                 ) : (

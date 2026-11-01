@@ -1,9 +1,11 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface Storage {
   upload(path: string, localFile: string, contentType: string): Promise<void>;
   remove?(paths: string[]): Promise<void>;
+  // Copies a stored file to a local path (an edited take only exists in storage).
+  download?(path: string, localFile: string): Promise<void>;
 }
 export class SupabaseStorage implements Storage {
   constructor(private readonly client: SupabaseClient) {}
@@ -45,6 +47,14 @@ export class SupabaseStorage implements Storage {
       .from("previews")
       .upload(path, await readFile(localFile), { contentType, upsert: true });
     if (error) throw new Error(error.message);
+  }
+  async download(path: string, localFile: string): Promise<void> {
+    const { data, error } = await this.client.storage
+      .from("previews")
+      .download(path);
+    if (error || !data)
+      throw new Error(error?.message ?? `Cannot download ${path}`);
+    await writeFile(localFile, Buffer.from(await data.arrayBuffer()));
   }
   async remove(paths: string[]): Promise<void> {
     if (!paths.length) return;

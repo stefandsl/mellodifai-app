@@ -115,3 +115,13 @@ export const PlaylistReorderInput = z.object({
 export const MembershipInput = z.object({
   versionIds: z.array(Id).min(1).max(500),
 });
+// The audio editor's upload, as save_edited_take checks it again: edits/<owner>/<song>/<uuid>.mp3.
+export const SaveEditInput = z.object({
+  versionId: Id,
+  path: z
+    .string()
+    .regex(
+      /^edits\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.mp3$/u,
+      "invalid edit path",
+    ),
+});

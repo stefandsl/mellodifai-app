@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { StageHandler } from "../loop.js";
+import { materializeEditedTake } from "./take-audio.js";
 import { ENGINE_ROOT, key, language, readJson, upload } from "./utils.js";
 
 export const timing: StageHandler = async (context) => {
@@ -12,6 +13,7 @@ export const timing: StageHandler = async (context) => {
   if (takeNumber !== 1 && takeNumber !== 2)
     throw new Error("Invalid take_number");
   const lang = language(context);
+  await materializeEditedTake(context, selected);
   const timingFile = join(context.ws.publicDir, "data", lang, "timing.json");
   const vocalStem = join(
     context.ws.root,

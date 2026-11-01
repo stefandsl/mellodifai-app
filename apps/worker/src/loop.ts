@@ -1,4 +1,8 @@
-import type { Stage, VersionStatus } from "@mellodifai/shared";
+import {
+  isOnDemandStage,
+  type Stage,
+  type VersionStatus,
+} from "@mellodifai/shared";
 import { AuthorizationDenied, authorizeStage } from "./authorization.js";
 import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
@@ -214,7 +218,7 @@ export class WorkerLoop {
     const log = async (line: string) => {
       if (active.lost) return;
       try {
-        await db.appendEvent(job.id, this.redact(line));
+        await db.appendEvent(job, this.redact(line));
       } catch (error) {
         this.report(error);
       }
@@ -263,7 +267,7 @@ export class WorkerLoop {
           signal.throwIfAborted();
           try {
             await db.appendEvent(
-              job.id,
+              job,
               this.redact(message ?? `Progress: ${pct}%`),
               pct,
             );
@@ -347,7 +351,8 @@ export class WorkerLoop {
           await log(this.redact(String(failure)));
         }
         try {
-          if (versionExists)
+          // An on-demand stage (stems) failing says nothing about the song itself.
+          if (versionExists && !isOnDemandStage(job.stage))
             await db.patchVersion(job.version_id, { status: "failed" });
         } catch (failure) {
           this.report(failure);

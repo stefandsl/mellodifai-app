@@ -135,6 +135,7 @@ export type DictKey =
   | "stage.publish"
   | "stage.set_privacy"
   | "stage.import_legacy"
+  | "stage.stems"
   | "job.queued"
   | "job.running"
   | "job.done"
@@ -218,6 +219,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.publish": "Caricamento",
     "stage.set_privacy": "Visibilità",
     "stage.import_legacy": "Importazione",
+    "stage.stems": "Separazione stems",
     "job.queued": "In coda",
     "job.running": "In corso",
     "job.done": "Completato",
@@ -364,6 +366,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.publish": "Upload",
     "stage.set_privacy": "Visibility",
     "stage.import_legacy": "Import",
+    "stage.stems": "Stem separation",
     "job.queued": "Queued",
     "job.running": "Running",
     "job.done": "Done",

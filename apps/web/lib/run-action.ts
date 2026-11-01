@@ -33,6 +33,8 @@ export async function runAction(
     revalidatePath("/playlists");
     revalidatePath("/playlists/[id]", "page");
     revalidatePath("/search");
+    revalidatePath("/stems/[id]", "page");
+    revalidatePath("/editor/[id]", "page");
     return {
       ok: true,
       ...(resultId ? { id: resultId } : {}),

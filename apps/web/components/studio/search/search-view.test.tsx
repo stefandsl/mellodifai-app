@@ -62,6 +62,7 @@ function clip(id: string, patch: Partial<Clip> = {}): Clip {
     playCount: 0,
     trashedAt: null,
     queuePosition: null,
+    stems: null,
     ...patch,
   };
 }
