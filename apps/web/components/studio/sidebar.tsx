@@ -17,6 +17,7 @@ import {
   Settings,
   Sun,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -33,16 +34,19 @@ import { useWorkerState } from "./worker-state";
 
 export function Logo({ compact }: { compact?: boolean }) {
   return (
-    <span className="flex items-center gap-2.5">
-      <span
-        aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center rounded-[7px] bg-[var(--brand)] text-white shadow-[0_6px_20px_-8px_var(--brand)]"
-      >
-        <Music2 className="size-4" strokeWidth={2.5} />
-      </span>
+    <span className="flex items-center gap-2">
+      {/* The owner's gramophone mark (public/brand), red on transparent for both themes. */}
+      <Image
+        src="/brand/mellodifai-logo.png"
+        alt=""
+        width={34}
+        height={34}
+        priority
+        className="size-[34px] shrink-0"
+      />
       {compact ? null : (
         <span className="text-[17px] font-semibold tracking-tight">
-          mellodifai<span className="text-[var(--brand)]">.</span>
+          Mellodif<span className="text-[var(--brand)]">AI</span>
         </span>
       )}
     </span>
