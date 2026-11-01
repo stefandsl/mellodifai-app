@@ -13,8 +13,11 @@ import {
   Play,
   RotateCcw,
   Share2,
+  Trash2,
+  Undo2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { useLocale } from "@/components/locale-provider";
@@ -25,19 +28,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { type Clip, needsAction } from "@/lib/studio/clips";
-import { st } from "@/lib/studio/i18n";
+import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
+import { st, stf } from "@/lib/studio/i18n";
+import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { initialForm, useCreateForm } from "@/store/create-form";
 import { type Track, usePlayer } from "@/store/player";
 import { modelLabel } from "../create/model-select";
+import { ReactionButtons } from "../reaction-buttons";
 import { hasNextStep, NextStep } from "./next-step";
+import { TitleEditor } from "./title-editor";
 
-const GENERATING = new Set([
-  "drafting",
-  "song_queued",
-  "producing",
-  "publishing",
-]);
+// Select mode: the checkbox state of one card, owned by the feed.
+export type Selection = { selected: boolean; onToggle: () => void };
 
 // What made the song: the local engine's name, else the kie model ("v6").
 export function clipBadge(clip: Pick<Clip, "model" | "settings">): string {
@@ -56,6 +58,7 @@ export function trackFor(clip: Clip): Track | null {
     videoUrl: clip.videoUrl,
     href: clip.href,
     art: clip.art,
+    reaction: clip.reaction,
   };
 }
 
@@ -125,18 +128,21 @@ function Artwork({
   clip,
   list,
   size,
+  playable,
 }: {
   clip: Clip;
   list: Clip[];
   size: "list" | "grid";
+  // False in select mode and in the trash: the artwork is only a picture then.
+  playable: boolean;
 }) {
   const lang = useLocale();
   const current = usePlayer((s) => s.queue[s.index]?.id === clip.id);
   const playing = usePlayer((s) => s.playing) && current;
   const play = usePlayer((s) => s.play);
   const toggle = usePlayer((s) => s.toggle);
-  const generating = GENERATING.has(clip.status);
-  const track = trackFor(clip);
+  const generating = isGenerating(clip.status);
+  const track = playable ? trackFor(clip) : null;
   return (
     <div
       className={cn(
@@ -218,8 +224,15 @@ function Artwork({
   );
 }
 
-function MoreMenu({ clip }: { clip: Clip }) {
+function MoreMenu({
+  clip,
+  onMoved,
+}: {
+  clip: Clip;
+  onMoved?: (ids: string[]) => void;
+}) {
   const lang = useLocale();
+  const router = useRouter();
   const enqueue = usePlayer((s) => s.enqueue);
   const setForm = useCreateForm((s) => s.set);
   const track = trackFor(clip);
@@ -293,6 +306,19 @@ function MoreMenu({ clip }: { clip: Clip }) {
           <Download />
           {st(lang, "clip.downloadVideo")}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            void trashSongs([clip.id], lang, {
+              refresh: router.refresh,
+              onMoved,
+            })
+          }
+          className="rounded-lg text-[var(--danger)]"
+        >
+          <Trash2 />
+          {st(lang, "clip.trash")}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -300,9 +326,14 @@ function MoreMenu({ clip }: { clip: Clip }) {
 
 function Actions({ clip }: { clip: Clip }) {
   const lang = useLocale();
-  const _soon = st(lang, "soon");
   return (
     <div className="flex items-center gap-1.5">
+      <ReactionButtons
+        id={clip.id}
+        initial={clip.reaction}
+        className="-ml-1.5"
+        compact
+      />
       <button
         type="button"
         aria-label={st(lang, "clip.share")}
@@ -318,6 +349,41 @@ function Actions({ clip }: { clip: Clip }) {
         {lang === "it" ? "Condividi" : "Share"}
       </button>
     </div>
+  );
+}
+
+// In the trash the only action is getting the song back.
+function RestoreButton({
+  clip,
+  onMoved,
+}: {
+  clip: Clip;
+  onMoved?: (ids: string[]) => void;
+}) {
+  const lang = useLocale();
+  const router = useRouter();
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        void restoreSongs([clip.id], lang, { refresh: router.refresh, onMoved })
+      }
+      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--surface-2)] px-3 text-[13px] outline-none hover:bg-[color-mix(in_oklab,var(--surface-2),var(--fg)_10%)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+    >
+      <Undo2 className="size-3.5" />
+      {st(lang, "clip.restore")}
+    </button>
+  );
+}
+
+// Waiting behind other jobs on the render PC.
+function QueueBadge({ clip }: { clip: Clip }) {
+  const lang = useLocale();
+  if (!clip.queuePosition || clip.queuePosition < 2) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-semibold tracking-wide tabular-nums text-[var(--fg-muted)]">
+      {stf(lang, "clip.queued", { n: String(clip.queuePosition) })}
+    </span>
   );
 }
 
@@ -343,51 +409,123 @@ function StageLine({ clip }: { clip: Clip }) {
   );
 }
 
+// The style line, with how often the song was played.
+function Subtitle({ clip, className }: { clip: Clip; className?: string }) {
+  const lang = useLocale();
+  return (
+    <p
+      className={cn(
+        "flex items-center gap-1.5 text-[13px] text-[var(--fg-muted)]",
+        className,
+      )}
+    >
+      <span className="truncate">{clip.style || clip.prompt}</span>
+      {clip.playCount > 0 ? (
+        <span className="shrink-0 tabular-nums">
+          {"· "}
+          {clip.playCount === 1
+            ? st(lang, "clip.playsOne")
+            : stf(lang, "clip.playsMany", { n: String(clip.playCount) })}
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
+// A checkbox big enough to hit, shown on every card while the feed is in select mode.
+function SelectBox({ clip, selection }: { clip: Clip; selection: Selection }) {
+  const lang = useLocale();
+  return (
+    <label className="flex size-8 shrink-0 cursor-pointer items-center justify-center">
+      <input
+        type="checkbox"
+        checked={selection.selected}
+        onChange={selection.onToggle}
+        aria-label={`${st(lang, "feed.select")}: ${clip.title || st(lang, "clip.untitled")}`}
+        className="size-[18px] cursor-pointer accent-[var(--brand)]"
+      />
+    </label>
+  );
+}
+
 export function ClipCard({
   clip,
   list,
   view,
+  selection,
+  trash = false,
+  onMoved,
 }: {
   clip: Clip;
   list: Clip[];
   view: "list" | "grid";
+  // Present in select mode.
+  selection?: Selection;
+  // The Library trash: no playback or editing, only Restore.
+  trash?: boolean;
+  onMoved?: (ids: string[]) => void;
 }) {
   const lang = useLocale();
   const current = usePlayer((s) => s.queue[s.index]?.id === clip.id);
   const title = clip.title || st(lang, "clip.untitled");
+  const playable = !selection && !trash;
+  const card = cn(
+    "group/card transition-colors hover-glass",
+    (current || selection?.selected) && "bg-[var(--surface-glass)]",
+    selection?.selected && "ring-1 ring-[var(--brand)]",
+  );
+  const heading = trash ? (
+    <span className="truncate">{title}</span>
+  ) : (
+    <TitleEditor clip={clip} title={title} />
+  );
   if (view === "grid")
     return (
       <article
         aria-label={title}
-        className={cn(
-          "group/card flex flex-col gap-2 rounded-[20px] p-2.5 transition-colors hover-glass",
-          current && "bg-[var(--surface-glass)]",
-        )}
+        className={cn("flex flex-col gap-2 rounded-[20px] p-2.5", card)}
       >
-        <Artwork clip={clip} list={list} size="grid" />
-        <div className="min-w-0 px-0.5">
-          <div className="flex items-center gap-1.5">
-            <Link
-              href={clip.href}
-              className="truncate font-medium outline-none hover:underline focus-visible:underline"
-            >
-              {title}
-            </Link>
+        <div className="relative">
+          <Artwork clip={clip} list={list} size="grid" playable={playable} />
+          {selection ? (
+            <div className="absolute right-1 bottom-1 rounded-full bg-black/45 backdrop-blur-sm">
+              <SelectBox clip={clip} selection={selection} />
+            </div>
+          ) : null}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col px-0.5">
+          <div className="flex items-center gap-1.5 font-medium">
+            {heading}
             <span className="shrink-0 text-[11px] font-semibold text-[var(--brand)]">
               {clipBadge(clip)}
             </span>
           </div>
-          <p className="truncate text-[13px] text-[var(--fg-muted)]">
-            {clip.style || clip.prompt}
-          </p>
+          <Subtitle clip={clip} />
           <div className="mt-1.5 flex min-h-5 flex-wrap items-center gap-1.5">
-            <StatusBadge clip={clip} />
-            {hasNextStep(clip) ? (
-              <NextStep clip={clip} />
+            {trash ? (
+              <RestoreButton clip={clip} onMoved={onMoved} />
             ) : (
-              <StageLine clip={clip} />
+              <>
+                <StatusBadge clip={clip} />
+                <QueueBadge clip={clip} />
+                {hasNextStep(clip) ? (
+                  <NextStep clip={clip} />
+                ) : (
+                  <StageLine clip={clip} />
+                )}
+              </>
             )}
           </div>
+          {trash ? null : (
+            <div className="mt-auto flex items-center justify-between pt-1">
+              <ReactionButtons
+                id={clip.id}
+                initial={clip.reaction}
+                className="-ml-1.5"
+              />
+              <MoreMenu clip={clip} onMoved={onMoved} />
+            </div>
+          )}
         </div>
       </article>
     );
@@ -395,43 +533,46 @@ export function ClipCard({
     <article
       aria-label={title}
       className={cn(
-        "group/card flex h-[110px] items-center gap-3 rounded-[20px] p-3 transition-colors hover-glass",
-        current && "bg-[var(--surface-glass)]",
+        "flex h-[110px] items-center gap-3 rounded-[20px] p-3",
+        card,
       )}
     >
-      <Artwork clip={clip} list={list} size="list" />
+      {selection ? <SelectBox clip={clip} selection={selection} /> : null}
+      <Artwork clip={clip} list={list} size="list" playable={playable} />
       <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch py-0.5">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <Link
-              href={clip.href}
-              className="truncate text-[15px] font-medium outline-none hover:underline focus-visible:underline"
-            >
-              {title}
-            </Link>
+          <div className="flex items-center gap-1.5 text-[15px] font-medium">
+            {heading}
             <span className="shrink-0 rounded-full bg-[color-mix(in_oklab,var(--brand),transparent_85%)] px-1.5 text-[10px] leading-4 font-semibold text-[var(--brand)]">
               {clipBadge(clip)}
             </span>
-            <span className="contents max-sm:hidden">
-              <StatusBadge clip={clip} />
-            </span>
-          </div>
-          <p className="mt-0.5 truncate text-[13px] text-[var(--fg-muted)]">
-            {clip.style || clip.prompt}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <Actions clip={clip} />
-            {hasNextStep(clip) ? (
-              <NextStep clip={clip} />
-            ) : (
-              <span className="truncate">
-                <StageLine clip={clip} />
+            {trash ? null : (
+              <span className="contents max-sm:hidden">
+                <StatusBadge clip={clip} />
               </span>
             )}
           </div>
-          <MoreMenu clip={clip} />
+          <Subtitle clip={clip} className="mt-0.5" />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            {trash ? (
+              <RestoreButton clip={clip} onMoved={onMoved} />
+            ) : (
+              <>
+                <Actions clip={clip} />
+                <QueueBadge clip={clip} />
+                {hasNextStep(clip) ? (
+                  <NextStep clip={clip} />
+                ) : (
+                  <span className="truncate">
+                    <StageLine clip={clip} />
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+          {trash ? null : <MoreMenu clip={clip} onMoved={onMoved} />}
         </div>
       </div>
     </article>

@@ -142,7 +142,10 @@ it("keeps a failed confirmation usable, toasts the error and disables pending cl
   resolve({ ok: false, error: "Try again" });
   await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith("Try again"));
   expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Confirm" })).not.toBeDisabled();
+  // The toast fires before the dialog re-enables its button.
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Confirm" })).not.toBeDisabled(),
+  );
 });
 it("prefills the editable publication form in English", () => {
   render(

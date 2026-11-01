@@ -266,6 +266,7 @@ function TakesDialog({
                       videoUrl: null,
                       href: clip.href,
                       art: clip.art,
+                      reaction: null,
                     });
                   }}
                   className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] disabled:opacity-40"

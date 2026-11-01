@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { CreateSongInput } from "@/app/actions/schemas";
 import { payloadFor } from "@/components/studio/create/create-panel";
 import { clipBadge } from "@/components/studio/feed/clip-card";
-import { dayLabel } from "@/components/studio/feed/workspace-feed";
+import {
+  dayLabel,
+  type Filter,
+  MATCH,
+} from "@/components/studio/feed/workspace-feed";
 import { blocker, initialForm, useCreateForm } from "@/store/create-form";
 import { usePlayer } from "@/store/player";
 import { artFor, loadClips } from "./clips";
@@ -142,6 +146,25 @@ describe("feed", () => {
     );
   });
 
+  it("filters the feed by like, creation state and audio only", () => {
+    const base = {
+      reaction: "none",
+      status: "approved",
+      audioUrl: null,
+      videoUrl: null,
+    } as const;
+    const clipsIn = [
+      { ...base, id: "a", reaction: "like" },
+      { ...base, id: "b", status: "song_queued" },
+      { ...base, id: "c", status: "audio_ready", audioUrl: "x" },
+    ] as never[];
+    const ids = (filter: Filter) =>
+      clipsIn.filter(MATCH[filter]).map((clip: { id: string }) => clip.id);
+    expect(ids("liked")).toEqual(["a"]);
+    expect(ids("creating")).toEqual(["b"]);
+    expect(ids("audioOnly")).toEqual(["c"]);
+  });
+
   it("gives each song a stable artwork", () => {
     expect(artFor("abc")).toBe(artFor("abc"));
     expect(artFor("abc")).not.toBe(artFor("abd"));
@@ -157,6 +180,11 @@ describe("feed", () => {
           created_at: "2026-10-31T10:00:00Z",
           updated_at: "2026-10-31T11:00:00Z",
           lyric_pack: { title: "Lunedi", style: "italo pop", lyrics: "x" },
+          liked: true,
+          disliked: false,
+          play_count: 7,
+          trashed_at: null,
+          display_title: null,
           chosen_take_id: "t2",
           generation_count: 1,
           render_attempt: 2,
@@ -175,6 +203,11 @@ describe("feed", () => {
           created_at: "2026-10-30T10:00:00Z",
           updated_at: "2026-10-30T11:00:00Z",
           lyric_pack: { title: "CBP" },
+          liked: false,
+          disliked: true,
+          play_count: 0,
+          trashed_at: null,
+          display_title: "  Il mio CBP ".trim(),
           chosen_take_id: "t3",
           generation_count: 1,
           render_attempt: 1,
@@ -250,6 +283,7 @@ describe("feed", () => {
       "q/fr/thumbnail-1280x720.png",
     ]);
     // A query builder is awaitable at any point of its chain.
+    const trashFilters: string[] = [];
     const query = (table: string) => {
       const chain = Object.assign(
         Promise.resolve({ data: rows[table] ?? [] }),
@@ -258,12 +292,26 @@ describe("feed", () => {
           order: () => chain,
           limit: () => chain,
           in: () => chain,
+          is: (column: string) => {
+            trashFilters.push(`is ${column}`);
+            return chain;
+          },
+          not: (column: string) => {
+            trashFilters.push(`not ${column}`);
+            return chain;
+          },
         },
       );
       return chain;
     };
     const supabase = {
       from: query,
+      rpc: async (name: string) => ({
+        data:
+          name === "my_queue_positions"
+            ? [{ version_id: "v2", queue_position: 3 }]
+            : null,
+      }),
       storage: {
         from: () => ({
           createSignedUrls: async (paths: string[]) => ({
@@ -277,6 +325,8 @@ describe("feed", () => {
       },
     };
     const [clip, imported] = await loadClips(supabase as never);
+    // The feed asks for songs that are not in the trash.
+    expect(trashFilters).toEqual(["is trashed_at"]);
     expect(clip).toMatchObject({
       id: "v1",
       title: "Lunedi",
@@ -296,6 +346,23 @@ describe("feed", () => {
       audioUrl: "https://s/q/fr/video-720p.mp4",
       videoUrl: "https://s/q/fr/video-720p.mp4",
     });
+    // Likes, plays and the queue position come with the clip; a rename wins over the pack title.
+    expect(clip).toMatchObject({
+      reaction: "like",
+      playCount: 7,
+      trashedAt: null,
+      queuePosition: null,
+    });
+    expect(imported).toMatchObject({
+      title: "Il mio CBP",
+      reaction: "dislike",
+      playCount: 0,
+      queuePosition: 3,
+    });
+    // The trash view asks for the other half and needs no queue positions.
+    trashFilters.length = 0;
+    await loadClips(supabase as never, 50, { trash: true });
+    expect(trashFilters).toEqual(["not trashed_at"]);
     expect(imported?.art).toContain(
       'url("https://s/q/fr/thumbnail-1280x720.png")',
     );
@@ -314,6 +381,7 @@ describe("player", () => {
     videoUrl: null,
     href: "/",
     art: "",
+    reaction: "none" as const,
   });
 
   it("plays a track within its list and wraps to the next one", () => {
@@ -329,6 +397,23 @@ describe("player", () => {
     usePlayer.setState({ time: 10 });
     usePlayer.getState().prev();
     expect(usePlayer.getState()).toMatchObject({ index: 0, time: 0 });
+  });
+
+  it("drops songs that left the library, even the one playing", () => {
+    const list = ["a", "b", "c"].map(track);
+    usePlayer.getState().play(list[1] as never, list);
+    usePlayer.getState().drop(["c"]);
+    expect(usePlayer.getState()).toMatchObject({ index: 1, playing: true });
+    expect(usePlayer.getState().queue.map((t) => t.id)).toEqual(["a", "b"]);
+    usePlayer.getState().drop(["a"]);
+    expect(usePlayer.getState().index).toBe(0);
+    // The playing song goes: playback stops and nothing else is touched.
+    usePlayer.getState().drop(["b"]);
+    expect(usePlayer.getState()).toMatchObject({
+      queue: [],
+      index: -1,
+      playing: false,
+    });
   });
 
   it("stops at the end of the queue unless repeat is on", () => {

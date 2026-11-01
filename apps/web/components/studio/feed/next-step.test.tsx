@@ -55,6 +55,10 @@ function clip(patch: Partial<Clip> = {}): Clip {
     takes: [],
     chosenTakeId: null,
     jury: null,
+    reaction: "none",
+    playCount: 0,
+    trashedAt: null,
+    queuePosition: null,
     ...patch,
   };
 }

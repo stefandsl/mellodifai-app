@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import type { Reaction } from "@/lib/studio/clips";
+
 export type Track = {
   id: string;
   title: string;
@@ -8,6 +10,9 @@ export type Track = {
   videoUrl: string | null;
   href: string;
   art: string;
+  // The reaction when the track was queued (the live value comes from the reactions store), or
+  // null for a preview that is not a library song, like a take: it cannot be liked or counted.
+  reaction: Reaction | null;
 };
 
 type PlayerState = {
@@ -33,6 +38,8 @@ type PlayerActions = {
   prev: () => void;
   enqueue: (track: Track) => void;
   remove: (id: string) => void;
+  // Takes songs out of the queue even when one is playing (they left the library).
+  drop: (ids: string[]) => void;
   seek: (at: number) => void;
   set: (patch: Partial<PlayerState>) => void;
   ended: () => void;
@@ -100,6 +107,24 @@ export const usePlayer = create<PlayerState & PlayerActions>()((set, get) => ({
     set({
       queue: queue.filter((item) => item.id !== id),
       index: at < index ? index - 1 : index,
+    });
+  },
+  drop: (ids) => {
+    const { queue, index } = get();
+    const gone = new Set(ids);
+    if (!queue.some((item) => gone.has(item.id))) return;
+    const rest = queue.filter((item) => !gone.has(item.id));
+    const current = queue[index];
+    if (current && !gone.has(current.id))
+      return set({ queue: rest, index: rest.indexOf(current) });
+    // The playing song is gone: stop, and keep the cursor on what came next.
+    const next = queue.slice(index).find((item) => !gone.has(item.id));
+    set({
+      queue: rest,
+      index: next ? rest.indexOf(next) : -1,
+      playing: false,
+      time: 0,
+      duration: 0,
     });
   },
   seek: (at) => set((s) => ({ time: at, seekTo: { at, n: s.seekTo.n + 1 } })),

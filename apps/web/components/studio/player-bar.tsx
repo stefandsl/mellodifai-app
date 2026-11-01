@@ -19,9 +19,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+import { countPlay } from "@/app/actions/library";
 import { useLocale } from "@/components/locale-provider";
 import { st } from "@/lib/studio/i18n";
+import { createPlayCounter } from "@/lib/studio/play-counter";
 import { formatTime, usePlayer } from "@/store/player";
+import { ReactionButtons } from "./reaction-buttons";
 import { IconButton, Tip } from "./ui";
 
 function typing(target: EventTarget | null): boolean {
@@ -174,6 +177,11 @@ export function PlayerBar() {
   const audio = useRef<HTMLAudioElement>(null);
   const p = usePlayer();
   const track = p.queue[p.index];
+  // Counts a play once 30 s of this track were heard; a failed count is not worth a message.
+  const plays = useRef<ReturnType<typeof createPlayCounter>>(null);
+  plays.current ??= createPlayCounter((id) => {
+    void countPlay({ versionId: id }).catch(() => {});
+  });
 
   // Drive the single audio element from the store.
   useEffect(() => {
@@ -225,13 +233,18 @@ export function PlayerBar() {
           ref={audio}
           src={track?.audioUrl}
           preload="metadata"
-          onTimeUpdate={(event) =>
-            p.set({ time: event.currentTarget.currentTime })
-          }
+          onTimeUpdate={(event) => {
+            p.set({ time: event.currentTarget.currentTime });
+            if (track?.reaction)
+              plays.current?.tick(track.id, event.currentTarget.currentTime);
+          }}
           onLoadedMetadata={(event) =>
             p.set({ duration: event.currentTarget.duration })
           }
-          onEnded={p.ended}
+          onEnded={() => {
+            plays.current?.reset();
+            p.ended();
+          }}
         >
           <track kind="captions" />
         </audio>
@@ -243,17 +256,27 @@ export function PlayerBar() {
             style={track ? { background: track.art } : undefined}
           />
           {track ? (
-            <div className="min-w-0">
-              <Link
-                href={track.href}
-                className="block truncate text-sm font-medium hover:underline"
-              >
-                {track.title}
-              </Link>
-              <p className="truncate text-xs text-[var(--fg-muted)]">
-                {track.subtitle}
-              </p>
-            </div>
+            <>
+              <div className="min-w-0">
+                <Link
+                  href={track.href}
+                  className="block truncate text-sm font-medium hover:underline"
+                >
+                  {track.title}
+                </Link>
+                <p className="truncate text-xs text-[var(--fg-muted)]">
+                  {track.subtitle}
+                </p>
+              </div>
+              {track.reaction ? (
+                <ReactionButtons
+                  key={track.id}
+                  id={track.id}
+                  initial={track.reaction}
+                  className="shrink-0"
+                />
+              ) : null}
+            </>
           ) : (
             <p className="truncate text-sm text-[var(--fg-subtle)]">
               {st(lang, "player.idle")}

@@ -1,5 +1,5 @@
 export type ActionResult =
-  | { ok: true; id?: string }
+  | { ok: true; id?: string; count?: number }
   | { ok: false; error: string };
 export type ActionCallback = () =>
   | void

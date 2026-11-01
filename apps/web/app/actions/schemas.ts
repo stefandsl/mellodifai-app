@@ -35,6 +35,17 @@ export const UpdateLyricsInput = z.object({
   pack: LyricPackSchema,
 });
 export const VersionIdInput = z.object({ versionId: Id });
+export const ReactionInput = z.object({
+  versionId: Id,
+  reaction: z.enum(["like", "dislike", "none"]),
+});
+export const RenameInput = z.object({
+  versionId: Id,
+  title: z.string().trim().min(1).max(100),
+});
+export const VersionIdsInput = z.object({
+  versionIds: z.array(Id).min(1).max(500),
+});
 export const GenerateAgainInput = z.object({
   versionId: Id,
   generation: z.number().int().positive(),

@@ -41,7 +41,15 @@ export type Clip = {
   pack: unknown;
   // The lyric pipeline's report (router choice, jury scores), when the worker wrote one.
   jury: Jury | null;
+  reaction: Reaction;
+  playCount: number;
+  // Set while the song sits in the trash.
+  trashedAt: string | null;
+  // 1 + the jobs ahead on the render PC while this song waits in the queue; null otherwise.
+  queuePosition: number | null;
 };
+
+export type Reaction = "like" | "dislike" | "none";
 
 export type Jury = {
   passed: boolean;
@@ -70,6 +78,11 @@ type Row = {
   } | null;
   chosen_take_id: string | null;
   lyric_jury: Jury | null;
+  liked: boolean;
+  disliked: boolean;
+  play_count: number;
+  trashed_at: string | null;
+  display_title: string | null;
   generation_count: number;
   render_attempt: number;
   projects: {
@@ -97,6 +110,17 @@ function coverArt(cover: string | null | undefined, id: string): string {
     : artFor(id);
 }
 
+// The pipeline is working on the song: a card shows a spinner instead of its artwork.
+const GENERATING: VersionStatus[] = [
+  "drafting",
+  "song_queued",
+  "producing",
+  "publishing",
+];
+export function isGenerating(status: VersionStatus): boolean {
+  return GENERATING.includes(status);
+}
+
 const STATUS_WITH_ACTION: VersionStatus[] = [
   "lyrics_review",
   "takes_review",
@@ -106,19 +130,31 @@ export function needsAction(status: VersionStatus): boolean {
   return STATUS_WITH_ACTION.includes(status);
 }
 
+// The feed and Library show songs that are not in the trash; the trash view shows the rest.
 export async function loadClips(
   supabase: SupabaseClient,
   limit = 200,
+  { trash = false }: { trash?: boolean } = {},
 ): Promise<Clip[]> {
-  const { data } = await supabase
+  const base = supabase
     .from("versions")
     .select(
-      "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings)",
-    )
-    .order("created_at", { ascending: false })
-    .limit(limit);
+      "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings)",
+    );
+  const [{ data }, positions] = await Promise.all([
+    (trash ? base.not("trashed_at", "is", null) : base.is("trashed_at", null))
+      .order(trash ? "trashed_at" : "created_at", { ascending: false })
+      .limit(limit),
+    // Trashed songs are not in the queue, so the trash view needs no positions.
+    trash ? { data: null } : supabase.rpc("my_queue_positions"),
+  ]);
   const rows = (data ?? []) as unknown as Row[];
   if (rows.length === 0) return [];
+  const queuePosition = new Map<string, number>(
+    (
+      (positions.data ?? []) as { version_id: string; queue_position: number }[]
+    ).map((item) => [item.version_id, item.queue_position]),
+  );
   const ids = rows.map((row) => row.id);
   const [{ data: takes }, { data: renders }] = await Promise.all([
     supabase
@@ -243,7 +279,12 @@ export async function loadClips(
       id: row.id,
       projectId: project?.id ?? "",
       lang: row.lang,
-      title: pack.title || (settings.title as string) || project?.topic || "",
+      title:
+        row.display_title ||
+        pack.title ||
+        (settings.title as string) ||
+        project?.topic ||
+        "",
       style: pack.style || project?.style || "",
       prompt: project?.topic ?? "",
       lyrics: pack.lyrics || project?.brief || "",
@@ -267,6 +308,10 @@ export async function loadClips(
       })),
       chosenTakeId: row.chosen_take_id,
       jury: row.lyric_jury,
+      reaction: row.liked ? "like" : row.disliked ? "dislike" : "none",
+      playCount: row.play_count ?? 0,
+      trashedAt: row.trashed_at,
+      queuePosition: queuePosition.get(row.id) ?? null,
       settings,
       pack: row.lyric_pack,
     };

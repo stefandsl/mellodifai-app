@@ -15,13 +15,19 @@ export default async function LibraryPage({
     getLocale(),
   ]);
   const videos = tab === "videos";
+  const trash = tab === "trash";
   return (
     <div className="mx-auto h-full max-w-6xl">
       <WorkspaceFeed
-        key={videos ? "videos" : "all"}
-        clips={await loadClips(supabase, 500)}
+        key={trash ? "trash" : videos ? "videos" : "all"}
+        clips={await loadClips(supabase, 500, { trash })}
         initialFilters={videos ? ["video"] : []}
-        heading={st(lang, videos ? "nav.videos" : "nav.library")}
+        heading={st(
+          lang,
+          trash ? "nav.trash" : videos ? "nav.videos" : "nav.library",
+        )}
+        trash={trash}
+        trashLink
       />
     </div>
   );

@@ -7,7 +7,7 @@ import { getLocale } from "./locale";
 export async function runAction(
   work: (
     db: Awaited<ReturnType<typeof actionProfile>>["supabase"],
-  ) => Promise<{ versionId?: string; projectId?: string }>,
+  ) => Promise<{ versionId?: string; projectId?: string; count?: number }>,
 ): Promise<ActionResult> {
   try {
     const { supabase } = await actionProfile();
@@ -25,7 +25,11 @@ export async function runAction(
     if (projectId) revalidatePath(`/projects/${projectId}`);
     revalidatePath("/library");
     revalidatePath("/create");
-    return { ok: true, ...(projectId ? { id: projectId } : {}) };
+    return {
+      ok: true,
+      ...(projectId ? { id: projectId } : {}),
+      ...(result.count === undefined ? {} : { count: result.count }),
+    };
   } catch (error) {
     const message =
       error && typeof error === "object" && "message" in error

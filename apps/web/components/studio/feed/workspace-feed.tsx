@@ -6,9 +6,14 @@ import {
   ChevronRight,
   LayoutGrid,
   List,
+  ListChecks,
   Search,
   SlidersHorizontal,
+  Trash2,
+  Undo2,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useLocale } from "@/components/locale-provider";
@@ -20,14 +25,33 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { type Clip, needsAction } from "@/lib/studio/clips";
-import { st } from "@/lib/studio/i18n";
+import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
+import { st, stf } from "@/lib/studio/i18n";
+import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
+import { useReactions } from "@/store/reactions";
 import { ClipCard } from "./clip-card";
 import { useLiveRefresh } from "./use-live-refresh";
 
 type Sort = "new" | "old" | "title";
-export type Filter = "action" | "video" | "audio";
+export const FILTERS = [
+  "action",
+  "video",
+  "audio",
+  "liked",
+  "creating",
+  "audioOnly",
+] as const;
+export type Filter = (typeof FILTERS)[number];
 const PAGE = 20;
+
+export const MATCH: Record<Filter, (clip: Clip) => boolean> = {
+  action: (clip) => needsAction(clip.status),
+  video: (clip) => Boolean(clip.videoUrl),
+  audio: (clip) => Boolean(clip.audioUrl),
+  liked: (clip) => clip.reaction === "like",
+  creating: (clip) => isGenerating(clip.status),
+  audioOnly: (clip) => clip.status === "audio_ready",
+};
 
 function dayKey(iso: string): string {
   const d = new Date(iso);
@@ -79,12 +103,19 @@ export function WorkspaceFeed({
   clips,
   initialFilters = [],
   heading,
+  trash = false,
+  trashLink = false,
 }: {
   clips: Clip[];
   initialFilters?: Filter[];
   heading?: string;
+  // The Library trash: songs here can only be restored.
+  trash?: boolean;
+  // Show the link between the Library and its trash (the Library page only).
+  trashLink?: boolean;
 }) {
   const lang = useLocale();
+  const router = useRouter();
   useLiveRefresh();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -95,6 +126,19 @@ export function WorkspaceFeed({
   );
   const [filters, setFilters] = useState<Filter[]>(initialFilters);
   const [page, setPage] = useState(0);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  // Songs moved to or out of the trash, hidden until the refreshed data arrives.
+  const [gone, setGone] = useState<Set<string>>(new Set());
+
+  // Fresh data from the server is the truth for likes, and ends the optimistic hiding.
+  useEffect(() => {
+    useReactions
+      .getState()
+      .sync(clips.map((clip) => ({ id: clip.id, reaction: clip.reaction })));
+    setGone(new Set());
+  }, [clips]);
 
   useEffect(() => {
     const timer = setTimeout(
@@ -108,6 +152,7 @@ export function WorkspaceFeed({
 
   const visible = useMemo(() => {
     const matched = clips.filter((clip) => {
+      if (gone.has(clip.id)) return false;
       if (
         debounced &&
         !`${clip.title} ${clip.style} ${clip.prompt}`
@@ -115,10 +160,7 @@ export function WorkspaceFeed({
           .includes(debounced)
       )
         return false;
-      if (filters.includes("action") && !needsAction(clip.status)) return false;
-      if (filters.includes("video") && !clip.videoUrl) return false;
-      if (filters.includes("audio") && !clip.audioUrl) return false;
-      return true;
+      return filters.every((filter) => MATCH[filter](clip));
     });
     return matched.sort((a, b) =>
       sort === "title"
@@ -127,7 +169,34 @@ export function WorkspaceFeed({
           ? a.createdAt.localeCompare(b.createdAt)
           : b.createdAt.localeCompare(a.createdAt),
     );
-  }, [clips, debounced, filters, sort]);
+  }, [clips, gone, debounced, filters, sort]);
+
+  // Only songs on screen can be acted on: a filter change never leaves hidden picks behind.
+  const picked = useMemo(
+    () =>
+      visible.filter((clip) => selected.has(clip.id)).map((clip) => clip.id),
+    [visible, selected],
+  );
+  const toggleSelecting = () => {
+    setSelecting(!selecting);
+    setSelected(new Set());
+  };
+  const togglePick = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const hide = (ids: string[]) => setGone((prev) => new Set([...prev, ...ids]));
+  const applyToPicked = async () => {
+    setBusy(true);
+    const moved = await (trash ? restoreSongs : trashSongs)(picked, lang, {
+      refresh: router.refresh,
+      onMoved: hide,
+    });
+    setBusy(false);
+    if (moved > 0) setSelected(new Set());
+  };
 
   const pages = Math.max(1, Math.ceil(visible.length / PAGE));
   const shown = visible.slice(page * PAGE, page * PAGE + PAGE);
@@ -168,7 +237,28 @@ export function WorkspaceFeed({
           <span className="font-medium">
             {heading ?? st(lang, "feed.workspace")}
           </span>
+          {trashLink ? (
+            <Link
+              href={trash ? "/library" : "/library?tab=trash"}
+              className={cn(
+                PILL,
+                "ml-auto bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
+              )}
+            >
+              {trash ? (
+                <Undo2 className="size-3.5" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              {st(lang, trash ? "trash.back" : "nav.trash")}
+            </Link>
+          ) : null}
         </nav>
+        {trash ? (
+          <p className="text-[13px] text-[var(--fg-muted)]">
+            {st(lang, "trash.note")}
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-40 flex-1 max-sm:basis-full">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--fg-subtle)]" />
@@ -192,8 +282,8 @@ export function WorkspaceFeed({
               {st(lang, "feed.filters")}
               {filters.length ? ` (${filters.length})` : ""}
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 rounded-2xl p-1.5">
-              {(["action", "video", "audio"] as const).map((filter) => (
+            <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5">
+              {FILTERS.map((filter) => (
                 <DropdownMenuCheckboxItem
                   key={filter}
                   checked={filters.includes(filter)}
@@ -230,6 +320,20 @@ export function WorkspaceFeed({
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+          <button
+            type="button"
+            aria-pressed={selecting}
+            onClick={toggleSelecting}
+            className={cn(
+              PILL,
+              selecting
+                ? "bg-[var(--fg)] text-[var(--bg)]"
+                : "bg-[var(--surface-2)] hover:text-[var(--fg)]",
+            )}
+          >
+            <ListChecks className="size-3.5" />
+            {st(lang, "feed.select")}
+          </button>
           <div
             role="radiogroup"
             aria-label={`${st(lang, "feed.list")} / ${st(lang, "feed.grid")}`}
@@ -265,7 +369,7 @@ export function WorkspaceFeed({
           </div>
         </div>
         <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-          {(["action", "video", "audio"] as const).map((filter) => (
+          {FILTERS.map((filter) => (
             <button
               key={filter}
               type="button"
@@ -283,12 +387,80 @@ export function WorkspaceFeed({
             </button>
           ))}
         </div>
+        {selecting ? (
+          <div
+            role="toolbar"
+            aria-label={st(lang, "feed.select")}
+            className="flex flex-wrap items-center gap-2 text-[13px]"
+          >
+            <span
+              aria-live="polite"
+              className="tabular-nums text-[var(--fg-muted)]"
+            >
+              {picked.length === 1
+                ? st(lang, "feed.selectedOne")
+                : stf(lang, "feed.selectedMany", { n: String(picked.length) })}
+            </span>
+            <button
+              type="button"
+              disabled={
+                visible.length === 0 || picked.length === visible.length
+              }
+              onClick={() =>
+                setSelected(new Set(visible.map((clip) => clip.id)))
+              }
+              className={cn(
+                PILL,
+                "h-7 bg-[var(--surface-2)] text-xs disabled:opacity-40",
+              )}
+            >
+              {st(lang, "feed.selectAll")}
+            </button>
+            <button
+              type="button"
+              disabled={picked.length === 0}
+              onClick={() => setSelected(new Set())}
+              className={cn(
+                PILL,
+                "h-7 bg-[var(--surface-2)] text-xs disabled:opacity-40",
+              )}
+            >
+              {st(lang, "feed.selectNone")}
+            </button>
+            <button
+              type="button"
+              disabled={picked.length === 0 || busy}
+              onClick={() => void applyToPicked()}
+              className={cn(
+                PILL,
+                "h-7 text-xs disabled:opacity-40",
+                trash
+                  ? "bg-[var(--fg)] text-[var(--bg)]"
+                  : "bg-[color-mix(in_oklab,var(--danger),transparent_82%)] text-[var(--danger)]",
+              )}
+            >
+              {trash ? (
+                <Undo2 className="size-3.5" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              {st(lang, trash ? "feed.restoreSelected" : "feed.trashSelected")}
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-24 scrollbar-thin sm:px-4 min-[900px]:pb-6">
         {visible.length === 0 ? (
           <p className="mx-2 mt-10 rounded-2xl border border-dashed border-[var(--hairline)] p-8 text-center text-[var(--fg-muted)]">
-            {st(lang, clips.length === 0 ? "feed.empty" : "feed.noMatch")}
+            {st(
+              lang,
+              clips.length === 0
+                ? trash
+                  ? "trash.empty"
+                  : "feed.empty"
+                : "feed.noMatch",
+            )}
           </p>
         ) : (
           groups.map((group) => (
@@ -311,6 +483,16 @@ export function WorkspaceFeed({
                     clip={clip}
                     list={visible}
                     view={view}
+                    trash={trash}
+                    onMoved={hide}
+                    selection={
+                      selecting
+                        ? {
+                            selected: selected.has(clip.id),
+                            onToggle: () => togglePick(clip.id),
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </div>
