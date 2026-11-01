@@ -674,7 +674,7 @@ export function classicoLayout(width: number, height: number) {
       : { x: width * 0.88, y: height * 0.25, size: height * 0.17 },
     // Tall frames have room under the wave; there the ruler cannot touch the trumpet player.
     ruler: tall
-      ? { y: height * 0.85, x0: width * 0.3, x1: width * 0.7 }
+      ? { y: height * 0.815, x0: width * 0.3, x1: width * 0.7 }
       : { y: height * 0.6, x0: width * 0.36, x1: width * 0.64 },
   };
 }
@@ -849,7 +849,7 @@ function presetClassico(
     ctx.save();
     ctx.globalAlpha = intro;
     const x = w * 0.06 - (1 - intro) * 60 * u;
-    const y = h * (L.tall ? 0.84 : 0.8);
+    const y = h * (L.tall ? 0.865 : 0.8);
     ctx.fillStyle = "#f2a516";
     ctx.fillRect(x, y, 10 * u, 112 * u);
     ctx.textAlign = "left";
