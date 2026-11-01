@@ -264,3 +264,41 @@ into the milestones where they serve the remake workflow.
 Exact API routes and schemas, table layouts, CLI command flags, MCP tool names, jury rubric
 wording and thresholds (calibrated on the golden set), the beat/section analyser choice, and the
 Remotion component API for agent-authored compositions.
+
+## 13. Future: portable runtime, installers, desktop apps and GPU servers (owner, 01/11)
+
+Not built now (the owner is the only admin today), but every new piece of code must keep it
+possible.
+
+- **Any machine can be a worker.** The worker already pulls jobs from the queue, so the PC, a
+  Debian GPU server, or a user's own computer are all just workers. Each worker reports its
+  capabilities (GPU model, VRAM, RAM, disk, OS, installed engines and model files, versions) with
+  its heartbeat; jobs carry requirements (for example "YuE2 INT8, 8 GB VRAM" or "CPU render"), and
+  the queue hands a job only to a worker that meets them. Bigger servers unlock bigger models
+  (YuE2 BF16, ACE-Step XL, larger image and video models).
+- **Doctor and installer** (`mellodifai doctor`, `mellodifai install`, a shell script for
+  Debian/Ubuntu over SSH, PowerShell for Windows, a macOS script): detect the hardware and software
+  (nvidia-smi / Metal, CUDA, Python, Node, ffmpeg, ComfyUI), print what this machine can run per
+  engine and what is missing, then download and install everything automatically from the GitHub
+  repo's releases (pinned versions, checksums), register the worker with a token, and run as
+  services (systemd on Debian, a service on Windows, launchd on macOS). The owner prefers a full
+  Debian server over Docker for GPU hosts.
+- **Self-update**: workers and apps update themselves from signed GitHub releases on a channel
+  (stable or the daily loop's channel), with automatic rollback if the health check fails after
+  an update.
+- **Desktop apps** (Windows, Linux, macOS; a small native shell around the web app, Tauri is the
+  likely choice): on first run they run the doctor; if the computer can run engines locally they
+  install and start a local worker; if not, they propose (a) running on the owner's GPU server
+  infrastructure, choosing the nearest server by ping, or (b) bringing the user's own API keys
+  (kie, OpenRouter, image providers) for cloud-only mode.
+- **GPU hosting**: a dedicated or virtual GPU server running Debian (not a container platform),
+  sized for the bigger models; providers to compare when the time comes include RunPod (note: its
+  pods are containers), dedicated GPU servers (for example Hetzner's GPU line) and any VPS provider
+  that offers GPU plans (check whether Hostinger does). The web app moves to that server or stays on
+  Vercel with hosted Supabase; local engines keep their licence limits (YuE2 stays owner-only).
+- **Portability rules for code written from now on**: no hard-coded Windows paths or drive
+  letters (a configurable runtime root replaces `E:/mellodifai`), no Windows-only process
+  handling without a POSIX path, engine and model locations from config, and every external tool
+  located through config or PATH.
+
+M7 (after M6): capability-aware queue, doctor, installers, self-update, then desktop apps.
