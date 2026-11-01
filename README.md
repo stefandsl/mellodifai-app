@@ -49,3 +49,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 ```
+
+## Test e2e isolati / Isolated e2e tests
+
+Esegui `pnpm e2e:isolated`. Crea e usa uno stack Supabase separato e una porta web separata, quindi non tocca lo stack predefinito, il worker reale o la porta 3000. By default the isolated stack remains running for quick reruns; use `pnpm e2e:isolated -- --stop` to stop only that stack.

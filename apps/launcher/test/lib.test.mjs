@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertIsolatedConfig,
+  redactE2eStderr,
+  rewriteE2eConfig,
+} from "../../../tools/e2e-isolated-lib.mjs";
+import {
   backupFolderName,
   buildStamp,
   classifyMigrations,
@@ -7,11 +12,14 @@ import {
   isBuildStale,
   localKeys,
   MSG,
+  normalizeEmail,
   parseEnv,
   parseMigrationList,
   paths,
   restoreCheck,
   secretValues,
+  stopDecision,
+  validatePassword,
   workerEnvFiles,
   workerOverrides,
 } from "../src/lib.mjs";
@@ -32,6 +40,76 @@ describe("parseEnv", () => {
       B: "two",
     });
   });
+});
+
+describe("password validation", () => {
+  it("requires a matching password of at least 10 characters", () => {
+    expect(validatePassword("short", "short")).toContain("10");
+    expect(validatePassword("long-password", "other-password")).toContain(
+      "coincidono",
+    );
+    expect(validatePassword("long-password", "long-password")).toBeNull();
+  });
+});
+
+it("normalizes an email before an exact allowlist lookup", () => {
+  expect(normalizeEmail(" Admin@Mellodifai.Test ")).toBe(
+    "admin@mellodifai.test",
+  );
+});
+
+describe("stop decision", () => {
+  it("only stops a stack it owns and that nobody else uses", () => {
+    expect(
+      stopDecision({
+        startedSupabase: true,
+        otherConsumers: false,
+        force: false,
+      }).stopSupabase,
+    ).toBe(true);
+    expect(
+      stopDecision({
+        startedSupabase: false,
+        otherConsumers: false,
+        force: false,
+      }).message,
+    ).toContain("non e' stato");
+    expect(
+      stopDecision({
+        startedSupabase: true,
+        otherConsumers: true,
+        force: false,
+      }).message,
+    ).toContain("un'altra sessione");
+    expect(
+      stopDecision({
+        startedSupabase: false,
+        otherConsumers: true,
+        force: true,
+      }).stopSupabase,
+    ).toBe(true);
+  });
+});
+
+it("rewrites and rejects unsafe isolated e2e configuration", () => {
+  const config = rewriteE2eConfig(
+    'project_id = "mellodifai"\nport = 54321\nsite_url = "http://127.0.0.1:3000"',
+    3310,
+  );
+  expect(config).toContain('project_id = "mellodifai_e2e"');
+  expect(config).toContain("45621");
+  expect(assertIsolatedConfig(config)).toBe(true);
+  expect(() =>
+    assertIsolatedConfig('project_id = "mellodifai"\nport = 54321'),
+  ).toThrow();
+});
+
+it("redacts sensitive e2e stderr lines without logging stdout", () => {
+  expect(
+    redactE2eStderr("starting\nAPI_KEY=do-not-log\nJWT: do-not-log\nready"),
+  ).toBe(
+    "starting\n[redacted sensitive stderr line]\n[redacted sensitive stderr line]\nready",
+  );
 });
 
 describe("localKeys", () => {

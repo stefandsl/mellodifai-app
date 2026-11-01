@@ -27,12 +27,15 @@ import {
   localKeys,
   MAILPIT_URL,
   MSG,
+  normalizeEmail,
   PORT,
   parseEnv,
   parseMigrationList,
   paths,
   restoreCheck,
   secretValues,
+  stopDecision,
+  validatePassword,
   workerEnvFiles,
   workerOverrides,
 } from "./lib.mjs";
@@ -149,9 +152,20 @@ async function alive(pid) {
   ]);
   return /"node\.exe"/iu.test(stdout);
 }
+async function commandForPid(pid) {
+  const { stdout } = await run("powershell", [
+    "-NoProfile",
+    "-Command",
+    `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`,
+  ]);
+  return stdout.trim();
+}
 async function killTree(name) {
   const pid = readPid(name);
-  if (pid && (await alive(pid))) {
+  const command = pid ? await commandForPid(pid) : "";
+  const expected =
+    name === "worker" ? /tsx.*src[\\/]main\.ts/iu : /next.*(?:start|dev)/iu;
+  if (pid && (await alive(pid)) && expected.test(command)) {
     log(`stopping ${name} pid ${pid}`);
     await run("taskkill", ["/PID", String(pid), "/T", "/F"]);
   }
@@ -213,12 +227,14 @@ async function supabaseKeys() {
 
 async function ensureSupabase() {
   let keys = await supabaseKeys();
+  let started = false;
   if (!keys) {
     say(MSG.dbStarting);
     // stdout of `supabase start` prints the keys, so only stderr is logged.
-    const started = await supabase(["start"], { timeout: 900_000 });
+    const startedResult = await supabase(["start"], { timeout: 900_000 });
+    started = startedResult.code === 0;
     keys = await supabaseKeys();
-    log(`supabase start exit ${started.code}\n${started.stderr}`);
+    log(`supabase start exit ${startedResult.code}\n${startedResult.stderr}`);
     if (!keys) fail(MSG.dbFailed);
   }
   writeFileSync(
@@ -229,7 +245,7 @@ async function ensureSupabase() {
       SUPABASE_ANON_KEY: keys.anon,
     }),
   );
-  return keys;
+  return { keys, started };
 }
 
 async function applyMigrations() {
@@ -355,10 +371,10 @@ async function otherWorker() {
 }
 
 async function ensureWorker() {
-  if (await alive(readPid("worker"))) return true;
+  if (await alive(readPid("worker"))) return false;
   if ((await otherWorker()).length) {
     say(MSG.workerElsewhere);
-    return true;
+    return false;
   }
   say(MSG.workerStarting);
   const tsx = join(workerDir, "node_modules", "tsx", "dist", "cli.mjs");
@@ -373,6 +389,16 @@ async function ensureWorker() {
   if (await alive(pid)) return true;
   say(`${MSG.workerFailed}\n${MSG.log(logFile("worker"))}`);
   return false;
+}
+
+async function otherWeb() {
+  const own = readPid("web");
+  const r = await run("powershell", [
+    "-NoProfile",
+    "-Command",
+    `Get-CimInstance Win32_Process -Filter "name='node.exe'" | Where-Object { $_.ProcessId -ne ${own ?? 0} -and $_.CommandLine -match 'next(?:\\\\|/)dist(?:\\\\|/)bin(?:\\\\|/)next.*(?:dev|start)' } | ForEach-Object { $_.ProcessId }`,
+  ]);
+  return r.stdout.split(/\s+/u).filter(Boolean).map(Number);
 }
 
 // ---- commands ----
@@ -391,23 +417,47 @@ async function start() {
     return;
   }
   await ensureDocker();
-  const keys = await ensureSupabase();
+  const { keys, started: startedSupabase } = await ensureSupabase();
   await applyMigrations();
+  const webWasRunning = await httpOk(`${APP_URL}/login`);
   await ensureWeb(keys);
-  await ensureWorker();
+  const startedWorker = await ensureWorker();
+  writeFileSync(
+    P.launcherState,
+    JSON.stringify({
+      startedSupabase,
+      startedWeb: !webWasRunning,
+      startedWorker,
+    }),
+  );
   say(MSG.opening);
   openBrowser();
   say(MSG.done);
 }
 
-async function stop() {
+async function stop(force = false) {
   say(MSG.stopping);
-  await killTree("worker");
-  await killTree("web");
-  if ((await run("docker", ["info"], { timeout: 30_000 })).code === 0) {
+  let state = {};
+  try {
+    state = JSON.parse(readFileSync(P.launcherState, "utf8"));
+  } catch {}
+  if (state.startedWorker || force) await killTree("worker");
+  if (state.startedWeb || force) await killTree("web");
+  const decision = stopDecision({
+    startedSupabase: Boolean(state.startedSupabase),
+    otherConsumers:
+      (await otherWorker()).length > 0 || (await otherWeb()).length > 0,
+    force,
+  });
+  if (decision.message) say(decision.message);
+  if (
+    decision.stopSupabase &&
+    (await run("docker", ["info"], { timeout: 30_000 })).code === 0
+  ) {
     const stopped = await supabase(["stop"], { timeout: 300_000 });
     log(`supabase stop exit ${stopped.code}\n${stopped.stderr}`);
   }
+  rmSync(P.launcherState, { force: true });
   say(MSG.stopped);
 }
 
@@ -633,6 +683,101 @@ async function restore(chosen) {
   say("Ripristino completato. Avvia Mellodifai con l'icona sul desktop.");
 }
 
+async function setPassword() {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const email = normalizeEmail(
+      await rl.question("Email dell'amministratore: "),
+    );
+    rl.close();
+    const password = await readHiddenPassword(
+      "Nuova password (almeno 10 caratteri): ",
+    );
+    const confirmation = await readHiddenPassword("Ripeti la nuova password: ");
+    const invalid = validatePassword(password, confirmation);
+    if (invalid) fail(invalid);
+    const { keys } = await ensureSupabase();
+    const { createClient } = await import("@supabase/supabase-js");
+    const admin = createClient(keys.url, keys.service, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: allowed, error: allowedError } = await admin
+      .from("admin_allowlist")
+      .select("email")
+      .eq("email", email)
+      .maybeSingle();
+    if (allowedError || !allowed) fail("Questo indirizzo non e' abilitato.");
+    const { data: listed, error: listError } = await admin.auth.admin.listUsers(
+      { page: 1, perPage: 1000 },
+    );
+    if (listError) throw listError;
+    let user = listed.users.find(
+      (candidate) => candidate.email?.toLowerCase() === email,
+    );
+    if (!user) {
+      const { data, error } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      });
+      if (error || !data.user) throw error ?? new Error("Utente non creato");
+      user = data.user;
+    } else {
+      const { error } = await admin.auth.admin.updateUserById(user.id, {
+        password,
+        email_confirm: true,
+      });
+      if (error) throw error;
+    }
+    say("Password aggiornata. Puoi accedere dall'app.");
+  } finally {
+    rl.close();
+  }
+}
+
+function readHiddenPassword(prompt) {
+  const input = process.stdin;
+  if (!input.isTTY || typeof input.setRawMode !== "function") {
+    say("ATTENZIONE: input non interattivo, la password sara' visibile.");
+    const rl = createInterface({ input, output: process.stdout });
+    return rl.question(prompt).finally(() => rl.close());
+  }
+  process.stdout.write(prompt);
+  return new Promise((resolvePassword, rejectPassword) => {
+    let value = "";
+    const wasRaw = input.isRaw;
+    const done = () => {
+      input.off("data", onData);
+      input.setRawMode(Boolean(wasRaw));
+      input.pause();
+    };
+    const onData = (chunk) => {
+      for (const character of String(chunk)) {
+        if (character === "\r" || character === "\n") {
+          done();
+          process.stdout.write("\n");
+          resolvePassword(value);
+          return;
+        }
+        if (character === "\u0003") {
+          done();
+          process.stdout.write("\n");
+          rejectPassword(new Explained("Operazione annullata."));
+          return;
+        }
+        if (character === "\b" || character === "\u007f") {
+          value = value.slice(0, -1);
+          continue;
+        }
+        if (character >= " ") value += character;
+      }
+    };
+    input.setRawMode(true);
+    input.resume();
+    input.on("data", onData);
+  });
+}
+
 // One-time setup: the owner's worker settings and the desktop shortcuts.
 async function install() {
   const legacy = join(workerDir, ".env.local");
@@ -676,7 +821,7 @@ const [command = "start", ...rest] = process.argv.slice(2);
 jsonMode = rest.includes("--json");
 const commands = {
   start,
-  stop,
+  stop: () => stop(rest.includes("--force")),
   install,
   status,
   backup: async () => {
@@ -684,6 +829,7 @@ const commands = {
     if (jsonMode) console.log(JSON.stringify({ ok: true, dir }));
   },
   restore: () => restore(rest.find((a) => !a.startsWith("--"))),
+  "set-password": setPassword,
 };
 try {
   if (!commands[command]) fail(`Comando sconosciuto: ${command}`);

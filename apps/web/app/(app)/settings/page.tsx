@@ -15,6 +15,7 @@ export default async function SettingsPage() {
       <SettingsPanel
         email={user.email ?? ""}
         canBackup={profile.role === "admin" && (await backupAvailable())}
+        canChangePassword={profile.role === "admin"}
       />
     </StudioPage>
   );

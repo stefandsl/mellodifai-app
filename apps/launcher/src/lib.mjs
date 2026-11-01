@@ -19,7 +19,36 @@ export function paths(
     run: join(state, "run"),
     supabaseEnv: join(state, "supabase.env"),
     workerEnv: join(state, "worker.env"),
+    launcherState: join(state, "launcher-state.json"),
   };
+}
+
+export function validatePassword(password, confirmation) {
+  if (typeof password !== "string" || password.length < 10)
+    return "La password deve contenere almeno 10 caratteri.";
+  if (password !== confirmation) return "Le password non coincidono.";
+  return null;
+}
+
+export function normalizeEmail(email) {
+  return String(email).trim().toLowerCase();
+}
+
+export function stopDecision({ startedSupabase, otherConsumers, force }) {
+  if (force)
+    return { stopSupabase: true, message: "Forzo l'arresto di Supabase." };
+  if (!startedSupabase)
+    return {
+      stopSupabase: false,
+      message: "Supabase non e' stato avviato da Mellodifai: lo lascio acceso.",
+    };
+  if (otherConsumers)
+    return {
+      stopSupabase: false,
+      message:
+        "Supabase e' usato anche da un'altra sessione (worker o server di sviluppo): lo lascio acceso. I tuoi dati sono al sicuro.",
+    };
+  return { stopSupabase: true, message: null };
 }
 
 // Reads KEY="value" lines as printed by `supabase status -o env`.

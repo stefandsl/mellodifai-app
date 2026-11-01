@@ -10,6 +10,7 @@
     "typecheck": "tsc -b",
     "test": "pnpm -r --if-present test",
     "e2e": "pnpm -r --if-present e2e",
+    "e2e:isolated": "node tools/e2e-isolated.mjs",
     "test:db": "vitest run --no-file-parallelism supabase/tests"
   },
   "devDependencies": {

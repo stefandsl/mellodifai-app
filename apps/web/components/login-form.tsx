@@ -1,12 +1,13 @@
 "use client";
 import { t } from "@mellodifai/shared";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/browser";
 
-function loginNotice(error: unknown, rejected = false) {
+export function loginNotice(error: unknown, rejected = false) {
   if (!error) return "auth.sent";
   const details = error as { status?: number; code?: string; name?: string };
   if (details.status === 429) return "auth.rateLimited";
@@ -25,34 +26,96 @@ function loginNotice(error: unknown, rejected = false) {
   return rejected ? "auth.unavailable" : "auth.sent";
 }
 
+export const passwordNotice = () => "auth.invalidCredentials";
+
 export function LoginForm({ lang }: { lang: "it" | "en" }) {
   const [notice, setNotice] = useState("");
+  const [magicLink, setMagicLink] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   return (
     <form
       className="mt-6 space-y-4"
-      action={(data) =>
+      onSubmit={() => setNotice("")}
+      action={() => {
+        setNotice("");
         startTransition(async () => {
           try {
-            const { error } = await createClient().auth.signInWithOtp({
-              email: String(data.get("email")),
-              options: {
-                shouldCreateUser: false,
-                emailRedirectTo: `${window.location.origin}/auth/confirm`,
-              },
+            if (magicLink) {
+              const { error } = await createClient().auth.signInWithOtp({
+                email,
+                options: {
+                  shouldCreateUser: false,
+                  emailRedirectTo: `${window.location.origin}/auth/confirm`,
+                },
+              });
+              setNotice(t(lang, loginNotice(error)));
+              return;
+            }
+            const { error } = await createClient().auth.signInWithPassword({
+              email,
+              password,
             });
-            setNotice(t(lang, loginNotice(error)));
+            if (error) {
+              setPassword("");
+              setNotice(t(lang, passwordNotice()));
+              return;
+            }
+            router.replace("/");
+            router.refresh();
           } catch (error) {
-            setNotice(t(lang, loginNotice(error, true)));
+            if (!magicLink) setPassword("");
+            setNotice(
+              t(lang, magicLink ? loginNotice(error, true) : passwordNotice()),
+            );
           }
-        })
-      }
+        });
+      }}
     >
       <Label htmlFor="email">{t(lang, "auth.email")}</Label>
-      <Input id="email" name="email" type="email" required />
+      <Input
+        id="email"
+        name="email"
+        type="email"
+        required
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+      />
+      {!magicLink && (
+        <>
+          <Label htmlFor="password">{t(lang, "auth.password")}</Label>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            required
+            minLength={10}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </>
+      )}
       <Button type="submit" disabled={pending} className="w-full">
-        {t(lang, "auth.sendLink")}
+        {t(lang, magicLink ? "auth.sendLink" : "auth.signIn")}
       </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full"
+        onClick={() => {
+          setMagicLink((value) => !value);
+          setNotice("");
+        }}
+      >
+        {t(lang, magicLink ? "auth.signIn" : "auth.magicLink")}
+      </Button>
+      {!magicLink && (
+        <p className="text-sm text-muted-foreground">
+          {t(lang, "auth.forgotPassword")} {t(lang, "auth.forgotPasswordHint")}
+        </p>
+      )}
       {notice && <p role="status">{notice}</p>}
     </form>
   );
