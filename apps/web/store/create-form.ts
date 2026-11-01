@@ -6,8 +6,10 @@ import {
   MAX_SONGS_PER_CLICK,
   SEED_MAX,
   SONG_KEYS,
+  SOURCE_MODES,
   type SongEngine,
   type SongModel,
+  type SourceMode,
   TIME_SIGNATURES,
   type TimeSignature,
 } from "@mellodifai/shared";
@@ -22,7 +24,22 @@ export type VideoMode =
   | "slideshow"
   | "footage";
 export type Aspect = "9:16" | "1:1" | "16:9";
-export type CardId = "lyrics" | "styles" | "video" | "music" | "more";
+export type CardId = "lyrics" | "styles" | "video" | "music" | "more" | "audio";
+
+// The audio a new song starts from (T12): an upload of the owner's or a take of one of the
+// owner's songs, used as a cover, a reference or to extend.
+export type CreateAudio = {
+  mode: SourceMode;
+  upload?: string;
+  takeId?: string;
+  versionId?: string;
+  // What the card shows and plays.
+  title: string;
+  url: string;
+  duration?: number;
+  // Extend only: seconds into the source; absent = at its end.
+  continueAt?: number;
+};
 
 export type CreateFormState = {
   mode: "simple" | "advanced";
@@ -57,6 +74,7 @@ export type CreateFormState = {
   lyricsHeight: number;
   video: { mode: VideoMode; aspect: Aspect; overlay: boolean };
   open: Record<CardId, boolean>;
+  audio: CreateAudio | null;
 };
 
 type Actions = {
@@ -111,7 +129,9 @@ export function initialForm(lang: Lang = "it"): CreateFormState {
       video: true,
       music: true,
       more: false,
+      audio: true,
     },
+    audio: null,
   };
 }
 
@@ -170,6 +190,17 @@ function within(value: unknown, min: number, max: number, fallback: number) {
 
 // A saved draft may be older, hand-edited or from another version: every control that has a
 // range is brought back into it, and an unknown key or signature goes back to Auto.
+// A remembered audio source is kept only when it still reads as one.
+function cleanAudio(raw: unknown): CreateAudio | null {
+  if (!raw || typeof raw !== "object") return null;
+  const audio = raw as Partial<CreateAudio>;
+  if (!SOURCE_MODES.includes(audio.mode as SourceMode)) return null;
+  if (typeof audio.url !== "string" || typeof audio.title !== "string")
+    return null;
+  if (Boolean(audio.upload) === Boolean(audio.takeId)) return null;
+  return audio as CreateAudio;
+}
+
 export function sanitizeDraft(saved: Partial<CreateFormState>) {
   const keys: readonly string[] = SONG_KEYS;
   const signatures: readonly string[] = TIME_SIGNATURES;
@@ -187,6 +218,7 @@ export function sanitizeDraft(saved: Partial<CreateFormState>) {
     ...saved,
     // A draft saved before a card existed has no entry for it.
     open: { ...defaults.open, ...saved.open },
+    audio: cleanAudio(saved.audio),
     songCount: within(saved.songCount, 1, MAX_SONGS_PER_CLICK, 1),
     lyricsHeight: within(
       saved.lyricsHeight,
@@ -229,6 +261,7 @@ export const useCreateForm = create<CreateFormState & Actions>()(
           songCount: s.songCount,
           lyricsHeight: s.lyricsHeight,
           open: s.open,
+          audio: null,
         })),
     }),
     // The saved draft is loaded after hydration (CreatePanel), so the first client render

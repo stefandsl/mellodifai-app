@@ -107,6 +107,7 @@ beforeEach(() => {
       video: true,
       music: true,
       more: true,
+      audio: true,
     },
   });
 });

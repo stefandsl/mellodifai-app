@@ -3,6 +3,7 @@
 import { cn } from "cn";
 import {
   Clapperboard,
+  Disc3,
   Download,
   Film,
   Info,
@@ -13,10 +14,12 @@ import {
   MoreHorizontal,
   Music2,
   Pause,
+  PenLine,
   Play,
   RotateCcw,
   Scissors,
   Share2,
+  Sparkles,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -33,10 +36,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { canStartFrom, startFromSong } from "@/lib/studio/audio-source";
 import { openStems } from "@/lib/studio/audio-tools";
 import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
 import { st, stf } from "@/lib/studio/i18n";
 import { reusePrompt } from "@/lib/studio/reuse-prompt";
+import { canRewrite, rewriteHref } from "@/lib/studio/rewrite";
 import { canEdit, canSeparate, editorHref } from "@/lib/studio/stems";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { useDetails } from "@/store/details";
@@ -328,12 +333,36 @@ export function MoreMenu({
             {st(lang, "tool.edit")}
           </DropdownMenuItem>
           <DropdownMenuItem
+            disabled={!canRewrite(clip)}
+            onClick={() => router.push(rewriteHref(clip.id))}
+            className="rounded-lg"
+          >
+            <PenLine />
+            {st(lang, "tool.rewrite")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
             disabled={!canSeparate(clip)}
             onClick={() => void openStems(clip, lang, router.push)}
             className="rounded-lg"
           >
             <Layers />
             {st(lang, "tool.stems")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canStartFrom(clip)}
+            onClick={() => startFromSong(clip, "cover", lang, router.push)}
+            className="rounded-lg"
+          >
+            <Disc3 />
+            {st(lang, "clip.coverThis")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canStartFrom(clip)}
+            onClick={() => startFromSong(clip, "reference", lang, router.push)}
+            className="rounded-lg"
+          >
+            <Sparkles />
+            {st(lang, "clip.useReference")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!canMakeVideo(clip)}
