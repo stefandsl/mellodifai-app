@@ -126,6 +126,16 @@ milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66
 
 ## 6. Waiting on the owner
 
+Docker Desktop's disk image is still on C:. Moving it to G: through Docker
+Desktop > Settings > Resources > Advanced > Disk image location is an owner
+maintenance action. The accepted M1 progress ruling permits the existing
+daemon for dev/e2e/spike work in the meantime; workdirs and evidence stay on E:.
+
+M1 Task 5 is blocked at its required Spike 2 runtime prerequisite: CLI 3.0.0
+image pulls from ECR and Docker Hub did not complete for the isolated spike.
+No spike services started and the CLI-versus-compose decision remains open.
+See the plan's Spike 2 retry record before implementing the renderer.
+
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
 `cloudflared` login; SMTP sender; codex login in the image container; an evaluation

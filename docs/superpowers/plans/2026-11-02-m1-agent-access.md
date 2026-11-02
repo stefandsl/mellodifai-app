@@ -1080,6 +1080,57 @@ verification; the repository e2e gate is no longer blocked.
 
 ### Spike 2: database stack (Task 2, 2026-11-02, runtime experiments pending)
 
+**Task 5 prerequisite retry (2026-11-02): still blocked before startup.**
+The accepted progress ruling permits the existing Docker Desktop daemon for
+this spike. It supersedes the disk-location prerequisite in the original
+record below. Moving Docker's disk to G: remains an owner maintenance action,
+but is not required before this experiment. All workdirs, CLI caches and
+evidence for this retry were placed on E:/G:.
+
+`npx --yes supabase@3.0.0` is available with npm cache `G:/caches/npm`.
+The spike config still targets only `mellodifai_spike`, ports 46621-46629.
+Generated a throwaway ES256 key outside the checkout. The CLI rejected a
+PowerShell UTF-16 file, then rejected a single JWK with `Expected array`.
+After converting to UTF-8 and wrapping the JWK in an array, config validation
+advanced to image pulls. This verifies parsing of the absolute external
+`signing_keys_path`, not a working Auth service or signing-key behavior.
+
+The prepared seed references `public.admin_allowlist`, but the spike has no
+application migrations. Disabled `[db.seed]` for this infrastructure-only
+experiment before the second startup attempt.
+
+The default ECR pull returned `toomanyrequests: Rate exceeded`. Startup then
+stalled downloading images. Retried using the installed CLI's
+`SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io` override and the same image
+versions. Several images completed, but `supabase/postgres:17.11.0.011`
+remained incomplete, including layer `8723e05bc5d1`. A separate Docker Hub
+pull and an isolated retry also did not complete. Manifest inspection
+succeeded; its largest compressed layer is approximately 310 MB. A disposable
+`postgres:17-alpine` container ran `df` successfully and reported approximately
+929 GB available inside Docker, so lack of Docker disk space was not observed.
+
+No spike service container started. Consequently login-role inventory,
+credential re-templating, restart persistence, disabled-service checks,
+session-column/definer checks, project-ID experiments and the bridge password
+probe remain untested. **CLI versus compose remains undecided. Task 5's
+renderer must not be built on this partial result.** Resume the required
+experiments once the pinned service images can be pulled successfully.
+
+Retry evidence: `E:/mellodifai/spikes/stack/evidence/` (startup logs marked
+`private` must not be printed, since a successful CLI start can print keys).
+The unchanged-branch gates passed from an E: tracked-source copy: frozen
+install, lint, root and web typecheck, unit tests, 124 database tests and
+3 e2e tests. DB/e2e used API 45621 and Next 3210 with fake providers.
+Gate evidence: `E:/mellodifai/tmp/task-5-20261102/evidence/`.
+These are baseline results, not renderer RED/GREEN evidence.
+Cancelled the remaining pull, then ran `npx --yes supabase@3.0.0 stop
+--workdir E:/mellodifai/spikes/stack --no-backup` after verifying the config's
+project ID. Exit 0; no spike containers or volumes remained. Removed only the
+throwaway signing key and temporary e2e status file created by this retry.
+Regenerate the spike key as a UTF-8 JWK array before resuming startup.
+
+**Original Task 2 record (disk prerequisite superseded above):**
+
 **Owner prerequisite discovered:** the active `desktop-linux` Docker context
 stores its data in the physical file
 `C:/Users/Asus/AppData/Local/Docker/wsl/disk/docker_data.vhdx` (34,165,751,808
