@@ -3,14 +3,18 @@ import {
   BASE,
   type Canvas2D,
   clock,
-  drawCover,
+  drawFitted,
   drawTitle,
   ease,
   easeOut,
   fitText,
   font,
   hash01,
+  hexToRgb,
+  inkOver,
   kickOf,
+  LINE_HALO,
+  lineBackdrop,
   mix,
   pastFrame,
   peakValues,
@@ -21,6 +25,7 @@ import {
   songLines,
   spacedText,
   spacedWidth,
+  typeScale,
   unitOf,
   type VisualizerScene,
 } from "./viz-kit.js";
@@ -320,7 +325,8 @@ function boxImage(
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  if (pic) drawCover(ctx, pic, x, y, w, h);
+  if (pic)
+    drawFitted(ctx, pic, x, y, w, h, scene.params.centerImage.fit, "square");
   else {
     const g = ctx.createLinearGradient(x, y, x + w, y + h);
     g.addColorStop(0, scene.params.colors.primary);
@@ -363,12 +369,13 @@ function progressBar(
   ctx.fill();
   ctx.restore();
   if (!times) return;
-  const ty = y + thick / 2 + 22 * u;
-  textLine(ctx, scene, clock(scene.time), x, ty, 20 * u, {
+  const cap = typeScale(scene).caption;
+  const ty = y + thick / 2 + cap * 0.9;
+  textLine(ctx, scene, clock(scene.time), x, ty, cap, {
     weight: 400,
     color: "rgba(255,255,255,0.8)",
   });
-  textLine(ctx, scene, clock(scene.duration), x + width, ty, 20 * u, {
+  textLine(ctx, scene, clock(scene.duration), x + width, ty, cap, {
     weight: 400,
     align: "right",
     color: "rgba(255,255,255,0.8)",
@@ -460,7 +467,7 @@ function dotline(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const at = lookCenter(scene.params, w, h);
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(P, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.85), 48);
+  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.85));
 }
 
 // ---- P2 Burst: a glowing sine spindle, loudest in the middle, with echoes ---------------------
@@ -550,7 +557,7 @@ function burst(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const at = lookCenter(scene.params, w, h);
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(S, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.85), 48);
+  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.85));
 }
 
 // ---- P3 Corona: a radial ring of teeth round the cover ----------------------------------------
@@ -632,7 +639,7 @@ function crown(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.stroke();
   ctx.restore();
   roundImageAt(ctx, scene, { cx, cy, r: at.r - 2 * u }, level, false);
-  drawTitle(ctx, scene, Math.min(h * 0.93, cy + at.r + maxT + 0.09 * s), 46);
+  drawTitle(ctx, scene, Math.min(h * 0.93, cy + at.r + maxT + 0.09 * s));
 }
 
 // ---- P4 Anello a Filo: a thin spiky ring with a timer -----------------------------------------
@@ -739,9 +746,9 @@ function wirering(ctx: Canvas2D, scene: VisualizerScene, level: number) {
     scene,
     scene.title.trim().toUpperCase(),
     cx,
-    Math.min(h * 0.93, cy + r + depth + s * 0.12),
-    30 * u,
-    { weight: 400, align: "center", tracking: 0.3, maxWidth: w * 0.86 },
+    Math.min(h * 0.9, cy + r + depth + s * 0.12),
+    typeScale(scene).title,
+    { weight: 500, align: "center", tracking: 0.06, maxWidth: w * 0.86 },
   );
 }
 
@@ -829,7 +836,8 @@ function lens(ctx: Canvas2D, scene: VisualizerScene, level: number) {
 
   // Title block.
   const lines = songLines(scene);
-  textLine(ctx, scene, lines.title, w / 2, textY, 64 * u, {
+  const ts = typeScale(scene);
+  textLine(ctx, scene, lines.title, w / 2, textY, ts.title, {
     weight: 600,
     align: "center",
     maxWidth: w * 0.86,
@@ -839,9 +847,9 @@ function lens(ctx: Canvas2D, scene: VisualizerScene, level: number) {
     scene,
     [lines.artist, lines.album].filter(Boolean).join("  ·  "),
     w / 2,
-    textY + 58 * u,
-    28 * u,
-    { weight: 400, align: "center", tracking: 0.2, maxWidth: w * 0.8 },
+    textY + ts.title * 0.5 + ts.artist * 0.75,
+    ts.artist,
+    { weight: 400, align: "center", tracking: 0.2, maxWidth: w * 0.86 },
   );
 
   // The play button, with the cover inside when there is one.
@@ -940,18 +948,27 @@ function pills(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   thinRing(ctx, at, rgba(P, 0.95), 5 * u);
   const lines = songLines(scene);
   const ty = tall ? h * 0.39 : at.cy + at.r + 0.1 * s;
-  textLine(ctx, scene, lines.title, at.cx, ty, 54 * u, {
+  const ts = typeScale(scene);
+  textLine(ctx, scene, lines.title, at.cx, ty, ts.title, {
     weight: 600,
     align: "center",
     maxWidth: tall ? w * 0.86 : w * 0.42,
   });
-  textLine(ctx, scene, lines.artist, at.cx, ty + 52 * u, 26 * u, {
-    weight: 400,
-    align: "center",
-    tracking: 0.25,
-    color: "rgba(255,255,255,0.8)",
-    maxWidth: tall ? w * 0.86 : w * 0.42,
-  });
+  textLine(
+    ctx,
+    scene,
+    lines.artist,
+    at.cx,
+    ty + ts.title * 0.5 + ts.artist * 0.7,
+    ts.artist,
+    {
+      weight: 400,
+      align: "center",
+      tracking: 0.25,
+      color: "rgba(255,255,255,0.8)",
+      maxWidth: tall ? w * 0.86 : w * 0.42,
+    },
+  );
 }
 
 // ---- P7 Bordi Pixel: dotted equalizers on the top and bottom edges, a playing-card cover ------
@@ -1110,26 +1127,34 @@ function edgebars(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const align = tall ? "center" : "left";
   const maxWidth = tall ? w * 0.86 : w * 0.38;
   const ty = tall ? h * 0.74 : h * 0.4;
-  textLine(ctx, scene, lines.artist, tx, ty, 28 * u, {
+  const ts = typeScale(scene);
+  const titleY = ty + ts.artist / 2 + ts.title / 2 + 14 * u;
+  const albumY = titleY + ts.title / 2 + ts.caption / 2 + 10 * u;
+  textLine(ctx, scene, lines.artist, tx, ty, ts.artist, {
     weight: 600,
     align,
     tracking: 0.12,
     maxWidth,
   });
-  textLine(ctx, scene, lines.title, tx, ty + 62 * u, 62 * u, {
+  textLine(ctx, scene, lines.title, tx, titleY, ts.title, {
     weight: 600,
     align,
     maxWidth,
   });
-  textLine(ctx, scene, lines.album, tx, ty + 116 * u, 30 * u, {
+  textLine(ctx, scene, lines.album, tx, albumY, ts.caption, {
     weight: 300,
     align,
     maxWidth,
   });
-  textLine(ctx, scene, clock(scene.time), tx, ty + 176 * u, 44 * u, {
-    weight: 500,
-    align,
-  });
+  textLine(
+    ctx,
+    scene,
+    clock(scene.time),
+    tx,
+    albumY + ts.caption / 2 + 30 * u,
+    ts.artist * 1.3,
+    { weight: 500, align },
+  );
 }
 
 // A rounded rectangle added to the current path.
@@ -1261,7 +1286,10 @@ function coverframe(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
   }
   ctx.stroke();
   ctx.restore();
-  textLine(ctx, scene, lines.artist, tx, top, 28 * u, {
+  const ts = typeScale(scene);
+  const titleY = top + ts.artist / 2 + ts.title / 2 + 12 * u;
+  const albumY = titleY + ts.title / 2 + ts.caption / 2 + 10 * u;
+  textLine(ctx, scene, lines.artist, tx, top, ts.artist, {
     weight: 600,
     align,
     tracking: 0.1,
@@ -1272,8 +1300,8 @@ function coverframe(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
     scene,
     lines.title ? `SONG: ${lines.title}` : "",
     tx,
-    top + 52 * u,
-    44 * u,
+    titleY,
+    ts.title,
     { weight: 600, align, maxWidth },
   );
   textLine(
@@ -1281,13 +1309,13 @@ function coverframe(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
     scene,
     lines.album ? `ALBUM: ${lines.album}` : "",
     tx,
-    top + 100 * u,
-    32 * u,
+    albumY,
+    ts.caption,
     { weight: 400, align, maxWidth },
   );
   const barW = tall ? w * 0.6 : w * 0.26;
   const bx = tall ? (w - barW) / 2 - 40 * u : tx + 34 * u;
-  const by = top + 166 * u;
+  const by = albumY + ts.caption / 2 + 56 * u;
   ctx.save();
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(bx - 32 * u, by - 12 * u, 6 * u, 24 * u);
@@ -1395,18 +1423,21 @@ function playercard(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const align = tall ? "center" : "left";
   const textX = tall ? w / 2 : colX;
   const textTop = tall ? h * 0.6 : h * 0.3;
-  textLine(ctx, scene, lines.artist, textX, textTop, 26 * u, {
+  const ts = typeScale(scene);
+  const titleY = textTop + ts.artist / 2 + ts.title / 2 + 12 * u;
+  const albumY = titleY + ts.title / 2 + ts.caption / 2 + 10 * u;
+  textLine(ctx, scene, lines.artist, textX, textTop, ts.artist, {
     weight: 500,
     align,
     tracking: 0.2,
     maxWidth: colW,
   });
-  textLine(ctx, scene, lines.title, textX, textTop + 56 * u, 60 * u, {
+  textLine(ctx, scene, lines.title, textX, titleY, ts.title, {
     weight: 600,
     align,
     maxWidth: colW,
   });
-  textLine(ctx, scene, lines.album, textX, textTop + 108 * u, 30 * u, {
+  textLine(ctx, scene, lines.album, textX, albumY, ts.caption, {
     weight: 300,
     align,
     maxWidth: colW,
@@ -1478,8 +1509,64 @@ function playercard(ctx: Canvas2D, scene: VisualizerScene, level: number) {
 
 // ---- P10 Contorni: rings rippling outwards, or ridge lines of the recent spectrum ------------
 
+// The ink of line `k` of `n` (0 the newest, nearest): its colour between the two colours of the
+// parameters, at the opacity of the param schema fading a fifth towards the outermost line, and
+// lightened until it holds 3:1 against the brightest picture the frame can put behind it
+// (viz-kit lineBackdrop). `rgb` is the colour drawn at `alpha`.
+export const CONTOUR_CONTRAST = 3.2;
+export function contourInk(
+  params: VisualizerParams,
+  k: number,
+  n: number,
+): { color: string; rgb: [number, number, number]; alpha: number } {
+  const t = n > 1 ? k / (n - 1) : 0;
+  const a = hexToRgb(params.colors.primary);
+  const b = hexToRgb(params.colors.secondary);
+  const mixed = a.map((v, i) => {
+    const c = Math.round(v + ((b[i] as number) - v) * t)
+      .toString(16)
+      .padStart(2, "0");
+    return c;
+  });
+  const alpha = (params.look.contourOpacity / 100) * (1 - 0.2 * t);
+  const rgb = inkOver(
+    `#${mixed.join("")}`,
+    alpha,
+    lineBackdrop(params),
+    CONTOUR_CONTRAST,
+  );
+  return { color: `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`, rgb, alpha };
+}
+
+// Strokes the current path as a contour line: a dark halo a little wider than the line, then
+// the line in its ink, so it reads on any picture.
+function contourStroke(
+  ctx: Canvas2D,
+  scene: VisualizerScene,
+  ink: { color: string; alpha: number },
+  weight: number,
+  glow: string | null,
+) {
+  const u = unitOf(scene.width, scene.height);
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = rgba(BASE, LINE_HALO);
+  ctx.lineWidth = weight + 4 * u;
+  ctx.stroke();
+  ctx.globalAlpha = ink.alpha;
+  ctx.strokeStyle = ink.color;
+  ctx.lineWidth = weight;
+  if (glow) {
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 10 * u;
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
 function contours(ctx: Canvas2D, scene: VisualizerScene, level: number) {
-  const { w, h, s, u, tall, P, S } = sizes(scene);
+  const { w, h, s, u, tall, P } = sizes(scene);
   const at = lookCenter(scene.params, w, h);
   if (scene.params.look.contour === "ridges") {
     ridges(ctx, scene, level, at);
@@ -1496,15 +1583,11 @@ function contours(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const turn = (scene.time * 4 * Math.PI) / 180;
   ctx.save();
   ctx.lineJoin = "round";
-  ctx.lineWidth = 2 * u;
+  const weight = scene.params.look.contourWeight * u;
   for (let k = rings - 1; k >= 0; k--) {
     // Ring k shows the music of 2k frames ago, so the sound ripples outwards.
     const values = shapedBars(pastFrame(scene, 2 * k).bands, points / 2);
     const depth = (0.02 * s + 0.012 * s * k) * 0.6;
-    ctx.strokeStyle = mix(P, S, k / (rings - 1));
-    ctx.globalAlpha = Math.max(0.15, 1 - k / 18);
-    ctx.shadowColor = k === 0 ? P : "transparent";
-    ctx.shadowBlur = k === 0 ? 10 * u : 0;
     ctx.beginPath();
     for (let i = 0; i < points; i++) {
       const v = values[i < points / 2 ? i : points - 1 - i] as number;
@@ -1516,16 +1599,22 @@ function contours(ctx: Canvas2D, scene: VisualizerScene, level: number) {
       else ctx.lineTo(x, y);
     }
     ctx.closePath();
-    ctx.stroke();
+    contourStroke(
+      ctx,
+      scene,
+      contourInk(scene.params, k, rings),
+      weight,
+      k === 0 ? P : null,
+    );
   }
   ctx.restore();
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(P, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.92), 46);
+  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.92));
 }
 
 function ridges(ctx: Canvas2D, scene: VisualizerScene, level: number, at: At) {
-  const { w, h, s, u, tall, P, S } = sizes(scene);
+  const { w, h, s, u, tall, P } = sizes(scene);
   const lines = 12;
   const n = 96;
   const x0 = w * (tall ? 0.06 : 0.2);
@@ -1565,19 +1654,23 @@ function ridges(ctx: Canvas2D, scene: VisualizerScene, level: number, at: At) {
     ctx.lineTo(mid - half, y0 + gap * 0.9);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = mix(P, S, j / (lines - 1));
-    ctx.globalAlpha = Math.max(0.2, 1 - j / 14);
-    ctx.lineWidth = (j === 0 ? 3 : 2) * u;
-    ctx.shadowColor = j === 0 ? P : "transparent";
-    ctx.shadowBlur = j === 0 ? 12 * u : 0;
-    strokePoints(ctx, pts);
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    pts.forEach((q, i) => {
+      if (i === 0) ctx.moveTo(q[0] as number, q[1] as number);
+      else ctx.lineTo(q[0] as number, q[1] as number);
+    });
+    contourStroke(
+      ctx,
+      scene,
+      contourInk(scene.params, j, lines),
+      scene.params.look.contourWeight * u * (j === 0 ? 1.3 : 1),
+      j === 0 ? P : null,
+    );
   }
   ctx.restore();
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(P, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.86 : 0.92), 46);
+  drawTitle(ctx, scene, h * (tall ? 0.86 : 0.92));
 }
 
 // ---- P11 Synthwave: a neon grid floor, a striped sun and the wave on the horizon --------------
@@ -1765,17 +1858,26 @@ function synthwave(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   }
 
   const lines = songLines(scene);
-  textLine(ctx, scene, lines.artist, w / 2, h * (tall ? 0.07 : 0.1), 34 * u, {
+  const ts = typeScale(scene);
+  textLine(
+    ctx,
+    scene,
+    lines.artist,
+    w / 2,
+    h * (tall ? 0.07 : 0.1),
+    ts.artist,
+    {
+      weight: 500,
+      align: "center",
+      tracking: 0.35,
+      maxWidth: w * 0.86,
+    },
+  );
+  const titleY = h * (tall ? 0.84 : 0.83);
+  textLine(ctx, scene, lines.title, w / 2, titleY, ts.title, {
     weight: 500,
     align: "center",
-    tracking: 0.35,
-    maxWidth: w * 0.86,
-  });
-  const titleY = h * (tall ? 0.84 : 0.85);
-  textLine(ctx, scene, lines.title, w / 2, titleY, 50 * u, {
-    weight: 500,
-    align: "center",
-    tracking: 0.3,
+    tracking: 0.12,
     maxWidth: w * 0.86,
   });
   const barW = w * (tall ? 0.7 : 0.5);
@@ -1897,7 +1999,7 @@ function editorial(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
     lines.artist,
     x + (1 - enter) * -18 * u,
     artistY,
-    24 * u,
+    typeScale(scene).artist,
     {
       weight: 400,
       tracking: 0.4,
@@ -2169,7 +2271,6 @@ function shaped(ctx: Canvas2D, scene: VisualizerScene, level: number) {
     radial
       ? Math.min(h * 0.93, at.cy + ringR + s * 0.24)
       : h * (tall ? 0.8 : 0.86),
-    46,
   );
 }
 

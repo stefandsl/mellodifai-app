@@ -222,6 +222,7 @@ describe("visualizer stage", () => {
       dimming: 40,
     };
     params.centerImage = {
+      ...params.centerImage,
       mode: "upload",
       assetUrl: "/media/uploads/owner/0b4f9c1e-2222-4b7a-9c2e-123456789abc.png",
     };
