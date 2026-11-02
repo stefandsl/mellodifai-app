@@ -47,9 +47,11 @@ describe("services", () => {
     );
     const runner = recordingRunner();
     await startAll(runner, { root: runtimeRoot(), present });
-    expect(runner.calls.map((call) => call.args.at(-1))).toEqual(
-      planStart(present),
-    );
+    expect(
+      runner.calls
+        .filter((call) => call.args.at(-2) === "__start")
+        .map((call) => call.args.at(-1)),
+    ).toEqual(planStart(present));
   });
 
   it("re-applies passwords and probes after supabase starts", async () => {
@@ -62,14 +64,20 @@ describe("services", () => {
       return { ok: true, failures: [] };
     });
     const runner = vi.fn(async (_cmd: string, args: string[]) => {
-      events.push(args.at(-1) as string);
+      events.push(`${args.at(-2)}:${args.at(-1)}`);
       return { code: 0, stdout: "", stderr: "" };
     });
     await startAll(runner, {
       root: runtimeRoot(),
       present: new Set(["supabase", "web"]),
     });
-    expect(events).toEqual(["supabase", "passwords", "probe", "web"]);
+    expect(events).toEqual([
+      "__stop:cloudflared",
+      "__start:supabase",
+      "passwords",
+      "probe",
+      "__start:web",
+    ]);
     expect(reapplyDbPasswords).toHaveBeenCalledWith("prod", runner);
     expect(probe).toHaveBeenCalledWith("prod", runner);
   });
@@ -87,7 +95,10 @@ describe("services", () => {
       }),
     ).rejects.toThrow("probe");
     expect(
-      runner.calls.some((call) => call.args.at(-1) === "cloudflared"),
+      runner.calls.some(
+        (call) =>
+          call.args.at(-2) === "__start" && call.args.at(-1) === "cloudflared",
+      ),
     ).toBe(false);
   });
 
@@ -125,6 +136,7 @@ describe("services", () => {
 
   it("stops startup on command or password errors", async () => {
     const runner = recordingRunner([
+      { code: 0, stdout: "", stderr: "" },
       { code: 1, stdout: "", stderr: "private detail" },
     ]);
     await expect(
@@ -144,6 +156,55 @@ describe("services", () => {
       }),
     ).rejects.toThrow("provisioning");
     expect(probe).not.toHaveBeenCalled();
+  });
+
+  it.each(["passwords", "probe", "probe exception"])(
+    "stops an existing tunnel before Supabase and keeps it stopped on %s failure",
+    async (failure) => {
+      let tunnelRunning = true;
+      const runner = vi.fn(async (_cmd: string, args: string[]) => {
+        const action = args.at(-2);
+        const service = args.at(-1);
+        if (service === "supabase") expect(tunnelRunning).toBe(false);
+        if (service === "cloudflared") tunnelRunning = action === "__start";
+        return { code: 0, stdout: "", stderr: "" };
+      });
+      if (failure === "passwords")
+        vi.mocked(reapplyDbPasswords).mockRejectedValue(
+          new Error("password failure"),
+        );
+      else if (failure === "probe exception")
+        vi.mocked(probe).mockRejectedValue(new Error("probe failure"));
+      else
+        vi.mocked(probe).mockResolvedValue({
+          ok: false,
+          failures: ["refused"],
+        });
+      // Even when the target no longer includes tunnel config, its tracked process must stop.
+      await expect(
+        startAll(runner, {
+          root: runtimeRoot(),
+          present: new Set(["supabase", "web"]),
+        }),
+      ).rejects.toThrow();
+      expect(runner.mock.calls[0]?.[1].slice(-2)).toEqual([
+        "__stop",
+        "cloudflared",
+      ]);
+      expect(tunnelRunning).toBe(false);
+    },
+  );
+
+  it("does not touch Supabase when stopping the tunnel fails", async () => {
+    const runner = recordingRunner([{ code: 1, stdout: "", stderr: "" }]);
+    await expect(
+      startAll(runner, {
+        root: runtimeRoot(),
+        present: new Set(SERVICE_ORDER),
+      }),
+    ).rejects.toThrow("stop failed: cloudflared");
+    expect(runner.calls).toHaveLength(1);
+    expect(reapplyDbPasswords).not.toHaveBeenCalled();
   });
 
   it("rejects C: runtime paths before starting a process", async () => {

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import {
   closeSync,
   existsSync,
@@ -54,6 +54,36 @@ async function identity(pid: number): Promise<string> {
   ]);
   if (reply.code !== 0) throw new Error("Cannot inspect service process");
   return reply.stdout.trim();
+}
+
+export async function trackServiceProcess(
+  child: ChildProcess,
+  stateFile: string,
+) {
+  try {
+    const started = await identity(child.pid as number);
+    if (!started)
+      throw new Error("Service exited during startup; inspect its log");
+    writeFileSync(
+      stateFile,
+      JSON.stringify({ pid: child.pid, identity: started }),
+    );
+  } catch (error) {
+    // Use the child handle to avoid killing a reused PID after the child exits.
+    if (child.pid && child.exitCode === null && child.signalCode === null) {
+      const result = await realRunner("taskkill.exe", [
+        "/PID",
+        String(child.pid),
+        "/T",
+        "/F",
+      ]);
+      if (result.code !== 0)
+        throw new Error(
+          `Startup cleanup failed; stop process tree ${child.pid}`,
+        );
+    }
+    throw error;
+  }
 }
 
 async function managedService(action: string, service: Service, root: string) {
@@ -187,14 +217,11 @@ async function managedService(action: string, service: Service, root: string) {
       child.once("error", reject);
       child.once("spawn", resolve);
     });
-    child.unref();
-    const started = await identity(child.pid as number);
-    if (!started)
-      throw new Error("Service exited during startup; inspect its log");
-    writeFileSync(
-      stateFile,
-      JSON.stringify({ pid: child.pid, identity: started }),
-    );
+    try {
+      await trackServiceProcess(child, stateFile);
+    } finally {
+      child.unref();
+    }
   } finally {
     closeSync(log);
   }

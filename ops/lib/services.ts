@@ -53,6 +53,9 @@ export async function startAll(
     throw new Error("Set MELLODIFAI_ROOT before starting services");
   if (opts.present.has("cloudflared") && !opts.present.has("supabase"))
     throw new Error("cloudflared requires a verified supabase start");
+  // A tracked tunnel may outlive its configuration in the target checkout.
+  if (opts.present.has("supabase"))
+    await serviceCommand(runner, "stop", "cloudflared", opts.root);
   for (const service of planStart(opts.present)) {
     await serviceCommand(runner, "start", service, opts.root);
     if (service === "supabase") {
