@@ -30,7 +30,7 @@ const rejectedHeaders: Record<string, string>[] = [
   { host: "mellodifai.com@evil.test" },
   { host: "mellodifai.com/path" },
   { host: "[broken" },
-  { host: "localhost:3000" },
+  { host: "localhost:4444" },
   { host: "mellodifai.com", "x-forwarded-proto": "javascript" },
   { host: "mellodifai.com", "x-forwarded-proto": "ftp" },
 ];
@@ -57,3 +57,10 @@ it("handles malformed site config", () => {
   vi.stubEnv("NEXT_PUBLIC_SITE_URL", "malformed");
   expect(target({})).toBe("http://internal/library");
 });
+
+it.each(["localhost:3000", "127.0.0.1:3000"])(
+  "keeps the approved production local origin %s",
+  (host) => {
+    expect(target({ host })).toBe(`http://${host}/library`);
+  },
+);

@@ -32,6 +32,9 @@ export function redirectUrl(
     !candidate.search &&
     !candidate.hash &&
     (candidate.host === site?.host ||
+      ["http://127.0.0.1:3000", "http://localhost:3000"].includes(
+        candidate.origin,
+      ) ||
       (process.env.NODE_ENV === "development" &&
         ["127.0.0.1", "localhost"].includes(candidate.hostname)));
   return new URL(path, valid ? candidate.origin : fallback);

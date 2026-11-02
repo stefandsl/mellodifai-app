@@ -21,7 +21,8 @@ beforeAll(async () => {
   const user = async (suffix: string) => {
     const email = `${prefix}-${suffix}@example.test`;
     expect(
-      (await service.from("admin_allowlist").insert({ email })).error,
+      (await service.from("admin_allowlist").insert({ email, role: "admin" }))
+        .error,
     ).toBeNull();
     const result = await service.auth.admin.createUser({
       email,

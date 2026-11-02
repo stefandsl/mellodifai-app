@@ -1,3 +1,3 @@
-insert into public.admin_allowlist (email)
-values ('admin@mellodifai.local')
-on conflict (email) do nothing;
+insert into public.admin_allowlist (email, role)
+values ('admin@mellodifai.local', 'admin')
+on conflict (email, role) do nothing;

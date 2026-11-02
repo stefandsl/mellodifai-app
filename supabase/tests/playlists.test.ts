@@ -22,7 +22,7 @@ beforeAll(async () => {
   });
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const result = await service.auth.admin.createUser({
       email,
       password: "playlists-test-password",
@@ -242,7 +242,7 @@ describe("create, rename and delete", () => {
 
   it("caps a user at 100 playlists", async () => {
     const email = `${prefix}-cap@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const { data: fresh } = await service.auth.admin.createUser({
       email,
       password: "playlists-test-password",

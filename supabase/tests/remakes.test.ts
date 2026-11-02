@@ -25,7 +25,7 @@ beforeAll(async () => {
   service = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const result = await service.auth.admin.createUser({
       email,
       password: "rmk-test-password",

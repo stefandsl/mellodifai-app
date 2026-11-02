@@ -51,19 +51,19 @@
 | `apps/auth/` | `oidc-provider` service, adapter over `ops.oauth_*` |
 | `packages/cli/` | CLI, stdio bridge, skill |
 
-Migration file names (numbering continues after 024):
+Migration file names (numbering continues after 026; visualizer logos and remakes occupy 025 and 026):
 
 | File | Task |
 | --- | --- |
-| `20261102000025_ops_roles.sql` | 9 |
-| `20261102000026_ops_layer.sql` | 14 |
-| `20261102000027_ops_tokens.sql` | 15 |
-| `20261102000028_spend_ledger.sql` | 16 |
-| `20261102000029_ledger_close.sql` | 17 |
-| `20261102000030_scheduler.sql` | 18 |
-| `20261102000031_ops_wrappers.sql` | 19 |
-| `20261102000032_ops_cookie_wrappers.sql` | 20 |
-| `20261102000033_ops_lockdown.sql` | 32 |
+| `20261102000027_ops_roles.sql` | 9 |
+| `20261102000028_ops_layer.sql` | 14 |
+| `20261102000029_ops_tokens.sql` | 15 |
+| `20261102000030_spend_ledger.sql` | 16 |
+| `20261102000031_ledger_close.sql` | 17 |
+| `20261102000032_scheduler.sql` | 18 |
+| `20261102000033_ops_wrappers.sql` | 19 |
+| `20261102000034_ops_cookie_wrappers.sql` | 20 |
+| `20261102000035_ops_lockdown.sql` | 32 |
 
 The design names three additive migrations (`ops_roles`, `ops_layer`, `spend_ledger`); splitting them into reviewable files changes nothing that gets built (21.2 step 1 allows several files).
 
@@ -252,7 +252,7 @@ Unit tests use `recordingRunner`; one integration test runs `probe("e2e")` again
 ### Task 9: `ops_roles` migration, `set-owner`, `add-user`, `sign-in-link`
 
 **Files:**
-- Create: `supabase/migrations/20261102000025_ops_roles.sql`, `supabase/tests/ops_roles.test.ts`, `supabase/tests/helpers/pg.ts`, `ops/set-owner.ts`, `ops/add-user.ts`, `ops/sign-in-link.ts`, `ops/test/set-owner.test.ts`
+- Create: `supabase/migrations/20261102000027_ops_roles.sql`, `supabase/tests/ops_roles.test.ts`, `supabase/tests/helpers/pg.ts`, `ops/set-owner.ts`, `ops/add-user.ts`, `ops/sign-in-link.ts`, `ops/test/set-owner.test.ts`
 - Modify: `supabase/seed.sql` (`insert into admin_allowlist (email, role) values ('admin@mellodifai.local', 'admin')`), `apps/web/e2e/global-setup.ts` (e2e admin with role `admin`, a second user with role `customer`)
 
 **Interfaces:**
@@ -356,7 +356,7 @@ it("an end-to-end restore on the e2e stack keeps storage objects readable", asyn
 ### Task 14: `ops_layer` core - roles, schema, settings reset, errors, idempotency, health
 
 **Files:**
-- Create: `supabase/migrations/20261102000026_ops_layer.sql`, `supabase/tests/ops_core.test.ts`, `supabase/tests/ops_errors.test.ts`, `packages/shared/src/ops/errors.ts`, `packages/shared/src/ops/index.ts`, `apps/web/lib/db/ops-client.ts`
+- Create: `supabase/migrations/20261102000028_ops_layer.sql`, `supabase/tests/ops_core.test.ts`, `supabase/tests/ops_errors.test.ts`, `packages/shared/src/ops/errors.ts`, `packages/shared/src/ops/index.ts`, `apps/web/lib/db/ops-client.ts`
 - Modify: `packages/shared/src/index.ts` (export `./ops/index.js`), `apps/web/next.config.ts` (resolveAlias `"./ops/index.js"` and `"./errors.js"` to their `.ts` files), `apps/web/app/api/health/route.ts` (`ops` field), `ops/stack.ts` (writes `stack_settings.fake_stack` from `ENV_TABLE` after start and migrate), `apps/web/package.json` (`postgres`)
 
 **Interfaces:**
@@ -389,7 +389,7 @@ it("every raise reachable from an ops function maps to a code other than interna
 ### Task 15: `ops_tokens` - tokens, OAuth storage, pairing, consent
 
 **Files:**
-- Create: `supabase/migrations/20261102000027_ops_tokens.sql`, `supabase/tests/ops_oauth.test.ts`, `supabase/tests/ops_tokens.test.ts`
+- Create: `supabase/migrations/20261102000029_ops_tokens.sql`, `supabase/tests/ops_oauth.test.ts`, `supabase/tests/ops_tokens.test.ts`
 
 **Interfaces:**
 - Produces (to `mdf_web`): `ops.admin_token_create(p_ctx, name text, token_hash text, token_hint text, scopes text[], remote boolean, test_mode boolean, expires_at timestamptz) returns jsonb`, `ops.admin_token_revoke(p_ctx, token_id uuid)`, `ops.admin_tokens_list(p_ctx)`, `ops.admin_flag_set(p_ctx, flag text, enabled boolean)`, `ops.admin_pairing_open(p_ctx)` (Nit 2), `ops.admin_pairing_status(p_ctx)` (window end and the claiming client, Major 27), `ops.resolve_access_token(token_hash text, resource text)`, `ops.oauth_consent_info(p_ctx, uid text, nonce text)`, `ops.oauth_consent(p_ctx, uid text, nonce text, scopes text[], test_mode boolean)`.
@@ -422,7 +422,7 @@ it("remote_mcp off makes resolve_access_token and oauth_consent fail", async () 
 ### Task 16: `spend_ledger` - tables, seeds, `reserve_job`, `extend_reservation`
 
 **Files:**
-- Create: `supabase/migrations/20261102000028_spend_ledger.sql`, `supabase/tests/ops_ledger.test.ts`, `supabase/tests/helpers/caps.ts`
+- Create: `supabase/migrations/20261102000030_spend_ledger.sql`, `supabase/tests/ops_ledger.test.ts`, `supabase/tests/helpers/caps.ts`
 
 **Interfaces:**
 - Produces: tables of 15.1 `spend_ledger` (with revision-6 columns `reservations.kie_submit_reserved`, `kie_generation`, `section_edit_id`; `spend_entries.over_estimate`); `jobs` columns `token_id`, `run_id`, `resource_class`, `priority`, `fake_providers`; triggers `jobs_set_resource_class`, `jobs_mark_reservation_gone`; `ops.price(provider, model, unit) returns numeric` (raises `MDF05`); `ops.job_spend_rule(p_job uuid) returns table(provider text, model text, items jsonb)`; `ops.reserve_job(p_job uuid) returns uuid`; `ops.extend_reservation(p_reservation uuid, p_provider text, p_model text, p_items jsonb) returns void`; test helper `withRealCaps(sql, fn)` (one transaction, `set local mdf.force_caps = 'on'`, `set local role mdf_web` where a wrapper is called).
@@ -450,7 +450,7 @@ it("tests that need fixed prices update the price rows explicitly (Nit 14)", asy
 ### Task 17: Ledger close - entries, settle, close rule, triggers, expiry, costs, worker enqueue
 
 **Files:**
-- Create: `supabase/migrations/20261102000029_ledger_close.sql`
+- Create: `supabase/migrations/20261102000031_ledger_close.sql`
 - Modify: `supabase/tests/ops_ledger.test.ts`
 
 **Interfaces:**
@@ -480,7 +480,7 @@ it("expire_reservations never touches a queued or running job's reservation", as
 ### Task 18: Scheduler functions and purges
 
 **Files:**
-- Create: `supabase/migrations/20261102000030_scheduler.sql`, `supabase/tests/ops_scheduler.test.ts`
+- Create: `supabase/migrations/20261102000032_scheduler.sql`, `supabase/tests/ops_scheduler.test.ts`
 
 **Interfaces:**
 - Produces (to `service_role`): `ops.claim_scheduled_task(p_worker text) returns text`, `ops.finish_scheduled_task(p_name text, p_worker text, p_ok boolean, p_error text)`, `ops.purge_idempotency()`, `ops.purge_oauth()` (also revokes the token rows of unbound consents, Major 14), `ops.purge_audit()`, `ops.purge_test_runs()`; rows for the five M1 tasks of 14.4.
@@ -494,7 +494,7 @@ it("expire_reservations never touches a queued or running job's reservation", as
 ### Task 19: Token-exposed wrappers (the 7.3 rows), the stamp trigger and the test rule
 
 **Files:**
-- Create: `supabase/migrations/20261102000031_ops_wrappers.sql`, `supabase/tests/ops_wrappers.test.ts`, `packages/shared/src/ops/reads.ts`, `packages/shared/src/ops/inputs.ts`
+- Create: `supabase/migrations/20261102000033_ops_wrappers.sql`, `supabase/tests/ops_wrappers.test.ts`, `packages/shared/src/ops/reads.ts`, `packages/shared/src/ops/inputs.ts`
 - Modify: `packages/shared/src/ops/index.ts`, `apps/web/next.config.ts` (resolveAlias `"./reads.js"`, `"./inputs.js"`), `apps/web/app/actions/schemas.ts` (re-export moved schemas)
 
 **Interfaces:**
@@ -523,7 +523,7 @@ it("token actors must send an idempotency key (validation)", async () => {});
 ### Task 20: Cookie-only and admin wrappers
 
 **Files:**
-- Create: `supabase/migrations/20261102000032_ops_cookie_wrappers.sql`, `supabase/tests/ops_cookie_wrappers.test.ts`
+- Create: `supabase/migrations/20261102000034_ops_cookie_wrappers.sql`, `supabase/tests/ops_cookie_wrappers.test.ts`
 
 **Interfaces:**
 - Produces (to `mdf_web`): `ops.style_format_check(p_ctx)`, `ops.transcribe_check(p_ctx)` (table `web_tool_usage`, Major 23), `ops.take_save_edit`, `ops.song_import`, `ops.song_source_set`, `ops.audio_keep` (Major 24, reserves Groq when it enqueues `timing`), `ops.take_choose` (Major 24), the playlist wrappers (`ops.playlist_create`, `_rename`, `_delete`, `_add`, `_remove`, `_reorder`), `ops.reaction_set`, `ops.song_rename`, `ops.songs_trash`, `ops.songs_restore`, `ops.play_count`, `ops.section_edit_request`, `ops.section_edit_keep`, `ops.section_edit_discard`, and the admin set of 6.3.6 (`ops.admin_resolve_kie_submission`, `ops.admin_resolve_upload`, `ops.admin_enqueue_publish`, `ops.admin_confirm_publication` refusing `scheduled`, `ops.admin_video_approve_override`, `ops.admin_project_create`).
@@ -742,7 +742,7 @@ it("reservations end closed, or ambiguous for crash-after-submit", async () => {
 ### Task 32: `ops_lockdown`, the ACL test and the refusal tests (one commit, tag `m1-floor`)
 
 **Files:**
-- Create: `supabase/migrations/20261102000033_ops_lockdown.sql`, `supabase/tests/ops_acl.test.ts`, `supabase/tests/acl-allowlist.json`, `supabase/tests/ops_lockdown.test.ts`
+- Create: `supabase/migrations/20261102000035_ops_lockdown.sql`, `supabase/tests/ops_acl.test.ts`, `supabase/tests/acl-allowlist.json`, `supabase/tests/ops_lockdown.test.ts`
 - Modify: `supabase/tests/rls.test.ts` (Major 22)
 
 - [ ] **Step 1: Write the failing tests:**
@@ -767,9 +767,9 @@ Preconditions (round-5 report: Majors 1, 2, 3, 17 and 19 before the first produc
 - [ ] **Step 1:** Create the deploy clone: `git clone <origin> E:/mellodifai/deploy`, copy `pnpm-lock.yaml` per the builder note, record `MELLODIFAI_OWNER_EMAIL` in `E:/mellodifai/config/ops.env`.
 - [ ] **Step 2:** Run `pnpm ops cutover.ts`. Expected: row counts identical before and after; prod now runs with `--workdir E:/mellodifai/stacks/prod`, project `mellodifai`, Studio, mail catcher and analytics off.
 - [ ] **Step 3:** Run `pnpm ops rotate-db-passwords.ts --env prod` and `pnpm ops probe.ts --env prod`. Expected: every default-password login fails; 54323, 54324, 54327 refuse.
-- [ ] **Step 4:** Run `pnpm ops deploy.ts --to m1-floor`. Expected: success; local `/api/health` shows `ops: "ok"` and schema `20261102000033`.
+- [ ] **Step 4:** Run `pnpm ops deploy.ts --to m1-floor`. Expected: success; local `/api/health` shows `ops: "ok"` and schema `20261102000035`.
 - [ ] **Step 5:** Run `pnpm ops deploy.ts --to <the tag before m1-floor, or a commit without it>`. Expected: refused.
-- [ ] **Step 6:** Sign in as the owner with `pnpm ops sign-in-link.ts <owner email>`, open the library (a read under RLS) and rename one song (a write through `ops.song_rename` as `mdf_web`); check that health shows a fresh worker heartbeat. No paid action is triggered on production. Record results in this plan's "Deploy log" section and commit only this file.
+- [ ] **Step 6:** Sign in as the owner with `pnpm ops sign-in-link.ts <owner email> http://127.0.0.1:3000`, open the library (a read under RLS) and rename one song (a write through `ops.song_rename` as `mdf_web`); check that health shows a fresh worker heartbeat. No paid action is triggered on production. Record results in this plan's "Deploy log" section and commit only this file.
 
 ---
 

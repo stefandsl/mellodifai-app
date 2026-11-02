@@ -43,7 +43,7 @@ beforeAll(async () => {
   });
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const result = await service.auth.admin.createUser({
       email,
       password: "visualizer-test-password",

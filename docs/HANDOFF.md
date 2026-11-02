@@ -166,7 +166,7 @@ Use `pnpm -s ops stack.ts env-file --env e2e` for the private test environment
 path. Do not print its contents. `start` and `migrate` reapply role passwords
 and verify database and authenticated API readiness. The empty `ops` namespace
 is bootstrapped for PostgREST; Task 14 still installs all objects and fake_stack.
-Task 9 will create mdf_web/mdf_auth; Task 6 reports them absent until then.
+Task 14 will create mdf_web/mdf_auth; Task 6 reports them absent until then.
 See `ops/compose/README.md` for secret files and the production Task 8 contract.
 Production SMTP, cutover and owner hardening remain pending.
 Task 8 now provides `rotateDbPasswords`, `reapplyDbPasswords` and the container
@@ -211,3 +211,30 @@ and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare name
 `cloudflared` login; SMTP sender; codex login in the image container; an evaluation
 OpenRouter key with a cap; kie credit price in USD; kie Midjourney access; Gemini, Blotato
 and COMFY_CLOUD keys; Postiz account; Envato licences; YouTube OAuth.
+
+M1 Task 9 adds migration `20261102000027_ops_roles.sql`: new allowlisted
+accounts default to customer, existing profile roles are preserved, and email
+matching is case-insensitive and unique. Migration 026 remains the merged
+remakes migration. The planned M1 floor now ends at 20261102000035.
+`pnpm ops add-user.ts <email> <admin|customer>` inserts the allowlist row before
+creating the confirmed Auth user. It uses the production owner password store
+and `apps/worker/.env.local` for the Auth admin client. If Auth creation fails,
+the committed allowlist row remains; inspect the account before retrying.
+`pnpm ops set-owner.ts` takes MELLODIFAI_OWNER_EMAIL from the process environment,
+then `<runtime root>/config/ops.env`, and atomically leaves exactly one admin in
+each table or rolls back. The owner must already have a confirmed profile.
+`pnpm ops sign-in-link.ts <email> [site-url]` reads the worker's Supabase service
+configuration and prints only a single-use link. Select the local origin with
+the second argument, or SITE_URL; the default is http://127.0.0.1:3000. This
+works without SMTP and establishes a cookie session through token-hash
+confirmation. Treat the printed link as a credential. Confirmation request
+logging is suppressed in development. The two approved production loopback
+origins remain local even when the public hostname is configured. Production execution waits for the
+Task 33 owner gate; no production account or role was changed by Task 9.
+
+Task 9 validation: lint, both typechecks, 136 DB tests, 704 web unit tests and
+the actual CLI sign-in browser test pass. Whole-workspace tests still expose
+three merged remake tests that use the shared daily lyrics budget. The full
+browser suite hits the e2e stack's two-email-per-hour limit in five older mail
+login flows. Use the full Chocolatey FFmpeg on PATH for fake-media tests;
+Miniconda's FFmpeg lacks libmp3lame. These unrelated gates remain concerns.

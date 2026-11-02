@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Confirmation URLs carry single-use sign-in credentials.
+  logging: { incomingRequests: { ignore: [/^\/auth\/confirm(?:\?|$)/] } },
   // The floating dev badge sits on the player bar; build errors still show as an overlay.
   devIndicators: false,
   transpilePackages: ["@mellodifai/shared"],

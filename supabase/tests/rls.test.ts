@@ -35,7 +35,9 @@ async function createUser(allowlisted: boolean): Promise<TestUser> {
   const email = `${allowlisted ? "allowed" : "blocked"}-${runId}-${userSequence++}@example.test`;
 
   if (allowlisted) {
-    const { error } = await service.from("admin_allowlist").insert({ email });
+    const { error } = await service
+      .from("admin_allowlist")
+      .insert({ email, role: "admin" });
     expect(error).toBeNull();
     createdEmails.push(email);
   }
@@ -132,7 +134,7 @@ function anonClient() {
 }
 
 describe("row level security", () => {
-  it("requires confirmed email before provisioning an allowlisted admin", async () => {
+  it("requires confirmed email before provisioning an allowlisted customer", async () => {
     const email = `unconfirmed-${runId}@example.test`;
     expect(
       (await service.from("admin_allowlist").insert({ email })).error,
@@ -171,7 +173,7 @@ describe("row level security", () => {
       .eq("id", id)
       .single();
     expect(confirmed.error).toBeNull();
-    expect(confirmed.data).toEqual({ id, role: "admin" });
+    expect(confirmed.data).toEqual({ id, role: "customer" });
   });
 
   it("refuses anonymous signup with a new email", async () => {
