@@ -22,7 +22,8 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: base,
-    trace: "retain-on-failure",
+    // Sign-in URLs and session cookies are credentials.
+    trace: "off",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

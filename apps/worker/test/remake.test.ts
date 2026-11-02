@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { RedactionError, RemakeError, runtimeRoot } from "@mellodifai/remake";
 import { RemakeLyricsSchema } from "@mellodifai/shared";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb, type Job, type Remake } from "../src/db.js";
 import { Engine } from "../src/engine.js";
 import { fakeRemakeEngine } from "../src/fake/remake.js";
@@ -92,8 +92,15 @@ function scratch() {
   scratchDirs.push(dir);
   return dir;
 }
-afterAll(() => {
-  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
+beforeEach(() => {
+  dependencies.secrets.values.LYRICS_STATE_FILE = join(
+    scratch(),
+    "lyrics.json",
+  );
+});
+afterEach(() => {
+  for (const dir of scratchDirs.splice(0))
+    rmSync(dir, { recursive: true, force: true });
 });
 
 function loop(

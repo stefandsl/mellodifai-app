@@ -232,9 +232,16 @@ logging is suppressed in development. The two approved production loopback
 origins remain local even when the public hostname is configured. Production execution waits for the
 Task 33 owner gate; no production account or role was changed by Task 9.
 
-Task 9 validation: lint, both typechecks, 136 DB tests, 704 web unit tests and
-the actual CLI sign-in browser test pass. Whole-workspace tests still expose
-three merged remake tests that use the shared daily lyrics budget. The full
-browser suite hits the e2e stack's two-email-per-hour limit in five older mail
-login flows. Use the full Chocolatey FFmpeg on PATH for fake-media tests;
-Miniconda's FFmpeg lacks libmp3lame. These unrelated gates remain concerns.
+Task 9 review fixes isolate each remake test's lyrics budget in its own
+scratch file and clean scratch directories after each test. E2E sign-in uses
+the generated token-hash link, so the full browser suite does not consume
+SMTP quota. The refused-address test still exercises the login form. Browser
+traces are disabled to avoid retaining sign-in credentials. Owner-config and
+CLI fixtures remove their complete temporary directories in finally blocks.
+Use the full Chocolatey FFmpeg on PATH for fake-media tests; Miniconda's
+FFmpeg lacks libmp3lame.
+
+Task 9 review validation is now fully green: lint, both typechecks, 1,450 unit
+tests passed (one existing skip), 136 database tests and all seven e2e tests.
+Validation ran on the isolated e2e stack (API 45621, Next 3219), with runtime
+files on E:. The earlier shared-budget and mail-quota concerns are resolved.

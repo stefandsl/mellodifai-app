@@ -3,22 +3,14 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { signInLink } from "../../../ops/sign-in-link";
 import { localSupabaseUrl } from "./local-env";
 
 export const E2E_ADMIN_EMAIL = "e2e-admin@mellodifai.test";
-// CI exports its isolated mail catcher URL; local e2e defaults to port 45624.
-const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:45624";
 const workerRoot = fileURLToPath(new URL("../../worker/", import.meta.url));
 const workerRequire = createRequire(
   new URL("../../worker/package.json", import.meta.url),
 );
-
-type MailpitMessage = {
-  ID: string;
-  To?: { Address?: string }[];
-  HTML?: string;
-  Text?: string;
-};
 
 function required(name: string) {
   const value = process.env[name];
@@ -33,73 +25,15 @@ export function serviceClient() {
   );
 }
 
-async function messages(): Promise<MailpitMessage[]> {
-  const response = await fetch(`${MAILPIT_URL}/api/v1/messages`);
-  if (!response.ok) throw new Error("Mailpit messages request failed");
-  const body = (await response.json()) as { messages?: MailpitMessage[] };
-  return body.messages ?? [];
-}
-
-async function messageIdsFor(email: string) {
-  return new Set(
-    (await messages())
-      .filter((message) =>
-        message.To?.some(
-          (recipient) =>
-            recipient.Address?.toLowerCase() === email.toLowerCase(),
-        ),
-      )
-      .map((message) => message.ID),
-  );
-}
-
-async function magicLink(email: string, previous: Set<string>) {
-  await expect
-    .poll(
-      async () => {
-        const found = (await messages()).find(
-          (message) =>
-            !previous.has(message.ID) &&
-            message.To?.some(
-              (recipient) =>
-                recipient.Address?.toLowerCase() === email.toLowerCase(),
-            ),
-        );
-        return found?.ID;
-      },
-      { timeout: 30_000 },
-    )
-    .not.toBeUndefined();
-  const latest = (await messages()).find(
-    (message) =>
-      !previous.has(message.ID) &&
-      message.To?.some(
-        (recipient) => recipient.Address?.toLowerCase() === email.toLowerCase(),
-      ),
-  );
-  if (!latest) throw new Error("Magic link email was not found");
-  const response = await fetch(`${MAILPIT_URL}/api/v1/message/${latest.ID}`);
-  if (!response.ok) throw new Error("Mailpit message request failed");
-  const detail = (await response.json()) as MailpitMessage;
-  const body = `${detail.HTML ?? ""}\n${detail.Text ?? ""}`.replaceAll(
-    "&amp;",
-    "&",
-  );
-  const link = /https?:\/\/[^\s"'<>]+/u.exec(body)?.[0];
-  if (!link) throw new Error("Magic link was not found in the email");
-  return link.replace(/&quot;$/u, "");
-}
-
 export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
   localSupabaseUrl();
-  const previous = await messageIdsFor(email);
   await page.goto("/login");
-  await page.getByLabel("Indirizzo email").fill(email);
-  await page.getByRole("button", { name: "Invia link di accesso" }).click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Se l'indirizzo è abilitato riceverai un link.",
+  const link = await signInLink(
+    serviceClient().auth.admin,
+    email,
+    new URL(page.url()).origin,
   );
-  await page.goto(await magicLink(email, previous));
+  await page.goto(link);
   await expect(page).toHaveURL(/\/create$/u);
 }
 

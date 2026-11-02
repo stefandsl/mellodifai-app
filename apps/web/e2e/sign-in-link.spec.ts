@@ -1,11 +1,5 @@
 import { spawnSync } from "node:child_process";
-import {
-  cpSync,
-  mkdirSync,
-  mkdtempSync,
-  symlinkSync,
-  unlinkSync,
-} from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,28 +26,28 @@ test("sign-in-link prints a link that verifies on the target stack", async ({
   );
   mkdirSync(parent, { recursive: true });
   const copy = mkdtempSync(join(parent, "task-9-cli-"));
-  cpSync(join(repo, "ops"), join(copy, "ops"), {
-    recursive: true,
-    filter: (path) =>
-      !["node_modules", "dist", "test"].includes(basename(path)),
-  });
-  symlinkSync(
-    join(repo, "node_modules"),
-    join(copy, "node_modules"),
-    process.platform === "win32" ? "junction" : "dir",
-  );
-  symlinkSync(
-    join(repo, "ops/node_modules"),
-    join(copy, "ops/node_modules"),
-    process.platform === "win32" ? "junction" : "dir",
-  );
-  const config = join(copy, "apps/worker/.env.local");
-  await writePrivate(
-    config,
-    `SUPABASE_URL=${localSupabaseUrl()}\nSUPABASE_SERVICE_ROLE_KEY=${process.env.SUPABASE_SERVICE_ROLE_KEY}\n`,
-  );
   let link: string;
   try {
+    cpSync(join(repo, "ops"), join(copy, "ops"), {
+      recursive: true,
+      filter: (path) =>
+        !["node_modules", "dist", "test"].includes(basename(path)),
+    });
+    symlinkSync(
+      join(repo, "node_modules"),
+      join(copy, "node_modules"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    symlinkSync(
+      join(repo, "ops/node_modules"),
+      join(copy, "ops/node_modules"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const config = join(copy, "apps/worker/.env.local");
+    await writePrivate(
+      config,
+      `SUPABASE_URL=${localSupabaseUrl()}\nSUPABASE_SERVICE_ROLE_KEY=${process.env.SUPABASE_SERVICE_ROLE_KEY}\n`,
+    );
     const env = { ...process.env };
     delete env.FORCE_COLOR;
     const result = spawnSync(
@@ -72,7 +66,7 @@ test("sign-in-link prints a link that verifies on the target stack", async ({
     expect(result.stdout.trim().split(/\r?\n/).length).toBe(1);
     expect(new URL(link).origin === baseURL).toBe(true);
   } finally {
-    unlinkSync(config);
+    rmSync(runtimePath(copy), { recursive: true, force: true });
   }
   await page.goto(link);
   await expect(page).toHaveURL(/\/create$/);

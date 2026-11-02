@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Sql } from "postgres";
 import { expect, it, vi } from "vitest";
@@ -67,14 +67,14 @@ it("owner email uses the environment before runtime config and fails closed when
     join(process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp", "task-9-owner-"),
   );
   const root = mkdtempSync(directory);
-  mkdirSync(join(root, "config"));
-  writeFileSync(
-    join(root, "config/ops.env"),
-    'MELLODIFAI_OWNER_EMAIL="file@example.test"\n',
-  );
-  vi.stubEnv("MELLODIFAI_ROOT", root);
-  vi.stubEnv("MELLODIFAI_OWNER_EMAIL", undefined);
   try {
+    mkdirSync(join(root, "config"));
+    writeFileSync(
+      join(root, "config/ops.env"),
+      'MELLODIFAI_OWNER_EMAIL="file@example.test"\n',
+    );
+    vi.stubEnv("MELLODIFAI_ROOT", root);
+    vi.stubEnv("MELLODIFAI_OWNER_EMAIL", undefined);
     expect(ownerEmail()).toBe("file@example.test");
     vi.stubEnv("MELLODIFAI_OWNER_EMAIL", "env@example.test");
     expect(ownerEmail()).toBe("env@example.test");
@@ -85,6 +85,7 @@ it("owner email uses the environment before runtime config and fails closed when
     expect(() => ownerEmail()).toThrow("required");
   } finally {
     vi.unstubAllEnvs();
+    rmSync(runtimePath(root), { recursive: true, force: true });
   }
 });
 
