@@ -12,11 +12,14 @@
     "typecheck": "tsc -b",
     "test": "pnpm -r --if-present test",
     "e2e": "pnpm -r --if-present e2e",
-    "test:db": "vitest run --no-file-parallelism supabase/tests"
+    "test:db": "tsx ops/test-db-guard.ts && vitest run --no-file-parallelism supabase/tests",
+    "test:integration": "tsx ops/test-db-guard.ts && vitest run --config vitest.integration.config.mts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.4",
     "@supabase/supabase-js": "^2.118.0",
+    "postgres": "^4.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   }

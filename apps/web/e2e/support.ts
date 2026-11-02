@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { localSupabaseUrl } from "./local-env";
 
 export const E2E_ADMIN_EMAIL = "e2e-admin@mellodifai.test";
-// The e2e stack's Mailpit (supabase_inbucket_mellodifai_e2e); the live one is on 54324.
+// CI exports its isolated mail catcher URL; local e2e defaults to port 45624.
 const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:45624";
 const workerRoot = fileURLToPath(new URL("../../worker/", import.meta.url));
 const workerRequire = createRequire(

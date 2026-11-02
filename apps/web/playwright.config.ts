@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 import { localSupabaseUrl } from "./e2e/local-env";
 
@@ -10,6 +11,10 @@ const base = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: join(
+    process.env.RUNNER_TEMP ?? process.env.MELLODIFAI_ROOT ?? "E:/mellodifai",
+    "test-results/web",
+  ),
   globalSetup: "./e2e/global-setup.ts",
   timeout: 60_000,
   expect: { timeout: 60_000 },
@@ -21,7 +26,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `pnpm --filter @mellodifai/web dev --hostname 127.0.0.1 --port ${port}`,
+    command: `pnpm --filter @mellodifai/web exec next dev -H 127.0.0.1 -p ${port}`,
     url: base,
     timeout: 120_000,
     reuseExistingServer: false,
@@ -29,6 +34,9 @@ export default defineConfig({
       ...process.env,
       NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
+      SUPABASE_INTERNAL_URL: process.env.SUPABASE_INTERNAL_URL ?? supabaseUrl,
+      MDF_WEB_DATABASE_URL: process.env.MDF_WEB_DATABASE_URL ?? "",
+      SITE_URL: process.env.SITE_URL ?? base,
       NEXT_PUBLIC_SITE_URL: base,
     },
   },

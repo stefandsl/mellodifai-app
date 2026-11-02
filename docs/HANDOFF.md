@@ -155,9 +155,15 @@ See `ops/compose/README.md` for secret files and the production Task 8 contract.
 Production SMTP, rotation/probes, cutover and owner hardening remain pending.
 The later progress ruling reserves 3210 for the owner's launcher: start the e2e
 stack with `E2E_PORT=3219`, then run browser tests with that same variable.
-Role integration tests opt in with `OPS_DB_TEST=1` and require the e2e/CI DB URL;
-their temporary cluster role fixtures always roll back. Task 7 can incorporate
-this invocation in its separate guarded integration command.
+Task 7 adds `pnpm test:integration`, guarded by both `TEST_DB_URL` and
+`SUPABASE_URL`, for `ops/test/**/*.integration.test.ts` and
+`apps/*/**/*.integration.test.ts`. These files are excluded from stackless unit
+tests. Load the private test.env before `pnpm test:db`, `pnpm test:integration`
+and `pnpm e2e`; role fixtures always roll back. Local runs refuse production
+ports even with `E2E_ALLOW_LIVE_STACK=1`; only isolated CI may set that flag
+alongside `CI=true`. CI renders and starts its own pinned Compose stack and
+masks test.env values before exporting them. The implementation branch now
+triggers CI on push. Keep `NEXT_PUBLIC_SITE_URL` until Task 37 migrates its users.
 
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and

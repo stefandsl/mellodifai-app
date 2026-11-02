@@ -47,7 +47,7 @@ For the accepted port-conflict ruling, start e2e with `E2E_PORT=3219` to allow
 that local browser callback in addition to the canonical 3210/3212 URLs.
 Production is never affected by this override.
 
-Run role integration fixtures with `OPS_DB_TEST=1`, the generated `TEST_DB_URL`,
-and `pnpm --filter @mellodifai/ops exec vitest run test/roles.test.ts`.
+Load the generated private `test.env` and run role integration fixtures with
+`pnpm test:integration` (or append `ops/test/roles.integration.test.ts`).
 The fixture guard rejects production ports outside isolated CI. All cluster
 role fixture changes roll back, including temporary renaming of existing roles.

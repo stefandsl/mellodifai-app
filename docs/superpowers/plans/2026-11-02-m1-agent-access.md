@@ -19,7 +19,7 @@
 - Runtime files (stacks, backups, logs, spikes, tmp, deploy clone) live under `MELLODIFAI_ROOT` (default `E:/mellodifai`), never on C:. CI uses `$RUNNER_TEMP`.
 - Migrations are additive and each ships with database tests; the only revokes are in `ops_lockdown` (15). New files are numbered after `20261101000024_covers_on_kie_only.sql`, prefix `20261102`.
 - Every new relative `.js` import inside `packages/shared/src` needs a `turbopack.resolveAlias` entry in `apps/web/next.config.ts`.
-- Playwright runs only on the e2e stack (API 45621, Next on 3210; OAuth topology 3211 and 3212).
+- Playwright runs only on the e2e stack (API 45621, Next on 3210; OAuth topology 3211 and 3212), or the isolated CI stack (API 54321) with `CI=true` and `E2E_ALLOW_LIVE_STACK=1`. The live stack is never allowed. The local progress ruling uses `E2E_PORT=3219` while the owner's launcher holds 3210.
 - Every commit leaves `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:db` and `pnpm e2e` green (21.2).
 - UI copy: Italian with correct accents, English glosses in docs (2.2).
 - Every `ops` function: `security definer`, owner `postgres`, `set search_path = ''`, `set timezone = 'UTC'`, EXECUTE granted by name to exactly one of `mdf_web`, `mdf_auth`, `service_role` after `revoke execute ... from public, anon, authenticated` (6.3.2, revision 6).
