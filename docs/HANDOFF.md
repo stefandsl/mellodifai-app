@@ -136,6 +136,9 @@ The decision is the pinned self-hosting compose fallback: the CLI did not safely
 restart the full stack after database password rotation. See the plan's Spike 2
 record for the verified source revision, image pins, service adaptations and
 required Task 6 equivalents. CLI 3.0.0 rejects inbucket; use local_smtp in TOML.
+Task 5 provides ENV_TABLE, renderConfig and prepareStackDir. Task 6 must call
+prepareStackDir for repository links and supported CLI pins, then translate the
+rendered settings into the pinned compose backend. Owner SMTP remains unconfigured.
 
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
