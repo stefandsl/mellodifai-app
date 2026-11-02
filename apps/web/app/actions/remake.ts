@@ -109,7 +109,11 @@ const EditInput = z.object({
           .trim()
           .min(1)
           .max(200)
-          .refine((t) => !/[\r\n—]/u.test(t)),
+          // One line, and never the em dash (owner rule).
+          .refine(
+            (t) =>
+              !/[\r\n]/u.test(t) && !t.includes(String.fromCodePoint(0x2014)),
+          ),
       }),
     )
     .max(200),
