@@ -11,7 +11,8 @@
       "**",
       "!apps/web/components/ui",
       "!apps/web/public",
-      "!**/*.md"
+      "!**/*.md",
+      "!ops/compose"
     ]
   },
   "formatter": {

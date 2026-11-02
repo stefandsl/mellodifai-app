@@ -13,6 +13,8 @@
     "vitest": "^5.0.5"
   },
   "dependencies": {
-    "smol-toml": "^1.9.1"
+    "postgres": "^4.0.0",
+    "smol-toml": "^1.9.1",
+    "yaml": "^2.9.1"
   }
 }

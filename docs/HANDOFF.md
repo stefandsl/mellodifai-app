@@ -143,6 +143,22 @@ Task 5 final validation passed after review R2: 124 database tests and 3 e2e tes
 on API 45621 and Next 3210. The conflicting Next process on the reserved e2e port
 was stopped for this run. Keep 3210 available for isolated e2e validation.
 
+M1 Task 6 implements the pinned Compose stack backend and `ops/stack.ts`.
+The e2e stack now runs from `E:/mellodifai/stacks/e2e` on API 45621. Its former
+CLI containers were stopped with their data retained; production was untouched.
+Use `pnpm -s ops stack.ts env-file --env e2e` for the private test environment
+path. Do not print its contents. `start` and `migrate` reapply role passwords
+and verify database and authenticated API readiness. The empty `ops` namespace
+is bootstrapped for PostgREST; Task 14 still installs all objects and fake_stack.
+Task 9 will create mdf_web/mdf_auth; Task 6 reports them absent until then.
+See `ops/compose/README.md` for secret files and the production Task 8 contract.
+Production SMTP, rotation/probes, cutover and owner hardening remain pending.
+The later progress ruling reserves 3210 for the owner's launcher: start the e2e
+stack with `E2E_PORT=3219`, then run browser tests with that same variable.
+Role integration tests opt in with `OPS_DB_TEST=1` and require the e2e/CI DB URL;
+their temporary cluster role fixtures always roll back. Task 7 can incorporate
+this invocation in its separate guarded integration command.
+
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
 `cloudflared` login; SMTP sender; codex login in the image container; an evaluation
