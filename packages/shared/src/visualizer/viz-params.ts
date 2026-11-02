@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COVER_FITS } from "./viz-kit.js";
 
 // One parameter set drives both the live preview in the browser (a <canvas> fed by the Web Audio
 // analyser of the playing track) and the MP4 the render PC makes with Remotion
@@ -81,6 +82,9 @@ export const BACKGROUND_MODES = ["random", "image", "video"] as const;
 export type BackgroundMode = (typeof BACKGROUND_MODES)[number];
 export const CENTER_IMAGE_MODES = ["cover", "upload", "none"] as const;
 export type CenterImageMode = (typeof CENTER_IMAGE_MODES)[number];
+// How the centre picture sits in a round or square frame: the square crop on its subject, or
+// the whole picture over a blurred copy of itself.
+export { COVER_FITS, type CoverFit } from "./viz-kit.js";
 
 // The visual effects, in the order they are applied on top of the frame.
 export const VISUALIZER_EFFECTS = [
@@ -166,6 +170,11 @@ export const LookSchema = z.object({
   shape: z.enum(PARTICLE_SHAPES),
   flow: z.enum(PARTICLE_FLOWS),
   contour: z.enum(CONTOUR_STYLES),
+  // Contorni: line weight in units of 1/1080 of the short side, and opacity in percent. The
+  // colours are lifted to hold 3:1 against the picture whatever these are, so the opacity
+  // cannot go below 60.
+  contourWeight: z.number().min(1).max(6).default(2.5),
+  contourOpacity: z.number().int().min(60).max(100).default(90),
 });
 export type VisualizerLook = z.infer<typeof LookSchema>;
 
@@ -184,6 +193,8 @@ export function defaultLook(): VisualizerLook {
     shape: "circle",
     flow: "up",
     contour: "rings",
+    contourWeight: 2.5,
+    contourOpacity: 90,
   };
 }
 
@@ -205,6 +216,7 @@ export const VisualizerParamsSchema = z.object({
   centerImage: z.object({
     mode: z.enum(CENTER_IMAGE_MODES),
     assetUrl: assetUrl.nullable(),
+    fit: z.enum(COVER_FITS).default("cover"),
   }),
   textLayers: z.array(TextLayerSchema).max(MAX_TEXT_LAYERS),
   effects: z
@@ -245,7 +257,7 @@ export function defaultVisualizerParams(): VisualizerParams {
     background: { mode: "random", seed: 0, assetUrl: null, dimming: 60 },
     colors: { primary: first.primary, secondary: first.secondary },
     particles: 30,
-    centerImage: { mode: "cover", assetUrl: null },
+    centerImage: { mode: "cover", assetUrl: null, fit: "cover" },
     textLayers: [],
     effects: defaultEffects(),
     classico: {
@@ -328,6 +340,7 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
         field(center, "assetUrl"),
         d.centerImage.assetUrl,
       ),
+      fit: pick(centerShape.fit, field(center, "fit"), d.centerImage.fit),
     },
     textLayers: layers,
     effects,
@@ -371,6 +384,16 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
         LookSchema.shape.contour,
         field(look, "contour"),
         d.look.contour,
+      ),
+      contourWeight: pick(
+        LookSchema.shape.contourWeight,
+        field(look, "contourWeight"),
+        d.look.contourWeight,
+      ),
+      contourOpacity: pick(
+        LookSchema.shape.contourOpacity,
+        field(look, "contourOpacity"),
+        d.look.contourOpacity,
       ),
     },
     badges: {

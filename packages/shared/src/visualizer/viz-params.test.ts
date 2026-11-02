@@ -81,6 +81,27 @@ describe("visualizer parameters", () => {
     ).toBe(false);
   });
 
+  it("reads rows saved before the cover fit and the contour line options", () => {
+    const d = defaultVisualizerParams();
+    const { fit, ...centerImage } = d.centerImage;
+    const { contourWeight, contourOpacity, ...look } = d.look;
+    const old = { ...d, centerImage, look };
+    const parsed = VisualizerParamsSchema.parse(old);
+    expect(parsed.centerImage.fit).toBe("cover");
+    expect(parsed.look.contourOpacity).toBe(contourOpacity);
+    expect(parsed.look.contourWeight).toBe(contourWeight);
+    expect(normalizeVisualizerParams(old)).toEqual(d);
+    const kept = normalizeVisualizerParams({
+      centerImage: { mode: "cover", assetUrl: null, fit: "contain" },
+      look: { contourWeight: 4, contourOpacity: 20 },
+    });
+    expect(kept.centerImage.fit).toBe("contain");
+    expect(kept.look.contourWeight).toBe(4);
+    // Below 60 the lines could not hold their contrast: back to the default.
+    expect(kept.look.contourOpacity).toBe(contourOpacity);
+    expect(fit).toBe("cover");
+  });
+
   it("has the six effects of T13 in the order they are applied", () => {
     expect(VISUALIZER_EFFECTS).toEqual([
       "grain",

@@ -20,6 +20,8 @@ export interface Canvas2D {
   lineJoin: string;
   shadowBlur: number;
   shadowColor: string;
+  // CSS filter list (blur for the "contain" cover fit); "none" when unused.
+  filter: string;
   font: string;
   textAlign: string;
   textBaseline: string;
@@ -83,7 +85,13 @@ export interface ScratchCanvas {
 }
 
 // A picture the frame draws: an <img>, an ImageBitmap or the current frame of a video.
-export type Picture = { source: unknown; width: number; height: number };
+export type Picture = {
+  source: unknown;
+  width: number;
+  height: number;
+  // Where the subject sits, 0..1 of the picture (see `withFocus`). Absent: the centre.
+  focus?: { x: number; y: number };
+};
 
 export type VisualizerScene = {
   params: VisualizerParams;
@@ -151,7 +159,8 @@ export function mix(a: string, b: string, t: number): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-// Draws `pic` to cover the box, centred, optionally zoomed.
+// Draws `pic` to cover the box, optionally zoomed. The crop is centred, or follows the
+// picture's `focus` (the subject) as far as the picture still covers the box. Never stretched.
 export function drawCover(
   ctx: Canvas2D,
   pic: Picture,
@@ -165,10 +174,14 @@ export function drawCover(
   const scale = Math.max(w / pic.width, h / pic.height) * zoom;
   const dw = pic.width * scale;
   const dh = pic.height * scale;
+  const place = (box: number, size: number, focus: number) =>
+    size <= box
+      ? (box - size) / 2
+      : Math.min(0, Math.max(box - size, box / 2 - focus * size));
   ctx.drawImage(
     pic.source as never,
-    x + (w - dw) / 2,
-    y + (h - dh) / 2,
+    x + place(w, dw, pic.focus?.x ?? 0.5),
+    y + place(h, dh, pic.focus?.y ?? 0.5),
     dw,
     dh,
   );
@@ -314,21 +327,59 @@ export function roundImageAt(
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.closePath();
   ctx.clip();
-  drawCover(ctx, pic, cx - radius, cy - radius, radius * 2, radius * 2);
+  drawFitted(
+    ctx,
+    pic,
+    cx - radius,
+    cy - radius,
+    radius * 2,
+    radius * 2,
+    params.centerImage.fit,
+    "circle",
+  );
   ctx.restore();
 }
 
-// The song title, centred, in capitals, cut to fit the frame.
+// ---- the type scale every preset shares -------------------------------------------------------
+
+// Sizes in pixels for the song's text, from the short side of the frame so 16:9 and 9:16 read
+// the same on a phone: the title is 6% of the short side (65 px at 1080; 3.6% of the height of
+// a 1920x1080 frame even at its smallest shrink), the artist 3.2%, captions and times 2.6%.
+export type TypeScale = { title: number; artist: number; caption: number };
+export function typeScale(size: { width: number; height: number }): TypeScale {
+  const s = Math.min(size.width, size.height);
+  return { title: s * 0.06, artist: s * 0.032, caption: s * 0.026 };
+}
+
+// The safe area: 5% of each side stays free of text.
+export const SAFE_MARGIN = 0.05;
+export function safeArea(size: { width: number; height: number }): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  return {
+    left: size.width * SAFE_MARGIN,
+    top: size.height * SAFE_MARGIN,
+    right: size.width * (1 - SAFE_MARGIN),
+    bottom: size.height * (1 - SAFE_MARGIN),
+  };
+}
+
+// The song title, centred, in capitals, at the shared title size, cut to fit the safe width and
+// kept inside the safe height.
 export function drawTitle(
   ctx: Canvas2D,
   scene: VisualizerScene,
   y: number,
-  px: number,
 ): void {
   if (!scene.title.trim()) return;
   const u = unitOf(scene.width, scene.height);
+  const px = typeScale(scene).title;
+  const safe = safeArea(scene);
   ctx.save();
-  ctx.font = font(scene, px * u, 500);
+  ctx.font = font(scene, px, 500);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#ffffff";
@@ -337,7 +388,7 @@ export function drawTitle(
   ctx.fillText(
     fitText(ctx, scene.title.trim().toUpperCase(), scene.width * 0.86),
     scene.width / 2,
-    y,
+    Math.min(safe.bottom - px * 0.6, Math.max(safe.top + px * 0.6, y)),
   );
   ctx.restore();
 }
@@ -480,4 +531,201 @@ export function fitSize(
   }
   ctx.font = font(scene, min, weight);
   return { text: fitText(ctx, text, maxWidth), px: min };
+}
+
+// ---- the centre picture inside a round or square frame ----------------------------------------
+
+export const COVER_FITS = ["cover", "contain"] as const;
+export type CoverFit = (typeof COVER_FITS)[number];
+
+// Draws `pic` into the box (the caller clips it round or square). "cover" fills the box with
+// the picture's square crop, centred on its subject; "contain" shows the whole picture over a
+// blurred copy of itself. A square picture looks the same either way. Never stretched.
+export function drawFitted(
+  ctx: Canvas2D,
+  pic: Picture,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  fit: CoverFit,
+  shape: "circle" | "square",
+): void {
+  if (!pic.width || !pic.height) return;
+  const ratio = pic.width / pic.height;
+  if (fit === "cover" || Math.abs(ratio / (w / h) - 1) < 0.02) {
+    drawCover(ctx, pic, x, y, w, h);
+    return;
+  }
+  ctx.save();
+  ctx.filter = `blur(${Math.max(1, Math.round(Math.min(w, h) * 0.06))}px)`;
+  drawCover(ctx, pic, x, y, w, h, 1.3);
+  ctx.restore();
+  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  ctx.fillRect(x, y, w, h);
+  // The whole picture: inside the box, or inside the circle for a round frame.
+  const scale =
+    shape === "circle"
+      ? Math.min(w, h) / Math.hypot(pic.width, pic.height)
+      : Math.min(w / pic.width, h / pic.height);
+  const dw = pic.width * scale;
+  const dh = pic.height * scale;
+  ctx.drawImage(
+    pic.source as never,
+    x + (w - dw) / 2,
+    y + (h - dh) / 2,
+    dw,
+    dh,
+  );
+}
+
+// Where the subject of a picture sits, from its RGBA pixels (any size, a thumbnail is plenty):
+// the share of the long side, 0..1, centring the square crop on the busiest part of the
+// picture. Busy is local contrast plus distance from the mean colour, weighed towards the
+// centre so a flat picture crops in the middle. No model, no network; the same pixels give the
+// same answer in the preview and in the render.
+export function focusOfPixels(
+  data: ArrayLike<number>,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  const centre = { x: 0.5, y: 0.5 };
+  if (width < 2 || height < 2 || Math.abs(width - height) < 2) return centre;
+  const luma = (i: number) =>
+    0.299 * (data[i * 4] as number) +
+    0.587 * (data[i * 4 + 1] as number) +
+    0.114 * (data[i * 4 + 2] as number);
+  const mean = [0, 0, 0];
+  for (let i = 0; i < width * height; i++)
+    for (let k = 0; k < 3; k++)
+      mean[k] = (mean[k] as number) + (data[i * 4 + k] as number);
+  for (let k = 0; k < 3; k++) mean[k] = (mean[k] as number) / (width * height);
+  const wide = width > height;
+  const along = wide ? width : height;
+  const side = Math.min(width, height);
+  const line = new Array<number>(along).fill(0);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      const l = luma(i);
+      const edge =
+        Math.abs(l - luma(x + 1 < width ? i + 1 : i)) +
+        Math.abs(l - luma(y + 1 < height ? i + width : i));
+      let far = 0;
+      for (let k = 0; k < 3; k++)
+        far += Math.abs((data[i * 4 + k] as number) - (mean[k] as number));
+      const at = wide ? x : y;
+      line[at] = (line[at] as number) + edge + (far * far) / 255;
+    }
+  // The densest blob of interest: the profile smoothed over a third of the crop, pulled a
+  // little to the centre; the crop is then centred on it as far as the picture allows.
+  const sigma = Math.max(1, side * 0.18);
+  let best = along / 2;
+  let bestScore = -1;
+  for (let x = 0; x < along; x++) {
+    let sum = 0;
+    for (let dx = -Math.ceil(sigma * 3); dx <= Math.ceil(sigma * 3); dx++) {
+      const at = x + dx;
+      if (at >= 0 && at < along)
+        sum +=
+          (line[at] as number) * Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    }
+    const score =
+      sum * (1 - 0.3 * (Math.abs(x + 0.5 - along / 2) / (along / 2)));
+    if (score > bestScore) {
+      bestScore = score;
+      best = x + 0.5;
+    }
+  }
+  const at = best / along;
+  return wide ? { x: at, y: 0.5 } : { x: 0.5, y: at };
+}
+
+type ReadableCanvas = {
+  width: number;
+  height: number;
+  getContext(kind: "2d"): unknown;
+};
+
+// `pic` with its `focus`, read from a thumbnail of it. Square pictures, and pictures a canvas
+// cannot read (cross-origin), come back as they were: cropped in the middle.
+export function withFocus(
+  pic: Picture,
+  make: (width: number, height: number) => ReadableCanvas,
+): Picture {
+  if (!pic.width || !pic.height || Math.abs(pic.width - pic.height) < 2)
+    return pic;
+  try {
+    const k = 64 / Math.max(pic.width, pic.height);
+    const w = Math.max(2, Math.round(pic.width * k));
+    const h = Math.max(2, Math.round(pic.height * k));
+    const g = make(w, h).getContext("2d") as {
+      drawImage(image: never, x: number, y: number, w: number, h: number): void;
+      getImageData(
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+      ): { data: ArrayLike<number> };
+    } | null;
+    if (!g) return pic;
+    g.drawImage(pic.source as never, 0, 0, w, h);
+    return {
+      ...pic,
+      focus: focusOfPixels(g.getImageData(0, 0, w, h).data, w, h),
+    };
+  } catch {
+    return pic;
+  }
+}
+
+// ---- line colour that holds against the picture behind it -------------------------------------
+
+export type Rgb = [number, number, number];
+
+export function relativeLuminance([r, g, b]: Rgb): number {
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+// WCAG contrast ratio, 1..21.
+export function contrastRatio(a: Rgb, b: Rgb): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+// A dark halo under thin lines: the share of the black base laid under a line.
+export const LINE_HALO = 0.65;
+
+// The brightest picture the scene can put behind a line, as the frame draws it: a white
+// picture, dimmed by the background dimming, under the dark halo.
+export function lineBackdrop(params: VisualizerParams): Rgb {
+  const v = 255 * (1 - params.background.dimming / 100);
+  return hexToRgb(BASE).map((b) =>
+    Math.round(v * (1 - LINE_HALO) + b * LINE_HALO),
+  ) as Rgb;
+}
+
+// `color` at `alpha`, lightened towards white until it holds `ratio` against the backdrop.
+export function inkOver(
+  color: string,
+  alpha: number,
+  backdrop: Rgb,
+  ratio: number,
+): Rgb {
+  const base = hexToRgb(color);
+  const composite = (c: Rgb): Rgb =>
+    c.map((v, i) =>
+      Math.round(v * alpha + (backdrop[i] as number) * (1 - alpha)),
+    ) as Rgb;
+  let c: Rgb = base;
+  for (let t = 0; t <= 1.0001; t += 0.04) {
+    c = base.map((v) => Math.round(v + (255 - v) * t)) as Rgb;
+    if (contrastRatio(composite(c), backdrop) >= ratio) return c;
+  }
+  return c;
 }

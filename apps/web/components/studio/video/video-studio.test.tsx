@@ -312,14 +312,31 @@ describe("Video Studio", () => {
     expect(
       within(dialog).getByRole("slider", { name: "Particelle" }),
     ).toHaveValue("30");
+    // The cover fit: the square crop by default, the whole picture on request; it goes away
+    // with no centre image and comes back as it was.
+    expect(
+      within(dialog).getByRole("radio", { name: "Ritaglio quadrato" }),
+    ).toBeChecked();
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Intera, sfondo sfocato" }),
+    );
+    expect(params().centerImage.fit).toBe("contain");
     await userEvent.click(
       within(dialog).getByRole("radio", { name: "Nessuna" }),
     );
     expect(params().centerImage.mode).toBe("none");
+    expect(params().centerImage.fit).toBe("contain");
+    expect(
+      within(dialog).queryByRole("radio", { name: "Ritaglio quadrato" }),
+    ).toBeNull();
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Ripristina/u }),
     );
-    expect(params().centerImage).toEqual({ mode: "cover", assetUrl: null });
+    expect(params().centerImage).toEqual({
+      mode: "cover",
+      assetUrl: null,
+      fit: "contain",
+    });
   });
 
   it("uploads a background picture, and refuses files over the limit or of another type", async () => {

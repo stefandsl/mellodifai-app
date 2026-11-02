@@ -13,9 +13,25 @@ import {
   subscribeWindow,
   type VisualizerScene,
 } from "./viz-draw.js";
-import { shapedBars } from "./viz-kit.js";
-import { LOOK_PRESETS, shapedParticleAt } from "./viz-looks.js";
 import {
+  COVER_FITS,
+  contrastRatio,
+  focusOfPixels,
+  lineBackdrop,
+  type Rgb,
+  safeArea,
+  shapedBars,
+  typeScale,
+  withFocus,
+} from "./viz-kit.js";
+import {
+  CONTOUR_CONTRAST,
+  contourInk,
+  LOOK_PRESETS,
+  shapedParticleAt,
+} from "./viz-looks.js";
+import {
+  COLOR_PRESETS,
   CROWN_TEETH,
   defaultVisualizerParams,
   PARTICLE_SHAPES,
@@ -79,6 +95,13 @@ function recorder(width: number, height: number) {
           state.globalCompositeOperation,
         ]),
       fill: () => calls.push(["fill", state.fillStyle, state.globalAlpha]),
+      stroke: () =>
+        calls.push([
+          "stroke",
+          state.strokeStyle,
+          state.globalAlpha,
+          state.lineWidth,
+        ]),
       fillText: (...args: unknown[]) =>
         calls.push(["fillText", ...args, state.font]),
       measureText: (text: string) => ({ width: text.length * 10 }),
@@ -504,5 +527,288 @@ describe("catalogue looks", () => {
       expect(p.alpha).toBeGreaterThanOrEqual(0);
       expect(p.alpha).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe("type scale", () => {
+  const withTitle = (
+    preset: VisualizerParams["preset"],
+    aspect: "16:9" | "9:16",
+  ) => {
+    const params = { ...defaultVisualizerParams(), preset, aspect };
+    params.classico.album = "Lampioni";
+    const s = scene(params, { title: "Astri" });
+    const texts = draw(params, s).filter(
+      (c) =>
+        c[0] === "fillText" &&
+        (String(c[1]).includes("ASTRI") ||
+          (String(c[1]).length === 1 && "ASTRI".includes(String(c[1])))),
+    );
+    return { s, texts };
+  };
+  const px = (call: unknown[]) =>
+    Number(/(\d+)px/u.exec(String(call[call.length - 1]))?.[1]);
+
+  it("draws the song title at the shared size in every preset, both aspects", () => {
+    for (const preset of VISUALIZER_PRESETS) {
+      if (preset === "classico") continue;
+      for (const aspect of ["16:9", "9:16"] as const) {
+        const { s, texts } = withTitle(preset, aspect);
+        expect(texts.length, `${preset} ${aspect}`).toBeGreaterThan(0);
+        const biggest = Math.max(...texts.map(px));
+        // The shared title size, which is at least 3.2% of a 1080 px frame height.
+        expect(biggest, `${preset} ${aspect}`).toBeGreaterThanOrEqual(
+          Math.round(typeScale(s).title),
+        );
+        expect(biggest, `${preset} ${aspect}`).toBeGreaterThanOrEqual(
+          0.032 * 1080,
+        );
+      }
+    }
+  });
+
+  it("keeps the title inside the 5% safe area", () => {
+    for (const preset of VISUALIZER_PRESETS) {
+      if (preset === "classico") continue;
+      for (const aspect of ["16:9", "9:16"] as const) {
+        const { s, texts } = withTitle(preset, aspect);
+        const safe = safeArea(s);
+        for (const call of texts) {
+          const y = call[3] as number;
+          const size = px(call);
+          expect(y - size / 2, `${preset} ${aspect}`).toBeGreaterThanOrEqual(
+            safe.top - 1,
+          );
+          expect(y + size / 2, `${preset} ${aspect}`).toBeLessThanOrEqual(
+            safe.bottom + 1,
+          );
+        }
+      }
+    }
+  });
+
+  it("scales from the short side, so 16:9 and 9:16 read alike", () => {
+    expect(typeScale({ width: 1920, height: 1080 })).toEqual(
+      typeScale({ width: 1080, height: 1920 }),
+    );
+    expect(typeScale({ width: 1920, height: 1080 }).title).toBeGreaterThan(
+      0.032 * 1080,
+    );
+  });
+});
+
+describe("Contorni contrast", () => {
+  const rgbOf = (color: unknown): Rgb => {
+    const m = /^rgb\((\d+),(\d+),(\d+)\)$/u.exec(String(color));
+    return [Number(m?.[1]), Number(m?.[2]), Number(m?.[3])];
+  };
+  const inkStrokes = (params: VisualizerParams) =>
+    draw(params).filter(
+      (c) => c[0] === "stroke" && /^rgb\(/u.test(String(c[1])),
+    );
+
+  it("holds 3:1 against the brightest picture in every colour preset, dimming and style", () => {
+    for (const colors of COLOR_PRESETS)
+      for (const mode of ["random", "image", "video"] as const)
+        for (const dimming of [0, 40, 60, 100])
+          for (const contour of ["rings", "ridges"] as const)
+            for (const aspect of ["16:9", "9:16"] as const) {
+              const params = defaultVisualizerParams();
+              params.preset = "contours";
+              params.aspect = aspect;
+              params.colors = {
+                primary: colors.primary,
+                secondary: colors.secondary,
+              };
+              params.background.mode = mode;
+              params.background.dimming = dimming;
+              params.look.contour = contour;
+              const ink = inkStrokes(params);
+              expect(
+                ink.length,
+                `${colors.id} ${contour}`,
+              ).toBeGreaterThanOrEqual(12);
+              const back = lineBackdrop(params);
+              for (const call of ink) {
+                const alpha = call[2] as number;
+                const c = rgbOf(call[1]);
+                const seen = c.map((v, i) =>
+                  Math.round(v * alpha + (back[i] as number) * (1 - alpha)),
+                ) as Rgb;
+                expect(
+                  contrastRatio(seen, back),
+                  `${colors.id} ${contour} ${mode} dim ${dimming}`,
+                ).toBeGreaterThanOrEqual(3);
+              }
+            }
+  });
+
+  it("takes opacity and weight from the params, never below the contrast", () => {
+    const params = defaultVisualizerParams();
+    params.preset = "contours";
+    const strokes = (weight: number, opacity: number) => {
+      const p = structuredClone(params);
+      p.look.contourWeight = weight;
+      p.look.contourOpacity = opacity;
+      return inkStrokes(p).map((c) => [c[2], c[3]] as [number, number]);
+    };
+    const thin = strokes(1, 60);
+    const thick = strokes(5, 100);
+    expect(Math.max(...thick.map((t) => t[1]))).toBeGreaterThan(
+      Math.max(...thin.map((t) => t[1])),
+    );
+    expect(Math.max(...thick.map((t) => t[0]))).toBeGreaterThan(
+      Math.max(...thin.map((t) => t[0])),
+    );
+    const low = defaultVisualizerParams();
+    low.look.contourOpacity = 60;
+    for (let k = 0; k < 14; k++) {
+      const ink = contourInk(low, k, 14);
+      const back = lineBackdrop(low);
+      const seen = ink.rgb.map((v, i) =>
+        Math.round(v * ink.alpha + (back[i] as number) * (1 - ink.alpha)),
+      ) as Rgb;
+      expect(contrastRatio(seen, back)).toBeGreaterThanOrEqual(3);
+    }
+    expect(CONTOUR_CONTRAST).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("centre picture fit", () => {
+  const drawn = (
+    preset: VisualizerParams["preset"],
+    fit: "cover" | "contain",
+    center: { source: unknown; width: number; height: number } = pic(
+      1920,
+      1080,
+    ),
+  ) => {
+    const params = { ...defaultVisualizerParams(), preset };
+    params.centerImage.fit = fit;
+    const s = scene(params, {
+      images: { background: null, center, trumpet: null, gramophone: null },
+    });
+    return draw(params, s).filter((c) => c[0] === "drawImage");
+  };
+
+  it("crops a 16:9 picture square, never stretching it", () => {
+    for (const preset of [
+      "circle",
+      "dotline",
+      "crown",
+      "contours",
+      "coverframe",
+    ] as const) {
+      const [call] = drawn(preset, "cover");
+      expect(call, preset).toBeDefined();
+      const [w, h] = [call?.[4] as number, call?.[5] as number];
+      expect(w / h, preset).toBeCloseTo(1920 / 1080, 3);
+    }
+  });
+
+  it("follows the subject: a picture with a focus is cropped there", () => {
+    const left = { ...pic(1920, 1080), focus: { x: 0.2, y: 0.5 } };
+    const x = (c: { source: unknown; width: number; height: number }) =>
+      drawn("coverframe", "cover", c)[0]?.[2] as number;
+    // Further to the right means more of the picture's left side shows.
+    expect(x(left)).toBeGreaterThan(x(pic(1920, 1080)));
+  });
+
+  it("contain shows the whole picture over a blurred copy of itself", () => {
+    for (const preset of ["circle", "coverframe"] as const) {
+      const calls = drawn(preset, "contain");
+      expect(calls.length, preset).toBe(2);
+      const whole = calls[1] as unknown[];
+      expect((whole[4] as number) / (whole[5] as number), preset).toBeCloseTo(
+        1920 / 1080,
+        3,
+      );
+      // The blurred fill is bigger than the whole picture.
+      expect(calls[0]?.[4] as number).toBeGreaterThan(whole[4] as number);
+    }
+  });
+
+  it("a square picture is the same in both fits", () => {
+    const square = pic(800, 800);
+    expect(JSON.stringify(drawn("circle", "contain", square))).toBe(
+      JSON.stringify(drawn("circle", "cover", square)),
+    );
+  });
+
+  it("knows both fits", () => {
+    expect([...COVER_FITS]).toEqual(["cover", "contain"]);
+  });
+});
+
+describe("subject focus", () => {
+  // A dark picture with a bright block whose centre column is `at`.
+  const blockAt = (at: number, w = 64, h = 36) => {
+    const data = new Uint8ClampedArray(w * h * 4).fill(10);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        data[i + 3] = 255;
+        if (Math.abs(x - at) < 6 && y > h / 4 && y < (h * 3) / 4) {
+          data[i] = 240;
+          data[i + 1] = 30;
+          data[i + 2] = 30;
+        }
+      }
+    return data;
+  };
+
+  it("centres a square picture", () => {
+    expect(focusOfPixels(blockAt(16, 36, 36), 36, 36)).toEqual({
+      x: 0.5,
+      y: 0.5,
+    });
+  });
+
+  it("finds a subject off to one side, and keeps a central one central", () => {
+    expect(focusOfPixels(blockAt(14), 64, 36).x).toBeLessThan(0.35);
+    expect(focusOfPixels(blockAt(52), 64, 36).x).toBeGreaterThan(0.65);
+    expect(focusOfPixels(blockAt(32), 64, 36).x).toBeCloseTo(0.5, 1);
+  });
+
+  it("finds a subject in a tall picture", () => {
+    const w = 36;
+    const h = 64;
+    const data = new Uint8ClampedArray(w * h * 4).fill(10);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        data[i + 3] = 255;
+        if (y > 4 && y < 20 && x > 8 && x < 28) {
+          data[i] = 250;
+          data[i + 1] = 250;
+        }
+      }
+    const f = focusOfPixels(data, w, h);
+    expect(f.x).toBe(0.5);
+    expect(f.y).toBeLessThan(0.35);
+  });
+
+  it("reads a picture through a canvas, and leaves one it cannot read", () => {
+    const read = (w: number, h: number) => ({
+      width: w,
+      height: h,
+      getContext: () => ({
+        drawImage: () => {},
+        getImageData: () => ({ data: blockAt(14, w, h) }),
+      }),
+    });
+    const base = { source: {}, width: 1920, height: 1080 };
+    expect(withFocus(base, read).focus?.x).toBeLessThan(0.35);
+    expect(
+      withFocus({ ...base, width: 800, height: 800 }, read).focus,
+    ).toBeUndefined();
+    const tainted = () => ({
+      width: 1,
+      height: 1,
+      getContext: () => {
+        throw new Error("tainted");
+      },
+    });
+    expect(withFocus(base, tainted)).toBe(base);
   });
 });

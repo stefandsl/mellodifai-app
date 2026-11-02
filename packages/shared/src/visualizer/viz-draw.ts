@@ -237,7 +237,7 @@ function presetCircle(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   }
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
-  drawTitle(ctx, scene, cy + r + Math.min(w, h) * 0.27, 52);
+  drawTitle(ctx, scene, cy + r + Math.min(w, h) * 0.27);
 }
 
 function presetSpectrum(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -280,7 +280,7 @@ function presetSpectrum(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
   const { cy, r } = centerLayout(params, w, h);
-  drawTitle(ctx, scene, cy + r + 70 * u, 48);
+  drawTitle(ctx, scene, cy + r + 70 * u);
 }
 
 function presetMirror(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -309,7 +309,7 @@ function presetMirror(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   }
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
-  drawTitle(ctx, scene, h * (h > w ? 0.2 : 0.12), 54);
+  drawTitle(ctx, scene, h * (h > w ? 0.2 : 0.12));
 }
 
 function presetWaveform(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -345,7 +345,7 @@ function presetWaveform(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
   const { cy, r } = centerLayout(params, w, h);
-  drawTitle(ctx, scene, cy + r + 60 * u, 48);
+  drawTitle(ctx, scene, cy + r + 60 * u);
 }
 
 function presetParticles(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -376,7 +376,7 @@ function presetParticles(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   }
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
-  drawTitle(ctx, scene, cy + r + 80 * u, 50);
+  drawTitle(ctx, scene, cy + r + 80 * u);
 }
 
 function presetMinimal(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -385,7 +385,7 @@ function presetMinimal(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   drawRoundImage(ctx, scene, level, false);
   const { cy, r } = centerLayout(params, w, h);
   const titleY = cy + r + 90 * u;
-  drawTitle(ctx, scene, titleY, 64);
+  drawTitle(ctx, scene, titleY);
   const count = 48;
   const values = barValues(scene.bands, count);
   const span = Math.min(w * 0.6, 900 * u);

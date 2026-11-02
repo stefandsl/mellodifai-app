@@ -54,7 +54,7 @@ export function VisualizerPreview({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const links = pictureLinks(params, coverUrl);
   const background = usePicture(links.background);
-  const center = usePicture(links.center);
+  const center = usePicture(links.center, true);
   const trumpet = usePicture(links.marks ? TRUMPET_URL : null);
   const gramophone = usePicture(links.marks ? GRAMOPHONE_URL : null);
   const tall = params.aspect === "9:16";

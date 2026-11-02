@@ -9,6 +9,7 @@ import {
   normalizeVisualizerParams,
   type Picture,
   VISUALIZER_FONT,
+  withFocus,
 } from "@mellodifai/shared";
 import {
   configureAnalyser,
@@ -25,11 +26,23 @@ type Job = {
   duration: number;
 };
 
-async function picture(src: string): Promise<Picture> {
+async function picture(src: string, subject = false): Promise<Picture> {
   const img = new Image();
   img.src = src;
   await img.decode();
-  return { source: img, width: img.naturalWidth, height: img.naturalHeight };
+  const pic: Picture = {
+    source: img,
+    width: img.naturalWidth,
+    height: img.naturalHeight,
+  };
+  return subject
+    ? withFocus(pic, (w, h) => {
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        return c;
+      })
+    : pic;
 }
 
 async function previewFrame(
@@ -84,7 +97,7 @@ async function previewFrame(
   });
   const [background, center, trumpet, gramophone] = await Promise.all(
     [files.background, files.center, files.trumpet, files.gramophone].map(
-      (src) => picture(src as string),
+      (src, i) => picture(src as string, i === 1),
     ),
   );
   draw(canvas.getContext("2d") as CanvasRenderingContext2D, {

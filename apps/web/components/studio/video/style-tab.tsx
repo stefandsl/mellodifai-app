@@ -4,6 +4,7 @@ import {
   type BackgroundMode,
   type CenterImageMode,
   COLOR_PRESETS,
+  type CoverFit,
   colorPresetOf,
   rerollSeed,
 } from "@mellodifai/shared";
@@ -340,7 +341,11 @@ export function StyleTab() {
                 onUploaded={(url) =>
                   update((p) => ({
                     ...p,
-                    centerImage: { mode: "upload", assetUrl: url },
+                    centerImage: {
+                      ...p.centerImage,
+                      mode: "upload",
+                      assetUrl: url,
+                    },
                   }))
                 }
               />
@@ -351,7 +356,11 @@ export function StyleTab() {
               onClick={() =>
                 update((p) => ({
                   ...p,
-                  centerImage: { mode: "cover", assetUrl: null },
+                  centerImage: {
+                    ...p.centerImage,
+                    mode: "cover",
+                    assetUrl: null,
+                  },
                 }))
               }
               className={SMALL_BUTTON}
@@ -371,6 +380,7 @@ export function StyleTab() {
             update((p) => ({
               ...p,
               centerImage: {
+                ...p.centerImage,
                 mode,
                 assetUrl: mode === "upload" ? p.centerImage.assetUrl : null,
               },
@@ -382,6 +392,21 @@ export function StyleTab() {
             { value: "none", label: st(lang, "vs.center.none") },
           ]}
         />
+        {params.centerImage.mode === "none" ? null : (
+          <Segmented<CoverFit>
+            label={st(lang, "vs.fit")}
+            value={params.centerImage.fit}
+            size="sm"
+            onChange={(fit) =>
+              fit &&
+              update((p) => ({ ...p, centerImage: { ...p.centerImage, fit } }))
+            }
+            options={[
+              { value: "cover", label: st(lang, "vs.fit.cover") },
+              { value: "contain", label: st(lang, "vs.fit.contain") },
+            ]}
+          />
+        )}
         {params.centerImage.mode === "upload" &&
         !params.centerImage.assetUrl ? (
           <p className="text-xs leading-5 text-[var(--fg-muted)]">
