@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/shared" },
     { "path": "./packages/shared/tsconfig.test.json" },
+    { "path": "./packages/remake" },
     { "path": "./apps/worker" }
   ]
 }
