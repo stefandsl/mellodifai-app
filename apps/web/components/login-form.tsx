@@ -1,5 +1,5 @@
 "use client";
-import { t } from "@mellodifai/shared";
+import { type DictKey, t } from "@mellodifai/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/browser";
 
-export function loginNotice(error: unknown, rejected = false) {
+export function loginNotice(error: unknown, rejected = false): DictKey {
   if (!error) return "auth.sent";
   const details = error as { status?: number; code?: string; name?: string };
   if (details.status === 429) return "auth.rateLimited";
@@ -26,7 +26,7 @@ export function loginNotice(error: unknown, rejected = false) {
   return rejected ? "auth.unavailable" : "auth.sent";
 }
 
-export const passwordNotice = () => "auth.invalidCredentials";
+export const passwordNotice = (): DictKey => "auth.invalidCredentials";
 
 export function LoginForm({ lang }: { lang: "it" | "en" }) {
   const [notice, setNotice] = useState("");
