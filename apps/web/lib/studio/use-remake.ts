@@ -103,10 +103,14 @@ export function useRemake() {
   const tick = useRef(0);
   const refresh = useCallback(async () => {
     const mine = ++tick.current;
-    const { data, error } = await createClient().rpc("my_remake");
-    if (error || mine !== tick.current) return;
-    setView(toView(data as Row));
-    setLoaded(true);
+    try {
+      const { data, error } = await createClient().rpc("my_remake");
+      if (error || mine !== tick.current) return;
+      setView(toView(data as Row));
+      setLoaded(true);
+    } catch {
+      // Offline or not configured: the next poll tries again; the panel keeps what it showed.
+    }
   }, []);
   useEffect(() => {
     void refresh();
