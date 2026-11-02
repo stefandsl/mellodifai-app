@@ -51,3 +51,9 @@ Load the generated private `test.env` and run role integration fixtures with
 `pnpm test:integration` (or append `ops/test/roles.integration.test.ts`).
 The fixture guard rejects production ports outside isolated CI. All cluster
 role fixture changes roll back, including temporary renaming of existing roles.
+
+CI pulls the exact image digests in `ci-image-mirrors.json` through
+`ops/pull-ci-images.ts`, then tags them with the rendered ECR names. The map was
+verified against the installed pinned images and their upstream registry
+manifests. This avoids anonymous public ECR throttling without changing image
+contents. A changed pin fails closed until its immutable mirror is verified.

@@ -50,8 +50,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm ops check-no-keys.ts
       - run: pnpm ops stack.ts render --env ci
-      # Stack startup deliberately uses --pull never. Fetch the rendered pins first.
-      - run: docker compose -p mellodifai_ci -f "$RUNNER_TEMP/stack/compose.json" pull
+      # Fetch identical pinned contents from verified upstream mirrors, avoiding ECR limits.
+      - run: pnpm ops pull-ci-images.ts
       - run: pnpm ops stack.ts start --env ci
       - name: Export local Supabase environment
         run: |
