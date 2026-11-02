@@ -12,7 +12,7 @@ import { useId, useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 import { st, stf } from "@/lib/studio/i18n";
 import { useVideoStudio } from "@/store/video-studio";
-import { EditableSlider, Segmented } from "../ui";
+import { EditableSlider } from "../ui";
 import { Section } from "./style-tab";
 
 const FIELD =
@@ -86,26 +86,11 @@ function ClassicoLines({ full }: { full: boolean }) {
         ) : null}
       </div>
       {full ? (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[13px]">{st(lang, "vs.gramophone")}</span>
-            <Segmented<"red" | "black">
-              label={st(lang, "vs.gramophone")}
-              value={classico.gramophone}
-              size="sm"
-              onChange={(gramophone) => gramophone && set({ gramophone })}
-              options={[
-                { value: "red", label: st(lang, "vs.gramophone.red") },
-                { value: "black", label: st(lang, "vs.gramophone.black") },
-              ]}
-            />
-          </div>
-          <Toggle
-            label={st(lang, "vs.cards")}
-            checked={classico.cards}
-            onChange={(cards) => set({ cards })}
-          />
-        </>
+        <Toggle
+          label={st(lang, "vs.cards")}
+          checked={classico.cards}
+          onChange={(cards) => set({ cards })}
+        />
       ) : null}
     </Section>
   );

@@ -18,12 +18,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { playerAnalyser, playerAudio } from "@/lib/studio/visualizer/audio-tap";
 import { readAnalyser } from "@/lib/studio/visualizer/live-frame";
-import {
-  GRAMOPHONE_URL,
-  pictureLinks,
-  TRUMPET_URL,
-  usePicture,
-} from "@/lib/studio/visualizer/pictures";
+import { pictureLinks, usePicture } from "@/lib/studio/visualizer/pictures";
 import { usePlayer } from "@/store/player";
 
 // Longest side of the preview canvas in pixels: sharp on a retina laptop, light enough to draw
@@ -55,8 +50,9 @@ export function VisualizerPreview({
   const links = pictureLinks(params, coverUrl);
   const background = usePicture(links.background);
   const center = usePicture(links.center, true);
-  const trumpet = usePicture(links.marks ? TRUMPET_URL : null);
-  const gramophone = usePicture(links.marks ? GRAMOPHONE_URL : null);
+  // Up to two logos (MAX_LOGOS), each loaded once per link.
+  const logo1 = usePicture(links.logos[0] ?? null);
+  const logo2 = usePicture(links.logos[1] ?? null);
   const tall = params.aspect === "9:16";
 
   // The canvas fills the largest box of the chosen aspect that fits.
@@ -84,8 +80,7 @@ export function VisualizerPreview({
     songId,
     background,
     center,
-    trumpet,
-    gramophone,
+    logos: [logo1, logo2],
   });
   latest.current = {
     params,
@@ -93,8 +88,7 @@ export function VisualizerPreview({
     songId,
     background,
     center,
-    trumpet,
-    gramophone,
+    logos: [logo1, logo2],
   };
 
   useEffect(() => {
@@ -169,8 +163,7 @@ export function VisualizerPreview({
         images: {
           background: backdrop,
           center: state.center,
-          trumpet: state.trumpet,
-          gramophone: state.gramophone,
+          logos: state.logos,
         },
       });
     };

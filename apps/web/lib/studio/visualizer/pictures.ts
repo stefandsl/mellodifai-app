@@ -74,9 +74,6 @@ export function usePicture(
   return url && state.url === url ? state.pic : null;
 }
 
-export const TRUMPET_URL = "/brand/mellodifai-trumpet.png";
-export const GRAMOPHONE_URL = "/brand/mellodifai-logo.png";
-
 // What each slot of the frame shows, as links: the same choices the worker makes
 // (apps/worker/src/stages/visualizer.ts), so the preview and the video agree.
 export function pictureLinks(
@@ -86,7 +83,8 @@ export function pictureLinks(
   background: string | null;
   backgroundVideo: string | null;
   center: string | null;
-  marks: boolean;
+  // The user's logos, in the order of params.logos.
+  logos: string[];
 } {
   const bg = params.background;
   const uploaded = backgroundAsset(params);
@@ -106,6 +104,6 @@ export function pictureLinks(
         : params.centerImage.mode === "upload"
           ? (params.centerImage.assetUrl ?? coverUrl)
           : null,
-    marks: params.preset === "classico",
+    logos: params.logos.map((logo) => logo.assetUrl),
   };
 }
