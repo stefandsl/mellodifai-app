@@ -11,15 +11,16 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { ENV_TABLE, IMAGE_PINS, stackDir } from "../lib/envs.js";
+import { ENV_TABLE, IMAGE_PINS, runtimePath, stackDir } from "../lib/envs.js";
 import { prepareStackDir, renderConfig } from "../lib/render.js";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const base = readFileSync(join(repo, "supabase/config.toml"), "utf8");
-let root: string;
+let root = "";
 let dir: string;
 beforeEach(() => {
-  const tmp = process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp";
+  root = "";
+  const tmp = runtimePath(process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp");
   mkdirSync(tmp, { recursive: true });
   root = mkdtempSync(join(tmp, "render-test-"));
   dir = join(root, "stacks/e2e");
@@ -28,7 +29,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllEnvs();
-  rmSync(root, { recursive: true, force: true });
+  if (root) rmSync(root, { recursive: true, force: true });
 });
 
 // Typed only at the test boundary so assertions remain about parsed TOML.
@@ -305,7 +306,7 @@ it("removes inherited session and JWT overrides outside prod and preserves unrel
   expect(parse(renderConfig(base, "dev", dir)).storage).toEqual(
     parse(base).storage,
   );
-  expect(renderConfig(base, "prod", dir)).not.toContain(
+  expect(renderConfig(input, "prod", dir)).not.toContain(
     "discard-this-test-value",
   );
 });
