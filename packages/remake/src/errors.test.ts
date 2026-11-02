@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Env } from "./env.js";
 import { checkMetadata, classifyYtDlp, RemakeError } from "./errors.js";
 import { ingest } from "./ingest.js";
@@ -14,11 +14,17 @@ const ENV: Env = {
   redact: (s) => s,
 };
 
+const scratchDirs: string[] = [];
 function scratch() {
   const root = join(runtimeRoot(), "tmp");
   mkdirSync(root, { recursive: true });
-  return mkdtempSync(join(root, "remake-errors-"));
+  const dir = mkdtempSync(join(root, "remake-errors-"));
+  scratchDirs.push(dir);
+  return dir;
 }
+afterAll(() => {
+  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
+});
 
 const codeOf = (fn: () => unknown) => {
   try {
