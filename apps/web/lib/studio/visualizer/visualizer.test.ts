@@ -124,9 +124,9 @@ describe("pictures", () => {
       background: null,
       backgroundVideo: "/media/uploads/u/v.mp4",
     });
-    params.centerImage = { mode: "upload", assetUrl: null };
+    params.centerImage = { mode: "upload", assetUrl: null, fit: "cover" };
     expect(pictureLinks(params, cover).center).toBe(cover);
-    params.centerImage = { mode: "none", assetUrl: null };
+    params.centerImage = { mode: "none", assetUrl: null, fit: "cover" };
     expect(pictureLinks(params, cover).center).toBeNull();
     expect(pictureLinks({ ...params, preset: "classico" }, cover).marks).toBe(
       true,
