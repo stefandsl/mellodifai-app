@@ -1,19 +1,22 @@
 # MellodifAI Agentic Studio - master design
 
-- **Date:** 2026-11-01. **Revision:** 2 (resolves the goldfish review in
-  `docs/egm/agentic-studio/goldfish_review_report.md`; dispositions in section 28).
-- **Status:** approved direction, ready for planning milestone by milestone. Owner decisions
-  (section 2.1) are final. Author's calls (section 2.3) hold until the owner overrules them.
-- **Author:** Claude (Opus 5.5), from the owner's requests of 31/10 and 01/11, the research listed in
-  section 27, and a read of the code on branch `build/studio-ui`.
-- **Extends and partly supersedes:** `docs/superpowers/specs/2026-10-31-mellodifai-design.md`. The
-  rules it replaces, and the control that replaces each, are listed in section 2.4.
-- **Relationship to the feature plan:** `docs/egm/v2-local-engines/feature-parity-plan.md` owns the
-  feature specs of T7-T22 (T-ids are glossed in section 27). This document owns the order and
-  dependencies of all work, the agentic layer, the remake workflow, the quality system, the cost
-  system, publishing and the daily improvement loop. It links to the plan instead of restating it.
-  Where both describe the same thing, this document wins for the definition of originality
-  (section 10.3) and the plan wins for UI behaviour.
+- **Date:** 2026-11-01, revised 2026-11-02. **Revision:** 3. It answers both goldfish reviews:
+  `docs/egm/agentic-studio/goldfish_review_report.md` (round 1) and
+  `docs/egm/agentic-studio/goldfish_review_round2.md` (round 2). Section 28 gives the disposition of
+  every finding.
+- **Status:** M1 is ready to plan from sections 5, 6, 7, 11.5, 15.1, 16 and 21.2. M2-M6 have
+  their contracts here; each needs its file list written before it is planned (section 21).
+  Owner decisions (section 2.1) are final. Author's calls (section 2.3) hold until the owner
+  overrules them.
+- **Author:** Claude (Opus 5.5), from the owner's requests of 31/10 and 01/11, the research listed
+  in section 27, and a read of the code on branch `build/studio-ui`.
+- **Extends and partly supersedes:** `docs/superpowers/specs/2026-10-31-mellodifai-design.md`
+  (replaced rules and their replacement controls in section 2.4).
+- **Relationship to the feature plan:** `docs/egm/v2-local-engines/feature-parity-plan.md` owns
+  the feature specs and UI behaviour of T7-T22 (T-ids glossed in section 27). This document owns
+  the order and dependencies of all work, the agentic layer, the remake workflow, the quality and
+  cost systems, publishing mechanics and the daily improvement loop. Where both touch the same
+  thing, this document wins for originality (10.3) and security, the plan wins for UI behaviour.
 
 ## 1. Intent and success
 
@@ -23,8 +26,8 @@ finished song and video that is published automatically on his YouTube channel a
 platforms, at the **lowest possible cost per video**, with quality guaranteed by juries of models
 and by motion and graphic design rules enforced in code. It is **agentic**: a person can use it
 through the web interface, and AI agents (Claude Code, Codex/ChatGPT, Cursor, Gemini) can drive
-every function through a CLI and an MCP server, reasoning on their own subscriptions. It
-**improves itself every day** with a measured, mechanically guarded loop.
+it through a CLI and an MCP server, reasoning on their own subscriptions. It **improves itself
+every day** with a measured, mechanically guarded loop.
 
 Why now: the studio works (songs, takes, stems, editor, Video Studio, lyric videos, local
 engines), but every video still needs the owner at each step, the YouTube publishing code has no
@@ -35,19 +38,18 @@ exist.
 or a one-line idea becomes a scheduled YouTube video (16:9 master, a 9:16 Short and a thumbnail)
 with no owner action, in Autopilot, standard tier, where:
 
-- every gate in section 10 passed (no override);
+- every gate required for that content kind (10.8) passed, with no override;
 - the **median paid cost per video is under 0.15 USD**, counting every paid call of the run
-  (lyrics, juries, music, images, analysis, retries, Short, thumbnail, any Claude API fallback)
-  and excluding fixed subscriptions (ChatGPT plan, Blotato monthly fee, Cloudflare free plan);
-- no single run exceeds the hard per-run cap of 0.25 USD (section 11.6);
+  (lyrics, juries, music, images, analysis, composition, metadata, retries, Short, thumbnail, any
+  fallback) and excluding fixed subscriptions (ChatGPT plan, Blotato monthly fee);
+- no single run exceeds the hard per-run cap of 0.25 USD (11.6);
 - the owner can steer any step from the app or from his agent when he wants to.
 
 ## 2. Decisions
 
 ### 2.1 Owner decisions (final)
 
-These are the owner's. Builders implement them and never re-argue them. Each is cited in the text
-as "(OD n)".
+These are the owner's. Builders implement them and never re-argue them. Cited as "(OD n)".
 
 | # | Date | Decision |
 | --- | --- | --- |
@@ -66,143 +68,176 @@ No em dash characters anywhere; Italian UI with correct accents plus English; ru
 E: (C: is nearly full); **never spend kie credits in tests**; local engines are admin only; never
 print or commit keys; commit messages without co-author lines; a song generation is never re-sent
 after an ambiguous kie submission without the admin resolving it (`resolve_kie_submission`).
-These rules bind every agent, including the daily loop (section 13.2).
+These rules bind every agent, including the daily loop (13.2) and image route 2 (11.3).
 
 ### 2.3 Author's calls (the owner can overrule)
 
-Each is cited as "(AC n)". "Default" means the value ships configured and can be changed in
-Settings.
+Cited as "(AC n)". "Default" means the value ships configured and can be changed in Settings.
 
 | # | Call | Status |
 | --- | --- | --- |
-| AC1 | Production runs on the PC behind **Cloudflare Tunnel** on mellodifai.com subdomains; Vercel plus hosted Supabase is retired as production (section 5). | in force |
-| AC2 | Remote MCP authorization uses **Supabase Auth's OAuth 2.1 server**, with scope checks inside the database (section 6). | in force |
+| AC1 | Production runs on the PC behind a **Cloudflare Tunnel** on mellodifai.com subdomains; Vercel plus hosted Supabase is retired as production (section 5). | in force |
+| AC2 | Remote MCP authorization uses a **small authorization server of our own** (`apps/auth`, built on the `oidc-provider` library) that issues **opaque** tokens, so OAuth tokens can never be used against Supabase. Fallback if the M1 spike fails: Supabase's OAuth 2.1 server with the extra blocks in 6.4. | in force (changed in revision 3) |
 | AC3 | Agent compositions are **data only** (the timeline document); no agent-authored code is ever executed (section 9). | in force |
-| AC4 | The publish **clock is owned by the app**: uploads stay private until the app flips them; YouTube `publishAt` is not used (section 12). | in force |
+| AC4 | The publish **clock is owned by the app**: uploads stay private until the app flips them; YouTube `publishAt` is not used and the `scheduled` privacy path is retired (section 12). | in force |
 | AC5 | Veto window default **24 h** before the slot; one veto cancels the whole bundle. | default |
-| AC6 | Loop rails, merge gate, frozen evaluator and isolation exactly as in section 13. | in force; owner has not yet confirmed them (section 22) |
-| AC7 | Per-video budget split and caps in section 11.6 (target 0.15 USD median, hard cap 0.25 USD per run). | default |
-| AC8 | Golden set: 5 items in M2, 10 items before the loop merges (section 13.4). | in force |
+| AC6 | Loop rails, merge gate, frozen evaluator and isolation exactly as in section 13. | in force; owner may confirm (section 22) |
+| AC7 | Per-video budget and caps in 11.6 (target 0.15 USD median, hard cap 0.25 USD per run). | default |
+| AC8 | Golden set: 5 items in M2a, 10 items plus canaries before the loop merges (13.4). | in force |
 | AC9 | Two takes per generation (one kie generate call returns two), Short at most 3 minutes, thumbnails 3 candidates. | default |
-| AC10 | Downloading a YouTube source with yt-dlp for **analysis only** is part of OD1's workflow; the source is never re-published, never given to a generator, and is deleted once R2 passes. | in force; owner to confirm (section 22) |
-| AC11 | "Keeps timing" (OD1) is measured as: same section sequence, tempo within 5%, each section's duration within 15% of the source (section 8.4, R4). | in force; owner to confirm (section 22) |
-| AC12 | Push notifications go through **ntfy** (phone app, private random topic). | default |
-| AC13 | `main` becomes the production branch before the loop is enabled (section 13.6). | in force |
+| AC10 | Downloading a YouTube source with yt-dlp for **analysis only** is part of OD1's workflow; the source media are never re-published, never given to a generator, and deleted once R2 passes (derived fingerprints and transcript are kept, 8.4). | in force; owner may confirm (section 22) |
+| AC11 | "Keeps timing" (OD1) is measured as: same section sequence, tempo within 5%, each section's duration within 15% of the source (8.4, R4). | in force; owner may confirm (section 22) |
+| AC12 | Push notifications go through **ntfy** (public ntfy.sh server, private random topic). | default |
+| AC13 | `main` becomes the production branch before the loop is enabled (13.6). | in force |
+| AC14 | Every write to the database by people and agents goes through the **operations layer** (schema `ops`, called by the Next server as the Postgres role `mdf_ops`); the `authenticated` role keeps only reads under RLS (6.3). | in force (new in revision 3) |
+| AC15 | In M1 the tunnel exposes only what remote agents need (5.2); the remote web UI for family and friends is a separate later step (W1, 21.1). | in force (new in revision 3) |
 
 ### 2.4 Rules of the 31/10 design that this document supersedes
 
 | 31/10 rule | New rule | Replacement control |
 | --- | --- | --- |
-| Going public is a separate, explicit click per video (31/10 sections 2, 3). | Auto-schedule with veto window (OD3). | Database publish gate (every jury passed, section 10.8), app-owned clock with fail-closed behaviour, Autopilot policy row (section 6.5), flag `auto_publish_public` (section 20). |
-| Every kie generation needs a confirm click (31/10 section 8). | Copilot keeps the click; Autopilot replaces it. | `reserve_spend` caps (section 11.5) and the Autopilot policy row. |
-| A song generation is never re-sent without the admin asking. | **Unchanged.** | An ambiguous submission stops the run with `ambiguous_spend` (section 8.6); jury rounds only start new generations after a definite outcome. |
-| GPT Image via codex first, kie as fallback. | OD5 order. | Router in section 11.3. |
-| TikTok and Instagram publishing are non-goals. | They are goals, through Postiz and Blotato (T19). | Section 12.5. |
-| Hosting on Vercel plus hosted Supabase. | PC plus Cloudflare Tunnel (AC1). | Section 5; README deploy section rewritten in M1. |
-| No third-party secret reachable from the browser. | **Unchanged** (secrets stay in the worker and web server env files on the PC). | Section 5.4. |
+| Going public is a separate, explicit click per video (31/10 sections 2, 3). | Kept until M4; then auto-schedule with veto window (OD3). | Until M4: admin-only, cookie-only `confirm_publication` (6.3). From M4: publish gate (10.8), app-owned clock (12.2), Autopilot policy row (6.5), flag `auto_publish_public` (20). |
+| Every kie generation needs a confirm click (31/10 section 8). | Copilot keeps the click; Autopilot replaces it. | `reserve_spend` caps inside the RPCs (11.5) and the Autopilot policy row. |
+| A song generation is never re-sent without the admin asking. | **Unchanged.** | A kie submit timeout or unknown outcome stops the run with `ambiguous_spend` and is never retried (8.6). |
+| GPT Image via codex first, kie as fallback. | OD5 order. | Router in 11.3. |
+| TikTok and Instagram publishing are non-goals. | Goals, through Postiz and Blotato (T19). | 12.5. |
+| Hosting on Vercel plus hosted Supabase. | PC plus Cloudflare Tunnel (AC1). | Section 5; README deploy section and `.github/workflows/keepalive.yml` retired in M1. |
+| No third-party secret reachable from the browser. | **Unchanged.** | 5.4. |
 
-## 3. Current state (verified in the code on 01/11/2026)
+## 3. Current state (verified in the code on 02/11/2026)
 
 **Done:** T7 library, T8 player, T9 create panel, T10 playlists and details panel, T11 stems
-(Demucs) and audio editor, T13 Video Studio with live preview and Remotion render; lyric videos
-(VBP template, "MellodifAI Classico" preset); stable `/media` links; worker on the PC with local
+(Demucs) and audio editor, T13 Video Studio with live preview and Remotion render, the VideoHive
+looks (T25, merged 02/11 into `packages/shared/src/visualizer/viz-looks.ts`); lyric videos (VBP
+template, "MellodifAI Classico" preset); stable `/media` links; worker on the PC with local
 Supabase in Docker.
 
-**In progress:** T12 (songs from songs: "Riscrivi una parte" like Suno's Replace Section, import
-from Suno, upload, cover, reference, transcription); VideoHive presets (branch
-`feat/studio-videohive-presets`); Riffusion/Producer research (done, section 26).
+**In progress:** T12 (songs from songs; its migrations `20261101000023_songs_from_songs.sql` and
+`20261101000024_covers_on_kie_only.sql` are landing on `build/studio-ui`).
 
-**Auth model.** Supabase Auth with email one-time codes (`signInWithOtp`). A profile is created
-only for emails in `admin_allowlist`, with role `admin` (the owner) or `customer` (family and
-friends) (`supabase/migrations/20261031000001_core.sql:1-36`). There is no first-user superadmin.
-Data access is RLS. The workflow RPCs (`create_project`, `approve_lyrics`, `pick_take`,
-`approve_video`, `render_again`, `generate_again`, `enqueue_publish`, `retry_stage`) are
-`security definer`, key on `auth.uid()` and are granted only to `authenticated`
-(`20261031000006_web_flow.sql:12-131`). The web app calls them only from server actions through
-`runAction` with the cookie session (`apps/web/lib/run-action.ts`, `lib/auth.ts`), which also
-revalidates the affected pages.
+**Auth model, as the code really is.** Supabase Auth with email one-time codes, sent from the
+browser (`components/login-form.tsx` calls `signInWithOtp`). A profile is created only for emails
+in `admin_allowlist` (a table with just an `email` column), by the trigger
+`create_allowlisted_profile` (`20261031000003_security.sql:1-26`), and **it always inserts the
+role `admin`**: nothing in the code ever creates a `customer`, so today every allowlisted person
+is an admin, and admins can read every object in the `previews` bucket
+(current policy in `20261101000021_customer_preview_read.sql`). Revision 3 fixes this in M1
+(6.2).
 
-**Lyric pipeline** (`apps/worker/src/stages/lyric-jury.ts`). Jev (`typesafe/jev-1.14`, called
-through OpenRouter's `/api/alpha/decisions`) picks the tone and the writer strength; it is not a
-cost router. Writers are Claude Opus 5.5 ("strong") and Sonnet 5.5 ("fast") through OpenRouter.
-A jury of three judges (Jev, Claude Haiku 5.5, Gemini 3.8 Flash) scores five criteria (`topic`,
+**Database privileges today.** `authenticated` holds a column INSERT grant on `public.jobs`
+(`20261031000005_pipeline_hardening.sql:25-26`) and the policy "owners enqueue jobs"
+(`20261031000008_perf_indexes.sql:22-33`) lets any signed-in user insert jobs for the stages
+`draft_lyrics`, `generate_song`, `timing`, `publish` and `set_privacy` directly. `authenticated`
+can also insert versions and update `versions.lyric_pack` (`pipeline_hardening.sql:23-24`). Every
+workflow RPC is `security definer`, keys on `auth.uid()` and is granted to `authenticated` with no
+role check, including the paid ones (`create_song`, `approve_lyrics`, `generate_again`,
+`request_section_edit`, `import_song`, `retry_stage`) and the publishing ones (`enqueue_publish`,
+`confirm_publication`, which also accepts `public` at once). Only `resolve_kie_submission` checks
+for `admin`. Today PostgREST is reachable only on the PC, so this is safe; once anything Supabase
+is reachable from outside it is not, which is why M1 changes it first (6.3). The web app writes
+nothing to tables directly: every write is an RPC from a server action through `runAction`
+(`apps/web/lib/run-action.ts`), which also revalidates the affected pages. The create panel calls
+`create_song`; `create_project` is the older entry point.
+
+**Lyric pipeline** (`apps/worker/src/stages/lyric-jury.ts`). Jev (`typesafe/jev-1.14`, through
+OpenRouter's `/api/alpha/decisions`) picks the tone and the writer strength; it is not a cost
+router. Writers are Claude Opus 5.5 ("strong") and Sonnet 5.5 ("fast") through OpenRouter. A jury
+of three judges (Jev, Claude Haiku 5.5, Gemini 3.8 Flash) scores five criteria (`topic`,
 `language`, `singable`, `chorus`, `original`); a criterion passes when its mean reaches
 `PASS_SCORE` 0.7. The jury is **fail-open by design**: when no judge returns a valid verdict,
 `combine()` returns `available: false, passed: true` (lines 333-344), which is right for the
-human-approved flow because a person reads every draft. **There is no devil's advocate in the
-code** and **no direct Anthropic API client**.
+human-approved flow because a person reads every draft. Reports are stored in
+`versions.lyric_jury` (`20261101000015_lyric_jury.sql`, written by `stages/draft-lyrics.ts`, read
+by `apps/web/lib/studio/clips.ts`). **There is no devil's advocate in the code** and **no direct
+Anthropic API client**.
 
 **Publishing is already built** (`apps/worker/src/stages/publish.ts`): private upload with
-captions and thumbnail, upload-state recovery, `containsSyntheticMedia: true` always, and
-`scheduled` plus `publish_at` handled by `set_privacy`. `set_privacy` refuses to run without a
-human `confirmed_by`, written by `confirm_publication` from `auth.uid()`
-(`20261031000005_pipeline_hardening.sql:81-103`). `reserve_youtube_upload` caps uploads at 4 per
-worker per Pacific day (lines 49-58); when the quota is reached the stage returns `retryLater`
-until the Pacific reset. `enqueue_publish` accepts only an approved current `master` render.
-`publications` is YouTube-only, one row per render. What is missing is the Google OAuth client:
-`yt.py` in the engine repo exits without `YT_CLIENT_ID`.
+captions and thumbnail, upload-state recovery, `containsSyntheticMedia: true` always, and the
+`scheduled` plus `publish_at` path in `set_privacy`. The stage always loads the version's
+`master` render (line 12) and ignores `payload.render_id`; publications are looked up per version,
+latest row only (`apps/worker/src/db.ts:495-507`, `authorization.ts:70`), so a master and a Short
+of one version cannot both be published. `set_privacy` refuses to run without a human
+`confirmed_by`, written by `confirm_publication` (`pipeline_hardening.sql:81-103`).
+`reserve_youtube_upload` caps uploads at 4 per worker per Pacific day; at the cap the stage returns
+`retryLater`. `enqueue_publish(render_id, metadata)` accepts only an approved current `master`.
+`publications` is YouTube-only, one row per render, `render_id` NOT NULL. The engine repo's
+`publish/yt.py` hard-codes two scopes (`youtube.upload`, `youtube.force-ssl`, line 20), keeps its
+token in `publish/.secrets/` unless `YT_TOKEN_FILE` says otherwise (line 74), and exits without
+`YT_CLIENT_ID`: the Google OAuth client is what is missing.
 
-**Other existing stages to reuse:** `qa.ts` (loudness gate -15 to -13 LUFS, true peak at most -1
-dBTP, crushed words, a 20-frame contact sheet); `render.ts` (`render_master` and `render_hook`,
-the latter already a 1080x1920 Short); `art.ts` (thumbnail and SRT); `storyboard.ts` (writes
-`data/<lang>/storyboard.json`); `score-takes.ts`, which runs `tools/score_takes.py` in the engine
-repo (its `fidelity` value is a Whisper intelligibility score). `approve_video` requires QA gates
-and an override reason when one fails (`20261031000006_web_flow.sql:63-73`).
+**Other existing stages to reuse:** `qa.ts` (master only: loudness -15 to -13 LUFS, true peak at
+most -1 dBTP, crushed words, a 20-frame contact sheet); `render.ts` (`render_master` and
+`render_hook`, the latter already 1080x1920); `visualizer.ts` with
+`packages/visualizer/scripts/render.mjs` (renders this repo's Remotion project); `art.ts` (thumbnail
+and SRT; it sets the version to `video_review`, line 30); `storyboard.ts` (writes
+`data/<lang>/storyboard.json`). `score_takes` is not a stage: it is `tools/score_takes.py` in the
+engine repo, called inside `generate_song`, `import-audio.ts:66` and `local-engine.ts:570`; its
+`fidelity` value is in-order token recall of the intended lyrics in a Whisper transcript.
+`approve_video` requires QA gates and an override reason when one fails
+(`20261031000006_web_flow.sql:63-73`).
 
-**Two Remotion projects.** `packages/visualizer` is this repo's Remotion project (Video Studio
-visualizers; no kinetic lyrics). Kinetic lyrics and the VBP lyric video render from the external
-engine repo `C:\Users\Asus\Documents\suno-remake` (`motion/`), whose path is hard-coded as
-`ENGINE_ROOT` in `apps/worker/src/stages/utils.ts:6`.
+**Two Remotion projects.** `packages/visualizer` is this repo's (Video Studio). Kinetic lyrics and
+the VBP lyric video render from the engine repo `C:\Users\Asus\Documents\suno-remake` (`motion/`:
+`components/LyricText.tsx`, `WordPop.tsx`, `FontGate.tsx`, `layers/`, `scenes/Kinetic.tsx` and the
+VBP scenes), whose path is hard-coded as `ENGINE_ROOT` in `apps/worker/src/stages/utils.ts:6`.
 
-**Queue.** `jobs.version_id` is NOT NULL; `jobs.stage` has a check list; `claim_job` is first in,
-first out across all stages with `FOR UPDATE SKIP LOCKED`; `heartbeat_job` exists;
-`requeue_stale` re-queues after 120 s without a heartbeat (`20261031000002_queue.sql`). Every new
-stage needs a check-list migration, an entry in `STAGES` (`packages/shared/src/stages.ts`) and a
-`stageAllowed` rule (used by `apps/worker/src/authorization.ts`). kie spending is guarded by
-`versions.kie_submit_state` and `resolve_kie_submission` (admin only); `workers.kie_balance` holds
-the last known balance.
+**Queue.** `jobs.version_id` is NOT NULL; `jobs.stage` has a check list; the current `claim_job`
+(`20261101000018_library_reactions_trash.sql:30-42`) is first in, first out with `FOR UPDATE SKIP
+LOCKED` and skips trashed songs; the worker heartbeats every running job every 15 s
+(`apps/worker/src/loop.ts:211-217`) and `requeue_stale` re-queues after 120 s. A new stage needs a
+check-list migration, an entry in `STAGES` and a `STAGE_STATUS` entry
+(`packages/shared/src/stages.ts`, `status.ts:102-109`), a `stageAllowed` rule and registration in
+`apps/worker/src/stages/index.ts`. The worker enqueues child jobs with the service role through
+`db.enqueue` (`db.ts:344-359`), which carries no token or run. kie spending is guarded by
+`versions.kie_submit_state` and `resolve_kie_submission`; `workers.kie_balance` holds the last
+known balance.
 
 **Web side.** `/media/[...path]` signs a storage URL as the session user, returns 404 without a
-session, and redirects to the storage host (`127.0.0.1:54321`). The browser also talks to Supabase
-directly for storage uploads and Realtime (`lib/studio/audio-files.ts`, `use-job-progress.ts`,
-`use-live-refresh.ts`). Paid calls also start on the web side: `app/actions/format-style.ts`
-(OpenRouter) and `app/api/transcribe/route.ts` (Groq). `apps/web/proxy.ts` calls
-`supabase.auth.getUser()` on every request. `lib/rate-limit.ts` is an in-memory limiter. The
-Settings page shows only the email; provider keys live in env files (`apps/worker/.env.local`,
-`apps/web/.env.local`).
+session, and redirects to the storage host (`127.0.0.1:54321`). Some pages build signed URLs on the
+server too (`lib/studio/clips.ts:498`, `lib/studio/stems.ts:153`,
+`app/(app)/projects/[id]/page.tsx:66,143`). The browser talks to Supabase directly for sign-in,
+storage uploads and Realtime. All three Supabase clients read `NEXT_PUBLIC_SUPABASE_URL`
+(`proxy.ts:21`, `lib/supabase/server.ts:7`, `lib/supabase/browser.ts:7`). Paid calls also start on
+the web side: `app/actions/format-style.ts` (OpenRouter) and `app/api/transcribe/route.ts` (Groq).
+`proxy.ts` calls `supabase.auth.getUser()` on every request. `lib/rate-limit.ts` is an in-memory
+limiter. The Settings page shows only the email; provider keys live in env files
+(`apps/worker/.env.local`, `apps/web/.env.local`).
 
-**Supabase config** (`supabase/config.toml`): default JWT secret and well-known demo keys (no
-`signing_keys_path`), `site_url = http://127.0.0.1:3000`, email goes to the local mail catcher,
-`[auth.oauth_server]` present but disabled (consent path `/oauth/consent`).
+**Hard-coded paths** (to remove under the portability rule, section 25): `utils.ts:6`
+(`ENGINE_ROOT`), `engine.ts:153-154` (TMP), `workspace.ts:15-16`, `comfy/config.ts:19-22`,
+`stems.ts:12`, `visualizer.ts:340`, `draft-lyrics.ts:179`.
 
-**Tests:** vitest per app; `test:db` runs `supabase/tests` against whatever stack is configured
-(not pinned); e2e is pinned to a separate stack on port 45621 (a live run once spent kie credits);
-fake stages in `apps/worker/src/fake/index.ts`.
+**Supabase config** (`supabase/config.toml`): default JWT secret and well-known demo keys, local
+Postgres password `postgres`, `site_url = http://127.0.0.1:3000`, email to the local mail catcher,
+`[auth.oauth_server]` present but disabled.
+
+**Tests:** vitest per app; `test:db` (root `package.json:13`) runs `supabase/tests` against
+whatever stack is configured; e2e is pinned to a separate stack on port 45621 by the guard in
+`apps/web/e2e/local-env.ts` (a live run once spent kie credits); fake stages in
+`apps/worker/src/fake/index.ts`.
 
 **Hosting in practice:** everything runs on the PC; the README still describes Vercel plus hosted
-Supabase. Postiz runs self-hosted at `http://localhost:4007`.
-
-**Git:** the live checkout is on `build/studio-ui`; `main` is behind; worktrees live in
-`E:/mellodifai/wt/`.
-
-**Keys:** present: kie, OpenRouter, Groq, Higgsfield. Missing: Google OAuth client, Blotato,
-Comfy Cloud, Gemini API, a guardrail-free OpenRouter key.
+Supabase, and `.github/workflows/keepalive.yml` keeps the hosted project awake. Postiz runs at
+`http://localhost:4007`. **Git:** the live checkout is on `build/studio-ui`; `main` is behind;
+worktrees live in `E:/mellodifai/wt/`. **Keys present:** kie, OpenRouter, Groq, Higgsfield.
+**Missing:** Google OAuth client, Blotato, Comfy Cloud, Gemini API, a guardrail-free OpenRouter key.
 
 ## 4. Goals, non-goals, anti-goals
 
 Goals:
 1. **Remake from a YouTube link** (section 8), end to end, in Copilot mode (pauses for approval)
-   and Autopilot mode (runs through; stops only for the reasons in section 8.6).
-2. **Agent access** (sections 6 and 7): one operations module used by the web UI, a versioned HTTP
-   API, a `mellodifai` CLI and one MCP tool registry served over stdio and Streamable HTTP; an
-   agent skill that teaches any agent the workflows.
-3. **Quality system** (section 10): juries on lyrics, music, visuals and metadata, design rules in
-   code, originality and distinctness gates; every gate enforced in the database before publish.
-4. **Cost routing** (section 11): per-medium routing (images follow OD5; reasoning and music
-   follow the driving agent's subscription, then free local engines, then cheap APIs), inside the
-   per-video budget, with an atomic ledger and caps.
-5. **Publishing** (section 12): YouTube (existing stage, connected and extended) plus Postiz and
-   Blotato routes, app-owned schedule with veto window (OD3), Shorts.
+   and Autopilot mode (stops only for the reasons in 8.6).
+2. **Agent access** (sections 6 and 7): one operations layer used by the web UI, a versioned HTTP
+   API, a `mellodifai` CLI and one MCP tool registry over stdio and Streamable HTTP; an agent
+   skill.
+3. **Quality system** (section 10): juries on lyrics, visuals and metadata, design rules in code,
+   originality and distinctness gates, all enforced in the database before publish.
+4. **Cost routing** (section 11), per medium and per tier (8.1): images follow OD5; music is kie
+   Suno in the standard tier and ACE-Step local in the free tier; reasoning comes from the driving
+   agent's subscription when an agent drives, otherwise from the app's OpenRouter models; all
+   inside the per-video budget, with an atomic ledger and caps.
+5. **Publishing** (section 12): the existing YouTube stage connected early (track P0) and
+   extended, plus Postiz and Blotato, an app-owned schedule with veto window (OD3), Shorts.
 6. **Daily improvement loop** (section 13), autonomous (OD4) and mechanically guarded.
 
 Non-goals (now): public sign-up, payments, multi-tenant scaling, LoRA training, the social layer.
@@ -210,283 +245,452 @@ Non-goals (now): public sign-up, payments, multi-tenant scaling, LoRA training, 
 Anti-goals. A run that does any of these is a failure even if a video comes out; each is enforced
 where stated:
 - copying the source's melody, recordings, graphics, footage or exact lyrics (only structure,
-  timing, mood and meaning carry over) - enforced by the originality gates (section 10.3) and by
-  never giving source audio to a generator (section 8.4);
-- spending money without the cost shown and within caps - enforced by `reserve_spend` (section
-  11.5);
-- publishing a video that failed a gate or has broken text, wrong lyrics, or silence - enforced
-  by the database publish gate (section 10.8);
-- mass-produced sameness (YouTube does not monetise repetitive content) - enforced by the
-  distinctness gate (section 10.6);
+  timing, mood and meaning carry over) - originality gates (10.3), source audio never given to a
+  generator (8.4);
+- spending money without the cost shown and within caps - `reserve_spend` inside every paying RPC
+  and every paid call in a stage (11.5);
+- publishing a video that failed a required gate or has broken text, wrong lyrics, or silence -
+  database publish gate (10.8);
+- mass-produced sameness - distinctness gate (10.6);
 - automating services whose terms forbid it: suno.com generation, the midjourney.com web UI,
-  Google Flow, crawling. Two user-initiated fetches are allowed and stay so: the analysis-only
-  download of a source the owner names (AC10) and the existing import of the owner's own Suno
-  share links (`app/api/suno-link`, T12).
+  Google Flow, crawling. Two user-initiated fetches are allowed: the analysis-only download of a
+  source the owner names (AC10) and the existing import of the owner's own Suno share links
+  (`app/api/suno-link`, T12).
 
 ## 5. Deployment topology and what the tunnel exposes
 
 ### 5.1 One production topology (AC1)
 
-Production is the owner's PC: Next.js production build (`next start` on `127.0.0.1:3000`) as a
-service, the worker as a service, local Supabase in Docker, Postiz in Docker. A Cloudflare Tunnel
-(`cloudflared` as a service) publishes a fixed set of hostnames. Vercel plus hosted Supabase is
-retired as production; the README deploy section is rewritten in M1. The dev server (port 3001)
-is never tunnelled. The same layout moves to a Debian server later (OD8, section 25): only the
-service wrappers change (systemd instead of Windows services).
+Production is the owner's PC, with these services:
+
+| Service | Listens on | Runs as | Notes |
+| --- | --- | --- | --- |
+| Next (`next start`) | `127.0.0.1:3000` | Windows account `mdf-web` (owner action; fallback: the owner's account) | `mdf-web` cannot read `apps/worker/.env.local` or `<runtime root>/secrets/` (NTFS ACL). |
+| Remote edge proxy (`ops/edge-proxy.ts`) | `127.0.0.1:3080` | `mdf-web` | Only `cloudflared` talks to it. It sets `x-mdf-remote: 1` on every request (overwriting any incoming value) and forwards to 3000 or 3010. Next treats a request as remote only through this header. |
+| Authorization server (`apps/auth`) | `127.0.0.1:3010` | `mdf-web` | Section 6.4. |
+| Worker | none | owner's account | Needs the codex login, ComfyUI, the GPU and the engine repo. |
+| Supabase (Docker) | `127.0.0.1:54321-54329` | Docker Desktop | Never tunnelled in M1 (5.2). |
+| Postiz (Docker) | `127.0.0.1:4007` | Docker Desktop | Tunnelled from M4. |
+| `cloudflared` | outbound only | service | Locally managed tunnel (5.5). |
+
+Services are started by `ops/services.ts` (a TypeScript script run with Node, registered as
+Windows services through a thin wrapper chosen by the builder; systemd units in M8). Start order:
+Docker and Supabase, worker, auth server, Next, edge proxy, `cloudflared`. The dev server (port
+3001) is never tunnelled. Vercel plus hosted Supabase is retired; M1 rewrites the README deploy
+section and deletes `.github/workflows/keepalive.yml`.
 
 Prerequisite (owner action, section 22): move the mellodifai.com nameservers from Hostinger to
-Cloudflare (free plan). Until then the remote half of M1 cannot pass its exit test; the local half
-can.
+Cloudflare (free plan) and create the tunnel. Until then the remote half of M1 cannot pass its
+exit test; the local half can.
 
 ### 5.2 Public hostnames and routes (deny by default)
 
-| Hostname | Upstream | Allowed paths | Cloudflare Access |
+The `cloudflared` ingress points every public hostname at the edge proxy (`127.0.0.1:3080`); the
+edge proxy enforces the path allowlist below and returns 404 for anything else, and the
+`cloudflared` ingress ends with `http_status:404`.
+
+| Step | Hostname | Allowed paths | Upstream |
 | --- | --- | --- | --- |
-| `app.mellodifai.com` | Next on `127.0.0.1:3000` | everything Next serves | On for UI pages (email one-time PIN, list mirrored from `admin_allowlist`). **Bypass** for `/api/v1/*`, `/api/mcp`, `/.well-known/oauth-protected-resource*`, `/m/*` (capability media links), `/api/health`. |
-| `api.mellodifai.com` | Supabase gateway `127.0.0.1:54321` | `/auth/v1/*`, `/rest/v1/*`, `/storage/v1/*`, `/realtime/v1/*` only | Off (browser JavaScript and OAuth clients call it; protected like hosted Supabase: RLS, rotated keys, WAF rate limit of 20 requests per minute per IP on `/auth/v1/*`). |
-| `post.mellodifai.com` | Postiz `127.0.0.1:4007` | everything Postiz serves | On for the admin UI. Bypass only for the social OAuth callback paths and the public uploads path that platforms fetch media from (exact paths listed in M4). |
+| M1 | `app.mellodifai.com` | `/api/mcp`, `/api/v1/*`, `/.well-known/oauth-protected-resource*`, `/login`, `/auth/confirm`, `/consent`, `/api/health`, `/_next/static/*` | Next |
+| M1 | `app.mellodifai.com` | `/.well-known/oauth-authorization-server*`, `/.well-known/openid-configuration`, `/oauth/*` | `apps/auth` |
+| W1 (later) | `app.mellodifai.com` | every UI page | Next |
+| W1 (later) | `api.mellodifai.com` | `/auth/v1/*`, `/rest/v1/*`, `/storage/v1/*`, `/realtime/v1/*` | Supabase gateway |
+| M4 | `app.mellodifai.com` | `/m/*` (capability media links) | Next |
+| M4 | `post.mellodifai.com` | the Postiz paths listed in the M4 plan (admin UI, social OAuth callbacks, public uploads) | Postiz |
 
-The `cloudflared` ingress ends with a catch-all `http_status:404`. **Never exposed:** Postgres
-54322, Supabase Studio 54323, the mail catcher 54324, the Supabase meta and functions routes,
-ComfyUI (no auth), the worker, the dev server, Postiz's database and Redis, the Docker API.
+In M1 nothing of Supabase is reachable from outside: sign-in for the consent page happens through
+Next (5.4), and remote agents use only `/api/mcp`, `/api/v1` and the OAuth endpoints. No
+Cloudflare Access is used in M1 (no UI pages are exposed, so there is no double sign-in). W1
+decides Access for the UI pages when it exposes them.
 
-### 5.3 Supabase hardening before any route goes live
+**Never exposed:** Postgres 54322, Supabase Studio 54323, the mail catcher 54324, the Supabase
+meta and functions routes, ComfyUI (no auth), the worker, the dev server, Postiz's database and
+Redis, the Docker API. As defence in depth, a Windows Firewall rule (owner action, 22) blocks
+inbound connections to 3000, 3010, 4007, 8188 and 54321-54329 on every interface except loopback,
+which also blocks Docker containers reaching them through `host.docker.internal` (13.2).
 
-1. Rotate the signing keys: asymmetric signing keys in a gitignored `signing_keys_path` file,
-   a new random JWT secret, new anon and service keys. The exit test signs a `service_role` JWT
-   with the public demo secret and expects 401 through `api.mellodifai.com`.
-2. `site_url = https://app.mellodifai.com`; `additional_redirect_urls` = the app host plus
-   `http://127.0.0.1:3000/**` and `http://localhost:3000/**` for local use; API and Auth external
-   URLs set to `https://api.mellodifai.com`.
-3. A real SMTP sender for one-time codes (owner action), since the mail catcher is not reachable
-   from outside.
-4. Postiz with `DISABLE_REGISTRATION=true` after the owner's account exists.
-5. The browser's `NEXT_PUBLIC_SUPABASE_URL` becomes `https://api.mellodifai.com`; the server keeps
-   the internal URL.
+### 5.3 Supabase hardening (M1, before any route goes live)
 
-### 5.4 Media through the tunnel
+1. Rotate the signing keys: asymmetric signing keys in a gitignored `signing_keys_path` file under
+   `<runtime root>/secrets/supabase/`, a new random JWT secret, new anon and service keys. Exit
+   test: a `service_role` JWT signed with the public demo secret is refused by the local gateway.
+2. Change the local Postgres superuser password if the Supabase CLI keeps working with it (M1
+   spike, step 0); otherwise rely on the loopback binding and the firewall rule of 5.2.
+3. `site_url = https://app.mellodifai.com`; `additional_redirect_urls` = the app host plus
+   `http://127.0.0.1:3000/**` and `http://localhost:3000/**`.
+4. A real SMTP sender for one-time codes (owner action). The email template uses the
+   `token_hash` link to `https://app.mellodifai.com/auth/confirm` so verification is server-side.
+5. Postiz gets `DISABLE_REGISTRATION=true` after the owner's account exists (M4).
 
-- `/media/...` stops redirecting to the storage host: it keeps the session check and **streams**
-  the file through Next (with HTTP Range support), so it works from any host and never leaks a
-  storage URL.
-- `/m/<token>` is a **capability link** for external fetchers (Postiz, Blotato, platforms): a
-  random 256-bit token mapped to one render, expiring (default 72 h), revoked on veto and 24 h
-  after the post is confirmed, streamed by Next. Only its hash is stored.
-- Secrets never reach the browser; the service key never leaves the PC.
+### 5.4 Sign-in, URLs and media
 
-### 5.5 Session proxy
+- **Sign-in through the server (M1).** The login form calls a server action that runs
+  `signInWithOtp` on the server; `/auth/confirm` verifies the `token_hash` with `verifyOtp` on the
+  server and sets the session cookie. The browser never contacts Supabase for sign-in, so remote
+  sign-in works with Supabase private.
+- **Server URL.** The server uses a new server-only variable `SUPABASE_INTERNAL_URL`
+  (`http://127.0.0.1:54321`) in `proxy.ts`, `lib/supabase/server.ts` and the ops layer.
+- **Browser URL (W1).** `NEXT_PUBLIC_SUPABASE_URL` stops being used by the browser client. The
+  root layout passes the browser a URL chosen per request: `http://127.0.0.1:54321` when the
+  request is local, `https://api.mellodifai.com` when `x-mdf-remote` is set. All three clients
+  pin `cookieOptions.name = "sb-mellodifai-auth-token"`, so the cookie name no longer depends on
+  the URL host. This switch is done in W1, after the DNS move.
+- **Media.** From M1, `/media/...` keeps the session check and **streams** the object through Next
+  (HTTP Range supported, read with the server client), instead of redirecting to the storage host.
+  The server-made signed URLs in `clips.ts:498`, `stems.ts:153` and `projects/[id]/page.tsx:66,143`
+  are replaced by `/media/...` paths, so no storage URL ever reaches a browser.
+- **Capability links (M4).** `/m/<token>` serves one render to external fetchers (Postiz, Blotato,
+  platforms): a random 256-bit token, only its hash stored, created at hand-off time, expiring 72 h
+  after hand-off, revoked on veto and 24 h after the post is confirmed.
+- Secrets never reach the browser; the service key never leaves the worker's env file.
+
+### 5.5 Cloudflare setup (who does what)
+
+- Tunnel: locally managed. The owner runs `cloudflared tunnel login` and `cloudflared tunnel
+  create mellodifai` once (they need his Cloudflare login). The credentials JSON and `config.yml`
+  live in `<runtime root>/secrets/cloudflared/`; the repo holds the template
+  `ops/cloudflared/config.template.yml`, which the builder fills.
+- No Access application and no WAF rule are needed in M1. The app rate limits (6.7) protect
+  `/oauth/*`, `/login` and `/api/*`. If the owner later wants a Cloudflare rate-limit rule (one is
+  free), it is added in the dashboard by him.
+
+### 5.6 Session proxy and health
 
 `apps/web/proxy.ts` excludes `/api/v1`, `/api/mcp`, `/m/`, `/.well-known/` and `/api/health` from
-its matcher, so bearer-token routes pay no session lookup and are not blocked by it.
+its matcher. `/api/health` (new) returns `{ web: "ok", db: "ok"|"down", worker_heartbeat_age_s,
+queue_depth, version }` and nothing else.
 
 ## 6. Identity, scopes and authorization
 
 ### 6.1 Principals
 
-| Principal | Credential | How it reaches the database |
+| Principal | Credential | Reaches the database through |
 | --- | --- | --- |
-| Person in the web UI | Supabase cookie session | Server actions through the operations module (unchanged identity). |
-| Agent with a personal access token (PAT) | `Authorization: Bearer mdf_pat_...` | Operations module mints an internal JWT (6.3). |
-| Remote agent (claude.ai, ChatGPT) | OAuth 2.1 access token from Supabase's OAuth server | Only at `/api/mcp`; the operations module mints an internal JWT (6.3). Direct database use is refused (6.4). |
-| Autopilot | System token row, no secret outside the worker | Worker-only RPCs (6.5). |
+| Person in the web UI | Supabase cookie session | Reads: supabase-js under RLS. Writes: the ops layer (6.3). |
+| Agent with a personal access token (PAT) | `Authorization: Bearer mdf_pat_...` | The ops layer only. |
+| Remote agent (claude.ai, ChatGPT) | opaque OAuth access token `mdf_oat_...` from `apps/auth` | The ops layer only, through `/api/mcp`. |
+| Autopilot | system token row, no secret | Worker-only RPCs (6.5). |
+| Canary and test jobs | `canary` or `test_mode` token rows | The ops layer; fake providers only (13.7, 19). |
 | Worker | service role (on the PC only) | As today. |
 
 ### 6.2 Scopes and roles
 
 - `read`: read the owner's own songs, runs, reports and costs.
-- `create`: actions with no paid call (create, edit, pick, render, stems, visualizer, veto).
-- `spend`: any action that reserves paid spend (section 11.5).
-- `publish`: schedule publishing (always through the veto window; there is no "publish now"
-  operation in the API).
-- Never grantable to any token: token and grant management, caps, policies, flags, gates, the
-  loop kill switch, `resolve_kie_submission`. These exist only in Settings with a cookie session
-  of an `admin`.
-- Role mapping: `admin` may grant all four scopes. `customer` (family and friends) may hold
-  `read` and `create` only; their paid calls in the web UI are limited by a per-user daily cap
-  (default 0.10 USD, enough for small text calls such as "Formatta con AI"; music generation only
-  when the owner raises it); their tokens never get `spend`; never `publish`; never local engines
-  (standing rule).
+- `create`: actions with no paid call (edit, pick, render, stems, visualizer, playlists, veto).
+- `spend`: any action that reserves paid spend, including `song_create` (paid lyric drafting) and
+  `remake_start` (paid analysis).
+- `publish`: schedule publishing. **Not grantable before M4** (the consent page and Settings hide
+  it, and the ops layer refuses it); from M4 it only schedules through the veto window. There is
+  no "publish now" operation for tokens at any time.
+- Never grantable to any token, cookie-only and admin-only: token and grant management, caps,
+  policies, flags, gates, the loop kill switch, `resolve_kie_submission`, the existing manual
+  `uploadPrivate` (`enqueue_publish`) and `setPrivacy` (`confirm_publication`) actions, the
+  override reason on `approve_video`.
+- **Roles.** `admin_allowlist` gains `role text not null default 'customer' check (role in
+  ('admin','customer'))`, and the trigger `create_allowlisted_profile` copies it instead of
+  hard-coding `admin` (migration `ops_roles`, M1). Backfill: every existing profile becomes
+  `customer` except the oldest one; the M1 deploy step then checks that the only admin is the
+  address in `MELLODIFAI_OWNER_EMAIL` (worker env) and aborts if not. The storage policy on
+  `previews` keeps "admins read all", which now means only the owner.
+- Role mapping: `admin` may grant all scopes (publish from M4). `customer` (family and friends)
+  may hold `read`, `create` and `spend`, never `publish`, never local engines; their spending is
+  bounded by the per-user caps (11.5: 0.10 USD per day, **0 kie credits**, so no music generation
+  until the owner raises it).
+- Selecting Autopilot (starting a run in it or switching to it) needs a cookie session of an admin
+  or a token holding both `spend` and `publish`; the initiating token's caps also apply to the run
+  (6.5).
 
-### 6.3 Internal JWT minted by the operations module
+### 6.3 The operations layer in the database (AC14)
 
-After the PAT hash lookup (or the OAuth grant lookup), the operations module mints a Supabase JWT
-signed with the project signing key, lifetime 60 s, never returned to the caller, with claims
-`sub` = the token owner, `role = authenticated`, `via = ops`, `actor` (`pat` or `oauth`),
-`token_id`, `scopes`. The existing RPCs keep working unchanged because `auth.uid()` is the owner.
+The database is the enforcement point, so a browser session or a token can never skip scopes,
+caps, roles or the veto window, even if PostgREST becomes reachable.
 
-New SQL helper `require_scope(scope text)`: when the JWT carries `token_id`, it checks that the
-scope is in the claim and that the token row is not revoked; when it carries neither `token_id`
-nor `actor`, it is a first-party cookie session and passes. Every RPC that spends or publishes
-calls it first (a new migration wraps them; T12's RPCs are wrapped after T12 lands).
+- **Role `mdf_ops`.** Migration `ops_scopes` creates the role (NOLOGIN in the migration; the deploy
+  script sets LOGIN and its password from `MDF_OPS_DB_PASSWORD` in `apps/web/.env.local`, which the
+  secret redaction covers). Next and `apps/auth` connect to Postgres (`127.0.0.1:54322`) as
+  `mdf_ops` with the `postgres` npm client, through `MDF_OPS_DATABASE_URL`. `mdf_ops` has USAGE on
+  schema `ops` and EXECUTE on its functions, and nothing else: no table privileges, no service
+  role. There is no JWT signing key in Next.
+- **Schema `ops`.** One `security definer` wrapper per operation, for example
+  `ops.approve_lyrics(p_ctx jsonb, p_version uuid, p_pack jsonb)`. `p_ctx` is
+  `{actor uuid, actor_kind, token_id, request_id, idempotency_key, remote, fake_providers}`. Each
+  wrapper, in one transaction: checks that the actor has a profile; for token actors, that the
+  token row is live, belongs to the actor and holds the scope; checks the role rule; takes the
+  idempotency key (7.2); calls `reserve_spend` when the operation pays; sets
+  `request.jwt.claims` locally to `{"sub": actor, "role": "authenticated"}` so the existing RPCs'
+  `auth.uid()` works unchanged; calls the existing `public` RPC; links the new job to the
+  reservation and the token (`jobs.token_id`, `ledger_entries.job_id`); writes `audit_log`.
+  Reservation and enqueue are therefore in the same transaction.
+- **Who vouches for the actor.** For cookie sessions, the ops layer in Next verifies the session
+  with `supabase.auth.getUser()` against `SUPABASE_INTERNAL_URL` and passes the user id. For
+  PATs, Next passes the token hash and `ops.resolve_pat(hash)` returns the actor, so a PAT actor
+  is derived in the database. For OAuth, `ops.resolve_access_token(hash, resource)` does the same.
+  A compromise of the Next process can act as any cookie user (it already sees their cookies); it
+  cannot mint service-role tokens, read tables directly or bypass caps and gates. This is recorded
+  in the threat model (17).
+- **Grants changed in `ops_scopes`** (exact):
+  1. `revoke insert on public.jobs from authenticated;` and
+     `drop policy "owners enqueue jobs" on public.jobs;` (grant from
+     `20261031000003_security.sql:30` and `pipeline_hardening.sql:25-26`, policy from
+     `perf_indexes.sql:22-33`).
+  2. `revoke insert (owner_id,project_id,lang,lyric_pack) on public.versions from authenticated;`
+     and `revoke update (lyric_pack) on public.versions from authenticated;`
+     (`pipeline_hardening.sql:23-24`).
+  3. `revoke execute on all functions in schema public from public, anon, authenticated;` then
+     `alter default privileges in schema public revoke execute on functions from public;` so new
+     functions are deny-by-default. Re-grant to `authenticated` only (a) the read RPCs
+     `my_playlists`, `my_queue_positions`, `my_section_queue`, `my_stems_queue`,
+     `my_visualizer_queue`, `playlist_membership`, and (b) every function referenced by an RLS or
+     storage policy (the migration's database test lists them from `pg_policies` and fails if one
+     lacks EXECUTE). Grant EXECUTE on every mutating RPC to `mdf_ops` and keep the worker's ones
+     (`claim_job`, `heartbeat_job`, `requeue_stale`, `reserve_*`, `release_youtube_upload`) for
+     `service_role`.
+  4. `confirm_publication` and `enqueue_publish` are reachable only through
+     `ops.confirm_publication` and `ops.enqueue_publish`, which accept only an admin cookie session
+     (`actor_kind = 'session'`), and `ops.confirm_publication` refuses `scheduled` (AC4). This is
+     the human click of 31/10, unchanged, until M4 replaces it with `schedule_publish`.
+  5. The paying RPCs get `reserve_spend` inside them through their ops wrappers (11.5). T12's
+     RPCs (`import_song`, `request_section_edit`, `keep_section_edit`, `discard_section_edit`,
+     `set_song_source`, `resolve_upload`) are wrapped in the same migration if T12 has merged, or
+     in a follow-up migration `ops_scopes_t12` right after it merges.
+- **Tables `authenticated` can still read:** the existing tables under their RLS policies,
+  `price_book`, `app_flags`, and its own rows of `agent_tokens` (metadata only), `ledger_entries`,
+  `notifications` and `audit_log`. It can write nothing directly; storage uploads keep their
+  existing storage policies (`audio_upload_ok`, `visualizer_asset_ok`) plus validation (9.4).
+- **Exit tests (database, M1):** with a customer session's JWT against the local PostgREST: a
+  direct `jobs` insert, `approve_lyrics`, `generate_again`, `enqueue_publish` and
+  `confirm_publication` are all refused; with an admin session's JWT, the same calls made directly
+  are refused (they work only through `ops`); through `ops`, a customer's `approve_lyrics` is
+  refused by the kie cap of 0 credits.
 
 ### 6.4 Remote MCP authorization (AC2)
 
-- **Authorization server:** Supabase Auth's OAuth 2.1 server (`[auth.oauth_server] enabled = true`,
-  dynamic client registration on, consent page at `https://app.mellodifai.com/oauth/consent`),
-  with PKCE required. Its metadata is served by Supabase under `https://api.mellodifai.com`; the
-  exact path is confirmed in M1 and written into the protected resource metadata.
+- **Authorization server:** `apps/auth`, a small Node service built on `oidc-provider` (panva,
+  MIT), at `https://app.mellodifai.com/oauth/*`, with dynamic client registration (claude.ai and
+  ChatGPT connectors use it), PKCE required (S256), authorization code grant only, resource
+  indicators (RFC 8707) required and limited to `https://app.mellodifai.com/api/mcp`, **opaque**
+  access tokens (`mdf_oat_` plus 32 random bytes, 1 h) and rotating refresh tokens (`mdf_ort_`,
+  30 days). It stores its models through an adapter in table `oauth_store`, keyed by the SHA-256 of
+  each id, through `ops.oauth_*` functions. Its metadata is at
+  `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration`, and it
+  advertises the app scopes `read create spend` (plus `publish` from M4).
+- **User sign-in and consent:** `apps/auth` sends the browser to `https://app.mellodifai.com/consent
+  ?uid=...`; that Next page requires the Supabase session (via `/login`), shows the client name,
+  its redirect host and the requested scopes as checkboxes (default `read` and `create`), shows
+  `spend` only to an admin with a second confirmation (typing the client name), and records the
+  decision through `ops.oauth_consent(uid, actor, scopes)`. The browser then returns to
+  `/oauth/interaction/<uid>/resume`, where `apps/auth` reads the decision from the database. The
+  grant is an `agent_tokens` row (kind `oauth`), so it has the same scopes, caps, audit name and
+  revocation as a PAT.
 - **Resource server:** `/api/mcp` serves Protected Resource Metadata at
-  `/.well-known/oauth-protected-resource` (and the path-suffixed variant for `/api/mcp`), and
-  answers 401 with `WWW-Authenticate: Bearer resource_metadata=...`. It validates tokens against
-  Supabase's JWKS. No token passthrough: the upstream token is never forwarded.
-- **Audience binding:** if Supabase's server honours RFC 8707 resource indicators, `/api/mcp`
-  requires `aud = https://app.mellodifai.com/api/mcp`. Either way, a token is accepted only when it
-  maps to a live grant row (6.6), and the PostgREST pre-request hook (below) refuses OAuth tokens
-  everywhere else, which gives the same effect.
-- **Direct use refused:** a PostgREST `db_pre_request` function rejects any JWT that carries the
-  OAuth client claim (exact claim name confirmed in M1) or a `token_id` without `via = ops`.
-  Storage write policies refuse the same tokens. The M1 exit test calls PostgREST directly with an
-  OAuth access token and expects a refusal.
-- **Consent screen:** shows the client name, its redirect host and the requested scopes as
-  checkboxes (default `read` and `create`). `spend` and `publish` are shown only to an `admin` and
-  need a second confirmation (typing the client name). Consent writes the grant row.
-- **Lifetimes:** access token 1 h (`jwt_expiry = 3600`), refresh rotation on. Revoking in Settings
-  > Agenti ("Agents") revokes the Supabase authorization and the grant row; `/api/mcp` checks the
-  row on every call, so revocation is immediate.
+  `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp`, and
+  answers 401 with `WWW-Authenticate: Bearer resource_metadata="..."`. It accepts a token only when
+  `ops.resolve_access_token` finds it live, bound to the `/api/mcp` resource, with a live grant
+  row. No token passthrough.
+- **Why this closes the round-2 gaps:** the tokens are not Supabase JWTs, so they cannot be used on
+  PostgREST, Realtime, storage or `/auth/v1/user`; discovery lives on the app host, not behind the
+  Supabase path allowlist; scopes live in our grant row, not in Supabase.
+- **Revocation:** Settings > Agenti ("Agents") revokes the grant row and its `oauth_store` tokens;
+  checked on every call, so it is immediate.
+- **M1 step 0 spike** (one day, written result in the M1 plan): `oidc-provider` behind the edge
+  proxy with DCR, PKCE and resource indicators, completing the claude.ai connector flow against a
+  stub `/api/mcp`. **Fallback** if it fails: Supabase's OAuth 2.1 server (`[auth.oauth_server]`),
+  with `api.mellodifai.com` exposing only `/auth/v1/*` and its `/.well-known/` paths, a PostgREST
+  `db_pre_request` function rejecting JWTs that carry Supabase's OAuth client claim, Realtime and
+  storage read policies refusing them, scopes kept only in our grant row, and the exit test
+  extended to Realtime, storage reads and `/auth/v1/user`.
 
-### 6.5 Autopilot as an explicit actor
+### 6.5 Autopilot as an explicit actor (M5)
 
-- An `autopilot_policies` row per owner (enabled, allowed tiers, per-run cap, runs per day, premium
-  budget, publish allowed, platforms). Only the owner edits it in Settings > Autopilota
+- An `autopilot_policies` row per owner (enabled, allowed tiers, per-run cap, runs per day,
+  premium budget, publish allowed, platforms). Only the owner edits it in Settings > Autopilota
   ("Autopilot").
 - A system token row (`kind = autopilot`) per owner, so the ledger and audit log charge Autopilot
-  by name.
+  by name. A run started by a token is charged to the system token and also counted against the
+  initiating token's caps (both counters are checked by `reserve_spend`).
 - Worker-only RPCs (`autopilot_approve_lyrics`, `autopilot_pick_take`, `autopilot_approve_video`,
-  `autopilot_schedule_publish`), granted to `service_role` only. Each checks: policy enabled, the
-  run is in Autopilot, the latest jury report for that stage has `available = true` and
-  `passed = true` with no must-fix item, and the caps hold. They record `confirmed_by` = the policy
-  owner and a new column `confirmed_via = 'autopilot:<policy id>'`. `set_privacy` accepts
-  `confirmed_via = autopilot` only when the bundle's veto window has expired with no veto.
-- Autopilot never uses `approve_video`'s override path: a failed QA gate stops the run.
+  `autopilot_schedule_publish`), granted to `service_role` only. Each checks: policy enabled, run
+  in Autopilot, the required `jury_reports` for that stage have `available = true` and `passed =
+  true` with no must-fix item, caps hold. They record `confirmed_by` = the policy owner and the new
+  column `confirmed_via = 'autopilot:<policy id>'`. `set_privacy` accepts `confirmed_via =
+  autopilot` only when the bundle's veto window has expired with no veto.
+- Autopilot never uses the override path: a failed QA or jury gate stops the run.
+- Start: only through `remake_start` (or `song_create`) with `mode = autopilot` by an allowed actor
+  (6.2). "Runs per day" is enforced inside `ops.remake_start` by counting today's Autopilot runs of
+  that owner under a row lock on the policy row.
 
-### 6.6 Token and grant records
+### 6.6 Token records and format
 
-One table `agent_tokens` holds PATs, OAuth grants and system tokens: owner, kind (`pat`, `oauth`,
-`autopilot`), name (shown in the audit log), hash (PATs only; shown once at creation), OAuth client
-id (grants), scopes, daily spend cap in USD, `remote` flag (PATs are local-only unless the owner
-ticks "remote"; a request is remote when it arrives with the public Host), created, last used,
-revoked. Managed in Settings > Agenti.
+Table `agent_tokens` (DDL in 15.1) holds PATs, OAuth grants, the Autopilot system token and canary
+and test tokens. **PAT format:** `mdf_pat_` followed by 32 random bytes in base62 (43 characters);
+the database stores only `sha256` hex under a unique index and a hint (`mdf_pat_...` plus the last
+4 characters) for the list; the full token is shown once. PATs have no expiry unless set; a PAT
+with `remote = true` must have an expiry (default 90 days). PATs are local-only unless `remote` is
+ticked: a request carrying `x-mdf-remote: 1` with a local-only PAT is refused. Managed in
+Settings > Agenti. `test_mode` tokens (admin only) make every job they create run on fake providers (19).
 
 ### 6.7 Rate limits
 
-A per-token counter in Postgres at the operations layer: 60 reads per minute, 10 writes per
-minute, 20 spend reservations per hour (defaults). Excess returns 429 with `Retry-After`. The
-in-memory limiter stays for browser-only routes.
+Per token (or per user for cookie sessions), in the Next process, reusing `lib/rate-limit.ts`
+(sliding window): 60 reads per minute, 10 writes per minute (a write is any non-GET request or any
+MCP tool marked as mutating), 20 spend reservations per hour. Excess returns 429 with
+`Retry-After`. One Next process is the whole deployment; a second instance would need a shared
+store (noted for M8).
 
 ### 6.8 Untrusted content (prompt injection boundary)
 
-Captions, titles, descriptions and transcripts of a source video are untrusted. They are stored
-with `untrusted = true`, fill only fixed template fields in prompts (never instructions), are
-wrapped and labelled in MCP resources (annotation `untrusted_source`), and are passed to the loop
-only as quoted data blocks truncated to 2 KB per item. The blast radius is bounded by design: no
-API operation can create tokens, raise caps, change policies, disable gates or publish without the
-veto window (6.2).
+Captions, titles, descriptions and transcripts of a source video are untrusted, and so is anything
+a model derives from them (the blueprint and the meaning map). Rules:
+- stored with `untrusted = true`;
+- every derived field reaching a prompt is an enum or a length-limited string with only letters,
+  digits, spaces and basic punctuation (the blueprint and meaning-map schemas enforce this, 9.1);
+- wrapped and labelled in MCP resources (annotation `untrusted_source`);
+- passed to the loop only as quoted data blocks truncated to 2 KB per item;
+- never given to an agent that has tools, except image route 2, which runs in a sandbox with no
+  tools that matter (11.3);
+- the blast radius is bounded by design: no API operation can create tokens, raise caps, change
+  policies, disable gates, or publish without the veto window (6.2).
 
 ## 7. Operations layer, HTTP API, CLI and MCP
 
 ### 7.1 One implementation
 
-- `apps/web/lib/ops/*`: one server module per operation. It validates input with the shared zod
-  schema, checks the scope, reserves spend when needed, calls the RPC, and revalidates the same
-  paths `runAction` revalidates today. **The server actions call it**, the `/api/v1` handlers call
-  it, and the MCP tools call it, so the paths cannot drift.
-- Schemas move from `apps/web/app/actions/schemas.ts` to `packages/shared/src/ops/` (zod is already
-  there). Several schemas belong to T12 (`SectionEditInput`, `ImportSongInput`,
-  `SongSourceInput`), so the move happens **after T12 merges**; until then `packages/shared`
-  re-exports nothing from the app and M1 adds only new schemas.
-- One MCP tool registry (`apps/web/lib/mcp/*`) served at `/api/mcp` over Streamable HTTP.
+- `apps/web/lib/ops/*`: one module per operation. Type `OpsContext = { actorId, actorKind,
+  tokenId?, scopes, remote, requestId, idempotencyKey?, fakeProviders }`. Each operation validates
+  input with its zod schema, calls its `ops.*` database wrapper over the `mdf_ops` connection, and
+  returns `Result<Output, OpsError>`; then it revalidates the same paths `runAction` revalidates
+  today. **Server actions call it** (through `runAction`, which maps `OpsError.code` to
+  `ActionResult` with a translated message), the `/api/v1` handlers call it, and the MCP tools
+  call it.
+- Schemas live in `packages/shared/src/ops/`, named `<Operation>Input` and `<Operation>Output`
+  (for example `LyricsApproveInput`). The existing schemas in `apps/web/app/actions/schemas.ts`
+  move there after T12 merges; T12's (`SectionEditInput`, `ImportSongInput`, `SongSourceInput`)
+  move with them.
+- One MCP tool registry (`apps/web/lib/mcp/*`) served at `/api/mcp` over Streamable HTTP with
+  `@modelcontextprotocol/sdk` (TypeScript), using `StreamableHTTPServerTransport` in **stateless**
+  mode (no session id) inside a Node-runtime route handler (`app/api/mcp/route.ts`). Protocol
+  revision: the newest the pinned SDK supports at M1 start, at least 2025-06-18 (which brings
+  Protected Resource Metadata and resource indicators).
 - The CLI (`packages/cli`) is a thin HTTP client of `/api/v1`. `mellodifai mcp` is the **stdio
   transport**: a bridge that forwards MCP JSON-RPC from stdio to `/api/mcp` with the PAT. Neither
-  ever talks to the database. Local agents point the CLI at `http://127.0.0.1:3000`.
+  ever talks to the database. Local agents point it at `http://127.0.0.1:3000`.
 
 ### 7.2 HTTP contract
 
 - Versioning: `/api/v1` changes are additive only; a breaking change ships as `/api/v2` and v1
-  stays 90 days.
-- Error envelope: `{ "error": { "code", "message", "details"?, "retry_after"? } }` with codes
-  `unauthorized`, `forbidden_scope`, `not_found`, `conflict`, `validation`, `cap_exceeded`,
-  `rate_limited`, `provider_unavailable`, `ambiguous_spend`, `internal`.
-- `Idempotency-Key` header required on every POST that enqueues or spends; stored 24 h per token
-  with the request hash and the response.
+  stays 90 days. Existing tool names never change; new tools get names when they are added.
+- Response: `{ "data": <Output> }`. Job-starting operations return `{ "data": { "job_id",
+  "version_id" } }`; remakes return `{ "data": { "remake_id" } }`.
+- Error envelope: `{ "error": { "code", "message", "details"?, "retry_after"? } }`. Codes and HTTP
+  status: `unauthorized` 401, `forbidden_scope` 403, `not_found` 404, `conflict` 409,
+  `idempotency_mismatch` 409, `in_progress` 409, `validation` 422, `cap_exceeded` 402,
+  `rate_limited` 429, `provider_unavailable` 503, `ambiguous_spend` 409, `internal` 500.
+- Idempotency: the `Idempotency-Key` header is required on every POST that enqueues or spends. MCP
+  tools that enqueue or spend have a required `idempotency_key` input field instead (MCP calls
+  carry no headers). Keys are stored 24 h per actor with the request hash: same key and same hash
+  returns the stored response; same key and a different hash returns `idempotency_mismatch`; a
+  request still running returns `in_progress` with `retry_after` 2.
 - Pagination: `?cursor=&limit=` (max 100).
-- Long work returns `{ "job_id" }` or `{ "remake_id" }`. Progress: SSE at
-  `/api/v1/jobs/{id}/events` from `job_events`, with a keepalive comment every 25 s (Cloudflare
-  drops idle proxied connections after about 100 s); MCP clients poll `job_status`.
-- `/api/mcp` runs **stateless** (no server-side session state), sends SSE keepalives every 25 s,
-  and therefore survives a tunnel or Next restart.
-- Uploads: `POST /api/v1/uploads` returns a signed upload URL; the file is validated after upload
-  (section 9.4) before any operation uses it.
+- Progress: SSE at `/api/v1/jobs/{id}/events`, implemented as a streaming route handler that reads
+  `job_events` through `ops.job_events_since(job, after_id)` every 2 s, sends a keepalive comment
+  every 25 s (Cloudflare drops idle proxied connections after about 100 s), honours
+  `Last-Event-ID`, and closes on a terminal status or after 10 minutes (clients reconnect). MCP
+  clients poll `job_status`.
+- `/api/mcp` is stateless and sends SSE keepalives every 25 s, so it survives a tunnel or Next
+  restart.
+- Uploads: `POST /api/v1/uploads` returns a signed upload URL for the PC-local storage (local
+  callers) or accepts the file body through Next (remote callers, at most 100 MB). Audio is then
+  checked by the existing `audio_upload_ok` path rule and by `ffprobe` (mp3, wav or flac, at most
+  15 minutes); images as in 9.4.
 
-### 7.3 Operations catalogue (names are fixed now)
+### 7.3 Operations catalogue
 
-| Operation | HTTP | MCP tool | Scope | Spends | Returns |
+Columns: operation; MCP tool (HTTP path follows the pattern `/api/v1/<resource>/...`, listed in
+the M1 plan); RPC called through its ops wrapper; scope; spend estimate (provider and units);
+ships in. "Cookie" means cookie-only and never grantable to tokens.
+
+| Operation | MCP tool | RPC | Scope | Spend estimate | Ships |
 | --- | --- | --- | --- | --- | --- |
-| List songs | `GET /api/v1/songs` | `songs_list` | read | no | page |
-| Get song (versions, takes, renders, juries, costs) | `GET /api/v1/songs/{id}` | `song_get` | read | no | object |
-| Create song from an idea | `POST /api/v1/songs` | `song_create` | create, plus spend for paid lyric calls | OpenRouter, small | job |
-| Approve lyrics (starts generation) | `POST /api/v1/versions/{id}/lyrics/approve` | `lyrics_approve` | spend | kie | job |
-| Generate again | `POST /api/v1/versions/{id}/generate` | `song_generate_again` | spend | kie | job |
-| Pick take | `POST /api/v1/versions/{id}/takes/{take}/pick` | `take_pick` | create | no | job |
-| Make or re-render video | `POST /api/v1/versions/{id}/video` | `video_make` | create | no | job |
-| Approve video | `POST /api/v1/versions/{id}/video/approve` | `video_approve` | create | no | object |
-| Section edit: request, keep, discard | `POST /api/v1/versions/{id}/section-edits[/{e}/keep or /discard]` | `section_edit_request`, `section_edit_keep`, `section_edit_discard` | spend (request), create | kie | job |
-| Stems | `POST /api/v1/versions/{id}/stems` | `stems_request` | create | no | job |
-| Visualizer | `POST /api/v1/versions/{id}/visualizer` | `visualizer_request` | create | no | job |
-| Upload, import audio | `POST /api/v1/uploads`, `POST /api/v1/songs/import` | `upload_create`, `song_import` | create | no | URL, job |
-| Playlists, reactions, rename, trash, restore | `/api/v1/playlists/...`, `/api/v1/songs/{id}/...` | `playlist_create`, `playlist_add`, `playlist_remove`, `playlist_reorder`, `playlist_rename`, `playlist_delete`, `song_react`, `song_rename`, `song_trash`, `song_restore` | create | no | object |
-| Format style | `POST /api/v1/tools/format-style` | `style_format` | spend | OpenRouter, small | object |
-| Transcribe | `POST /api/v1/tools/transcribe` | `audio_transcribe` | spend | Groq, small | object |
-| Start remake | `POST /api/v1/remakes` | `remake_start` | create, plus spend past R2 | analysis | remake |
-| Remake status (all stages) | `GET /api/v1/remakes/{id}` | `remake_status` | read | no | object |
-| Stage approve, regenerate, skip | `POST /api/v1/remakes/{id}/stages/{stage}/{action}` | `remake_stage_approve`, `remake_stage_regenerate`, `remake_stage_skip` | create (regenerate of a paid stage: spend) | depends | job |
-| Driver lease | `POST/DELETE /api/v1/remakes/{id}/driver` | `remake_driver_claim`, `remake_driver_release` | create | no | object |
-| Submit artefact (lyrics, timeline, image) | `PUT /api/v1/remakes/{id}/artefacts/{kind}` | `artefact_submit` | create | no | validation report |
-| Timeline get, patch | `GET/PATCH /api/v1/versions/{id}/timeline` | `timeline_get`, `timeline_patch` (JSON Patch with expected revision) | read, create | no | object |
-| Schedule publish | `POST /api/v1/versions/{id}/publish` | `publish_schedule` | publish | no | schedule |
-| Veto | `POST /api/v1/schedules/{id}/veto` | `publish_veto` | create | no | object |
-| Costs | `GET /api/v1/costs` | `costs_get` | read | no | object |
-| Job progress | `GET /api/v1/jobs/{id}/events` (SSE) | `job_status` | read | no | stream, object |
-| Notifications | `GET /api/v1/notifications` | `notifications_list` | read | no | page |
-| Loop morning report | `GET /api/v1/reports/loop/latest` | `loop_report_get` | read | no | object |
+| List songs, get song | `songs_list`, `song_get` | reads | read | - | M1 |
+| Create song (idea) | `song_create` | `create_song` | spend | OpenRouter: writer and jury, about 6k tokens | M1 |
+| Create project (older entry point) | none | `create_project` | cookie | OpenRouter as above | M1 |
+| Approve lyrics (starts generation) | `lyrics_approve` | `approve_lyrics` | spend | kie: 12 credits | M1 |
+| Back to lyrics | `lyrics_back` | `back_to_lyrics` | create | - | M1 |
+| Generate again | `song_generate_again` | `generate_again` | spend | kie: 12 credits | M1 |
+| Pick take | `take_pick` | `pick_take` | create | - | M1 |
+| Choose take (audio-only songs) | `take_choose` | `choose_take` | create | - | M1 |
+| Keep audio, keep audio with visualizer | `audio_keep` | `keep_audio` (+ `request_visualizer`) | create | - | M1 |
+| Make video | `video_make` | `make_video` | create | - | M1 |
+| Render again | `video_rerender` | `render_again` | create | - | M1 |
+| Approve video (no override) | `video_approve` | `approve_video` | create | - | M1 |
+| Approve video with override reason | none | `approve_video` | cookie | - | M1 |
+| Retry a failed stage | `stage_retry` | `retry_stage` | create, or spend for a paid stage | that stage's estimate | M1 |
+| Stems | `stems_request` | `request_stems` | create | - | M1 |
+| Visualizer | `visualizer_request` | `request_visualizer` | create | - | M1 |
+| Section edit: request | `section_edit_request` | `request_section_edit` | spend | kie: replace-section credits | M1 (after T12) |
+| Section edit: keep, discard | `section_edit_keep`, `section_edit_discard` | `keep_section_edit`, `discard_section_edit` | create | - | M1 (after T12) |
+| Save edited take | `take_save_edit` | `save_edited_take` | create | - | M1 |
+| Upload, resolve upload | `upload_create` | `resolve_upload` | create | - | M1 |
+| Import song, set song source | `song_import`, `song_source_set` | `import_song`, `set_song_source` | create, or spend for kie cover or extend | kie credits when used | M1 (after T12) |
+| Playlists | `playlist_create`, `playlist_add`, `playlist_remove`, `playlist_reorder`, `playlist_rename`, `playlist_delete` | the playlist RPCs | create | - | M1 |
+| React, rename, trash, restore, count play | `song_react`, `song_rename`, `song_trash`, `song_restore`, `song_play` | `set_reaction`, `rename_version`, `trash_versions`, `restore_versions`, `count_play` | create | - | M1 |
+| Format style | `style_format` | none (OpenRouter call in the ops layer) | spend | OpenRouter fast writer, about 1k tokens | M1 |
+| Transcribe | `audio_transcribe` | none (Groq call in the ops layer) | spend | Groq Whisper, per audio minute | M1 |
+| Upload private to YouTube | none | `enqueue_publish` | cookie, admin | - | M1 (manual flow, P0) |
+| Set privacy (public, unlisted, private) | none | `confirm_publication` | cookie, admin | - | M1 (manual flow, P0) |
+| Resolve kie submission | none | `resolve_kie_submission` | cookie, admin | may reserve 12 credits | M1 |
+| Costs | `costs_get` | reads | read | - | M1 |
+| Job progress | `job_status` | reads | read | - | M1 |
+| Notifications list, mark read | `notifications_list`, `notifications_read` | reads, `ops.notifications_read` | read | - | M1 |
+| Start remake | `remake_start` | `ops.remake_start` | spend (Autopilot: spend and publish) | Groq, vision model | M2a |
+| Remake status | `remake_status` | reads | read | - | M2a |
+| Stage approve, edit, regenerate, skip | `remake_stage_approve`, `remake_stage_edit`, `remake_stage_regenerate`, `remake_stage_skip` | `ops.remake_stage_action` | create (regenerate of a paid stage: spend) | that stage's estimate | M2a |
+| Driver lease | `remake_driver_claim`, `remake_driver_release` | `ops.remake_driver` | create | - | M2a |
+| Submit artefact (lyrics, blueprint, timeline, image) | `artefact_submit` | `ops.artefact_submit` | create | - | M2a (lyrics, blueprint), M2b (timeline, image) |
+| Timeline get, patch | `timeline_get`, `timeline_patch` | reads, `ops.timeline_patch` | read, create | - | M2b |
+| Schedule publish | `publish_schedule` | `ops.schedule_publish` | publish | - | M4 |
+| Veto | `publish_veto` | `ops.publish_veto` | create | - | M4 |
+| Report a Content ID claim | `claim_report` | `ops.claim_report` | create | - | M4 |
+| Loop morning report | `loop_report_get` | reads | read | - | M6 |
 
-Local engine choice is accepted only when the token owner is `admin`. MCP resources:
-`mellodifai://songs/{id}`, `mellodifai://remakes/{id}`, `mellodifai://remakes/{id}/blueprint`,
-`mellodifai://jury/{id}`, `mellodifai://notifications`. MCP prompts: `remake`, `new_song`,
-`adapt_language`. Editor actions that T12 and later tasks add (cut, fade, normalise, replace,
-regenerate a section, re-render, storyboard changes) join the catalogue with the same pattern.
+Editor operations that later tasks add (cut, fade, normalise, regenerate a section, storyboard
+changes) join this table with the same columns when their task ships. MCP resources:
+`mellodifai://songs/{id}`, `mellodifai://notifications` (M1); `mellodifai://remakes/{id}`,
+`mellodifai://remakes/{id}/blueprint`, `mellodifai://jury/{id}` (M2a). MCP prompts: `new_song`
+(M1); `remake`, `adapt_language` (M2a, M4).
 
-### 7.4 CLI
+### 7.4 CLI and installation
 
-Commands: `login`, `songs`, `create`, `remake <url>`, `status <id> --watch`, `approve`,
-`regenerate`, `video`, `publish`, `veto`, `costs`, `mcp`; `--json` on all. `login` stores a PAT
-created in Settings > Agenti in the OS credential store when available, else in
-`%APPDATA%\mellodifai\credentials.json` (Windows, user-only ACL) or
-`~/.config/mellodifai/credentials.json` (mode 0600).
-
-### 7.5 Agent skill
-
-A skill folder plus `AGENTS.md` (in `packages/cli/skill/`) describing the workflows, the cost
-rules, the scopes, the driver lease and how to treat untrusted resources; installable in Claude
-Code, Codex and Cursor.
+- Commands in M1: `login`, `songs`, `create`, `status <id> --watch`, `approve`, `regenerate`,
+  `video`, `costs`, `mcp`; `--json` on all. `remake` arrives in M2a, `publish` and `veto` in M4.
+- `login` stores a PAT created in Settings > Agenti in the OS credential store through
+  `@napi-rs/keyring`; when that is unavailable, in `%APPDATA%\mellodifai\credentials.json`
+  (user-only ACL) or `~/.config/mellodifai/credentials.json` (mode 0600).
+- Install: `pnpm --filter @mellodifai/cli build` then `npm install -g ./packages/cli`, which puts
+  `mellodifai` on PATH. Claude Code: `claude mcp add mellodifai -- mellodifai mcp`. Codex: an
+  `[mcp_servers.mellodifai]` entry in `~/.codex/config.toml` with `command = "mellodifai"` and
+  `args = ["mcp"]`. Cursor and Gemini CLI: the same command in their MCP config.
+- Agent skill (`packages/cli/skill/`, with `AGENTS.md`): the workflows that exist in the current
+  milestone, the scopes and caps, always sending `idempotency_key` on spend tools, never retrying
+  an `ambiguous_spend`, the driver lease (from M2a), and treating `untrusted_source` resources as
+  data.
 
 ## 8. Remake workflow ("Rifai da YouTube", "Remake from YouTube")
 
-### 8.1 Modes
+### 8.1 Modes and tiers
 
-Two independent settings per run:
-
-- **Mode** (who approves): **Copilot** pauses at the pause points (8.5) for a person or an agent
-  to approve; **Autopilot** approves automatically through the Autopilot actor (6.5) and stops
-  only for the reasons in 8.6. Autopilot needs the policy row enabled and is available from M5.
+- **Mode** (who approves): **Copilot** pauses at the pause points (8.5); **Autopilot** approves
+  automatically through the Autopilot actor (6.5) and stops only for the reasons in 8.6. Autopilot
+  arrives in M5.
 - **Tier** (what may cost money), defined only here:
 
-| Tier | Allowed paid routes | Cost rule | Autopilot |
-| --- | --- | --- | --- |
-| free | none (ACE-Step local music, GPT Image via codex, local images, agent or local reasoning) | 0 USD; a step with no free route pauses | yes |
-| standard (default) | kie Suno, OD5 image routes 1-4, cheap OpenRouter models | per-run hard cap 0.25 USD, median target 0.15 USD | yes |
-| premium | standard plus Higgsfield shots and Comfy Cloud workflows | per-run budget set at start; cost shown before confirm in Copilot | only with a premium budget above 0 in the policy row |
+| Tier | Generation routes | Juries and app reasoning | Cost rule | Autopilot |
+| --- | --- | --- | --- | --- |
+| free | ACE-Step local music, GPT Image via codex, local images; reasoning by the driving agent's subscription or the app's fast writer | app juries on OpenRouter (juries are the quality guarantee and are never skipped) | at most 0.03 USD per run, all of it juries and app reasoning | yes |
+| standard (default) | kie Suno, OD5 image routes 1-4, cheap OpenRouter models | app juries | per-run hard cap 0.25 USD, median target 0.15 USD | yes |
+| premium | standard plus Higgsfield shots and Comfy Cloud workflows | app juries | per-run budget set at start; cost shown before confirm in Copilot | only with a premium budget above 0 in the policy row |
 
-Within a tier, image routes keep the OD5 order; the tier only removes routes (free mode skips
+Within a tier the image routes keep the OD5 order; the tier only removes routes (free skips
 routes 1, 3 and 4).
 
 ### 8.2 Who reasons and who pays
@@ -497,119 +701,137 @@ routes 1, 3 and 4).
 | Agent holding the driver lease | Copilot or Autopilot | the agent writes and submits artefacts, or asks the app to write | app (always) | agent's own subscription for authoring; owner's key for juries |
 | Nobody (lease absent or expired) | Autopilot | app's internal writers | app | owner's key |
 
-Juries always run in the app, with the app's pinned judges; an agent can never submit its own
-jury scores. The driver lease (`remakes.driver`, `driver_lease_until`) lasts 15 minutes and renews
-on every call by its holder. When it expires: in Autopilot the app's writer takes over at the next
-stage boundary; in Copilot the run waits at the pause point and a notification goes out.
+An agent can never submit jury scores. The driver lease (`remakes.driver`, `driver_lease_until`)
+lasts 15 minutes and renews on every call by its holder. When it expires: in Autopilot the app's
+writer takes over at the next stage boundary; in Copilot the run waits at the pause point and a
+notification goes out.
 
-### 8.3 Run creation and job mapping
+### 8.3 Run creation, orchestration and job mapping
 
-`remake_start` creates the project and one version per target language at once (status
-`analysing`, a new value of `versions.status`), plus a `remakes` row. R1 and R2 run as jobs on the
-primary version (so `jobs.version_id` stays NOT NULL) and write the analysis to the remake; the
-other versions start at R3 when the analysis is ready. Stage runs are tracked in `stage_runs`
-(section 15).
+`remake_start` creates the project and one version per target language (status `analysing`, a new
+`versions.status` value), a `remakes` row and the `stage_runs` rows. Runtime files go under the
+existing per-version workspace root (`apps/worker/src/workspace.ts`), with the shared analysis in
+`<workspace root>/remakes/<remake id>/`. R1 and R2 run on the primary version (so `jobs.version_id`
+stays NOT NULL); the other versions start at R3 when the analysis is ready.
 
-| R-stage | Job stage | New or existing | Resource class |
+**Stage orchestrator** (`apps/worker/src/orchestrator.ts`, M2a): when a job of a remake finishes,
+the worker calls it in the same transaction that marks the job done. It updates the job's stage
+run (`jobs.stage_run_id`); when every job of that stage run has succeeded and its gates pass, it
+moves the stage run to `passed` or `awaiting_approval` (8.5) and enqueues the first job of the next
+stage run. Approvals arrive through `ops.remake_stage_action`, which moves the stage run and
+enqueues the next stage the same way. One stage run can own several jobs (R7 owns four, R9 three).
+
+| R-stage | Jobs | New or existing | Resource class |
 | --- | --- | --- | --- |
 | R1 ingest | `remake_ingest` | new | net |
-| R2 analyse | `remake_analyse` | new | gpu (Demucs), then net (vision model) |
+| R2 analyse | `remake_separate` (Demucs on the source), then `remake_analyse` (beats, sections, transcript, meaning map, blueprint, fingerprints) | new | gpu, then net |
 | R3 rewrite lyrics | `draft_lyrics` with a remake mode | existing, extended | net |
-| R4 music | `generate_song`, then `score_takes` | existing | net |
+| R4 music | `generate_song` (which already calls `score_takes`) | existing | net |
 | R4b timing of the new take | `timing`, plus section detection | existing, extended | cpu |
-| R5 composition | `compose_timeline` | new | net or cpu |
+| R5 composition | `compose_timeline` | new | net |
 | R6 images | `images` | new | net or gpu |
-| R7 render | `render_master`, `render_hook`, `art`, `qa` | existing, extended to render the timeline | gpu |
-| R8 visual jury | `visual_jury` | new | net |
+| R7 render | `render_master`, `render_hook`, `art`, `qa` (extended to the hook render) | existing, extended | gpu (renders), cpu |
+| R8 visual jury | `visual_jury` | new | net, cpu |
 | R9 publish | `schedule_publish`, `publish`, `set_privacy` | new plus existing | net |
 
-Each new stage gets the check-list migration, a `STAGES` entry, a `stageAllowed` rule and a
-`resource_class` (section 14).
+Each new stage gets the check-list migration, `STAGES` and `STAGE_STATUS` entries, a
+`stageAllowed` rule, registration in `stages/index.ts` and a `resource_class`. `art` stops setting
+`video_review` for remakes; `visual_jury` sets it.
 
 ### 8.4 Stages
 
 #### R1 Ingest
 
 Downloads audio, a low-resolution video for frames, captions and metadata of the named source to
-`<runtime root>/remakes/<id>/` (runtime root from `MELLODIFAI_ROOT`, default `E:/mellodifai`).
-Analysis only (AC10). Transcript from captions, else Whisper through Groq. Frames at scene cuts
-(at most 48) plus 1 fps contact sheets. Timeout 10 minutes.
+the remake folder. Analysis only (AC10). Transcript from captions, else Whisper through Groq, with
+word timestamps. Frames at scene cuts (at most 48). Contact sheets: 4x4 tiles of 256 px frames at
+1 fps. Timeout 10 minutes.
 
 #### R2 Analyse
 
+- `remake_separate`: Demucs on the source (vocals for word timing).
 - Music: BPM, key, time signature, sections with timestamps and labels, downbeats, vocal type,
-  instrumentation, energy curve (Demucs on the source plus a beat and section analyser chosen by
-  the builder within section 24's constraints). Source audio is input to analysis tools only;
-  it is **never given to a generator**.
-- Lyrics: a meaning map per section (theme, story beat, imagery, emotional arc, hook idea), written
-  as abstract descriptions, never as quoted lines.
-- Video: the **video blueprint** (section 9.1) from the frames and contact sheets, by
-  `google/gemini-3.8-flash` through OpenRouter (one call, at most 12 contact-sheet images, output
-  validated against the blueprint schema), budget 0.01 USD; when an agent holds the lease it may
-  submit the blueprint instead.
-- On pass, the source audio and video are deleted (section 14.3); the analysis JSON stays.
+  instrumentation, energy curve, from the beat and section analyser (24).
+- Lyrics: the transcript with word timestamps, a literal translation of each source line into each
+  target language (one call to `google/gemini-3.8-flash` through OpenRouter, instructed to
+  translate word for word), and the meaning map (schema in 9.1), written as abstract descriptions,
+  never as quoted lines.
+- Video: the **video blueprint** (9.1) from at most 12 contact sheets by `google/gemini-3.8-flash`
+  through OpenRouter, validated against the schema; an agent holding the lease may submit it
+  instead.
+- Fingerprints for the visual originality check (10.3), computed before deletion: pHash and DINOv2
+  embedding of one source frame per blueprint shot at its section-relative position, stored in
+  `fingerprints` with `subject_kind = 'source'`.
+- Kept after R2: analysis JSON, transcript with word timestamps, literal translations, meaning
+  map, blueprint, fingerprints, low-resolution contact sheets. Deleted: the source audio, video,
+  frames and stems (14.3).
 
 #### R3 Rewrite lyrics
 
-Per section, new lines in the target language that carry the meaning map. Syllable fit: source
-syllables per line come from the word timestamps; the new line's count comes from a syllabifier
-(pyphen plus language rules for Latin-script languages; morae for Japanese; characters for
-Chinese) and must be within plus or minus 1 of the source line; stress is left to the jury.
-Optional cultural adaptation arrives with T17 (M4). Then the originality gate (10.3) and the lyric
-jury with the devil's advocate (10.2). Up to 3 rounds; failing lines are rewritten, passing lines
-kept.
+Per section, new lines in the target language that carry the meaning map. Default target when the
+source is already Italian: Italian (a same-language rewrite in new words). Syllable fit: source
+syllables per line come from the kept word timestamps; the new line's count comes from pyphen
+(used under its MPL licence) plus language rules for Latin-script languages, morae from
+`fugashi` with `unidic-lite` for Japanese, and one syllable per Han character for Chinese; it must
+be within plus or minus 1 of the source line. Stress is left to the jury. Then the originality gate
+(10.3) and the lyric jury with the devil's advocate (10.2). Up to 3 rounds; failing lines are
+rewritten, passing lines kept. Optional cultural adaptation arrives with T17 (M4).
 
 #### R4 Music
 
-A new song from text only: style tags, BPM and structure from R2, lyrics from R3 (no artist
-names). kie Suno by default (one generate call returns two takes, about 12 credits); ACE-Step
-local in free tier (it accepts duration and BPM, so it can follow the timing more closely). The
-source audio is never given to a generator (cover and reference stay only for the owner's own or
-CC BY/BY-SA songs, T12, T17). Acceptance per take: Whisper word error rate against the intended
-lyrics at most 0.25 (the existing `score_takes` fidelity), the timing rule of AC11 (same section
-sequence, tempo within 5%, section durations within 15%), then the existing QA loudness and peak
-gates after mastering. Up to 2 generations in standard tier. The kie never-resend rule holds
-(section 8.6).
+A new song from text only; the source audio is never given to a generator (cover and reference
+stay only for the owner's own or CC BY/BY-SA songs, T12, T17). Parameter mapping:
+- **kie Suno** (custom mode, standard tier): the style string is built from R2 (genre and mood
+  tags from instrumentation and energy, `"<bpm> bpm"`, vocal type; no artist names); the lyrics
+  carry section tags (`[Verse]`, `[Chorus]`, ...) in the blueprint's order. kie takes no duration
+  or BPM parameter, so timing is checked after generation.
+- **ACE-Step 1.5** (free tier): BPM, key, duration and the section-tagged lyrics are passed
+  directly, so it follows the timing more closely.
+
+Acceptance per take: lyric recall (the existing `score_takes` `fidelity`, in-order token recall) at
+least **0.75**; the AC11 timing rule (tempo measured by the analyser on the take, section durations
+from R4b's section detection); then the QA loudness and peak gates. A take that misses AC11 counts
+as a failed round. Up to 2 generations in the standard tier. The kie never-resend rule holds
+(8.6).
 
 #### R4b Timing of the new take
 
 The existing `timing` stage computes word timing on the chosen take; section detection maps the
 take's sections to the blueprint's section ids. Kinetic lyrics and shot timing use the new take's
-timing, not the source's.
+timing.
 
 #### R5 Composition
 
-Writes the **timeline document** (section 9.2) from the blueprint retimed to the new take: each
-blueprint shot carries its section id and its relative position in the section, so the same shot
-rhythm lands on the new song. Built only from whitelisted building blocks (presets, kinetic lyric
-styles, the VideoHive looks rebuilt in code, transitions) and generated images (R6). Author: the
-lease-holding agent, or the app's internal writer: a deterministic mapper from blueprint layout
-and motion tags to building blocks, with one call to the fast writer (Sonnet 5.5 through
-OpenRouter, budget 0.01 USD per run) that fills only block parameters within the schema.
+Writes the **timeline document** (9.2) from the blueprint retimed to the new take: each shot keeps
+its section id and its relative position, so the same shot rhythm lands on the new song. Built only
+from the v1 blocks (9.3) and generated images (R6). Author: the lease-holding agent, or the app's
+internal writer, a deterministic mapper from blueprint layout and motion tags to blocks plus one
+call to the fast writer (Sonnet 5.5 through OpenRouter, at most 0.005 USD) that fills only block
+parameters within the schema.
 
 #### R6 Images
 
-Prompts per shot that needs an image (the blueprint's `imageNeed`), written from the blueprint and
-the meaning map, never from the source frames' content. Routed by section 11.3, at most 8
-generated images per video in standard tier, 3 thumbnail candidates. Output also feeds the
-thumbnail generator.
+Prompts per shot whose blueprint `imageNeed` is not `none`, assembled from enums and
+length-limited fields of the blueprint and meaning map (6.8), never from source frames. Routed by
+11.3; at most 8 generated images per video in the standard tier; 3 thumbnail candidates.
 
 #### R7 Render
 
-Local Remotion 16:9 master at 1080p (4K on request), 9:16 Short from the hook section (rule below)
-of at most 3 minutes with a full-frame layout (not letterboxed), 3 thumbnail candidates, captions
-(SRT per language from word timing), then the existing QA stage. Previews move to 1080p. Hook
-section: the R2 section labelled `hook` or `chorus` with the highest energy; else the energy peak;
-else the meaning map's hook idea.
+Local Remotion 16:9 master at 1080p (4K on request), 9:16 Short from the hook section, at most 3
+minutes, full-frame layout; 3 thumbnail candidates; captions (SRT per language from word timing);
+then QA on the master **and** the hook render. Rendering reuses `render.ts` and the
+`visualizer.ts` path with `packages/visualizer/scripts/render.mjs`, pointed at `TimelineVideo`.
+Hook section: the R2 section labelled `hook` or `chorus` with the highest energy; else the energy
+peak; else the meaning map's hook idea.
 
 #### R8 Visual jury
 
-Section 10.4 on sampled frames, the contact sheet and the thumbnails, plus the visual originality
-(10.3) and distinctness (10.6) gates. Fix and re-render until pass, up to 3 rounds.
+Section 10.4, plus visual originality (10.3) and distinctness (10.6). Fix and re-render until
+pass, up to 3 rounds.
 
 #### R9 Publish
 
-Section 12. In Copilot, the person or agent approves the publish kit; in Autopilot,
+Section 12. In Copilot the person or agent approves the publish kit; in Autopilot
 `autopilot_schedule_publish` does. Either way the bundle enters the veto window (OD3).
 
 #### The Console
@@ -623,100 +845,118 @@ through `remake_status` and the remake resource.
 States of a `stage_runs` row: `pending`, `running`, `awaiting_approval`, `passed`, `failed_jury`,
 `capped`, `skipped`, `cancelled`, `error`.
 
-- `pending -> running` when the job is claimed; `running -> passed` when the stage's gates pass and
-  the mode is Autopilot or the stage has no pause point; `running -> awaiting_approval` at a pause
-  point in Copilot; `awaiting_approval -> passed` on approve; `running -> failed_jury` after the
-  round cap; `running -> capped` when a reservation is refused; `running -> error` after the retry
-  budget; any non-final state `-> cancelled` on cancel.
-- **Approve** marks the stage passed and enqueues the next stage. **Edit** stores the person's or
+- `pending -> running` when its first job is claimed; `running -> passed` when its jobs succeeded,
+  its gates pass and the mode is Autopilot or the stage has no pause point; `running ->
+  awaiting_approval` at a pause point in Copilot; `awaiting_approval -> passed` on approve;
+  `running -> failed_jury` after the round cap; `running -> capped` when a reservation is refused;
+  `running -> error` after the retry budget; any non-final state `-> cancelled` on cancel.
+- **Approve** marks the stage passed and enqueues the next one. **Edit** stores the person's or
   agent's artefact as a new revision and re-runs that stage's gates (not its generator).
-  **Regenerate** starts a new round of the same stage (counts toward the round cap and reserves
-  spend). **Skip** is allowed only for R6 (falls back to the preset's own art) and the optional
-  T17 adaptation; **R3's originality gate, R8 and the publish gate can never be skipped**.
+  **Regenerate** starts a new round (counts toward the round cap, reserves spend). **Skip** is
+  allowed only for R6 (the block's own art is used) and the optional T17 adaptation; **R3's
+  originality gate, R8 and the publish gate can never be skipped**.
 - Every approve, edit, regenerate or skip carries `expected_stage_version`; a mismatch returns
   `conflict`, so a person and an agent approving at once cannot both win.
-- Default Copilot pause points: after R3 (lyrics, the existing `lyrics_review`), after R4 (takes,
-  `takes_review`), after R8 (video, `video_review`), and before R9 (publish kit). The existing
-  version-status checkpoints and `job_events.progress` are reused.
-- A mode change applies at the next stage boundary. Switching to Autopilot needs the policy row and
-  every earlier gate passed.
-- Resume after a worker restart: jobs are re-claimed through `requeue_stale`; stages longer than
-  60 s heartbeat every 30 s (`heartbeat_job`), so the 120 s threshold never re-runs a live GPU
-  stage.
+- Default Copilot pause points: after R3 (`lyrics_review`), after R4 (`takes_review`), after R8
+  (`video_review`), and before R9 (publish kit). Existing version-status checkpoints and
+  `job_events.progress` are reused.
+- A mode change applies at the next stage boundary; switching to Autopilot needs the actor rule of
+  6.2, the policy row and every earlier gate passed.
+- Resume after a worker restart uses the existing 15 s job heartbeat and `requeue_stale`.
 
 ### 8.6 Stop reasons, errors, retries and round caps
 
-The one Autopilot stop list (also the values of `stop_reason`): `passed`, `round_cap`
-(jury failed after the cap), `jury_unavailable` (fail-closed, 10.1), `cost_cap`,
-`provider_exhausted` (every allowed route failed or is exhausted), `ambiguous_spend` (a kie
-submission whose outcome is unknown; never auto-resolved), `owner_cancelled` (including a veto),
-`error` (permanent error, or transient errors past the retry budget). The veto window is not a
-stop: R9 waits in it by design.
+The one Autopilot stop list (also the values of `stop_reason`): `passed`, `round_cap`,
+`jury_unavailable` (fail-closed, 10.1), `cost_cap`, `provider_exhausted` (every allowed route
+failed or is exhausted), `ambiguous_spend`, `owner_cancelled` (including a veto), `error`. The veto
+window is not a stop: R9 waits in it by design.
 
 - Round caps: R3 3 rounds, R4 2 generations, R8 3 rounds, thumbnails 2 rounds.
-- Transient errors (network, 5xx, 429, timeouts): 3 attempts with backoff of 30 s, 2 min and 10 min;
-  they do not count as rounds. Permanent errors (validation, refusal, content policy, 4xx): no
-  retry; image routes fall through, other stages stop with `error`.
-- Timeouts that trigger the fallthrough: OpenRouter text 90 s, vision 120 s; kie submit 30 s and
-  poll up to 10 minutes; Midjourney through kie 5 minutes; `codex exec` image 4 minutes; Nano
-  Banana 90 s; OpenRouter image 120 s; local image 3 minutes; yt-dlp 10 minutes; Remotion master
-  45 minutes with heartbeats.
+- Transient errors (network, 5xx, 429, timeouts): 3 attempts with backoff of 30 s, 2 min and 10
+  min; they do not count as rounds. **Exception: a kie submit that times out or has an unknown
+  outcome is `ambiguous_spend` and is never retried**; the run stops until
+  `resolve_kie_submission`. Permanent errors (validation, refusal, content policy, 4xx): no retry;
+  image routes fall through, other stages stop with `error`.
+- Timeouts that trigger the fallthrough: OpenRouter text 90 s, vision 120 s; kie submit 30 s,
+  then poll up to 10 minutes; Midjourney through kie 5 minutes; `codex exec` image 4 minutes; Nano
+  Banana 90 s; OpenRouter image 120 s; local image 3 minutes; yt-dlp 10 minutes; Remotion master 45
+  minutes.
 
-### 8.7 Remake defaults
+### 8.7 Remake defaults (M2a)
 
-A per-user "Remake defaults" profile in Settings > Remake (owner edits; the CLI and `remake_start`
-can override any field): target languages (default the source's language translated to Italian),
-vocal gender and style (default from R2), engine (kie Suno), tier (standard), preset and brand
-(T15 brand kit when it exists, else MellodifAI Classico), channel and platforms (default the
-owner's YouTube channel only; family and friends have no publish scope, so their remakes stop
-before R9), slot policy (12.2).
+Table `remake_defaults` per user (M2a, migration `remakes`); Settings > Remake edits it; the CLI
+and `remake_start` override any field per call: target languages (default: Italian), vocal gender
+and style (default from R2), engine (kie Suno), tier (standard), preset and brand (T15 brand kit
+when it exists, else MellodifAI Classico), platforms (default the owner's YouTube channel only;
+customers have no publish scope, so their remakes stop before R9), slot policy (12.2).
 
-## 9. Video blueprint and timeline document
+## 9. Blueprint, meaning map and timeline document
 
-### 9.1 Video blueprint schema v1
+### 9.1 Blueprint and meaning map schemas v1
 
-Location: `packages/shared/src/remake/blueprint.ts` (one package for all remake schemas; the
-task-24 brief's `packages/remake` was never created; the brief is to be updated to point here when
-that task starts). For
-remakes the blueprint replaces `storyboard.json`; `storyboard.json` stays for the VBP style.
+Location: `packages/shared/src/remake/` (one package for all remake schemas; the task-24 brief's
+`packages/remake` was never created). For remakes the blueprint replaces `storyboard.json`;
+`storyboard.json` stays for the VBP style. Every string a model fills is an enum or a short string
+of letters, digits, spaces and basic punctuation (`Safe(n)` below: at most n characters, regex
+`^[\p{L}\p{N} .,'!?-]*$`).
 
 ```ts
+const Hex = z.string().regex(/^#[0-9a-f]{6}$/i);
+const Safe = (n: number) => z.string().max(n).regex(/^[\p{L}\p{N} .,'!?-]*$/u);
+const Key = z.enum([/* 24 keys: "C", "Cm", "C#", "C#m", ... "B", "Bm" */]);
+
 const Blueprint = z.object({
   schemaVersion: z.literal(1),
-  source: z.object({ videoId: z.string(), url: z.string().url(), durationS: z.number(), analysedAt: z.string() }),
+  source: z.object({ videoId: z.string().regex(/^[\w-]{11}$/), durationS: z.number().positive() }),
   music: z.object({
-    bpm: z.number(), key: z.string(), timeSig: z.string(),
+    bpm: z.number().min(40).max(220), key: Key,
+    timeSig: z.enum(["2/4", "3/4", "4/4", "6/8", "12/8"]),
     sections: z.array(z.object({
-      id: z.string(),
+      id: z.string().regex(/^s\d{1,2}$/),
       label: z.enum(["intro", "verse", "pre", "chorus", "hook", "bridge", "outro", "other"]),
-      startS: z.number(), endS: z.number(), energy: z.number().min(0).max(1), bars: z.number().int(),
-    })),
-    downbeatsS: z.array(z.number()),
+      startS: z.number().min(0), endS: z.number(), energy: z.number().min(0).max(1),
+    }).refine((s) => s.endS > s.startS)).min(1).max(40),
+    downbeatsS: z.array(z.number()).max(2000),
     vocal: z.enum(["male", "female", "duet", "choir", "none"]),
-    instrumentation: z.array(z.string()).max(12),
+    instrumentation: z.array(z.enum([/* fixed list of about 40 instrument tags */])).max(12),
   }),
   shots: z.array(z.object({
-    id: z.string(), sectionId: z.string(),
-    startS: z.number(), endS: z.number(), offsetInSection: z.number().min(0).max(1),
+    id: z.string().regex(/^h\d{1,3}$/), sectionId: z.string(),
+    startS: z.number().min(0), endS: z.number(), offsetInSection: z.number().min(0).max(1),
     layout: z.enum(["full_bleed", "centered_title", "lower_third", "split", "grid", "visualizer_center", "text_only"]),
     typographyRoles: z.array(z.object({
-      role: z.enum(["title", "lyric", "caption", "credit"]), weight: z.enum(["light", "regular", "bold", "black"]),
-      case: z.enum(["upper", "title", "sentence"]), position: z.enum(["top", "center", "bottom", "left", "right"]),
+      role: z.enum(["title", "lyric", "caption", "credit"]),
+      weight: z.enum(["light", "regular", "bold", "black"]),
+      case: z.enum(["upper", "title", "sentence"]),
+      position: z.enum(["top", "center", "bottom", "left", "right"]),
     })).max(4),
-    palette: z.array(z.string().regex(/^#[0-9a-f]{6}$/i)).max(6),
+    palette: z.array(Hex).max(6),
     motion: z.object({
       camera: z.enum(["static", "push_in", "pull_out", "pan", "shake"]), cutOnBeat: z.boolean(),
       kineticText: z.enum(["none", "word_pop", "line_slide", "typewriter", "scale_pulse"]),
-      visualizer: z.string().nullable(),
+      visualizer: z.enum([/* the look ids of packages/shared/src/visualizer/viz-looks.ts */]).nullable(),
     }),
     transition: z.enum(["cut", "crossfade", "whip", "zoom", "glitch"]),
-    overlays: z.array(z.object({ kind: z.enum(["lyric", "title", "logo_slot", "shape"]), position: z.string() })).max(6),
+    overlays: z.array(z.object({
+      kind: z.enum(["lyric", "title", "logo_slot", "shape"]),
+      position: z.enum(["top", "center", "bottom", "left", "right"]),
+    })).max(6),
     imageNeed: z.enum(["none", "background", "subject"]),
-  })).max(200),
+  }).refine((s) => s.endS > s.startS)).max(200),
   global: z.object({
-    palette: z.array(z.string()).max(8), aspect: z.enum(["16:9", "9:16"]),
-    typeScale: z.object({ basePx: z.number(), ratio: z.number() }),
+    palette: z.array(Hex).max(8), aspect: z.enum(["16:9", "9:16"]),
+    typeScale: z.object({ basePx: z.number().min(16).max(96), ratio: z.number().min(1.1).max(1.8) }),
   }),
+}).superRefine(/* every shot.sectionId exists in music.sections; shots sorted and inside durationS */);
+
+const MeaningMap = z.object({
+  schemaVersion: z.literal(1),
+  sections: z.array(z.object({
+    sectionId: z.string(), theme: Safe(120), storyBeat: Safe(120),
+    imagery: z.array(Safe(40)).max(5),
+    emotion: z.enum(["joy", "longing", "anger", "calm", "pride", "sadness", "hope", "irony", "love", "fear"]),
+    hookIdea: Safe(120),
+  })),
 });
 ```
 
@@ -727,450 +967,542 @@ names of the source.
 
 Location: `packages/shared/src/timeline/`. One generic Remotion composition `TimelineVideo` in
 `packages/visualizer` draws it; the web editor (M3), agents (`timeline_patch`) and R5 edit the same
-document. Revisions are append-only (`timelines` table, section 15), each with its author.
+document. Revisions are append-only (`timelines` table), each with its author.
 
 - Fields: `schemaVersion`, `fps` (30), `size`, `durationFrames`, `audio.takeId`, `palette`,
-  `typeScale`, `scenes[]` (id, start and end frame, section id, `block` from an enum of
-  whitelisted building blocks, `params` validated by that block's own zod schema, `layers[]` of
-  kind text, image, video or shape, `transitionIn`, `transitionOut`), `assets[]` (id, kind, `ref`).
+  `typeScale`, `scenes[]` (id, start and end frame, section id, `block` and its `params` from 9.3,
+  `effects[]`, `transitionIn`, `transitionOut`), `assets[]` (id, kind, `ref`).
 - Data only: no code, no imports, no HTML, no CSS strings, no URLs. `ref` points only into the
   app's storage buckets or the generated-images store. Fonts come from a whitelist. Text fields
   have length limits.
 - Limits: at most 200 scenes, 50 assets, 10 minutes.
-- Validated at the API (operations module) and again in the worker before every render. Only the
-  app's own components render it.
+- Validated at the ops layer and again in the worker before every render. Only the app's own
+  components render it.
 
-### 9.3 Which Remotion project
+### 9.3 Timeline blocks v1 (`packages/shared/src/timeline/blocks.ts`, created first in M2b)
 
-`TimelineVideo` and every building block live in `packages/visualizer`. In M2 the kinetic lyric
-components and the VBP and Classico lyric video move from the engine repo's `motion/` into
-`packages/visualizer` as building blocks (the owner's own code). Until they move, existing lyric
-videos keep rendering from the engine repo. `ENGINE_ROOT` becomes the config value
-`MELLODIFAI_ENGINE_ROOT` (portability rule, section 25).
+| Block | Params (all bounded) |
+| --- | --- |
+| `visualizer` | `look` (enum of `viz-looks.ts` ids), `primary`, `secondary` (hex), `particles` 0-1, `intensity` 0-1, `background` (asset ref or null), `centreImage` (asset ref or null) |
+| `kinetic_lyrics` | `style` (`word_pop`, `line_slide`, `typewriter`, `scale_pulse`, `karaoke_fill`), `font` (whitelist), `position` (enum), `maxLines` 1-3, `case` (enum) |
+| `image_motion` | `asset` (image ref), `camera` (enum), `fromScale`, `toScale` 1-1.3, `focusX`, `focusY` 0-1 |
+| `title_card` | `text` (at most 60 characters), `subtitle` (at most 80), `font`, `align` (enum) |
+| `split` | `left` (an `image_motion` or `visualizer` params object), `right` (a `kinetic_lyrics` params object), `ratio` 0.3-0.7 |
+| `color_field` | `from`, `to` (hex), `angle` 0-360, `grain` 0-1 |
+| `video_clip` (premium) | `asset` (video ref), `trimStartS`, `playbackRate` 0.5-2, `mute` true |
+
+Scene `effects[]`: `grain`, `vhs`, `scanlines`, `vignette`, `aberration`, `glitch`, each with
+`intensity` 0-1. Adding a block is an ordinary reviewed change (and a denylisted path for the loop,
+13.3).
+
+**Kinetic lyric components move (M2b).** From the engine repo's `motion/src`: `LyricText.tsx`,
+`WordPop.tsx`, `FontGate.tsx`, `components/layers/` and `scenes/Kinetic.tsx` move into
+`packages/visualizer` as the implementation of `kinetic_lyrics`; the VBP scenes stay in the
+engine repo as the VBP style. `ENGINE_ROOT` becomes the config value `MELLODIFAI_ENGINE_ROOT`.
 
 ### 9.4 Agent-supplied files
 
-Images submitted through `artefact_submit` or uploads: type sniffed (PNG, JPEG, WebP only), at
-most 20 MB and 8192 px per side, decoded and re-encoded by the server (which strips metadata and
+Images submitted through `artefact_submit` or uploads: type sniffed (PNG, JPEG, WebP only), at most
+20 MB and 8192 px per side, decoded and re-encoded by the server (which strips metadata and
 polyglot payloads), then stored. Anything else is rejected.
 
 ## 10. Quality system
 
-### 10.1 Jury rules that apply to every jury
+### 10.1 Jury rules for every jury
 
+- Gate implementations, thresholds, judge model ids and judge prompts live in
+  **`packages/gates/**`** and **`config/gates/**`** (created in M1 by moving `PASS_SCORE`,
+  `combine()`, `CRITERIA` and the judge prompts out of `lyric-jury.ts`, and the QA thresholds out of
+  `qa.ts:90`; every later gate is written there from the start). Stage code imports them. These
+  paths are on the loop's denylist (13.3).
 - Aggregation: per criterion, the mean across valid judges for text juries (as today) and the
   median for vision juries; a jury passes when every criterion reaches its threshold and no
   must-fix item is open.
 - **Availability:** the existing lyric jury stays fail-open in the human-approved Copilot flow,
   and the Console shows "jury unavailable" when it happens. In Autopilot, and for every new jury,
-  "jury unavailable" (no valid verdict) is a failure: the run stops with `jury_unavailable`
-  (fail-closed). The Autopilot RPCs check `available = true` (6.5).
-- Judge model ids are pinned in config and recorded in every `jury_reports` row with the rubric
-  version.
+  "jury unavailable" is a failure: the run stops with `jury_unavailable`.
+- Judge model ids are pinned in `config/gates/` and recorded in every `jury_reports` row with the
+  rubric version.
+- **Storage:** new juries write `jury_reports` rows. The lyric jury dual-writes from M2a: it keeps
+  writing `versions.lyric_jury` (the UI reads it) and also writes a `jury_reports` row; M3 moves
+  `clips.ts` to `jury_reports`; the column is dropped by a human-written migration after that.
 
 ### 10.2 Lyrics jury (existing, extended)
 
-Today: five criteria (`topic`, `language`, `singable`, `chorus`, `original`), threshold 0.7, judges
-Jev, Haiku 5.5, Gemini 3.8 Flash. Extended in M2 with `meaning_fidelity` (against the meaning map),
-`timing_fit` (syllable report from R3 attached), `youtube_safety`, and a **devil's advocate**,
-which is new work: one model (Claude Sonnet 5.5 through OpenRouter) prompted to argue that the
-draft must not pass, returning objections tagged `must_fix` or `note`. Its power: a `must_fix`
-objection in the categories originality, safety or wrong language blocks the pass and triggers the
-next round; other objections are notes shown in the Console. It has no score vote.
+Today: five criteria, threshold 0.7, judges Jev, Haiku 5.5, Gemini 3.8 Flash. Extended in M2a with
+`meaning_fidelity` (against the meaning map), `timing_fit` (the R3 syllable report attached) and
+`youtube_safety`, and a **devil's advocate** (new work): one model (Claude Sonnet 5.5 through
+OpenRouter) prompted to argue that the draft must not pass, returning objections tagged `must_fix`
+or `note`. A `must_fix` objection in the categories originality, safety or wrong language blocks
+the pass and triggers the next round; other objections are notes in the Console. It has no score
+vote.
 
 ### 10.3 Originality (the copyright safety line, owned by this document)
 
-Starting values below are **binding** from M2. Calibration on the golden set (M3) may only tighten
+The values below are **binding** from M2a. Calibration on the golden set (M3) may only tighten
 them automatically; loosening any value is an owner decision. The loop can never change them
-(section 13.3).
+(13.3). Runtimes: Python in the worker (`apps/worker/py/`, pinned requirements, CPU), called like
+the existing Python tools.
 
-Lyrics, per new line against each source line and against a literal machine translation of the
-source line into the target language:
+Lyrics, per new line against each source line and against its literal translation (R2):
 - lexical: character 4-gram Jaccard and ROUGE-L; either above **0.35** fails the line;
-- semantic: cosine similarity with LaBSE (local, CPU, Apache 2.0); above **0.80** against the
-  translated source line fails the line;
-- exact phrase: the new title and hook contain no sequence of 3 or more words (normalised) from
-  the source title or hook or their translation.
+- semantic: cosine with **LaBSE** (`sentence-transformers`, Apache 2.0); above **0.80** fails;
+- exact phrase: the new title and hook contain no sequence of 3 or more words (normalised) from the
+  source title or hook or their translation.
 
 Meaning fidelity is measured at a different level, which resolves the tension with originality:
-each new **section** must reach cosine **0.55** or more against the section's meaning map (an
-abstract description, not the source lines). So a section can mean the same thing while each line
-is new.
+each new **section** must reach LaBSE cosine **0.55** or more against its meaning-map section
+(theme, story beat, imagery and hook idea joined), not against source lines.
 
-Visuals, at aligned timestamps (same relative position in the same section) between the new render
-and the source frames:
-- pHash Hamming distance of at least **12 of 64 bits**;
-- DINOv2 (ViT-S/14, Apache 2.0) cosine at most **0.85**.
+Visuals, comparing the new render's frame at each shot's section-relative position with the
+source fingerprint for that shot (R2):
+- pHash (`imagehash`) Hamming distance of at least **12 of 64 bits**;
+- DINOv2 (ViT-S/14, Apache 2.0, torch on CPU) cosine at most **0.85**.
 
 Allowed to match by design: shot timing and cut points, the layout grid, palette family (not exact
 colours), the motion vocabulary.
 
-### 10.4 Visual jury
+### 10.4 Visual jury (M3)
 
-- Judges: `google/gemini-3.8-flash` and `anthropic/claude-haiku-5.5` in rounds 1 and 2;
-  `anthropic/claude-opus-5.5` added in the final round only (all through OpenRouter, ids pinned).
-- Input: one frame at the middle of each shot plus one at each chorus downbeat peak, at most 24
-  frames at 768 px on the long side; the existing 20-frame contact sheet; each thumbnail rendered
-  at 320x180 (phone size).
-- Rubric v1 (scores 0 to 1, pass at 0.7 on each): hierarchy and focal point, type legibility,
-  colour harmony, motion rhythm against beats, consistency across shots, brand fit (T15 brand kit
-  when it exists), absence of AI artefacts.
-- Computed in code, not judged: text contrast at least 4.5:1 (3:1 for text 48 px or larger),
-  safe areas (16:9: text inside the 90% title-safe box; Shorts: nothing important in the bottom 20%
-  or right 12% where YouTube's UI sits), minimum type size, minimum on-screen time per lyric line
-  (its sung duration plus 0.2 s lead), beat-quantised cuts (within 1 frame of a downbeat when
-  `cutOnBeat`).
-- Must-fix (blocks regardless of scores): misspelt or garbled text (OCR on the frames against the
-  intended text), AI artefacts flagged by two judges, any safe-area or contrast failure.
-- Cost inside the budget of section 11.6 (0.01 USD per video for rounds 1 and 2; the final round's
-  premium judge is part of the retry reserve).
+- Input, kept small for cost: two frame grids (each 3x4 frames at 1536 px on the long side: one
+  frame at the middle of each shot, then chorus downbeat peaks, at most 24 frames), the existing
+  contact sheet, and one grid of the thumbnail candidates rendered at 320x180 (phone size). Four
+  images per judge per round.
+- Judges: `google/gemini-3.8-flash` alone in rounds 1 and 2; `google/gemini-3.8-flash` plus
+  `anthropic/claude-haiku-5.5` in the final round (ids pinned in `config/gates/`).
+- Rubric v1 (0 to 1, pass at 0.7 each): hierarchy and focal point, type legibility, colour
+  harmony, motion rhythm against beats, consistency across shots, brand fit (T15 when it exists),
+  absence of AI artefacts.
+- Computed in code, not judged: text contrast at least 4.5:1 (3:1 for text 48 px or larger), safe
+  areas (16:9: text inside the 90% title-safe box; Shorts: nothing important in the bottom 20% or
+  right 12%), minimum type size, minimum on-screen time per lyric line (its sung duration plus 0.2 s
+  lead), beat-quantised cuts (within 1 frame of a downbeat when `cutOnBeat`).
+- Must-fix: misspelt or garbled text (OCR with **Tesseract 5**, Apache 2.0, with the `jpn` and
+  `chi_sim` data, compared with the intended text), AI artefacts flagged by both final-round
+  judges, any safe-area or contrast failure.
 
 ### 10.5 Music checks
 
-Per take (R4): word error rate, the AC11 timing rule, QA loudness and peak. A listening jury by a
-model is not added: the measured checks cover it today; it can be a later hypothesis of the loop.
+Per take (R4): lyric recall, the AC11 timing rule, QA loudness and peak. A model listening jury is
+not added; it can be a later loop hypothesis.
 
 ### 10.6 Distinctness (no mass-produced sameness)
 
-The new video's contact-sheet embeddings (DINOv2) against the last 20 published videos: mean cosine
-at most **0.92** (looser than the source check, because a consistent channel style is wanted), and
-the same preset used in at most 2 of the last 5 published videos.
+The new video's grid embeddings (DINOv2) against each of the last 20 published videos: the
+**maximum** cosine at most **0.95** (no near-copy of any one video) and the mean at most **0.92**;
+the same timeline look used in at most 2 of the last 5 published videos.
 
 ### 10.7 Design rules in code
 
 The motion rules are copied into the repo as `docs/design/motion-rules.md` in M3 (adapted from the
-owner's deck playbook `C:\Users\Asus\Documents\Claude\Projects\ita\DESIGN-MOTION.md`), so this
-repo does not depend on that file. In short: animated numbers are slot-locked (fixed-width digits
-that never shift the layout), decorative loops close seamlessly, every element is legible at rest
-(no information visible only mid-animation), easing comes from a small fixed set, and layouts keep
-fixed safe margins. Video additions: type scale from the timeline's `typeScale`, the safe areas and
-timing minimums of 10.4.
+owner's deck playbook `C:\Users\Asus\Documents\Claude\Projects\ita\DESIGN-MOTION.md`): animated
+numbers are slot-locked (fixed-width digits that never shift the layout), decorative loops close
+seamlessly, every element is legible at rest, easing comes from a small fixed set, layouts keep
+fixed safe margins. Video additions: the timeline's `typeScale` and the code checks of 10.4.
 
-### 10.8 The publish gate in the database
+### 10.8 The publish gate in the database (M3)
 
-`approve_video` already requires QA gates. M3 extends the gate: a render can be approved, and
-`enqueue_publish` and `schedule_publish` accept a version, only when the latest `jury_reports` rows
-for lyrics (remakes), originality, visual jury, distinctness and thumbnail are `available` and
-`passed`, and QA passed. The human override reason stays possible for a person in Copilot (it is
-recorded and shown); Autopilot has no override.
+Column `versions.content_kind` (`remake`, `idea`, `import`, `lyric_video`, `visualizer`), set by
+the RPC that creates the version. Function `publish_gate_status(p_render uuid)` returns the missing
+or failed reports; `approve_video` (for the version's master), `enqueue_publish(render_id)` and
+`schedule_publish` refuse when it is not empty. Required reports, each `available` and `passed`:
+
+| Content kind | Required |
+| --- | --- |
+| `remake` | QA, lyric jury, lyric originality, visual jury, visual originality, distinctness, thumbnail |
+| `idea` | QA, lyric jury, visual jury, distinctness, thumbnail |
+| `import` (the owner's own song), `lyric_video`, `visualizer` | QA, visual jury, distinctness, thumbnail |
+
+A person in Copilot may still approve with an override reason (cookie-only, recorded and shown);
+Autopilot has no override.
 
 ## 11. Providers, routing and cost
 
 ### 11.1 Reasoning
 
-When an agent drives, it reasons on its own subscription and the app pays nothing for authoring
-(section 8.2). The app's own reasoning uses OpenRouter: Jev for tone and writer choice, Opus and
-Sonnet writers, the judges above. A direct Anthropic API client (the owner holds 200 USD of Claude
-API credits) is **new work** in M2, used only when OpenRouter fails for a writer call, recorded in
-the ledger like any provider.
+When an agent drives, it reasons on its own subscription (8.2). The app's own reasoning uses
+OpenRouter: Jev for tone and writer choice, Opus and Sonnet writers, the judges above. A direct
+Anthropic API client is listed under Later (21.1).
 
 ### 11.2 Music
 
-kie Suno default (about 12 credits per generate call, two takes); ACE-Step 1.5 local (free tier);
-YuE2 owner-only; Mureka or ElevenLabs Music later (T20 area) if the owner adds keys.
+kie Suno in the standard tier (about 12 credits per generate call, two takes); ACE-Step 1.5 local
+in the free tier; YuE2 owner-only; Mureka or ElevenLabs Music later (T20 area).
 
 ### 11.3 Images (OD5)
 
 Each route falls through to the next on refusal, timeout, usage limit, error, or when the
-per-video image sub-budget (11.6) is spent:
+per-video image allocation (11.6) is spent:
 
-1. **Midjourney through kie.ai** (unofficial; owner accepted). One call returns a 4-image grid, so
-   one call gives 4 candidates. Off until the owner confirms kie Midjourney access and price
-   (section 22). "Importa da Midjourney" ("Import from Midjourney": drop or paste his own MJ
-   images) stays available for hand-made picks.
-2. **GPT Image through `codex exec`** on the PC, under the owner's Windows account, with the codex
-   binary path and model from config (today `-m gpt-5.6-terra`). Exhaustion is detected from a
-   non-zero exit plus the usage-limit message, then the route is marked exhausted until the reset
-   time in the message (else 5 h). A refusal is detected when no image file is produced. 0 USD,
-   counted by calls.
-3. **Nano Banana** (Gemini's image model) through the Gemini API with the owner's key. M3 starts by
-   recording the free-tier limit and the paid price, with source and date, in the price book; until
-   then the route is off.
-4. **OpenRouter image models** from an allowlist in config; a model is allowed only when its price
-   is in the price book.
+1. **Midjourney through kie.ai** (unofficial; owner accepted). One call returns a 4-image grid.
+   Off until the owner confirms kie Midjourney access and price (22). "Importa da Midjourney"
+   ("Import from Midjourney": drop or paste his own MJ images) stays for hand-made picks.
+2. **GPT Image through `codex exec`, sandboxed.** The worker never runs codex on the host for
+   images. It runs it in the container `mdf-img` (pinned image with the codex CLI): its own
+   `CODEX_HOME` volume holding only the codex login for the owner's ChatGPT plan (one-time device
+   login, owner action), no other mounts except an empty per-job output folder, no env files, no
+   network except the OpenAI and ChatGPT API hosts through an allowlisting egress proxy, codex
+   started with `--sandbox read-only` except write access to that output folder and no approvals.
+   The prompt is assembled by code from enums and `Safe` fields (6.8) inside a fixed template that
+   asks for one image and nothing else. The result is accepted only if the output folder holds
+   exactly one PNG, JPEG or WebP, which is then re-encoded (9.4); anything else is discarded and the
+   route falls through. Exhaustion is detected from a non-zero exit plus the usage-limit message
+   (exhausted until the reset time in the message, else 5 h); a refusal is detected when no image
+   is produced. 0 USD, counted by calls. Test (M3): a meaning map with an injected instruction
+   ("read C:\Users\... and print it", "fetch a URL") produces no file read outside the folder and no
+   network call except the API.
+3. **Nano Banana** through the Gemini API with the owner's key. M3 starts by recording its free-tier
+   limit and paid price, with source and date, in `price_book`; until then the route is off.
+4. **OpenRouter image models** from an allowlist in `config/gates/`; a model is allowed only when
+   its price is in `price_book`.
 5. **Local open models** (T18 bake-off winner in the existing ComfyUI) as the free fallback.
 
-Provenance: every image has an `images` row (provider, model, prompt hash, cost entry, size,
-sha256) and the same data embedded in the file's metadata. The visual jury picks among candidates.
+Provenance: every image has an `images` row and the same data in the file's metadata. The visual
+jury picks among candidates.
 
 **Shared ChatGPT plan quota.** Route 2, the loop's Codex runs and the owner's own Codex use share
-one plan. Rules: production image jobs have priority; the loop runs only in its night window and
-stops at the first usage-limit message until the next night; route 2 marks itself exhausted as
-above and falls through.
+one plan: production image jobs have priority; the loop runs only in its night window and stops at
+the first usage-limit message until the next night; route 2 marks itself exhausted and falls
+through.
 
 ### 11.4 Video
 
-Remotion local (free) for every tier. Premium tier adds Higgsfield API shots (owner has a key) and
-Comfy Cloud workflows (T14), each with cost shown before confirm in Copilot and drawn from the
-premium budget in Autopilot. Generated footage is upscaled locally (Real-ESRGAN class) before
-compositing.
+Remotion local (free) for every tier. Premium adds Higgsfield API shots and Comfy Cloud workflows
+(T14), each with cost shown before confirm in Copilot and drawn from the premium budget in
+Autopilot. Generated footage is upscaled locally (Real-ESRGAN class) before compositing.
 
-### 11.5 Ledger and caps (enforced)
+### 11.5 Ledger and caps (M1, enforced in the database)
 
-- `price_book`: provider, unit (credit, image, 1k tokens, call), USD per unit, date checked, source.
-  kie credits convert with the owner-confirmed rate (the test fixture assumes about 0.005 USD per
-  credit; unverified until the owner confirms).
-- `ledger_entries`: provider, estimated and actual units and USD, state (`reserved`, `settled`,
-  `released`, `expired`, `ambiguous`), token id, run id, job id, version id, timestamps.
-- `spend_caps` and `spend_counters` (one counter row per scope, key and window): global daily and
-  monthly, per provider daily, per token daily, per run.
-- `reserve_spend(provider, units, token_id, run_id, job_id)`: locks the matching counter rows
-  `FOR UPDATE`, checks reserved plus settled plus the estimate against every cap, and returns a
-  reservation id or raises `cap_exceeded:<scope>`. Operations that enqueue paid jobs reserve in
-  the **same transaction** as the job insert, so concurrent agents, parallel takes and Autopilot
-  rounds cannot overrun.
-- `settle_spend(reservation, actual)` after the call (OpenRouter's reported cost, kie credits
-  used). Unsettled reservations expire after 30 minutes and are released, except kie submissions
-  in doubt, which stay `ambiguous` and count as spent until `resolve_kie_submission`.
-- Quota providers (codex, Gemini free tier, local engines) are recorded at 0 USD with call counts.
-- `jobs` gains nullable `token_id` and `run_id` columns, propagated to every child job, so child
-  stages are charged to the token and run that started them; Autopilot is charged to its system
-  token.
-- Web-side paid calls (`format-style`, `transcribe`) reserve and settle through the operations
-  module like everything else.
-- `workers.kie_balance` is reconciled against the ledger daily; a mismatch notifies the owner.
+Tables in 15.1. Rules:
 
-Default caps (AC7, Settings > Costi, "Costs"): global 3 USD per day and 40 USD per month; kie 120
-credits per day; per token 1 USD per day; per run 0.25 USD in standard tier; customers 0.10 USD unless
-the owner raises it. Spend and publish scopes cannot be granted until the ledger exists (M1).
+- **Price book.** Seeded in M1: kie at 0.005 USD per credit (from the test fixture; marked
+  unverified until the owner confirms the rate); OpenRouter models from OpenRouter's public models
+  API (per-token input and output prices, refreshed daily by the scheduler task `price_book_sync`,
+  source URL and date stored); Groq Whisper per audio hour, entered by the builder from Groq's
+  pricing page with the date; codex, Gemini free tier and local engines at 0.
+- **Scopes of caps:** `global`, `provider`, `user`, `token`, `run`, over windows `day`, `month` or
+  `run`, in USD and, for kie, in credits. A `user` cap without its own row falls back to its role's
+  default row (`default:customer`, `default:admin`).
+- **`reserve_spend(p_provider, p_model, p_units, p_user, p_token, p_run, p_job)`** (callable by
+  `mdf_ops` and `service_role` only): converts units to USD with `price_book`, locks the matching
+  `spend_counters` rows `FOR UPDATE` in a fixed order (global, provider, user, token, run),
+  checks reserved plus settled plus the estimate against every cap, and returns a ledger entry id
+  or raises `cap_exceeded:<scope>`.
+- **Where reservations happen.**
+  - Inside every paying ops wrapper, in the same transaction as the enqueue: `create_song` (writer
+    and jury estimate), `approve_lyrics` and `generate_again` (12 kie credits),
+    `request_section_edit` (kie replace credits), `import_song` in kie cover or extend mode,
+    `retry_stage` of a paid stage, `resolve_kie_submission` with a resend outcome, and the web-side
+    `style_format` and `audio_transcribe` calls.
+  - Inside worker stages, for every paid call that the enqueue estimate does not cover (writer
+    rounds, jury rounds, R2 vision, R6 images, visual jury): the worker calls
+    `worker_reserve_spend` before the call and `settle_spend` right after. All paid provider calls
+    in the worker go through one module, `apps/worker/src/providers/paid.ts`, whose functions
+    require a ledger entry id argument; a unit test fails if any other worker file calls a paid
+    provider host directly.
+  - The worker refuses to start a job of a paid stage (`generate_song`, `replace_section`,
+    `draft_lyrics`, `import_audio` in kie modes) when the job has no ledger entry in state
+    `reserved`, and fails it with `no_reservation`.
+- **Settle.** The worker settles by job: `settle_job_spend(p_job, p_units, p_usd)` finds the entry
+  by `job_id` (OpenRouter's reported cost; kie credits used). Unsettled reservations expire after
+  30 minutes (scheduler task `expire_reservations`) and are released, except kie submissions in
+  doubt, which stay `ambiguous` and count as spent until `resolve_kie_submission`.
+- **Propagation.** `jobs` gains `token_id` and `run_id`; `db.enqueue` (`db.ts:344-359`) copies both
+  from the parent job to every child job. `run_id` is a plain uuid in M1 (no foreign key) and
+  gets its foreign key to `remakes` in M2a.
+- **Reconciliation.** Daily scheduler task `kie_reconcile` compares `workers.kie_balance` with the
+  ledger and notifies on a mismatch.
+- **Default caps** (AC7, Settings > Costi, "Costs"): global 3 USD per day and 40 USD per month;
+  kie 120 credits per day; per token 1 USD per day; per run 0.25 USD (standard), 0.03 USD (free);
+  `default:customer` 0.10 USD per day and **0 kie credits**; `default:admin` no user cap.
+- Fake-provider jobs (`jobs.fake_providers`) reserve nothing and call no paid host.
 
 ### 11.6 Per-video budget (standard tier, AC7)
 
-| Item | Allocation (USD) |
-| --- | --- |
-| Music (one kie generate, two takes) | 0.07 |
-| R2 analysis (vision call) | 0.01 |
-| Lyrics: writer, jury rounds, devil's advocate | 0.02 |
-| Images (route 1 calls, then free routes once spent) | 0.03 |
-| Visual jury rounds 1 and 2 | 0.01 |
-| Retry reserve (second generation share, final-round premium judge) | 0.01 |
-| **Target (median over the golden set)** | **0.15** |
-| **Hard per-run cap** | **0.25** |
+Allocations are targets checked against the price book at the start of M3 and re-measured on the
+golden set; the hard per-run cap is what is enforced.
 
-Cheap judges run in early rounds and the premium judge only in the final round. When a line item's
-allocation is spent, its stage moves to 0 USD routes (codex, local) or pauses with `cost_cap`.
+| Item | Allocation (USD) | Basis |
+| --- | --- | --- |
+| Music (one kie generate, two takes) | 0.060 | 12 credits at 0.005 |
+| R2: literal translation and blueprint (Gemini Flash) | 0.010 | about 12 images and 4k text tokens |
+| Lyrics: writer, up to 3 jury rounds, devil's advocate | 0.020 | about 20k tokens on the fast writer and judges |
+| R5 composition writer | 0.005 | about 3k tokens |
+| Publish kit and metadata | 0.005 | about 3k tokens |
+| Images (route 1 calls; free routes once spent) | 0.020 | at most one Midjourney call, pending the kie price |
+| Visual jury (rounds 1-2 Gemini Flash, final round two judges) | 0.020 | 4 images per judge per round |
+| Retry reserve | 0.010 | second generation share, extra rounds |
+| **Target (median over the golden set)** | **0.150** | |
+| **Hard per-run cap** | **0.250** | |
+
+When an item's allocation is spent its stage moves to 0 USD routes or, for juries, continues within
+the hard cap; if the hard cap is reached the run stops with `cost_cap`. If the M3 measurement shows
+a median above 0.15, the build drops the second final-round judge before anything else.
 
 ## 12. Publishing
 
-### 12.1 Connect and extend the existing YouTube stage
+### 12.1 Track P0: connect the existing YouTube stage early (parallel to M1-M3)
 
-1. Owner creates the Google Cloud project and OAuth client (section 22). The first consent asks
-   for every scope needed now and later: `youtube.upload`, `youtube.force-ssl` (captions and
-   thumbnails), `youtube.readonly`, `yt-analytics.readonly`.
-2. First M4 step: **re-verify the private-only lock.** The engine repo's
-   `publish/README.md:42` says Google lifted it for unverified projects in October 2026 (not yet
-   verified). Test: upload a short test video through the API and set it public, then private. If
-   public works, Blotato is only a fallback; if not, public YouTube goes through Blotato until the
-   audit passes.
-3. Extend: `publications` gains `platform`, `route` (`youtube_api`, `blotato`, `postiz`), `kind`
-   (`master`, `hook`, `thumbnail_only`), `schedule_id`, `external_post_id`, `external_url`; one row
-   per render and platform. `enqueue_publish` accepts `hook` renders. The 4-uploads-per-day cap
-   becomes a setting.
-4. Throughput: the free quota is 10,000 units per day; one full upload (video about 1,600 units,
-   captions about 400, thumbnail about 50) is about 2,050 units, so about 4 uploads per day, which
-   is **2 remakes per day** (master plus Short). When the quota is reached the existing stage
-   retries after the Pacific reset (`retryLater`).
-5. **AI disclosure: always true** (as the code already does, `containsSyntheticMedia: true`). A
-   route that cannot set the disclosure is not allowed for YouTube; the Blotato route is allowed
-   only after M4 verifies it sets it.
-6. Shorts: there is no API flag; a vertical video of at most 3 minutes is classified by YouTube.
-   The description gets `#Shorts`, and `thumbnails.set` is skipped for Shorts.
-7. Audit: the author prepares the YouTube API Services audit package in M4 (app description,
-   privacy page, screen recording); the owner submits it.
+1. Owner creates the Google Cloud project, the OAuth client and the consent screen with every scope
+   needed now and later: `youtube.upload`, `youtube.force-ssl`, `youtube.readonly`,
+   `yt-analytics.readonly` (22).
+2. Builder: `yt.py`'s `SCOPES` gains the two read scopes; the token moves to
+   `<runtime root>/secrets/google/youtube-token.json` through `YT_TOKEN_FILE` (already supported,
+   line 74), outside every repo.
+3. The existing manual flow (admin cookie click, 6.3 item 4) publishes the owner's videos from then
+   on.
+4. **Re-verify the private-only lock.** The engine repo's `publish/README.md:42` says Google lifted
+   it for unverified projects in October 2026 (not verified). Test: upload a short test video
+   through the API, set it public, then private. If public works, Blotato is only a fallback;
+   otherwise public YouTube goes through Blotato until the audit passes.
+5. Audit: the author prepares the YouTube API Services audit package (app description, privacy
+   page, screen recording); the owner submits it as early as P0 allows, because it takes weeks.
 
-### 12.2 Schedule and veto window (OD3, AC4, AC5)
+### 12.2 Schedule and veto window (M4; OD3, AC4, AC5)
 
-- On entering R9 a `publish_schedules` row is created for the **bundle**: master, Short,
-  thumbnail, captions and every social post of that language version.
-- **Slot:** the slot policy (Settings > Pubblicazione, "Publishing") picks the next free slot at
-  least the veto window away: before analytics exist, 18:00 Europe/Rome daily, at most one master
-  per day and at least 20 h between masters; once 30 days of analytics exist, the best hour from
-  the channel's audience activity.
-- **Window:** default 24 h before the slot. The bundle is visible as "programmato, veto aperto"
-  ("scheduled, veto open") with its deadline in the app, the morning report, `notifications_list`
-  and a push notification (section 16).
-- **The app owns the clock.** YouTube uploads happen early as **private** with `publishAt` unset;
-  social posts are held in the app. At the slot the worker flips YouTube to public and hands the
-  social posts to Postiz or Blotato as "post now", only when: the window expired, no veto exists,
-  every gate in 10.8 still holds, and the worker is healthy. Anything else leaves it private:
-  this fails closed.
-- **Missed slot** (PC or tunnel down): publish late if within 6 h of the slot; otherwise move to the
-  next free slot (which restarts nothing; the window has already expired) and notify.
+- On entering R9 (or on `publish_schedule` for any approved version), a `publish_schedules` row is
+  created for the **bundle**: master, Short, thumbnail, captions and every social post of that
+  language version.
+- **Slot policy** (Settings > Pubblicazione, "Publishing"): the next free slot at least the veto
+  window away; before analytics exist, 18:00 Europe/Rome daily, at most one master per day and at
+  least 20 h between masters; once 30 days of analytics exist, the best hour from the channel's
+  audience activity.
+- **Window:** default 24 h before the slot. Shown as "programmato, veto aperto" ("scheduled, veto
+  open") with its deadline in the app, the morning report, `notifications_list` and push.
+- **The app owns the clock.** YouTube uploads happen early as **private**; `publishAt` is never set
+  and `confirm_publication` no longer accepts `scheduled`. At the slot the scheduler task
+  `publish_slots` (every minute) flips YouTube to public and hands the social posts to Postiz or
+  Blotato as "post now", only when: the window expired, no veto exists, `publish_gate_status` is
+  still empty, and the worker is healthy. Anything else leaves it private (fail closed).
+- States of `publish_schedules`: `scheduled`, `vetoed`, `publishing`, `published`, `missed`,
+  `held_gate_failed`, `failed`. `held_gate_failed` (a gate no longer passes at the slot) notifies
+  the owner and waits for a re-check or a veto.
+- **Missed slot** (PC or tunnel down): publish late if within 6 h of the slot; otherwise move to
+  the next free slot and notify. A veto stays possible until the flip actually happens.
 - **Veto** (`publish_veto`, the UI button, `mellodifai veto`) cancels the whole bundle: before
   upload, the jobs are cancelled; uploaded and private, the video stays private (marked vetoed);
   after hand-off or public, a veto is no longer possible and the UI offers "Rendi privato" ("Make
-  private") for YouTube instead.
+  private") for YouTube.
 - The actor of every flip is recorded (`confirmed_via`).
 
 ### 12.3 Copilot and Autopilot
 
-In Copilot the person or agent confirms the publish kit (title, description, tags, playlist,
-platforms), which schedules the bundle; the veto window still applies. In Autopilot,
-`autopilot_schedule_publish` schedules it. Public auto-publishing is behind the flag
-`auto_publish_public` (section 20).
+In Copilot the person or agent confirms the publish kit, which schedules the bundle; the veto
+window still applies. In Autopilot, `autopilot_schedule_publish` schedules it. Public flips are
+behind the flag `auto_publish_public` (20).
 
 ### 12.4 Publish kit and metadata
 
-Per language version (the project page is the hub, section 26): title, description, tags and
-hashtags, chapters from R2 sections, captions, thumbnail, playlist, per-platform post text, all
-generated from the song's own lyrics and metadata, editable, and checked by the metadata checker
-(length limits, no source title or artist names, credits and licence notes, AI disclosure text).
+Per language version: title, description, tags and hashtags, chapters from R2 sections, captions,
+thumbnail, playlist, per-platform post text, generated from the song's own lyrics, editable, and
+checked (length limits, no source title or artist names, credits and licence notes, AI disclosure
+text). The UI belongs to the project page hub (T17 and T19 in the plan).
 
-### 12.5 Social routes (T19)
+### 12.5 YouTube extensions and social routes (M4)
 
-- **Postiz** (self-hosted, free, run unmodified under its AGPL licence) is the default for TikTok,
-  Instagram, Facebook, X, Threads, LinkedIn. It needs the PC and the tunnel up at post time and
-  until platforms have fetched the media (minutes). Media reach Postiz through `/m/<token>` links.
-- **Blotato** (paid, owner's key) is the fallback: used when Postiz returns an error or the
-  platform's Postiz integration is disconnected, and Blotato is allowed for that platform in
-  Settings. Blotato receives the media by upload, so no PC uptime is needed after hand-off.
-- Mapping back for analytics: the returned post URL is stored; for YouTube through Blotato, the
-  video id is parsed from it, or else matched on the channel's uploads playlist by title and
-  publish time within 1 h.
+- Worker and database changes: `publish.ts` loads the render named by `payload.render_id` (master
+  or hook) instead of always the master; `db.getPublicationForVersion` and the `publicationid`
+  check in `authorization.ts:70` become lookups by publication id and render; `publications`
+  gains `platform`, `route` (`youtube_api`, `blotato`, `postiz`), `schedule_id`,
+  `external_post_id`, `external_url`, `thumbnail_style`, `confirmed_via` (the render's kind comes
+  from `renders.kind`; thumbnails are not separate publications); `enqueue_publish` accepts `hook`
+  renders; the 4-uploads-per-day cap becomes a setting; the `scheduled` path of `set_privacy` is
+  removed.
+- Throughput: one full upload is about 2,050 quota units (video 1,600, captions 400, thumbnail 50)
+  of 10,000 per day, so about 4 uploads per day, which is **2 remakes per day** (master plus
+  Short). At the cap the existing stage retries after the Pacific reset.
+- **AI disclosure always true.** A route that cannot set it is not allowed for YouTube; Blotato is
+  allowed only after M4 verifies it sets it.
+- Shorts: no API flag; the description gets `#Shorts`; `thumbnails.set` is skipped for Shorts.
+- Social posting follows T19 in the plan (per-platform route choice "Diretto / Postiz gratis /
+  Blotato veloce", that is "Direct / free Postiz / fast Blotato"). Mechanics owned here: Postiz
+  needs the PC and the tunnel up at post time and until platforms fetch the media through
+  `/m/<token>`; Blotato is the fallback when Postiz errors or the integration is disconnected, and
+  receives media by upload. For YouTube through Blotato the video id is parsed from the returned
+  URL, or matched on the channel's uploads playlist by title and publish time within 1 h.
+- "Segnala claim" ("Report a claim") button and `claim_report` tool: a reported Content ID claim
+  pauses Autopilot publishing for that owner and is fed to the loop as a severe negative.
 
-### 12.6 Analytics ingestion
+### 12.6 Analytics ingestion (M4)
 
-A daily job at 06:00 Europe/Rome reads YouTube Analytics for videos younger than 90 days: views,
-impressions, click-through rate, average view duration, audience retention curve, per video and per
-thumbnail style, into `analytics_snapshots`. It feeds the loop's hypotheses only, never its revert
-decisions (analytics lag 24 to 72 h and are noisy on a small channel).
+Scheduler task `analytics_daily` at 06:00 Europe/Rome reads YouTube Analytics for videos younger
+than 90 days into `analytics_snapshots`: views, average view duration, the audience retention
+curve, and impressions and click-through rate **if the API exposes them per video**: the first M4
+step checks the API reference; if they are not available, thumbnail learning uses YouTube's own
+thumbnail test results entered in the app and views alone. The Google token is the one from P0.
+Per-thumbnail-style learning reads `publications.thumbnail_style`. Analytics feed the loop's
+hypotheses only, never its revert decisions.
 
-## 13. Daily improvement loop (OD4)
+## 13. Daily improvement loop (OD4, M6)
 
-### 13.1 Shape
+### 13.1 Roles
 
-An autoresearch-style ratchet every night: hypothesis, change, evaluate on a frozen set, keep only
-if better beyond noise, log. Three roles, each in its own sandbox:
+Four roles; only the first two touch credentials, and neither runs candidate code.
 
-1. **Supervisor** (a scheduled task on the PC, code in `ops/loop/` of the production checkout):
-   starts and stops the other two, reads the kill switch between steps, owns the night window.
-2. **Proposer** (the coding agent): gnhf (the owner's overnight runner: it runs Codex on a
-   one-sentence objective in a git checkout and stops on a condition; CLI at
-   `C:\Users\Asus\Miniconda3\gnhf`, skill `~/.claude/skills/gnhf/SKILL.md`, config
-   `~/.gnhf/config.yml`) or Claude Code headless, pinned versions installed in the proposer
-   container.
-3. **Gate** (code in `ops/loop-gate/` of the **production** checkout, never the candidate's): runs
-   every check and the evaluation, and is the only role that can merge.
+1. **Supervisor** (host, the owner's account, a scheduled task running `ops/loop/supervisor.ts` from
+   the **production** checkout): owns the night window, the kill switch, the GPU lease on the gate's
+   behalf, starts and destroys the containers, and runs deploy and revert.
+2. **Merger** (host, part of the supervisor): the only holder of git push rights. It reads the
+   scorer's verdict file, checks that the candidate commit's tree hash equals the one scored,
+   applies the squashed patch with git hooks disabled (`-c core.hooksPath=` set to an empty
+   folder), fast-forwards `main` and pushes. It never runs candidate code.
+3. **Proposer** (container `mdf-loop-proposer`): the coding agent. Runner: **gnhf with Codex** (the
+   owner's overnight runner: it runs Codex on a one-sentence objective in a git checkout and stops
+   on a condition; on the host at `C:\Users\Asus\Miniconda3\gnhf`, skill
+   `~/.claude/skills/gnhf/SKILL.md`, config `~/.gnhf/config.yml`), installed at a pinned version in
+   the container; Claude Code headless is the alternate when the ChatGPT quota is exhausted.
+4. **Gate**, split in two:
+   - **Sandbox** (container `mdf-gate-sandbox`): runs the candidate's install, lint, type check,
+     tests, `test:db` and the golden-set stages on fake providers, writing artefacts to an output
+     volume. No network except the gate's own Supabase stack, no Docker socket, no credentials.
+   - **Scorer** (container `mdf-gate-scorer`): mounts the artefacts read-only, runs the frozen
+     evaluator (13.4) with the dedicated evaluation OpenRouter key, and writes the verdict. It runs
+     no candidate code.
 
-### 13.2 Isolation (secrets, database, queue, network)
+### 13.2 Isolation (enforced)
 
-- The proposer runs in a Docker container (Docker Desktop on WSL2 today; plain Docker on Debian
-  later) from a pinned image. Mounts: its own clone of the repo only. It has **no** env files, no
-  CLI credentials, no Google tokens, no Supabase keys, and cannot see the host drives. Its only
-  remote is a local bare repository `<runtime root>/loop/repo.git`.
-- Network: outbound only to its model API (ChatGPT for Codex, Anthropic for Claude Code) through an
-  allowlisting egress proxy. Dependencies install offline from a pre-populated, read-only package
-  store; the lockfile is frozen.
-- The gate runs in a second container with its **own Supabase stack** (the e2e stack pattern on
-  port 45621), fake providers for every paid route (section 19), and a dedicated OpenRouter key
-  for evaluation judges with a provider-side credit limit of 1 USD per night, also recorded in the
-  ledger as provider `openrouter-eval`. It never sees the production database, queue, worker env
-  files or the engine repo's live data.
-- `test:db` is pinned to the e2e stack: it refuses to run when the configured URL is the production
-  port 54321. This fixes the current unpinned script for everyone, not only the loop.
-- The standing owner rules (2.2) bind the loop: no kie spend (kie is faked in evaluation), never
-  commit keys (the gate runs a secret scanner on the diff).
-- Kill switch: a file `<runtime root>/loop/STOP` and a Settings > Miglioramento ("Improvement")
-  toggle, both read by the supervisor between steps. Neither container mounts or can reach them.
+- **Images:** `mdf-loop-proposer` and `mdf-gate-sandbox` from `node:22-bookworm` plus pinned pnpm,
+  Python requirements, Chrome for Remotion and (proposer only) the pinned codex CLI and gnhf;
+  `mdf-gate-scorer` from the same base without build tools.
+- **Proposer:** mounts only its own clone; its only git remote is the local bare repository
+  `<runtime root>/loop/repo.git`; no env files, no CLI credentials, no Google tokens, no Supabase
+  keys, no host drives. Network: only its model API hosts through an allowlisting egress proxy
+  (Squid in its own container). Dependencies install offline from a read-only package store with a
+  frozen lockfile.
+- **Gate stack:** the supervisor starts a second Supabase stack on the host with the e2e
+  configuration (port 45621 and its neighbours, separate project id and volume) and a Docker
+  network `mdf-gate-net` created with `--internal` (no gateway, so no `host.docker.internal` and no
+  internet). The sandbox joins only `mdf-gate-net`. Before each night the supervisor runs a probe
+  inside the sandbox that must fail to connect to `host.docker.internal:54322`, `:54321`, `:3000`,
+  `:8188`, `:4007` and to any internet host; if any probe succeeds, the night aborts. The host
+  firewall rule (5.2) is the second layer.
+- **Scorer network:** only the OpenRouter API through the egress proxy. Its OpenRouter key has a
+  provider-side credit limit sized by the formula in 13.4 and is recorded in the ledger as provider
+  `openrouter-eval`.
+- **Production never reachable:** neither container mounts the production checkout, the worker env
+  files, `<runtime root>/secrets/`, the kill switch or the Docker socket.
+- `test:db` refuses to run against port 54321, reusing the guard of `apps/web/e2e/local-env.ts`
+  (fixed for everyone in M1).
+- The standing owner rules (2.2) bind the loop: kie is faked; a secret scanner (gitleaks) runs on
+  the diff.
+- **Kill switch:** the file `<runtime root>/loop/STOP` and the Settings > Miglioramento
+  ("Improvement") toggle, both read by the supervisor between steps.
 
-### 13.3 What the loop may change
+### 13.3 What the loop may change (a pure path check)
 
-Allowlist (only these paths; new sensitive areas are protected by default):
-- lyric and image prompt templates (`apps/worker/src/prompts/**`, created in M2);
-- presets and building-block parameters (`packages/visualizer/src/presets/**`,
-  `packages/shared/src/presets/**`);
-- product rubric wording drafts (`config/rubrics/drafts/**`);
+Allowlist:
+- writer prompts for lyrics and images (`apps/worker/src/prompts/writers/**`, created in M2a);
+- presets and looks (`packages/shared/src/visualizer/viz-looks.ts`,
+  `packages/visualizer/src/looks/**`);
 - worker stage code in `apps/worker/src/stages/**`, except the denied files below;
 - new test files (adding only).
 
-Denylist (wins over the allowlist): editing, deleting or skipping existing tests (`.skip`, `.only`,
-`.todo`, `describe.skip` and equivalents in any test file are rejected); lint, TypeScript, test and
-CI configuration (`biome.json`, `tsconfig*`, `vitest*`, `.github/**`); `package.json` and the
-lockfile (no new dependencies); `supabase/**` (no migrations at all); `eval/**` and the frozen
-evaluator; the originality, distinctness and jury thresholds; router order and cost or cap code;
-auth, tokens and scopes (`lib/auth.ts`, `proxy.ts`, `apps/worker/src/authorization.ts`,
-`lib/ops/**`, `lib/mcp/**`); `apps/worker/src/stages/publish.ts` and `quota.ts`; `ops/**` (the
-supervisor, the gate, the deploy script, the revert monitor, the kill switch); `AGENTS.md`, the
-agent skill, `CLAUDE.md`; env files; `docs/superpowers/**`.
+Denylist (wins over the allowlist): `packages/gates/**`, `config/gates/**` (every jury, gate
+implementation, threshold, judge prompt, judge model id, router order, cap constant); the timeline
+blocks file `packages/shared/src/timeline/blocks.ts`; editing, deleting or skipping existing tests
+(`.skip`, `.only`, `.todo` and equivalents in any test file are rejected); lint, TypeScript, test
+and CI configuration (`biome.json`, `tsconfig*`, `vitest*`, `.github/**`); `package.json`, the
+lockfile, `.gitattributes`, `.gitmodules`, `.husky/**`; `supabase/**`; `eval/**`; auth, tokens,
+scopes and the ops layer (`apps/web/lib/auth.ts`, `apps/web/proxy.ts`, `apps/web/lib/ops/**`,
+`apps/web/lib/mcp/**`, `apps/auth/**`, `apps/worker/src/authorization.ts`); the paid-provider
+module `apps/worker/src/providers/**`; `apps/worker/src/stages/publish.ts` and `quota.ts`;
+`ops/**`; `AGENTS.md`, the agent skill, `CLAUDE.md`; env files; `docs/superpowers/**`.
 
-### 13.4 Evaluation: frozen evaluator and golden set
+### 13.4 Evaluation: frozen evaluator, golden set and canaries
 
-- **Golden set:** 5 items in M2 (used to calibrate thresholds), 10 before the loop merges: YouTube
-  sources the owner owns or that are CC BY, plus one-line ideas, curated by the author, with
-  **frozen artefacts** (analysis, takes, stems, images, word timing) under
-  `<runtime root>/golden/` and a manifest in `eval/golden/manifest.json`. Evaluation re-runs only
-  the stages a change touches and reuses the frozen artefacts for the rest, so it never pays for
-  music or images.
+- **Golden set:** 5 items in M2a, 10 before the loop merges: one of the owner's own videos, CC BY
+  music videos the author finds through YouTube's licence filter, and one-line ideas, curated by the
+  author, with **frozen artefacts** (analysis, takes, stems, images, word timing) under
+  `<runtime root>/golden/` and the manifest `eval/golden/manifest.json` (the only source of truth;
+  there is no database table). Evaluation re-runs only the stages a change touches.
+- **Canaries:** known-bad items in the same manifest: a close paraphrase and a literal translation
+  of a source (must fail lyric originality), a frame with misspelt text (must fail OCR must-fix), a
+  render near-identical to a published video (must fail distinctness), a timeline with a forbidden
+  field (must fail validation). These checks are deterministic (local metrics, no paid judge). The
+  gate requires the candidate's product gates to still reject every canary.
 - **Frozen evaluator** (`eval/`, denylisted): its own copy of the jury prompts, rubrics and
-  thresholds, with pinned judge model ids. The product's juries can change; scoring always uses the
-  frozen evaluator, so making the product jury lenient cannot raise the loop's score. The evaluator
-  changes only by a human commit.
-- **Renders:** evaluation renders stills at the sampled timestamps (Remotion still frames) plus the
-  contact sheet; a full render runs on 2 items per candidate to measure render success.
-- **Composite score** (0 to 1): visual jury 0.30, lyric jury 0.25, music checks 0.15, render
-  success 0.15, cost 0.10, time 0.05.
-- **Noise:** each item runs k = 3 times. The noise band is measured each night by running the
-  baseline against itself (the 95th percentile absolute difference of the composite; at least
-  0.02).
-- **Accept** when the candidate's composite beats the baseline by more than the noise band and no
-  component regresses beyond its tolerance: any score component by more than 0.03, render success
-  not at all, cost by more than 10%.
+  thresholds with pinned judge ids. Scoring always uses it, never the product juries. It changes
+  only by a human commit.
+- **Renders:** evaluation renders stills at the sampled timestamps plus the grids; one full render
+  per candidate on 2 items measures render success.
+- **Composite** (0 to 1): visual jury 0.30, lyric jury 0.25, music checks 0.15, render success
+  0.15, cost 0.10, time 0.05.
+- **Noise:** each item runs k = 2 times per arm. The noise band (the 95th percentile absolute
+  difference of the baseline against itself, at least 0.02) is measured once a week and cached, so
+  a night has two arms: baseline and candidate.
+- **Accept** when the candidate beats the baseline by more than the noise band, no component
+  regresses beyond its tolerance (any score component by more than 0.03, render success not at
+  all, cost by more than 10%), and every canary is still rejected.
+- **Evaluation budget:** cost per hypothesis = items (10) x k (2) x arms (2) x cost per scoring
+  pass. The scorer measures the pass cost on the first dry-run night; the nightly cap is set to 3
+  hypotheses at that cost (expected about 0.20 USD each at about 0.005 USD per pass, so a 1 USD
+  nightly cap including the weekly noise measurement). Hypotheses per night =
+  floor(cap / cost per hypothesis), at most 3.
 
 ### 13.5 The merge gate (in order; any failure rejects the night's candidate)
 
 1. The diff touches only allowed paths and no denied path; at most 15 files and 400 changed lines.
-2. No new or changed dependency; offline install from the frozen lockfile succeeds.
+2. No new or changed dependency; offline install from the frozen lockfile succeeds (sandbox).
 3. Secret scan of the diff is clean.
-4. Lint (biome), type check, every vitest suite, `test:db` on the gate's stack, the e2e smoke test.
-5. Golden-set evaluation as in 13.4.
+4. Lint (biome), type check, every vitest suite, `test:db` on the gate stack, the e2e smoke test
+   (sandbox).
+5. Canaries rejected and golden-set evaluation accepted (13.4; sandbox then scorer).
 6. No earlier loop merge is still inside its watch window (13.7), so merges never stack.
 
 ### 13.6 Merge target and deploy
 
-- Before the loop is enabled (M6), `main` becomes the production branch (AC13): human feature
-  branches merge into `main`, and the production checkout tracks `main`.
-- The gate squashes an accepted candidate into **one commit** on the integration branch
-  `loop/main`, rebases it onto `main` and fast-forwards `main`. If the rebase conflicts with human
-  work, the night's change is dropped and logged; nothing is ever force-pushed.
-- Deploy script (`ops/deploy.ps1`, and `ops/deploy.sh` for Debian): wait for an idle window (no
-  running job, GPU lease free) -> `pg_dump` of the local database to `<runtime root>/backups/`
-  (kept 14 days) -> `git pull --ff-only` -> frozen-lockfile install -> `next build` -> restart the
-  web and worker services -> health check (`/api/health`, worker heartbeat, one smoke job on fake
-  providers). On failure it returns to the previous commit and redeploys automatically.
+- Before M6, `main` becomes the production branch (AC13). Cutover: when no feature branch is
+  mid-merge, merge `build/studio-ui` into `main`, switch the production checkout to `main`, run the
+  deploy script, and from then on branch features from `main`.
+- The merger squashes an accepted candidate into **one commit**, rebases it onto `main` and
+  fast-forwards `main`. If the rebase conflicts with human work, the night's change is dropped and
+  logged; nothing is ever force-pushed. (No separate integration branch is needed.)
+- Deploy uses the M1 script `ops/deploy.ts` (21.2), run by the supervisor on the host.
 
 ### 13.7 Watch and automatic revert
 
-For 48 h after a loop merge, the revert monitor compares operational signals of new runs against
-the previous 7 days, with at least 3 runs before deciding: job failure rate up by more than 10
-percentage points, render success below 95%, mean jury score down by more than 0.05, cost per video
-up by more than 20%. Any trigger: `git revert` of that one commit, deploy, notify. Because the loop
-never writes migrations, a revert never leaves schema behind.
+- For 48 h after a loop merge, and longer until at least 3 real runs have completed (up to 7 days),
+  the revert monitor compares new runs against the previous 7 days: job failure rate up by more than
+  10 percentage points, render success below 95%, frozen-evaluator score of the run's outputs down
+  by more than 0.05, cost per video up by more than 20%.
+- **Nightly canary jobs** (scheduler task `canary_jobs`, 00:30): the supervisor starts two golden
+  items on the production stack with a `canary` token (fake providers, no spend, no publish) so the
+  monitor always has data, scored by the frozen evaluator.
+- Any trigger: the supervisor reverts that one commit, deploys, notifies. Because the loop never
+  writes migrations, a revert never leaves schema behind. If after 7 days fewer than 3 real runs
+  happened, the canary results alone decide.
 
 ### 13.8 Enablement and reporting
 
-- The first 7 nights run as **dry run**: the gate does everything except merge and reports "would
-  merge". Merging switches on automatically after 7 consecutive dry-run nights in which the gate,
-  the evaluation and the deploy rehearsal (on the gate stack) completed without a crash. This is a
-  mechanical gate, not an approval.
-- Night window: 01:00 to 06:00 Europe/Rome by default; production jobs preempt evaluation (14.1).
-- Morning report (app, `loop_report_get`, push summary): each hypothesis with files, baseline and
-  candidate scores, noise band, decision and commit; merges; reverts; open veto windows and
-  deadlines; paused runs; yesterday's spend against caps; the top 5 errors.
+- The first 7 nights are **dry runs**: everything except the merge, reported as "would merge".
+  Merging switches on automatically after 7 consecutive nights in which the probe, gate, scorer and
+  a deploy rehearsal (on the gate stack) completed without a crash. This is a mechanical gate, not
+  an approval.
+- Night window: 01:00 to 06:00 Europe/Rome; production jobs preempt evaluation (14.1).
+- Morning report (app, `loop_report_get`, push summary): each hypothesis with files, scores, noise
+  band, decision and commit; merges; reverts; open veto windows and deadlines; paused runs;
+  yesterday's spend against caps; the top 5 errors.
 
 ## 14. GPU, disk and quota budgets
 
-### 14.1 One GPU at a time, enforced
+### 14.1 One GPU at a time, enforced (M2a)
 
-- `jobs.resource_class` (`gpu`, `cpu`, `net`) set from a stage map in `packages/shared`.
-- A single `gpu_lease` row (holder job and worker, heartbeat, priority, expiry). `claim_job` hands a
-  `gpu` job out only when the lease is free, and orders by priority then age: interactive and
-  Copilot 0, Autopilot 1, loop evaluation 2. Evaluation checks a `yield_requested` flag between
-  items and releases the lease.
+- `jobs.resource_class` (`gpu`, `cpu`, `net`) from a stage map in `packages/shared`, and
+  `jobs.priority` (smallint, 0 interactive and Copilot, 1 Autopilot, 2 canary), set by the ops
+  wrapper or the orchestrator that enqueues the job.
+- A single `gpu_lease` row (holder, heartbeat, priority, `expires_at`). A holder renews it with the
+  job heartbeat (every 15 s); it expires 60 s after the last renewal. The current `claim_job` is
+  extended to hand out a `gpu` job only when the lease is free or expired, ordering by priority then
+  age.
+- Loop evaluation runs on its own stack, so the **supervisor** holds the production lease on its
+  behalf (holder `loop-eval`, priority 3) and passes a yield request to the sandbox through a
+  read-only mounted file when a production GPU job is waiting; the sandbox stops between items and
+  the supervisor releases the lease. The deploy script waits for the lease to be free.
 - Before a Remotion or Demucs job the worker asks ComfyUI to unload its models (or stops it), and
-  it claims a GPU job only when at least 6 GB of VRAM is free (so the owner's own After Effects
+  it claims a GPU job only when at least 6 GB of VRAM is free (the owner's own After Effects
   sessions are respected).
 
-### 14.2 Capacity (rough, measured again in M2)
+### 14.2 Capacity (rough, measured again in M2a)
 
 | Work | GPU time |
 | --- | --- |
@@ -1178,136 +1510,299 @@ never writes migrations, a revert never leaves schema behind.
 | Remake: master render 1080p, 3-minute song | about 10 min |
 | Remake: Short and thumbnails | about 4 min |
 | Remake: local images (free tier, 8 images) | about 8 min |
-| Loop: one hypothesis (10 items, k = 3, stills, 2 full renders) | about 1 h |
+| Loop: one hypothesis (10 items, k = 2, 2 arms, stills, 2 full renders) | about 45 min |
 
-So the PC handles a few remakes per day plus up to 3 loop hypotheses in the night window.
+### 14.3 Disk (M2a)
 
-### 14.3 Disk
+- A remake peaks at about 1 to 3 GB. Retention (scheduler task `retention_sweep`, daily): source
+  media deleted when R2 passes (kept data listed in 8.4); unchosen takes and intermediates deleted
+  14 days after publishing; masters, the Short, stems and the timeline kept.
+- New remakes pause when E: has less than 50 GB free (task `disk_guard`, every 10 minutes). Every
+  cache is pinned to `<runtime root>/cache/` through the worker's environment (`TMP`, `TEMP`,
+  `HF_HOME`, `XDG_CACHE_HOME`, Remotion and browser caches, pip, yt-dlp). Jobs never write to C:.
 
-- A remake peaks at about 1 to 3 GB. Retention: source media deleted when R2 passes (analysis JSON
-  and low-resolution contact sheets kept); unchosen takes and intermediates (frames, draft renders)
-  deleted 14 days after publishing; masters, the Short, stems and the timeline kept.
-- New remakes pause when E: has less than 50 GB free (notification). Every cache is pinned to
-  `<runtime root>/cache/` through the worker's environment (`TMP`, `TEMP`, `HF_HOME`,
-  `XDG_CACHE_HOME`, the Remotion bundle and browser caches, pip, yt-dlp). Jobs never write to C:.
+### 14.4 Scheduler (M1)
+
+One mechanism for timed work: the **worker scheduler**. Table `scheduled_tasks` (15.1); the worker
+claims a due task atomically with `claim_scheduled_task(worker)` (an update of `next_run_at` with
+`FOR UPDATE SKIP LOCKED`) and runs it in process. Tasks:
+
+| Task | Cadence | From |
+| --- | --- | --- |
+| `expire_reservations` | every 5 min | M1 |
+| `purge_idempotency` | hourly | M1 |
+| `kie_reconcile` | daily 05:00 | M1 |
+| `price_book_sync` | daily 04:00 | M1 |
+| `notify_push` | every 30 s | M1 |
+| `purge_audit` (180 days) | daily | M1 |
+| `retention_sweep` | daily 03:00 | M2a |
+| `disk_guard` | every 10 min | M2a |
+| `publish_slots` | every minute | M4 |
+| `veto_reminders` | every 10 min | M4 |
+| `capability_expire` | hourly | M4 |
+| `analytics_daily` | daily 06:00 | M4 |
+| `canary_jobs` | daily 00:30 | M6 |
+
+Times are Europe/Rome.
 
 ## 15. Data model additions
 
-Every migration is additive (new tables, new nullable columns, widened check lists). Names are
-given; the numbers are assigned after T12's last migration.
+All migrations are additive (new tables, new nullable columns, widened check lists) except the
+privilege changes of `ops_scopes`, which only revoke. Numbers are assigned after T12's last
+migration.
 
-| Entity (table) | Key fields | Relation to existing tables | Milestone, migration |
-| --- | --- | --- | --- |
-| `agent_tokens` | owner, kind, name, hash, oauth client id, scopes, daily cap, remote, revoked | profiles | M1 `ops_tokens` |
-| `idempotency_keys`, `rate_counters` | token, key, request hash, response; window counts | agent_tokens | M1 `ops_tokens` |
-| `audit_log` | token, actor, operation, argument hash, result, cost, time | agent_tokens | M1 `ops_tokens` |
-| `price_book`, `ledger_entries`, `spend_caps`, `spend_counters` | section 11.5 | jobs, versions, agent_tokens | M1 `spend_ledger` |
-| `jobs` columns `token_id`, `run_id`, `resource_class` | nullable | jobs | M1 `spend_ledger` |
-| `require_scope()`, pre-request hook, storage policy update | section 6 | existing RPCs wrapped | M1 `ops_scopes` |
-| `notifications` | user, kind, severity, title, body, link, deadline, read, delivered | profiles | M1 `notifications` |
-| `app_flags` | flag, enabled, enabled_by, at | none | M1 `notifications` |
-| `remakes` | owner, source url and id, mode, tier, driver, lease, defaults snapshot, status, stop reason, project, primary version, runtime dir | projects, versions | M2 `remakes` |
-| `stage_runs` | remake, version, r-stage, state, round, attempt, stage version, stop reason, cost reserved and settled, driver | remakes, jobs | M2 `remakes` |
-| `remake_analyses` | remake, music, meaning map, blueprint (jsonb with schema version), models, cost, `untrusted` | remakes | M2 `remakes` |
-| `jury_reports` | subject kind and id, round, judges, rubric version, scores, must-fix, devil's notes, available, passed | versions, renders | M2 `jury_reports` |
-| `timelines` | version, revision, document, author, created | versions | M2 `timelines` |
-| `versions.status` value `analysing`; new stages in `jobs_stage_check` | | versions, jobs | M2 `remakes` |
-| `golden_items` | id, kind, manifest path, curator | none | M2 `jury_reports` |
-| `images` | owner, version, shot, provider, model, prompt hash, ledger entry, path, sha256 | versions, ledger | M3 `images` |
-| `fingerprints` | render, frame index, pHash, DINOv2 embedding | renders | M3 `images` |
-| `gpu_lease` | holder, heartbeat, priority, expiry | jobs, workers | M2 `gpu_lease` |
-| `publications` columns `platform`, `route`, `kind`, `schedule_id`, `external_post_id`, `external_url`, `confirmed_via` | nullable | publications | M4 `publish_routes` |
-| `publish_schedules` | owner, version, slot, veto deadline, state, vetoed by and via, decided at | versions, publications | M4 `publish_routes` |
-| `capability_links` | token hash, render, expires, revoked | renders | M4 `publish_routes` |
-| `analytics_snapshots` | video id, date, views, impressions, CTR, average view duration, retention | publications | M4 `analytics` |
-| `autopilot_policies`, `remake_defaults` | section 6.5, 8.7 | profiles | M5 `autopilot` |
-| `loop_runs`, `loop_watch` | night, hypothesis, branch, files, scores, noise band, decision, commit, revert | none | M6 `loop` |
+### 15.1 M1 tables (DDL level)
+
+Every table has RLS enabled. "Read own" means `select to authenticated using (owner_id =
+auth.uid())`. No table has INSERT, UPDATE or DELETE grants for `authenticated` or `anon`; writes
+happen only in `ops.*` and worker functions.
+
+```sql
+-- migration ops_roles
+alter table public.admin_allowlist add column role text not null default 'customer'
+  check (role in ('admin','customer'));
+-- create_allowlisted_profile() inserts (select role from admin_allowlist where ...) instead of 'admin';
+-- backfill as in 6.2.
+
+-- migration ops_tokens
+create table public.agent_tokens (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.profiles(id) on delete cascade,
+  kind text not null check (kind in ('pat','oauth','autopilot','canary')),
+  name text not null check (length(name) between 1 and 60),
+  token_hash text unique,              -- sha256 hex, pat only
+  token_hint text,                     -- 'mdf_pat_...' plus last 4
+  oauth_client_id text,                -- oauth only
+  scopes text[] not null check (scopes <@ array['read','create','spend','publish']),
+  daily_cap_usd numeric(8,2) not null default 1.00,
+  remote boolean not null default false,
+  test_mode boolean not null default false,
+  expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz,
+  revoked_at timestamptz,
+  check ((kind = 'pat') = (token_hash is not null)),
+  check ((kind = 'oauth') = (oauth_client_id is not null)),
+  check (not remote or expires_at is not null)
+);
+create unique index agent_tokens_one_grant on public.agent_tokens (owner_id, oauth_client_id)
+  where kind = 'oauth' and revoked_at is null;
+-- read own (metadata columns only, through a view without token_hash)
+
+create table public.oauth_store (
+  model text not null, id_hash text not null, payload jsonb not null,
+  grant_id text, uid text, expires_at timestamptz, consumed_at timestamptz,
+  primary key (model, id_hash)
+);  -- no grants at all; only ops.oauth_* functions
+
+create table public.idempotency_keys (
+  actor_key text not null,             -- token id, or 'session:' || user id
+  key text not null check (length(key) between 8 and 100),
+  request_hash text not null,
+  state text not null check (state in ('in_flight','done')),
+  response jsonb,
+  created_at timestamptz not null default now(),
+  primary key (actor_key, key)
+);
+
+create table public.audit_log (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  owner_id uuid not null,
+  actor_kind text not null check (actor_kind in ('session','pat','oauth','autopilot','canary','worker')),
+  token_id uuid, operation text not null, args_hash text not null,
+  result text not null check (result in ('ok','error')), error_code text,
+  usd_reserved numeric(10,4), remote boolean not null default false
+);
+create index on public.audit_log (owner_id, at desc);  -- read own
+
+-- migration spend_ledger
+create table public.price_book (
+  provider text not null, model text not null default '',
+  unit text not null check (unit in ('credit','image','mtok_in','mtok_out','audio_hour','call')),
+  usd_per_unit numeric(12,6) not null, checked_on date not null, source text not null,
+  verified boolean not null default false,
+  primary key (provider, model, unit)
+);  -- readable by authenticated
+
+create table public.ledger_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id),
+  provider text not null, model text not null default '',
+  units_est numeric not null, usd_est numeric(10,4) not null,
+  units_actual numeric, usd_actual numeric(10,4),
+  state text not null check (state in ('reserved','settled','released','expired','ambiguous')),
+  token_id uuid references public.agent_tokens(id), run_id uuid,
+  job_id uuid references public.jobs(id), version_id uuid,
+  created_at timestamptz not null default now(), settled_at timestamptz,
+  expires_at timestamptz not null default now() + interval '30 minutes'
+);
+create index on public.ledger_entries (job_id);
+create index on public.ledger_entries (state, expires_at);  -- read own (user_id)
+
+create table public.spend_caps (
+  scope text not null check (scope in ('global','provider','user','token','run')),
+  key text not null default '',        -- provider name, user id, 'default:customer', token id, ''
+  period text not null check (period in ('day','month','run')),
+  limit_usd numeric(10,2), limit_units numeric,
+  primary key (scope, key, period)
+);
+create table public.spend_counters (
+  scope text not null, key text not null, period text not null, window_start date not null,
+  usd numeric(10,4) not null default 0, units numeric not null default 0,
+  primary key (scope, key, period, window_start)
+);
+
+alter table public.jobs
+  add column token_id uuid references public.agent_tokens(id),
+  add column run_id uuid,
+  add column resource_class text not null default 'cpu' check (resource_class in ('gpu','cpu','net')),
+  add column priority smallint not null default 0,
+  add column fake_providers boolean not null default false;
+
+-- migration notifications
+create table public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  kind text not null check (kind in ('run_paused','veto_open','veto_reminder','missed_slot','cap_hit',
+    'ambiguous_spend','gate_failed_at_slot','loop_merge','loop_revert','disk_low','system')),
+  severity text not null check (severity in ('info','warn','urgent')),
+  title text not null check (length(title) <= 120), body text check (length(body) <= 500),
+  link text, deadline timestamptz,
+  created_at timestamptz not null default now(), read_at timestamptz, pushed_at timestamptz
+);  -- read own
+
+create table public.app_flags (
+  flag text primary key check (flag in ('remote_mcp','autopilot','auto_publish_public','loop_merge','premium')),
+  enabled boolean not null default false, changed_by uuid, changed_at timestamptz
+);  -- readable by authenticated
+
+create table public.scheduled_tasks (
+  name text primary key, interval_s integer, daily_at time,
+  next_run_at timestamptz not null, running_by text, started_at timestamptz,
+  last_ok_at timestamptz, last_error text,
+  check ((interval_s is null) <> (daily_at is null))
+);  -- no grants; worker only
+```
+
+Flags are read per request through `ops.flags()` with a 10 s in-process cache in Next.
+
+### 15.2 Later tables (key fields; DDL written in each milestone's plan before it starts)
+
+| Entity | Key fields | Milestone, migration |
+| --- | --- | --- |
+| `remakes` | owner, source url and id, mode, tier, driver, lease, defaults snapshot, status, stop reason, project, primary version | M2a `remakes` |
+| `stage_runs` | remake, version, r-stage, state, round, `stage_version` (optimistic counter), stop reason, cost reserved and settled, driver; `jobs.stage_run_id` links jobs to it | M2a `remakes` |
+| `remake_analyses` | remake, music, transcript with word timestamps, literal translations, meaning map, blueprint (schema versions), models, cost, `untrusted` | M2a `remakes` |
+| `remake_defaults` | user, fields of 8.7 | M2a `remakes` |
+| `jury_reports` | subject kind and id, round, judges, rubric version, scores, must-fix, devil's notes, available, passed | M2a `jury_reports` |
+| `versions.status` value `analysing`; new stages in `jobs_stage_check`; `ledger_entries.run_id` foreign key | | M2a `remakes` |
+| `gpu_lease` | holder, heartbeat, priority, expires_at | M2a `gpu_lease` |
+| `timelines` | version, revision, document, author | M2b `timelines` |
+| `images` | owner, version, shot, provider, model, prompt hash, ledger entry, path, sha256 | M3 `images` |
+| `fingerprints` | subject kind (`source`, `render`), subject id, shot or frame index, pHash, DINOv2 embedding | M2a (source) `remakes`, M3 (renders) `images` |
+| `versions.content_kind`, `publish_gate_status()` | 10.8 | M3 `publish_gate` |
+| `publications` new columns (12.5), `publish_schedules`, `capability_links` | 12.2, 12.5, 5.4 | M4 `publish_routes` |
+| `analytics_snapshots` | video id, date, views, average view duration, retention, impressions and CTR if available | M4 `analytics` |
+| `autopilot_policies` | 6.5 | M5 `autopilot` |
+| `loop_runs`, `loop_watch` | night, hypothesis, files, scores, noise band, decision, commit, revert | M6 `loop` |
 
 ## 16. Observability and notifications
 
-- **Stores:** `job_events` (stage progress, existing); `audit_log` (every agent call, 180 days);
-  `ledger_entries` (kept forever); `jury_reports` (kept); worker and web logs under
-  `<runtime root>/logs/` (rotated, 14 days, redacted by the existing secret redaction).
+- **Stores:** `job_events` (existing); `audit_log` (180 days); `ledger_entries` (kept);
+  `jury_reports` (kept); logs under `<runtime root>/logs/` (rotated, 14 days, redacted).
 - **Metrics:** SQL views (`ops_metrics_daily`): job failure rate by stage, render success, mean
-  jury scores, cost per video, queue wait, GPU busy share. The revert monitor (13.7) and the morning
-  report read them.
-- **Notifications:** the `notifications` table, shown in the app, readable by agents through
-  `notifications_list` and the notifications resource, and pushed through **ntfy** (AC12) to the
-  owner's phone: paused runs, open veto windows with their deadline (when opened and 2 h before
-  expiry), missed slots, cap hits, ambiguous kie submissions, loop merges and reverts, disk low.
+  jury scores, cost per video, queue wait, GPU busy share.
+- **Notifications (M1):** the `notifications` table, shown in the app and to agents. Push through
+  **ntfy** (AC12): the public `https://ntfy.sh` server, a random 24-character topic in `NTFY_TOPIC`
+  (`apps/worker/.env.local`), sent by the scheduler task `notify_push`. Payload: title, at most 200
+  characters of body, and a link to the app; never lyrics, keys or personal data.
 
 ## 17. Threat model and risks
 
 | Risk | Surface | Likelihood / impact | Mitigation | Milestone |
 | --- | --- | --- | --- | --- |
-| Forged service-role JWT with the public demo secret | `api.` host | high / critical | Key rotation before exposure, exit test (5.3) | M1 |
-| Private services exposed by the tunnel | tunnel | medium / critical | Hostname and path allowlist, catch-all 404, Access (5.2) | M1 |
-| OAuth or PAT token used directly against the database, bypassing scopes | PostgREST, storage | medium / high | Pre-request hook, `require_scope`, storage policies (6.3, 6.4) | M1 |
-| Agent-authored code execution | renders | high if code were allowed / critical | Data-only timeline (9.2), file validation (9.4) | M2 |
-| Prompt injection from source captions or metadata | Autopilot writer, agents, loop | medium / medium | Untrusted labelling, template-only use, no admin operations in the API (6.8) | M2 |
-| Overspend under concurrency | ledger | medium / high | Atomic `reserve_spend` in the enqueue transaction (11.5) | M1 |
-| Unjudged content in Autopilot during a provider outage | juries | medium / high | Fail-closed `jury_unavailable` (10.1) | M2, M5 |
-| A video goes public against a veto | publishing | low / high | App-owned clock, fails closed (12.2) | M4 |
-| Loop weakens its own gates or score | loop | high without rails / high | Gate outside write scope, allowlist and denylist, frozen evaluator (13) | M6 |
-| Loop reads secrets or touches live data or money | loop | medium / critical | Containers, own stack, fake providers, egress allowlist (13.2) | M6 |
-| Content ID claim despite originality checks | YouTube | medium / medium | Originality gates; "Segnala claim" ("Report claim") button pauses Autopilot publishing and feeds the loop as a severe negative | M4 |
+| Direct database calls bypass caps, roles, veto | PostgREST | high once exposed / critical | `ops_scopes` revokes (6.3); Supabase not exposed in M1 (5.2) | M1 |
+| Every allowlisted user is admin | auth trigger | certain today / high | `ops_roles` (6.2) | M1 |
+| Forged service-role JWT with the demo secret | gateway | high if exposed / critical | Key rotation and exit test (5.3) | M1 |
+| Private services exposed by the tunnel | tunnel | medium / critical | Edge-proxy path allowlist, catch-all 404, firewall rule (5.2) | M1 |
+| OAuth token used against Supabase | OAuth | eliminated by design | Opaque tokens from `apps/auth` (6.4) | M1 |
+| Compromised Next process | web | low / high | `mdf_ops` can only call `ops.*`; Next runs as `mdf-web` without access to worker secrets (5.1, 6.3) | M1 |
+| Overspend under concurrency | ledger | medium / high | `reserve_spend` with row locks inside the wrappers; paid-call module (11.5) | M1 |
+| Agent-authored code execution | renders | eliminated by design | Data-only timeline (9.2), file validation (9.4) | M2b |
+| Prompt injection from source content | Autopilot writer, agents, route 2, loop | medium / medium | Enum and `Safe` fields (6.8), route 2 container (11.3) | M2a, M3 |
+| Unjudged content in Autopilot | juries | medium / high | Fail-closed `jury_unavailable` (10.1) | M5 |
+| Video public against a veto | publishing | low / high | App-owned clock, fail closed (12.2) | M4 |
+| Loop loosens production gates | loop | high without rails / high | Gates in denylisted paths, canaries, revert scored by the frozen evaluator (13.3-13.7) | M6 |
+| Candidate code reaches credentials or production | loop | medium / critical | Sandbox on an internal network, probe, scorer and merger split (13.1, 13.2) | M6 |
+| Content ID claim | YouTube | medium / medium | Originality gates; claim report pauses Autopilot publishing (12.5) | M4 |
 | kie or the Midjourney reseller disappears | providers | medium / low | OD5 fallthrough; ACE-Step for music | M3 |
-| YouTube audit rejected or lock still applies | publishing | medium / medium | Lock re-verification, Blotato route with disclosure check (12.1) | M4 |
-| GPU becomes the queue bottleneck | worker | high / medium | GPU lease and priorities, night window for the loop (14.1) | M2 |
-| Disk fills | E: | medium / medium | Retention, free-space pause, caches on E: (14.3) | M2 |
-| Shared ChatGPT quota starves production images | codex | medium / low | Priority rules and fallthrough (11.3) | M3 |
+| YouTube audit rejected or lock still applies | publishing | medium / medium | P0 re-verification and early audit (12.1) | P0 |
+| GPU queue bottleneck | worker | high / medium | GPU lease and priorities (14.1) | M2a |
+| Disk fills | E: | medium / medium | Retention and guard (14.3) | M2a |
+| Non-owner machines as workers | future | later / high | Portability rule on credentials (25) | M8 |
 
 ## 18. Alternatives considered
 
 | Choice | Chosen | Rejected and why |
 | --- | --- | --- |
-| Remake rule, remote and local agents, veto window, autonomous loop, image order, Remotion with JSON timeline, PC hosting | Owner decisions OD1-OD8 | Not re-argued. |
-| Hosting | PC plus tunnel (AC1) | Vercel plus hosted Supabase: the worker, GPU and local database live on the PC anyway, and a split topology doubles auth and media configuration. |
-| Tunnel | Cloudflare Tunnel | Tailscale Funnel: one `*.ts.net` hostname (a different OAuth issuer and redirect host), no WAF or Access, not on the owner's domain. |
-| Authorization server | Supabase OAuth 2.1 server (AC2) | A self-built server: more code and more risk; Supabase's is already in the stack. |
-| Publish clock | App-owned (AC4) | YouTube `publishAt`, Blotato or Postiz schedules: a veto would need the PC online to cancel, so an offline PC would publish against a veto. |
-| Agent compositions | JSON timeline (AC3) | TSX compositions in a "sandbox": remote code execution on the PC with keys in reach. |
-| Loop runner | gnhf or Claude Code headless, inside a container | Either on the host as the owner's user: reads every secret. |
-| stdio MCP | Bridge to `/api/mcp` | A separate stdio server talking to the database: a second implementation that skips scopes, caps and audit. |
-| Push channel | ntfy (AC12) | Email (needs the SMTP setup first), Telegram (a bot to run). |
+| Remake rule, agents, veto window, loop, image order, renderer, PC hosting | Owner decisions OD1-OD8 | Not re-argued. |
+| Hosting | PC plus tunnel (AC1) | Vercel plus hosted Supabase: the worker, GPU and database live on the PC anyway. |
+| Tunnel | Cloudflare Tunnel | Tailscale Funnel: one `*.ts.net` hostname, no WAF, not on the owner's domain. |
+| M1 public surface | MCP, OAuth and sign-in only (AC15) | Whole app plus Supabase in M1: the largest attack surface, not needed by OD2. |
+| Authorization server | `apps/auth` on `oidc-provider` with opaque tokens (AC2) | Supabase OAuth server: its tokens are Supabase JWTs usable on PostgREST, Realtime and storage, which needs extra blocks everywhere (kept as the fallback). |
+| Internal identity | `mdf_ops` Postgres role and `ops` schema (AC14) | Minting Supabase JWTs in Next: puts a key that can mint `service_role` in the internet-facing process. |
+| Publish clock | App-owned (AC4) | `publishAt`, Blotato or Postiz schedules: an offline PC would publish against a veto. |
+| Agent compositions | JSON timeline (AC3) | TSX in a sandbox: remote code execution on the PC. |
+| Loop gate | Sandbox, scorer and host merger split | One gate container: candidate code next to the push credential. |
+| Image route 2 | codex in a container with only an output folder | codex on the host: a shell-capable agent on untrusted prompts under the owner's account. |
+| stdio MCP | Bridge to `/api/mcp` | A stdio server on the database: a second implementation. |
+| Scheduler | Worker scheduler | `pg_cron`: half the tasks need the network and Python in the worker anyway. |
+| Ops scripts | TypeScript on Node with thin OS wrappers | PowerShell plus POSIX copies: the untested copy rots. |
+| Push channel | ntfy (AC12) | Email (needs SMTP for every alert), Telegram (a bot to run). |
 
 ## 19. Testing strategy
 
 All with zero kie spend.
 
-- Fakes: extend `apps/worker/src/fake` to cover yt-dlp, kie Midjourney, codex, Nano Banana,
-  OpenRouter text and image, Groq, YouTube, Blotato and Postiz, selected by env; the e2e and gate
-  stacks use them always.
-- Recorded fixtures for one source video (one of the owner's own videos): captions, frames, contact
-  sheets, analysis JSON.
-- Unit tests: blueprint and timeline schemas (including rejection of code, URLs and oversize
-  documents), `reserve_spend` under concurrency (parallel reservations never exceed a cap), state
-  machine transitions and `expected_stage_version` conflicts, originality metrics (a known close
-  paraphrase and a literal translation must fail; a same-meaning rewrite must pass), fail-closed
-  jury in Autopilot.
-- Database tests: `require_scope`, the pre-request hook (OAuth token refused at PostgREST), the
-  publish gate, Autopilot RPCs refusing a failed or unavailable jury. `test:db` pinned to the e2e
-  stack.
-- MCP: MCP Inspector over both transports; an OAuth end-to-end test (dynamic registration, PKCE,
-  consent, token, tool call, revocation) against the local stack.
-- Tunnel smoke test: allowed routes answer, denied ones return 404, a demo-secret JWT is refused.
-- Publishing: a dry-run mode that stops before the API call, plus the lock re-verification upload
-  (12.1) on the owner's channel as a private test.
-- Loop: the dry-run nights (13.8) and a test that a candidate touching a denied path, skipping a
-  test or adding a dependency is rejected by the gate.
+- **Fakes.** `apps/worker/src/fake` is extended to yt-dlp, kie Midjourney, codex, Nano Banana,
+  OpenRouter text and image, Groq, YouTube, Blotato and Postiz. Selection moves from process env to
+  **per job**: the worker runs a job on fakes when `jobs.fake_providers` is true, which the ops layer
+  sets for jobs created by a `test_mode` or `canary` token. The e2e and gate stacks also force fakes
+  for every job (`MELLODIFAI_FAKE_PROVIDERS=1`).
+- **Remote exit test on production (M1).** An admin `test_mode` PAT and an OAuth grant created for
+  the test run claude.ai and Claude Code against the real tunnelled instance; every job they create
+  runs on fakes, so nothing is spent.
+- **MCP conformance:** `npx @modelcontextprotocol/inspector --cli <url> --method tools/list`, then
+  `tools/call` of `song_get`, `song_create` and `job_status`, over both transports, must succeed;
+  the same with a revoked token must fail with 401.
+- Unit tests: schemas (blueprint, meaning map, timeline, blocks; rejection of code, URLs, oversize
+  documents and unsafe strings), `reserve_spend` under concurrency (20 parallel reservations never
+  exceed a cap), the paid-call module rule, the state machine and `expected_stage_version`
+  conflicts, originality metrics (paraphrase and literal translation fail, same-meaning rewrite
+  passes), fail-closed juries in Autopilot.
+- Database tests (`supabase/tests/`, pinned to the e2e stack): the 6.3 exit tests, role backfill
+  and the customer rules, policy-function EXECUTE coverage, publish gate per content kind,
+  Autopilot RPCs refusing a failed or unavailable jury.
+- OAuth end to end against the local stack: dynamic registration, PKCE, consent, token, tool call,
+  revocation, and an `mdf_oat_` token refused by PostgREST.
+- Tunnel smoke test: allowed routes answer, denied routes return 404, nothing of Supabase answers.
+- Route 2 injection test (11.3). Gate tests: a candidate touching a denied path, skipping a test,
+  adding a dependency, or loosening a canary is rejected; the sandbox probe fails closed.
 
 ## 20. Rollout, feature flags and rollback
 
-| Flag (`app_flags`) | Turns on | Enablement gate | Kill path |
+| Flag | Turns on | Enablement gate | Kill path |
 | --- | --- | --- | --- |
-| `remote_mcp` | remote PATs and OAuth at `/api/mcp` on the public host | M1 exit tests pass (OAuth end-to-end, Inspector, tunnel smoke, key rotation) | Settings > Agenti "Chiudi accesso remoto" ("Close remote access"): flag off (public-host API returns 503), every OAuth grant and remote PAT revoked; hard kill: stop the `cloudflared` service |
-| `autopilot` | Autopilot runs | M3 juries and M1 caps in place, 5 Copilot remakes passed every gate | flag off; running Autopilot runs finish their current stage and stop with `owner_cancelled` |
-| `auto_publish_public` | the slot flip to public | M4 lock re-verification or a verified Blotato route; 3 Copilot publishes completed | flag off: bundles stay private at the slot |
-| `loop_merge` | the gate's merge step | 7 dry-run nights (13.8) | kill switch file or Settings toggle; flag off |
+| `remote_mcp` | remote PATs and OAuth at `/api/mcp` | M1 exit tests pass | Settings > Agenti "Chiudi accesso remoto" ("Close remote access"): flag off, every OAuth grant and remote PAT revoked; hard kill: stop `cloudflared` |
+| `autopilot` | Autopilot runs | M3 gates and M1 caps in place, 5 Copilot remakes passed every gate | flag off; running Autopilot runs stop with `owner_cancelled` at the stage boundary |
+| `auto_publish_public` | the slot flip to public | P0 lock re-verification or a verified Blotato route; 3 Copilot publishes done | flag off: bundles stay private |
+| `loop_merge` | the merger | 7 dry-run nights (13.8) | kill switch file or Settings toggle |
 | `premium` | premium tier | M7 acceptance | flag off |
 
-Migrations are additive only. Rollback per milestone: redeploy the previous commit with the deploy
-script; additive schema stays harmlessly in place; flags default off.
+Rollback for every milestone from M1 on: `ops/deploy.ts --to <commit>` (pg_dump first); additive
+schema stays harmlessly; flags default off. The `ops_scopes` revokes are rolled back only by a
+human-written migration.
 
 ## 21. Milestones
 
@@ -1315,337 +1810,368 @@ script; additive schema stays harmlessly in place; flags default off.
 
 | Milestone | Goals | Covers | Needs | Owner actions |
 | --- | --- | --- | --- | --- |
-| M0 (running) | - | T12, VideoHive presets, storyboard bug | - | - |
-| M1 Safe agent access | 2, 4 (ledger part) | sections 5, 6, 7, 11.5, 16 | T12 merged before the schemas move (M1 step 4) | DNS to Cloudflare, SMTP, kie rate, ntfy |
-| M2 Remake in Copilot | 1 (Copilot), 3 (lyrics, originality) | R1-R5, R4b, R7; sections 8, 9, 10.1-10.3, 14 | M1 | confirm AC10, AC11 |
-| M3 Visual quality | 3 (visual), 4 (images) | R6, R8; sections 10.4-10.8, 11.3; T15, T18; thumbnails; web timeline editor | M2 | Gemini key, kie Midjourney confirmation, eval OpenRouter key |
-| M4 Publishing | 5 | R9; section 12; T17, T19; project page hub | M3 | Google OAuth client, Blotato key, audit submission |
-| M5 Autopilot | 1 (Autopilot), success criterion | sections 6.5, 8.7; flag `autopilot` | M1, M3, M4 | remake defaults |
-| M6 Daily loop | 6 | section 13 | M5, `main` as production (AC13) | confirm AC6 (optional) |
-| M7 Premium | 4 (premium) | Higgsfield, T14 Comfy Cloud | M3 | Comfy Cloud key |
-| M8 Portable runtime | - | section 25 | M6 | Debian server later |
-| Later | - | T11b, T16, T20, T21, T22, karaoke mode, Riffusion items | M4 | - |
+| M0 (running) | - | T12, storyboard bug | - | - |
+| P0 (parallel, from now) | 5 (manual) | 12.1 | nothing | Google OAuth client, audit submission |
+| M1 Safe agent access | 2, 4 (ledger) | 5, 6, 7, 11.5, 14.4, 15.1, 16 | step 3 items for T12's RPCs after T12 merges | DNS, tunnel creation, SMTP, `mdf-web` account, firewall rule, kie rate, ntfy |
+| M2a Remade song (Copilot) | 1 (song half), 3 (lyrics, originality) | R1-R4b; 8, 9.1, 10.1-10.3, 14.1, 14.3 | M1 | confirm AC10, AC11 (optional) |
+| M2b Remade video (Copilot) | 1 (video half) | R5, R7; 9.2-9.4 | M2a | - |
+| M3 Visual quality and images | 3, 4 (images) | R6, R8; 10.4-10.8, 11.3; T15, T18; thumbnails; web timeline editor | M2b | Gemini key, kie Midjourney, eval OpenRouter key, codex device login in `mdf-img` |
+| M4 Publishing | 5 | R9; 12.2-12.6; T17, T19; project page hub; `post.` and `/m/` | M3, P0 | Blotato key |
+| M5 Autopilot | 1 (Autopilot), success criterion | 6.5; flag `autopilot` | M1, M3, M4 | remake defaults |
+| M6 Daily loop | 6 | 13 | M5, `main` cutover | confirm AC6 (optional) |
+| M7 Premium | 4 (premium) | Higgsfield, T14 | M3 | Comfy Cloud key |
+| M8 Portable runtime | - | 25 | M6 | Debian server later |
+| W1 Remote web UI | - | 5.4 browser URL, `api.` host, Access decision | M1, DNS | none |
+| UI track | - | 1080p previews, karaoke mode (plan) | T12 | - |
+| Later | - | T11b, T16, T20, T21, T22, Riffusion items, direct Anthropic client | M4 | - |
 
-The karaoke mode and other pure UI work (section 26) can run in parallel at any time after T12;
-they do not depend on the agentic layer.
+### 21.2 M1 contents checklist (the single source for M1)
 
-### 21.2 M0 (running)
+**Step 0, spikes (written results in the M1 plan):** `oidc-provider` plus claude.ai connector
+(6.4, with its fallback); Postgres superuser password change (5.3); `@napi-rs/keyring` on Windows.
 
-T12; the VideoHive presets branch; fix the per-song storyboard bug (section 26: new songs inside an
-imported project must not reuse that project's scenes, thumbnail and metadata; files
-`apps/worker/src/legacy-import.ts`, `stages/draft-lyrics.ts`, `stages/utils.ts`).
-**Done when** T12 is merged and a new song in the VBP project gets its own scenes, thumbnail and
-title (e2e test).
+**Step 1, topology and operations:** `ops/services.ts`, `ops/edge-proxy.ts`, `ops/deploy.ts`
+(wait for idle, `pg_dump` to `<runtime root>/backups/` kept 14 days, `git pull --ff-only`,
+frozen-lockfile install, `next build`, restart services, health check, automatic return to the
+previous commit on failure, `--to <commit>` for rollback, the admin check of 6.2), `cloudflared`
+template, Supabase hardening (5.3), server-side sign-in (5.4), `/media` streaming, `/api/health`,
+proxy matcher, README rewrite, keepalive workflow deleted.
 
-### 21.3 M1 Safe agent access (local and remote together, OD2)
+**Step 2, database:** migrations `ops_roles`, `ops_tokens`, `spend_ledger`, `ops_scopes` (and
+`ops_scopes_t12` if T12 merges later), `notifications` (with `app_flags`, `scheduled_tasks`); seeds
+for `price_book`, `spend_caps`, `scheduled_tasks`; move gates into `packages/gates/` and
+`config/gates/` (10.1).
 
-1. Topology: services, `cloudflared` config with the hostname table, Supabase hardening (5.3),
-   `/media` streaming, `proxy.ts` matcher, README deploy rewrite.
-2. Identity: `agent_tokens`, PAT creation in Settings > Agenti, internal JWT minting,
-   `require_scope`, pre-request hook, Supabase OAuth server, consent page, protected resource
-   metadata.
-3. Ledger: `price_book`, `ledger_entries`, caps and counters, `reserve_spend` and `settle_spend`,
-   `jobs.token_id` and `run_id`, web-side paid calls routed through it, Settings > Costi.
-4. Operations module for the existing operations, server actions moved onto it; `/api/v1` with the
-   contract of 7.2; schemas moved to `packages/shared` after T12 merges.
-5. MCP registry at `/api/mcp`, `packages/cli` with `mellodifai mcp` stdio bridge, agent skill.
-6. `notifications` with ntfy; `app_flags`; rate limits; audit log; `test:db` pinned.
+**Step 3, ops layer and API:** every existing operation of 7.3 marked M1 through `lib/ops/*` and
+`ops.*`; server actions moved onto it; `/api/v1` with the contract of 7.2; schemas moved to
+`packages/shared/src/ops/` after T12 merges.
 
-Files: `apps/web/lib/ops/**`, `apps/web/lib/mcp/**`, `apps/web/app/api/v1/**`, `apps/web/app/api/mcp/**`,
-`apps/web/app/oauth/consent/**`, `apps/web/app/m/**`, `apps/web/proxy.ts`, `apps/web/app/media/**`,
-`packages/shared/src/ops/**`, `packages/cli/**`, `supabase/config.toml`, `ops/cloudflared/**`.
-Migrations: `ops_tokens`, `spend_ledger`, `ops_scopes`, `notifications`.
-**Done when:** Claude Code over stdio and claude.ai over remote MCP each complete create, status
-and approve on a test song using fake providers; the OAuth end-to-end test and MCP Inspector pass
-on both transports; a revoked token and a revoked grant are rejected on the next call; an OAuth
-token is refused directly at PostgREST; a demo-secret JWT is refused at the public host; 20
-parallel reservations never exceed a cap; spend and publish scopes cannot be granted to a customer.
+**Step 4, agents:** `apps/auth`, `/consent`, protected resource metadata, `/api/mcp`,
+`packages/cli` with the stdio bridge, the skill, Settings > Agenti and Settings > Costi.
 
-### 21.4 M2 Remake in Copilot
+**Step 5, worker:** `db.enqueue` propagation, `providers/paid.ts`, reservation check and settle,
+per-job fakes, scheduler and its M1 tasks, ntfy sender.
 
-R1-R5, R4b and R7 in Copilot with the existing lyric jury extended (10.2, including the new devil's
-advocate), the originality gate (10.3), and a stub image source (Importa da Midjourney, or the
-preset's own art). Blueprint and timeline schemas, `TimelineVideo`, the kinetic lyric components
-moved into `packages/visualizer`, the driver lease and `artefact_submit`, the state machine, the
-GPU lease, retention and the disk guard, 1080p previews, golden set v0 (5 items), the direct
-Anthropic client. Migrations: `remakes`, `jury_reports`, `timelines`, `gpu_lease`.
-**Done when:** a fixture source runs R1-R7 in Copilot on fake providers and stops at each pause
-point; an agent over MCP authors the lyrics and the timeline for one run; a known close paraphrase
-fails the originality gate; a timeline containing code or a URL is rejected; the source media are
-deleted after R2.
+**Files** (C = create, M = modify):
+
+| Area | Files |
+| --- | --- |
+| ops scripts | C `ops/services.ts`, `ops/edge-proxy.ts`, `ops/deploy.ts`, `ops/cloudflared/config.template.yml` |
+| web | C `apps/web/lib/ops/**`, `apps/web/lib/mcp/**`, `apps/web/lib/db/ops-client.ts`, `apps/web/app/api/v1/**`, `apps/web/app/api/mcp/route.ts`, `apps/web/app/api/health/route.ts`, `apps/web/app/.well-known/oauth-protected-resource/**`, `apps/web/app/consent/**`, `apps/web/app/auth/confirm/route.ts`, `apps/web/app/(app)/settings/agents/**`, `apps/web/app/(app)/settings/costs/**`; M `apps/web/app/actions/**`, `apps/web/lib/run-action.ts`, `apps/web/lib/supabase/server.ts`, `apps/web/proxy.ts`, `apps/web/app/media/[...path]/route.ts`, `apps/web/lib/studio/clips.ts`, `apps/web/lib/studio/stems.ts`, `apps/web/app/(app)/projects/[id]/page.tsx`, `apps/web/components/login-form.tsx`, `apps/web/app/actions/format-style.ts`, `apps/web/app/api/transcribe/route.ts`, `apps/web/app/(app)/settings/page.tsx`, `apps/web/lib/rate-limit.ts` |
+| auth server | C `apps/auth/**` |
+| shared | C `packages/shared/src/ops/**`, `packages/gates/**`, `config/gates/**`; M `packages/shared/src/stages.ts` (resource classes) |
+| worker | C `apps/worker/src/providers/paid.ts`, `apps/worker/src/scheduler.ts`, `apps/worker/src/notify.ts`; M `apps/worker/src/db.ts`, `apps/worker/src/loop.ts`, `apps/worker/src/fake/index.ts`, `apps/worker/src/stages/generate-song.ts`, `draft-lyrics.ts`, `lyric-jury.ts`, `qa.ts`, `replace-section.ts`, `import-audio.ts` |
+| cli | C `packages/cli/**` (including `skill/`) |
+| database | C the five migrations, `supabase/tests/ops_*.test.ts`; M `supabase/config.toml`, `supabase/seed.sql` |
+| repo | M root `package.json` (`test:db` guard), `README.md`; delete `.github/workflows/keepalive.yml` |
+
+**New dependencies:** `@modelcontextprotocol/sdk` and `postgres` (web), `oidc-provider` (auth),
+`@napi-rs/keyring` (cli). **No** JWT library.
+
+**Done when:** Claude Code over stdio and claude.ai over remote MCP each complete `song_create`,
+`job_status` and `lyrics_approve` with a `test_mode` token on the real instance (fakes, no spend);
+the Inspector checks of 19 pass on both transports; a revoked PAT and a revoked grant fail on the
+next call; the 6.3 database exit tests pass; a demo-secret JWT is refused; 20 parallel
+reservations never exceed a cap; a new allowlisted user is a customer and cannot be granted spend
+beyond its caps or any publish; the tunnel smoke test passes; `ops/deploy.ts --to` rolls back.
+
+### 21.3 M0 (running)
+
+T12; fix the per-song storyboard bug (new songs in an imported project must not reuse its scenes,
+thumbnail and metadata: `apps/worker/src/legacy-import.ts`, `stages/draft-lyrics.ts`,
+`stages/utils.ts`). **Done when** T12 is merged and a new song in the VBP project gets its own
+scenes, thumbnail and title (e2e test).
+
+### 21.4 M2a Remade song, and M2b Remade video
+
+- **M2a:** R1-R4b in Copilot; blueprint and meaning-map schemas; the extended lyric jury and the
+  devil's advocate; the originality gate with its Python runtime; source fingerprints; the stage
+  orchestrator and state machine; the driver lease and `artefact_submit` for lyrics and blueprint;
+  remake defaults; GPU lease, retention and disk guard; golden set v0 with the first canaries.
+  Migrations: `remakes`, `jury_reports`, `gpu_lease`. **Done when:** a fixture source runs R1-R4b on
+  fakes and stops at each pause point; an agent over MCP authors the lyrics for one run; a known
+  close paraphrase fails; the source media are deleted after R2 and the fingerprints remain.
+- **M2b:** timeline schema and blocks file, `TimelineVideo`, the kinetic-lyric move, R5, R7 with QA
+  on the hook render, `timeline_get` and `timeline_patch`, image submission. Migration `timelines`.
+  **Done when:** the fixture runs R5-R7; a timeline containing code, a URL or an unknown block is
+  rejected; an agent patches a scene's text and the re-render shows it.
+- Each writes its file list (Create and Modify) at the top of its plan before work starts.
 
 ### 21.5 M3 Visual quality and images
 
-Visual jury, design rules in code (`docs/design/motion-rules.md`), distinctness gate, fingerprints,
-the publish gate in the database (10.8), the OD5 image router with the price-book research for
-Nano Banana, T18 local images, T15 brand kit, the thumbnail generator, the web timeline editor
-(scenes, text, timing, assets), threshold calibration on the golden set (tighten only).
-Migrations: `images`. **Done when:** R6 and R8 run on the fixture; a frame with misspelt text or a
-safe-area violation fails; `approve_video` refuses a version without passed visual jury reports; the
-router falls through on a faked refusal, timeout and usage limit, in order.
+Visual jury, design rules, distinctness, render fingerprints, the publish gate (10.8), the image
+router with the route 2 container, the Nano Banana price research, T18, T15, thumbnails, and the
+web timeline editor. Editor scope: a scene list on the take's waveform, drag to retime scene
+boundaries, edit text layers, swap a block's look and params, swap an asset, preview with
+`@remotion/player`; no keyframes. Calibration (tighten only). Migrations: `images`,
+`publish_gate`. **Done when:** R6 and R8 run on the fixture; misspelt text and a safe-area
+violation fail; `approve_video` refuses a version missing a required report; the router falls
+through on a faked refusal, timeout and usage limit, in order; the route 2 injection test passes.
 
 ### 21.6 M4 Publishing
 
-Section 12 in full: lock re-verification, `publications` routes, Shorts, schedule and veto window,
-missed-slot policy, capability links, Postiz and Blotato routes (T19), publish kits and the project
-page hub with "Aggiungi lingua" ("Add language", T17), analytics ingestion, audit package.
-Migrations: `publish_routes`, `analytics`. **Done when:** a Copilot remake is scheduled; a veto
-cancels the whole bundle in each state; with the worker stopped through the slot, nothing goes
-public and the missed-slot policy runs on restart; a Short publishes as a hook render; analytics
-snapshots arrive for a published video.
+12.2-12.6 in full, T17 ("Aggiungi lingua", "Add language") and T19 per the plan, the project page
+hub, `post.` and `/m/`. Migrations: `publish_routes`, `analytics`. **Done when:** a Copilot remake
+is scheduled; a veto cancels the bundle in each state; with the worker stopped through the slot,
+nothing goes public and the missed-slot rule runs on restart; a Short publishes as a hook render
+next to its master; analytics snapshots arrive.
 
-### 21.7 M5 Autopilot
+### 21.7 M5 Autopilot, M6 Loop, M7 Premium, M8 Portable runtime
 
-Autopilot policy and system token, the Autopilot RPCs, the Autopilot stop list, remake defaults,
-flag `autopilot`. Migration: `autopilot`. **Done when:** a golden-set link runs to a scheduled
-bundle without any owner action; a faked jury outage stops the run with `jury_unavailable`; a cap
-stops it with `cost_cap`; the success criterion (section 1) holds on the golden set.
-
-### 21.8 M6 Daily improvement loop
-
-Section 13 in full, after `main` becomes the production branch. Migration: `loop`.
-**Done when:** 7 dry-run nights complete; the gate rejects the planted bad candidates of section
-19; a planted regression after a merge is reverted automatically; the kill switch stops a night in
-progress.
-
-### 21.9 M7 Premium and M8 Portable runtime
-
-M7: Higgsfield shots and T14 Comfy Cloud in the premium tier, each with cost before confirm.
-**Done when** a premium run stays inside its pre-approved budget. M8: section 25.
+- **M5:** 6.5, flag `autopilot`. Migration `autopilot`. **Done when:** a golden link reaches a
+  scheduled bundle without owner action; a faked jury outage stops with `jury_unavailable`; a cap
+  stops with `cost_cap`; a `create`-only token cannot select Autopilot; the success criterion holds
+  on the golden set.
+- **M6:** section 13 after the `main` cutover. Migration `loop`. **Done when:** 7 dry-run nights
+  complete; the gate rejects the planted bad candidates of 19; a planted regression is reverted;
+  the kill switch stops a night in progress; the sandbox probe aborts a night when a port is opened
+  on purpose.
+- **M7:** Higgsfield and T14 in the premium tier. **Done when** a premium run stays inside its
+  pre-approved budget.
+- **M8:** section 25.
 
 ## 22. Owner actions and open questions
 
 | Item | Blocks | Who acts | Fallback while pending | Status |
 | --- | --- | --- | --- | --- |
-| Move mellodifai.com nameservers from Hostinger to Cloudflare; create the tunnel in his Cloudflare account | M1 remote exit | owner (author writes the config) | local stdio only, `remote_mcp` off | open |
+| Google Cloud project, OAuth client, consent screen with the four scopes of 12.1 | P0, M4 | owner | publishing stays as today | open |
+| YouTube API audit submission | public API route if the lock still applies | owner submits, author prepares | Blotato with verified disclosure | open |
+| Move mellodifai.com nameservers to Cloudflare; `cloudflared tunnel login` and `tunnel create` | M1 remote exit | owner (author writes the config) | local stdio only, `remote_mcp` off | open |
 | SMTP sender for sign-in codes | M1 remote sign-in | owner | sign-in on the PC only | open |
-| kie USD rate per credit | M1 price book | owner | 0.005 USD per credit, marked unverified | open |
-| ntfy app on his phone | M1 push | owner | in-app notifications only | open |
-| Confirm AC10 (analysis-only download of YouTube sources) | M2 | owner | proceed under AC10 | open question |
-| Confirm AC11 (meaning of "keeps timing") | M2 | owner | proceed under AC11 | open question |
-| Gemini API key (Nano Banana) | M3 route 3 | owner | route 3 off | open |
-| Confirm kie Midjourney access and price per call | M3 route 1 | owner | route 1 off; GPT Image via codex first | open |
-| Second OpenRouter key for evaluation, with a credit limit; guardrail-free key | M3 calibration, M6 | owner | calibration on the main key within caps | open |
-| Google Cloud project, OAuth client, consent screen with the four scopes of 12.1 | M4 | owner | publishing stays manual (`yt.py`) | open |
-| YouTube API audit submission | public route if the lock still applies | owner submits, author prepares | Blotato with verified disclosure | open |
+| Windows account `mdf-web` and the firewall rule of 5.2 (both need administrator rights) | M1 hardening | owner (author gives the exact commands) | Next under the owner's account; loopback binding only | open |
+| kie USD rate per credit | M1 price book | owner | 0.005 USD per credit, `verified = false` | open |
+| ntfy app subscribed to the topic | M1 push | owner | in-app notifications only | open |
+| Confirm AC10 and AC11 | none (in force) | owner | proceed | open question |
+| Gemini API key | M3 route 3 | owner | route 3 off | open |
+| kie Midjourney access and price per call | M3 route 1 | owner | route 1 off | open |
+| Codex device login inside `mdf-img` | M3 route 2 | owner (one command) | route 2 off | open |
+| Evaluation OpenRouter key with a credit limit | M3 calibration, M6 | owner | calibration on the main key within caps | open |
 | Blotato API key | M4 fallback | owner | Postiz only | open |
-| Veto window length | M4 | owner in Settings | 24 h (AC5) | default set |
-| Remake defaults | M5 | owner in Settings | defaults of 8.7 | default set |
-| Confirm the loop rails (AC6) | none (they are in force) | owner | in force | open question |
+| Veto window length, remake defaults | M4, M5 | owner in Settings | 24 h; defaults of 8.7 | default set |
+| Confirm the loop rails (AC6) | none (in force) | owner | in force | open question |
 | Comfy Cloud key | M7 | owner | premium without Comfy Cloud | open |
 
 ## 23. Constraints
 
-- Owner rules: section 2.2.
-- Hardware: RTX 3070 8 GB, one GPU job at a time (enforced, 14.1); Docker Desktop on WSL2 (after
-  power cuts it may need its `run` folder reset; never factory reset: it holds the local database,
-  which the deploy script backs up with `pg_dump`).
+- Owner rules: 2.2.
+- Hardware: RTX 3070 8 GB, one GPU job at a time (14.1); Docker Desktop on WSL2 (after power cuts
+  it may need its `run` folder reset; never factory reset: it holds the local database, which the
+  deploy script backs up).
 - Licences: YuE2 non-commercial (owner-only); Remotion free for up to 3 people; Postiz AGPL (run
-  unmodified); Audacity code not copied (GPL); UVR models need credit; VideoHive templates only
-  within their Envato licence (looks are rebuilt in code, template files never shipped); LaBSE and
-  DINOv2 Apache 2.0; no GPL code in the web app.
+  unmodified); Audacity code not copied (GPL); UVR models need credit; VideoHive looks rebuilt in
+  code, template files never shipped; LaBSE, DINOv2, Tesseract Apache 2.0; pyphen used under MPL;
+  fugashi and unidic-lite MIT/BSD; `oidc-provider` MIT; no GPL code in the web app.
 - Terms: Suno (no automation of suno.com), Midjourney web (not automated; the kie reseller is the
-  owner's accepted risk, OD5), Google Flow (consumer app, not automated), YouTube (API quota and
-  audit, inauthentic and repetitive content, AI disclosure always set).
+  owner's accepted risk, OD5), Google Flow (not automated), YouTube (quota, audit, repetitive
+  content, AI disclosure always set).
 
 ## 24. Left to the builder, and builder notes
 
-Left to the builder: exact CLI flags beyond 7.4; jury and devil's advocate prompt wording; the
-beat and section analyser, constrained to: no GPL code in the web app, CPU-only or at most 2 GB of
-VRAM, output that fills the blueprint's `music` fields; the Windows service wrapper.
+Left to the builder: CLI flags beyond 7.4; prompt wording of writers, juries and the devil's
+advocate; the beat and section analyser (CPU-only or at most 2 GB of VRAM, no GPL code in the web
+app, output filling the blueprint's `music` fields); the Windows service wrapper.
 
 Builder notes:
-- yt-dlp needs `yt-dlp-ejs` and `--js-runtimes node`, or video downloads get 403 (captions still
-  work).
-- In Git Bash, paths like `/api/v1` passed as arguments can be rewritten to Windows paths; prefix
+- yt-dlp needs `yt-dlp-ejs` and `--js-runtimes node`, or video downloads get 403.
+- In Git Bash, arguments like `/api/v1` can be rewritten to Windows paths; prefix
   `MSYS_NO_PATHCONV=1`.
 - Worktrees go in `E:/mellodifai/wt/`; a new worktree needs the lockfile copied before install.
-- The OpenRouter account has a privacy filter that replaces words with tags like `[PERSON_NAME]`;
-  the lyric pipeline already detects it (`looksRedacted`), and new juries must too.
+- The OpenRouter account's privacy filter replaces words with tags like `[PERSON_NAME]`; the lyric
+  pipeline detects it (`looksRedacted`), and new juries must too.
 
-## 25. Future: portable runtime, installers, desktop apps and GPU servers (owner, 01/11)
+## 25. Future: portable runtime (binding rules now, plans later)
 
-Not built now (the owner is the only admin today), but every new piece of code must keep it
-possible.
+Binding now, for every new piece of code:
+- No hard-coded Windows paths or drive letters: `MELLODIFAI_ROOT` (default `E:/mellodifai`)
+  replaces runtime paths, `MELLODIFAI_ENGINE_ROOT` replaces `ENGINE_ROOT`; the existing hard-coded
+  paths listed in section 3 are converted when their file is next touched, and all of them by M8.
+- No Windows-only process handling without a POSIX path; engine and model locations from config;
+  every external tool through config or PATH.
+- Ops scripts are TypeScript on Node with thin OS wrappers (services on Windows now, systemd in
+  M8); no duplicated PowerShell and shell copies.
+- **Credentials off the owner's PC:** a worker on any machine other than the owner's PC never gets
+  the service role. It gets a per-worker scoped credential that can claim jobs and read and write
+  only job-scoped storage URLs. The daily loop's release channel is limited to the owner's own
+  machines. The release-signing key never enters any loop, gate, proposer or worker context.
 
-- **Any machine can be a worker.** The worker already pulls jobs from the queue, so the PC, a
-  Debian GPU server, or a user's own computer are all just workers. Each worker reports its
-  capabilities (GPU model, VRAM, RAM, disk, OS, installed engines and model files, versions) with
-  its heartbeat; jobs carry requirements (for example "YuE2 INT8, 8 GB VRAM" or "CPU render"), and
-  the queue hands a job only to a worker that meets them. The GPU lease (14.1) becomes per worker.
-  Bigger servers unlock bigger models (YuE2 BF16, ACE-Step XL, larger image and video models).
-- **Doctor and installer** (`mellodifai doctor`, `mellodifai install`, a shell script for
-  Debian/Ubuntu over SSH, PowerShell for Windows, a macOS script): detect the hardware and software
-  (nvidia-smi or Metal, CUDA, Python, Node, ffmpeg, ComfyUI), print what this machine can run per
-  engine and what is missing, then download and install everything from the GitHub repo's releases
-  (pinned versions, checksums), register the worker with a token, and run as services (systemd on
-  Debian, a service on Windows, launchd on macOS). The owner prefers a full Debian server over
-  Docker for GPU hosts.
-- **Self-update:** workers and apps update themselves from signed GitHub releases on a channel
-  (stable or the daily loop's channel), with automatic rollback if the health check fails.
-- **Desktop apps** (Windows, Linux, macOS; a small native shell around the web app, Tauri is the
-  likely choice): on first run they run the doctor; if the computer can run engines locally they
-  install and start a local worker; if not, they propose (a) running on the owner's GPU servers,
-  choosing the nearest by ping, or (b) bringing the user's own API keys for cloud-only mode.
-- **GPU hosting:** a dedicated or virtual GPU server running Debian, sized for the bigger models;
-  providers to compare include RunPod (its pods are containers), dedicated GPU servers (for example
-  Hetzner's GPU line) and any VPS provider with GPU plans (check Hostinger). The PC topology of
-  section 5 moves to that server unchanged; local engines keep their licence limits.
-- **Portability rules for code written from now on:** no hard-coded Windows paths or drive letters
-  (`MELLODIFAI_ROOT` replaces `E:/mellodifai`, `MELLODIFAI_ENGINE_ROOT` replaces the hard-coded
-  `ENGINE_ROOT`), no Windows-only process handling without a POSIX path, engine and model locations
-  from config, every external tool located through config or PATH, every deploy and ops script in
-  both PowerShell and POSIX shell.
+Plans for M8 and beyond (not binding): capability-aware queue (workers report GPU, VRAM, disk and
+engines; jobs carry requirements), `mellodifai doctor` and installers, signed self-update with
+rollback, desktop apps (Tauri is the likely shell), and a Debian GPU server (providers to compare
+when the time comes).
 
-## 26. Owner additions of 01/11 evening, and where each lands
+## 26. Owner additions of 01/11 evening: where each lands
 
-- **Per-song storyboard (bug found 01/11)** - M0. New songs inside the imported "Va bene, passa
-  (VBP)" project reuse that project's scene template (`storyboard-l10n.json`): the lyrics are new
-  and in sync, but the scenes, the thumbnail and the YouTube title and description come from the old
-  song (`apps/worker/src/legacy-import.ts`, `stages/draft-lyrics.ts`, `stages/utils.ts`). Every song
-  gets its own storyboard, thumbnail and metadata from its own lyrics; the VBP template stays only
-  as one selectable style.
-- **Preview quality** - M2. Previews are 854x480 at about 0.3 Mbit/s; masters are 1920x1080.
-  Previews move to 1080p within the storage budget; masters render 1080p by default and 4K on
-  request (Remotion renders vector graphics natively at 4K). A free local upscaler (Real-ESRGAN
-  class, for example Video2X) is used only for generated footage before compositing (M7).
-- **Project page as the publishing hub** - M4. The language chips (IT, RU, RO, JA, EN, ES, DE, ZH,
-  PT, KO, FR); "Aggiungi lingua" ("Add language") generates a new language version (T17); each
-  language has its publish kit (12.4).
-- **Thumbnails that convert, not clickbait** - M3. Two to three candidates from the video's own key
-  frames, title and generated art: one focal subject, three words or fewer of large text, strong
-  contrast, readable at small size, consistent channel style, faces or characters with clear
-  emotion, no misleading claims; scored by the visual jury at phone size. The loop learns from
-  click-through rate per thumbnail style; YouTube's own thumbnail test is used when available.
-- **Karaoke mode** (like Spotify's) - parallel UI track. Lyrics synced line by line with the
-  current line and word highlighted (word timing exists), and a karaoke switch that lowers or
-  removes the vocal using the stems (T11b later improves it). Owner's reference screenshots of
-  Spotify (01/11): full-screen lyrics on a solid background from the cover's dominant colour, very
-  large bold left-aligned lines, sung lines dimmed, the current line pure white, upcoming lines a
-  light tint of the background, generous spacing, auto-scroll keeping the current line in view, a
-  lyrics credit at the bottom, a top-right toolbar with a microphone toggle, a lyrics button in the
-  player bar; and the main layout with a playlist header coloured from the cover, a big round play
-  button, track rows with cover, title, artist, album and duration, and a right-hand "now playing"
-  panel with large artwork. The app's polish should match that level.
-- **Agents edit songs and videos by talking** - M1 (existing editor operations as MCP tools) and M2
-  (timeline tools). The web UI stays fully labelled and accessible, so computer-use agents can
-  operate it as a fallback.
-- **Video editor in the project** - decided by OD6: the timeline document (9.2), its agent tools
-  (M2) and the web timeline editor (M3). HyperFrames (0.8, fast-moving, its GSAP dependency's
-  licence restricts visual editors) is not the engine; it may later supply pre-rendered scene clips
-  as video layers after a proof of concept. Paid Remotion editor kits are not needed.
-- **From the Riffusion/Producer research** - later, after M4, each through the operations
-  catalogue: (1) a chat editor where the user or agent says "change the second chorus" and it
-  becomes kie `replace-section` or `extend` calls (sections to seconds via word timing or kie
-  `get-timestamped-lyrics`; windows at least 10 s, at most half the track); (2) "Cambia voce"
-  ("Change voice") and "Cambia base" ("Change backing") from stems plus kie `add-vocals` and
-  `add-instrumental`; (3) "Dalla mia voce allo studio" ("From my voice to the studio"): a dry vocal
-  becomes a produced song (ACE-Step cover with a strength slider, kie `upload-and-cover-audio` as the
-  paid option; Italian bake-off first); (4) a free local tier (Demucs, ffmpeg effects, ACE-Step
-  repaint); (5) an optional Lyria engine through the Gemini API (about 0.08 USD per song, no edit
-  endpoints).
+UI behaviour is specified in the feature plan or in the owner's notes; this list only places them.
+
+- **Per-song storyboard bug** - M0 (21.3).
+- **Preview quality** (previews at 1080p; masters 1080p by default, 4K on request; local upscaler
+  only for generated footage) - UI track; upscaler with M7.
+- **Project page as the publishing hub** with "Aggiungi lingua" ("Add language") - M4 (T17).
+- **Thumbnails that convert, not clickbait** (one focal subject, three words or fewer, strong
+  contrast, readable small, consistent style, no misleading claims) - M3; learning from analytics
+  in M4 and M6.
+- **Karaoke mode** like Spotify's (owner's reference screenshots of 01/11) - UI track; the plan
+  holds the visual spec.
+- **Agents edit songs and videos by talking** - M1 (existing editor operations as tools), M2b
+  (timeline tools); the web UI stays fully labelled for computer-use agents.
+- **Video editor in the project** - OD6: timeline document (9.2), tools (M2b), web editor (M3).
+- **Riffusion/Producer research items** (chat editor over replace-section and extend, "Cambia
+  voce" and "Cambia base", "Dalla mia voce allo studio", a free local tier, an optional Lyria
+  engine) - Later; the details are in `E:/mellodifai/research/riffusion-producer-report.md`.
 
 ## 27. Glossary and references
 
-- **T-ids:** tasks of the feature plan. T7 library, T8 player, T9 create panel, T10 playlists and
-  details panel, T11 stems and audio editor, T11b UVR-quality vocal removal, T12 songs from songs,
-  T13 Video Studio visualizers, T14 Comfy Cloud runtime, T15 brand kit, T16 jingle mode, T17
-  language and cultural adaptation, T18 local images, T19 automatic social sharing, T20 new vocals
-  on an instrumental, T21 Audacity-style effects, T22 topic research before lyrics.
+- **T-ids:** T7 library, T8 player, T9 create panel, T10 playlists and details panel, T11 stems
+  and audio editor, T11b UVR-quality vocal removal, T12 songs from songs, T13 Video Studio
+  visualizers, T14 Comfy Cloud runtime, T15 brand kit, T16 jingle mode, T17 language and cultural
+  adaptation, T18 local images, T19 automatic social sharing, T20 new vocals on an instrumental,
+  T21 Audacity-style effects, T22 topic research before lyrics, T25 VideoHive looks.
 - **Jev:** `typesafe/jev-1.14`, a decision model on OpenRouter that picks the lyric tone and the
-  writer strength (`apps/worker/src/stages/lyric-jury.ts`).
+  writer strength.
 - **VBP template:** the scene template of the imported "Va bene, passa" project, rendered from the
   engine repo's `motion/`.
-- **`score_takes`:** `tools/score_takes.py` in the engine repo, run by `score-takes.ts`; scores takes
-  by Whisper intelligibility (`fidelity`) and other measures.
-- **The `/watch` method:** download with yt-dlp, extract frames at scene cuts and 1 fps contact
-  sheets with ffmpeg, take the transcript from captions or Whisper.
-- **Devil's advocate:** a model prompted to argue that a draft must not pass (10.2); new work.
-- **Golden set:** frozen items used to calibrate thresholds and to evaluate the loop (13.4).
-- **Copilot / Autopilot:** who approves (8.1). **Tier:** what may cost money (8.1).
-- **Console:** the per-stage view of a remake on the song page (8.4).
-- **PAT:** personal access token (6.6). **Ledger:** section 11.5. **Veto window:** section 12.2.
-- **Blueprint:** the style description of the source video (9.1). **Timeline document:** the
-  editable description of the new video (9.2).
-- **Engine repo:** `C:\Users\Asus\Documents\suno-remake` (motion, tools, `publish/yt.py`).
-- **Runtime root:** `MELLODIFAI_ROOT`, default `E:/mellodifai`.
-- **UI strings** are Italian with English glosses in parentheses where they first appear, for
-  example Settings > Agenti ("Agents").
+- **`score_takes`:** `tools/score_takes.py` in the engine repo, called inside `generate_song` and
+  the import stages; `fidelity` is in-order token recall of the intended lyrics.
+- **The `/watch` method:** yt-dlp download, frames at scene cuts and 1 fps contact sheets with
+  ffmpeg, transcript from captions or Whisper.
+- **Devil's advocate:** a model prompted to argue that a draft must not pass (10.2).
+- **Golden set, canaries:** 13.4. **Copilot, Autopilot, tier:** 8.1. **Console:** 8.4.
+- **PAT:** 6.6. **Ledger:** 11.5. **Veto window:** 12.2. **Ops layer, `mdf_ops`:** 6.3.
+- **Blueprint, meaning map, timeline document, blocks:** section 9.
+- **Engine repo:** `C:\Users\Asus\Documents\suno-remake`.
+- **Task-24 brief:** `docs/egm/v2-local-engines/task-24-brief.md` (the first remake-tool brief;
+  its line 18 still says `packages/remake` and should say `packages/shared/src/remake/`).
+- **UI strings** are Italian with English glosses at first use, for example Settings > Agenti
+  ("Agents") and "Formatta con AI" ("Format with AI").
 
-Research this design relies on (in `E:/mellodifai/research/`, owner's PC):
-- `riffusion-producer-report.md`: Producer became Google Flow Music on Lyria and lost its swap and
-  cover-strength features; the five ideas in section 26 come from it.
-- `hyperframes-vs-remotion.md`: the evaluation behind OD6.
-- `videohive/videohive-catalogue.md`: 70 looks from the owner's three VideoHive packs, 14 proposed
-  presets, all buildable with the existing visualizer inputs and Adobe built-in effects only.
-- `channel/channel-report.md`: the owner's channel house style (source of the Classico preset).
+Research this design relies on (`E:/mellodifai/research/`, owner's PC):
+`riffusion-producer-report.md` (Producer became Google Flow Music on Lyria; source of the Later
+items), `hyperframes-vs-remotion.md` (behind OD6), `videohive/videohive-catalogue.md` (70 looks from
+the owner's VideoHive packs; source of T25), `channel/channel-report.md` (the channel's house
+style, source of the Classico preset).
 
 ## 28. Review resolution
 
-Every finding of `docs/egm/agentic-studio/goldfish_review_report.md`. All 61 are resolved; none is
-rejected. Owner confirmation is still invited on AC6, AC10 and AC11 (section 22), but the design
-works without it.
+Revision 2 claimed every round-1 finding resolved; round 2 showed that 13 of the 17 Blockers and 10
+of the 31 Majors were only partly resolved. This table is the honest state after revision 3.
+"Partly" names what remains. Round-1 findings that round 2 carried into a new id point to it.
+
+### 28.1 Round 2 findings
 
 | Id | Disposition |
 | --- | --- |
-| B1 | Resolved in section 5: one topology (AC1), one tunnel provider, hostname and path table with deny-all default, key rotation with exit test, `/media` streaming and capability links, config.toml URLs, SMTP, Postiz registration off, Access placement and bypass list. |
-| B2 | Resolved in 13.1, 13.3, 13.4, 13.5: gate runs from the production checkout outside the proposer's write scope, path allowlist plus denylist, frozen evaluator with pinned judges. |
-| B3 | Resolved in 13.2: proposer container without secrets, gate with its own Supabase stack and fake providers, egress allowlist, `test:db` pinned, kill switch out of reach, owner rules bind the loop. |
-| B4 | Resolved in 21: ledger and caps in M1 before spend and publish scopes; M2 Copilot with stub images; M3 visual jury and router; M4 publishing; M5 Autopilot; database publish gate in 10.8; "needs" column. |
-| B5 | Resolved in 8.2, 8.4 (R5), 9.2, 9.4: data-only timeline validated twice, app's own components only, internal writer defined (mapper plus Sonnet with 0.01 USD budget), driver lease with timeout and hand-off, file validation. |
-| B6 | Resolved in 3 (auth model corrected) and 6.1-6.5: internal 60 s JWT, `require_scope`, Autopilot actor with policy row, worker-only RPCs and `confirmed_via`, role-to-scope mapping. |
-| B7 | Resolved in 6.4 and 6.6: Supabase OAuth server named, metadata, PKCE, audience binding, pre-request hook, consent screen with admin-only second confirmation, grants in `agent_tokens`, lifetimes; M1 exit criterion in 21.3. |
-| B8 | Resolved in 11.5 and 11.6: `reserve_spend` under row locks in the enqueue transaction, settle and expiry, price book, quota providers at 0 USD, `token_id` and `run_id` on jobs, web-side calls routed, per-run cap, exact definition of the 0.15 USD in section 1. |
-| B9 | Resolved in 12.2: app-owned clock (AC4), fail-closed flip, missed-slot policy, 24 h default (AC5), bundle veto, cancel per state, actor recorded, notifications. |
-| B10 | Resolved in 8.3, 8.5, 8.6 and 15: data model table, project and versions created at start with new status `analysing`, state machine with `expected_stage_version`, pause points, unskippable gates, one stop list, R-stage to job-stage map, R4b, reuse of checkpoints. |
-| B11 | Resolved in 9.1: zod schema v1 in the document, relation to `storyboard.json`, one package (`packages/shared`), R2 vision model, frame budget and cost in 8.4. |
-| B12 | Resolved in 10.1-10.3: metrics, models and binding starting values, meaning fidelity measured per section against the meaning map, aggregation, devil's advocate power, round caps (8.6), golden set v0 in M2, calibration may only tighten, frozen against the loop. |
-| B13 | Resolved in 13.6 and 13.7: no loop migrations, `loop/main` squash and fast-forward onto `main` (AC13), deploy script with `pg_dump` and health check, revert on operational signals with numeric limits, no stacked merges, worktree location in 24, gnhf described in 13.1. |
-| B14 | Resolved in 21: summary table with goals, coverage, needs and owner actions, plus per-milestone files, migrations, tests and "done when"; success criterion tied to M5. |
-| B15 | Resolved in 7: one operations module behind server actions, `/api/v1` and MCP; stdio as a bridge; catalogue table with fixed tool names; error envelope, idempotency, pagination, SSE, versioning, uploads; CLI credential storage. |
-| B16 | Resolved in 14: `resource_class`, database GPU lease with priorities and yield, ComfyUI unload, VRAM check, capacity table, retention, free-space pause, caches on E:. |
-| B17 | Resolved in 3 (existing publishing described) and 12.1: connect and extend, platform and route columns, hook renders, configurable cap, throughput, AI disclosure always true, Blotato mapping, Shorts rule, lock re-verification as the first M4 step, audit package. |
-| M1 | Resolved in 3 (does not exist) and 10.2 (new work with role and power). |
-| M2 | Resolved in 6.8 and 13.2 (quoted loop inputs). |
-| M3 | Resolved in 5.4 (capability links, streaming) and 12.5 (uptime need, Blotato trigger). |
-| M4 | Resolved in the header and 2.4 (superseded rules with replacement controls; never-resend kept). |
-| M5 | Resolved in section 4, goal 4 reworded to per-medium routing. |
-| M6 | Resolved in 11.6 (budget table, image sub-budget, cheap judges first) and section 1 (median over the golden set, retries included). |
-| M7 | Resolved in 13.4: frozen artefacts, pinned judges, k = 3, measured noise band, weights, tolerances, nightly evaluation cap, golden set location and curator. |
-| M8 | Resolved in 3 (fail-open by design for the human flow) and 10.1 (fail-closed in Autopilot and every new jury, shown in Copilot). |
-| M9 | Resolved in 16 (notifications table, ntfy, MCP resource, veto deadlines in the morning report). |
-| M10 | Resolved in 17 (threat model and risks) and 18 (alternatives considered). |
-| M11 | Resolved in 24: only CLI flags, prompt wording, the constrained analyser and the service wrapper remain; contracts moved to 7, 9, 10 and 15. |
-| M12 | Resolved in 8.7 (remake defaults profile with overrides) and 12.2 (slot policy). |
-| M13 | Resolved in 22 (owner actions and open questions table, including Analytics scope at first consent and the Nano Banana research). |
-| M14 | Resolved in 2.1-2.3: numbered owner decisions, numbered author's calls with status, loop rails marked in force and awaiting owner confirmation. |
-| M15 | Resolved in 8.2 (driver by mode table; the create panel's internal writers stay). |
-| M16 | Resolved in 8.1 (tiers defined in one place, Autopilot eligibility, premium budget) and 21.9 (M7 acceptance). |
-| M17 | Resolved in 8.6 (round caps, retries and backoff, error classes, timeouts, stop reasons) and 8.5 (heartbeats); never-resend restated. |
-| M18 | Resolved in 19 (testing strategy). |
-| M19 | Resolved in 20 (flags, enablement gates, remote shutdown, additive migrations, rollback). |
-| M20 | Resolved in 16 (stores, metrics, retention, alerts) and 13.8 (morning report contents). |
-| M21 | Resolved in 3, 8.3, 8.4 (R7, R8 built on `qa`, `render_hook`, `art`, `score_takes`) and 9.3 (one Remotion project, kinetic lyrics moved in M2). |
-| M22 | Resolved in 3 and 11.1 (Jev described correctly; direct Anthropic client listed as new work). |
-| M23 | Resolved in 7.1 and 21.3 (schemas move after T12 merges; the "not T12's files" claim dropped). |
-| M24 | Resolved in 8.6 (timeouts) and 11.3 (codex detection, Nano Banana research step, OpenRouter allowlist, candidates, provenance, quota sharing). |
-| M25 | Resolved in 10.4 (judges, sampling, rubric version, median, code-computed checks, must-fix list, cost). |
-| M26 | Resolved in 10.6 (distinctness gate and preset reuse limit). |
-| M27 | Resolved in 8.4 (R3 syllable method and tolerance; R4 WER, timing rule AC11, loudness through QA, parameter mapping from R2). |
-| M28 | Resolved in section 4 (anti-goal reworded, Suno share-link import allowed), AC10, and 8.4 R2 ("never given to a generator"). |
-| M29 | Resolved in 12.6 (scopes, schedule, metrics, storage) and 12.5 (Blotato mapping). |
-| M30 | Resolved in the header (ownership rule), 3 (T7-T11, T13 done), 21.1 (every T-id placed), 10.3 (originality owned here). |
-| M31 | Resolved in 8.4 and 25 (`MELLODIFAI_ROOT`, `MELLODIFAI_ENGINE_ROOT`), 10.7 (motion rules copied into the repo), 13.1 (gnhf paths), 27 (research summaries, engine repo path). |
-| N1 | Resolved in 7.2 (25 s keepalives, stateless MCP). |
-| N2 | Resolved in 6.7 (Postgres counter, default limits). |
-| N3 | Resolved in 27 (glossary with paths and T-id glosses). |
-| N4 | Resolved in 27 and inline (English glosses for UI strings). |
-| N5 | Resolved in 8.4 R7 (hook selection rule). |
-| N6 | Resolved in 3 (Groq listed among present keys). |
-| N7 | Resolved in 24 (yt-dlp detail moved to builder notes). |
-| N8 | Resolved: milestones as tables and subsections, R-stages as headings, list layout fixed, long lines rewrapped. |
-| N9 | Resolved in the header (status, supersedes) and 3 (T-ids). |
-| N10 | Resolved in 3 and 10.2 (existing criteria, threshold and judges; extension stated against them). |
-| N11 | Resolved in 9.1 (`packages/shared`; the task-24 brief is to be updated to match when that task starts). |
-| N12 | Resolved in 3 (Settings shows only the email; keys in env files) and sections 6.6, 8.7, 11.5, 12.2, 13.2 (which Settings tab holds tokens, defaults, costs, publishing and the kill switch; provider keys stay in env files). |
-| N13 | Resolved in 5.5 (matcher excludes the bearer-token routes). |
+| R2-B1 | Resolved in 6.3: exact revokes (jobs insert grant and policy, versions grants, every public function), deny-by-default EXECUTE, `mdf_ops` and schema `ops`, reservation inside the wrapper transaction, worker refusal without a reservation and the paid-call module (11.5), cookie-only admin-only publishing until M4, exit tests. |
+| R2-B2 | Resolved in 3 (corrected) and 6.2: `admin_allowlist.role` default `customer`, trigger change, backfill with the owner check, database test (21.2). |
+| R2-B3 | Resolved in 10.1 and 13.3-13.7: every gate, threshold, judge prompt and router or cap constant moved to denylisted `packages/gates/**` and `config/gates/**`, so step 1 is a pure path check; deterministic canaries must still be rejected; revert signals scored by the frozen evaluator. |
+| R2-B4 | Resolved in 13.1-13.2: sandbox on an `--internal` network with no socket and no credentials, scorer without candidate code, merger on the host with the only push right, supervisor-started gate stack, probe that aborts the night, firewall rule (5.2), Postgres password spike (5.3). |
+| R2-B5 | Resolved in 11.3 and 6.8: route 2 runs only in the `mdf-img` container with an output folder, read-only sandbox, egress allowlist, prompts from enums and `Safe` fields, single-image acceptance, injection test. |
+| R2-M1 | Resolved by design in 6.4: opaque tokens from `apps/auth` cannot reach Supabase; discovery on the app host; scopes in our grant row; step 0 spike with a written fallback that includes the round-2 recommendations. |
+| R2-M2 | Resolved in 6.3: no signing key in Next at all; `mdf_ops` role with only `ops.*` EXECUTE; token lookups and audit writes in narrow security-definer functions; env var named. |
+| R2-M3 | Resolved in 5.4: `SUPABASE_INTERNAL_URL`, server-side sign-in in M1, per-request browser URL and pinned cookie name in W1 after the DNS move, server-made signed URLs replaced by `/media`, files listed in 21.2. |
+| R2-M4 | Resolved in 6.2, 6.3 and 7.3: `publish` not grantable before M4; `uploadPrivate` and `setPrivacy` cookie-only and admin-only. |
+| R2-M5 | Resolved in 6.2 and 6.5: Autopilot needs an admin cookie session or spend plus publish; initiating token's caps apply; M5 exit test. |
+| R2-M6 | Resolved in 11.5 and 15.1: `user` cap scope with role defaults, `run_id` without foreign key until M2a, price seeds and sync, the list of reserving RPCs, settle by `job_id`. |
+| R2-M7 | Resolved in 7.3: every existing server action listed with tool, RPC, scope, estimate and milestone; cookie-only rows; schema naming rule in 7.1; response shapes in 7.2; M1 CLI and skill limited to M1 operations (7.4); `create_song` named correctly in 3. |
+| R2-M8 | Resolved for M1 in 21.2 (Create and Modify list, dependencies, `/m/` moved to M4); partly for M2-M6: each must write its file list before planning (21.4). |
+| R2-M9 | Resolved for M1 (DDL in 15.1, RLS and grants rule); stage orchestrator and `jobs.stage_run_id` defined in 8.3; partly: M2+ DDL is written in each milestone's plan (15.2). |
+| R2-M10 | Resolved in 6.6 (format, entropy, hash, hint, expiry). |
+| R2-M11 | Resolved in 7.1, 7.2 and 7.4 (MCP SDK in stateless mode, protocol revision floor, keyring library, install commands, `idempotency_key` input). |
+| R2-M12 | Resolved in 19 and 21.2: per-job fakes through `test_mode` tokens on the real instance. |
+| R2-M13 | Resolved in 5.2 and 5.5: no Access or WAF in M1; tunnel steps and file locations; double sign-in gone. |
+| R2-M14 | Resolved in 21.2 and 20: `ops/deploy.ts` with rollback is built in M1 step 1. |
+| R2-M15 | Resolved in 14.4: worker scheduler, table, claim function and the task list with cadences. |
+| R2-M16 | Resolved in 5.2 and AC15: M1 exposes only MCP, OAuth and sign-in; Supabase, UI, `post.` and `/m/` move to W1 and M4. |
+| R2-M17 | Partly resolved in 11.6 and 13.4: complete budget table with its basis, smaller visual jury input, eval cost formula with k = 2 and two arms; remains: real prices (kie Midjourney, Haiku vision) are measured in M3, with the stated first cut if over budget. |
+| R2-M18 | Resolved in 8.1: free tier allows juries and app reasoning up to 0.03 USD per run; "local reasoning" removed. |
+| R2-M19 | Resolved in 8.4 (R2) and 10.3: transcript, word timestamps, literal translations and source fingerprints kept; translation by Gemini Flash; LaBSE for the section check. |
+| R2-M20 | Resolved in 10.8: required reports per content kind. |
+| R2-M21 | Resolved in 10.1: dual-write from M2a, UI moved in M3, column dropped later by a human migration. |
+| R2-M22 | Resolved in 12.1 and 12.5: render-addressed publish stage, lookups by publication, `scheduled` path retired, `yt.py` scopes and token location. |
+| R2-M23 | Resolved in 14.1: `jobs.priority`, lease timing, R2 split into two jobs, supervisor holding the lease for evaluation. |
+| R2-M24 | Resolved in 13.1 and 13.7: supervisor and merger hold the credentials; watch extended to 3 runs or 7 days; nightly canary jobs. |
+| R2-M25 | Resolved in 8.7 and 15.2: `remake_defaults` in M2a; Italian sources default to an Italian rewrite. |
+| R2-M26 | Resolved in 9.3: v1 blocks and params; the file is created first in M2b. |
+| R2-M27 | Resolved in 8.4 (R4): per-provider mapping, post-generation timing check as a failed round, metric renamed to lyric recall at least 0.75. |
+| R2-M28 | Resolved in section 4, goal 4. |
+| R2-M29 | Resolved in 12.5 (T19 linked, route choice kept) and 26 (placements only). |
+| R2-M30 | Partly resolved in 12.6: task name, token location, `thumbnail_style` column; remains: availability of per-video impressions and CTR in the API is checked as the first M4 step, with a stated fallback. |
+| R2-M31 | Resolved in 25 (credentials off the PC, loop channel, signing key). |
+| R2-M32 | Resolved in 12.1 and 21.1: track P0 starts now. |
+| R2-M33 | Resolved in 21.1 and 21.4: M2 split into M2a and M2b; previews to the UI track; Anthropic client to Later. |
+| R2-M34 | Resolved in 25 and 18: ops scripts in TypeScript on Node. |
+| R2-M35 | Partly resolved: meaning-map schema (9.1), Python runtimes and counters (8.4, 10.3), kinetic components (9.3), golden source (13.4), Tesseract and imagehash and DINOv2 runtimes (10.3, 10.4), editor scope (21.5), Autopilot start and daily limit (6.5), images, proxy, scanner, runner and cutover (13.1, 13.2, 13.6). Remains: exact container image digests and the Squid allowlist file, written in the M6 plan. |
+| Nit 1 | Resolved: customers 0 kie credits (6.2, 11.5). |
+| Nit 2 | Resolved: `song_create` and `remake_start` need `spend` (6.2, 7.3). |
+| Nit 3 | Resolved: remote detection by the edge proxy header, not the Host (5.1, 6.6). |
+| Nit 4 | Resolved: maximum plus mean (10.6). |
+| Nit 5 | Resolved: link created at hand-off (5.4). |
+| Nit 6 | Resolved: enums, `Safe` strings, refinements, contact-sheet tiling (9.1, 8.4). |
+| Nit 7 | Resolved: `held_gate_failed` state, notification, veto until the flip (12.2). |
+| Nit 8 | Resolved: kie submit timeout is `ambiguous_spend`, never retried (8.6). |
+| Nit 9 | Resolved: Inspector CLI commands (19). |
+| Nit 10 | Resolved: sliding window, write definition, idempotency mismatch and in-flight (6.7, 7.2). |
+| Nit 11 | Resolved: ntfy server, env var, sender, payload rules (16). |
+| Nit 12 | Resolved: `post.` in M4, Settings routes (21.2), `/api/health` (5.6), flag caching (15.1), `song_create` scope (6.2). |
+| Nit 13 | Resolved: `score_takes` described as a function (3, 8.3, 27). |
+| Nit 14 | Resolved: current `claim_job` cited and extended (3, 14.1). |
+| Nit 15 | Resolved: stage registration and `STAGE_STATUS` (3, 8.3); `art` and `visual_jury` statuses (8.3). |
+| Nit 16 | Resolved: the existing 15 s heartbeat is used (3, 8.5). |
+| Nit 17 | Resolved: hard-coded paths listed (3, 25); remake folder under the workspace root (8.3). |
+| Nit 18 | Resolved: allowlist uses `viz-looks.ts` (13.3). |
+| Nit 19 | Resolved: `test:db` reuses the e2e guard (13.2, 21.2). |
+| Nit 20 | Resolved: the gate checks by render (10.8). |
+| Nit 21 | Resolved: keepalive workflow deleted in M1 (2.4, 21.2). |
+| Nit 22 | Resolved: rendering reuse named, QA on the hook render (8.4 R7). |
+| Nit 23 | Resolved: no `publications.kind`; thumbnails are not publications (12.5). |
+| Nit 24 | Resolved: `create_song` (3, 7.3). |
+| Nit 25 | Resolved: this section rewritten with honest states and corrected references. |
+| Nit 26 | Resolved: the blockquote line and long prose lines fixed. |
+| Nit 27 | Resolved: `golden_items` table dropped; the manifest is the only source (13.4). |
+| Nit 28 | Resolved: `rate_counters` dropped; the in-memory limiter is reused (6.7). |
+| Nit 29 | Resolved: `loop/main` dropped (13.6). |
+| Nit 30 | Resolved: claim report placed in M4 with a catalogue row (7.3, 12.5). |
+| Nit 31 | Resolved: sections 25 and 26 keep rules and placements only. |
+| Nit 32 | Partly resolved: glossary path for the brief and the "Formatta con AI" gloss added; remains: the one-line fix in `task-24-brief.md:18` itself, not made here because this revision may change only this file. |
+| Nit 33 | Resolved: the M1 contents checklist (21.2). |
+
+### 28.2 Round 1 findings
+
+| Id | Disposition after revision 3 |
+| --- | --- |
+| B1 | Resolved (revision 2, confirmed by round 2); refined in 5 (smaller M1 surface). |
+| B2 | Resolved through R2-B3. |
+| B3 | Resolved through R2-B4. |
+| B4 | Resolved (confirmed by round 2); `publish` before M4 through R2-M4. |
+| B5 | Resolved (confirmed by round 2); blocks through R2-M26. |
+| B6 | Resolved through R2-B2 and the `mdf_ops` design (6.3). |
+| B7 | Resolved through R2-M1 (own authorization server). |
+| B8 | Resolved through R2-B1 and R2-M6. |
+| B9 | Resolved through R2-B1 (no immediate publish for tokens; admin click only until M4) and 12.2. |
+| B10 | Partly resolved through R2-M9: orchestrator and stage-job link defined; M2a DDL is written in its plan. |
+| B11 | Resolved (confirmed by round 2); refinements through Nit 6. |
+| B12 | Resolved through R2-M19 and R2-B3. |
+| B13 | Resolved through R2-M24 and R2-M14. |
+| B14 | Partly resolved through R2-M8: complete for M1; later milestones write their file lists before planning. |
+| B15 | Resolved through R2-M7, R2-M11. |
+| B16 | Resolved through R2-M23. |
+| B17 | Resolved through R2-M22 and R2-M32. |
+| M1, M2, M3, M4, M8, M9, M10, M13, M14, M15, M17, M18, M20, M21, M22, M23, M24, M25, M26, M28, M31 | Resolved (confirmed by round 2). M24's security gap is R2-B5, resolved. |
+| M5 | Resolved through R2-M28. |
+| M6 | Partly resolved through R2-M17 (prices measured in M3). |
+| M7 | Resolved through R2-M17 (eval formula). |
+| M11 | Resolved through R2-M26. |
+| M12 | Resolved through R2-M25. |
+| M16 | Resolved through R2-M18. |
+| M19 | Resolved through R2-M14. |
+| M27 | Resolved through R2-M27. |
+| M29 | Partly resolved through R2-M15 and R2-M30 (API metric availability checked in M4). |
+| M30 | Resolved through R2-M29. |
+| N1 | Resolved (stateless MCP chosen, 7.1). |
+| N2 | Resolved (6.7). |
+| N3, N4, N6, N8, N9, N10, N11, N12, N13 | Resolved (confirmed by round 2). |
+| N5 | Resolved (8.4 R7). |
+| N7 | Resolved (24). |
+
+**Counts:** round 2: 73 findings: 67 resolved, 6 partly resolved (R2-M8, R2-M9, R2-M17, R2-M30,
+R2-M35, Nit 32), 0 rejected. Round 1: 61 findings: 57
+resolved, 4 partly resolved (B10, B14, M6, M29), 0 rejected.
