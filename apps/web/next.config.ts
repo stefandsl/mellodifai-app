@@ -25,6 +25,7 @@ const nextConfig: NextConfig = {
       "./viz-audio.js": "../../packages/shared/src/visualizer/viz-audio.ts",
       "./viz-draw.js": "../../packages/shared/src/visualizer/viz-draw.ts",
       "./viz-kit.js": "../../packages/shared/src/visualizer/viz-kit.ts",
+      "./viz-logos.js": "../../packages/shared/src/visualizer/viz-logos.ts",
       "./viz-looks.js": "../../packages/shared/src/visualizer/viz-looks.ts",
       "./viz-params.js": "../../packages/shared/src/visualizer/viz-params.ts",
     },

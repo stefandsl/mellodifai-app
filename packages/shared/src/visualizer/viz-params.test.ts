@@ -8,6 +8,10 @@ import {
   classicoLines,
   colorPresetOf,
   defaultVisualizerParams,
+  LOGO_POSITIONS,
+  LOGO_SIZE,
+  MAX_LOGOS,
+  newLogo,
   normalizeVisualizerParams,
   PARTICLE_SHAPES,
   rerollSeed,
@@ -251,14 +255,135 @@ describe("visualizer parameters", () => {
     const params = defaultVisualizerParams();
     expect(classicoLines(params, "Astri lounge").map((l) => l.text)).toEqual([
       "SONG: ASTRI LOUNGE",
-      "by AIMELODIA",
-      "STEFANDSL.COM",
+    ]);
+    params.classico.artist = "Lucia";
+    params.classico.website = "lucia.example";
+    expect(classicoLines(params, "Astri lounge").map((l) => l.text)).toEqual([
+      "SONG: ASTRI LOUNGE",
+      "by LUCIA",
+      "LUCIA.EXAMPLE",
     ]);
     params.classico.album = "Italian rap";
     params.classico.website = "";
     expect(classicoLines(params, "").map((l) => l.text)).toEqual([
-      "by AIMELODIA",
+      "by LUCIA",
       "ALBUM: ITALIAN RAP",
     ]);
+  });
+});
+
+describe("no built-in branding (Task 28)", () => {
+  it("starts with no artist, website or album line, and no logos", () => {
+    const d = defaultVisualizerParams();
+    expect(d.classico).toEqual({
+      artist: "",
+      website: "",
+      album: "",
+      cards: true,
+    });
+    expect(d.logos).toEqual([]);
+    expect(JSON.stringify(d)).not.toMatch(/AIMELODIA|STEFANDSL|MELLODIFAI/u);
+    expect("gramophone" in d.classico).toBe(false);
+  });
+
+  it("reads the old default lines of a set saved before the logos as empty", () => {
+    const saved = {
+      ...defaultVisualizerParams(),
+      classico: {
+        artist: "AIMELODIA",
+        website: "STEFANDSL.COM",
+        album: "Lampioni",
+        gramophone: "black",
+        cards: false,
+      },
+    } as Record<string, unknown>;
+    delete saved.logos;
+    const read = normalizeVisualizerParams(saved);
+    expect(read.classico).toEqual({
+      artist: "",
+      website: "",
+      album: "Lampioni",
+      cards: false,
+    });
+    expect(read.logos).toEqual([]);
+    // Anything else the user typed stays, even an old set.
+    for (const [artist, website] of [
+      ["Aimelodia", "stefandsl.com"],
+      ["AIMELODIA ", "WWW.STEFANDSL.COM"],
+      ["Lucia", "lucia.example"],
+    ] as const) {
+      const kept = normalizeVisualizerParams({
+        ...saved,
+        classico: { artist, website, album: "", cards: true },
+      });
+      expect(kept.classico.artist).toBe(artist);
+      expect(kept.classico.website).toBe(website);
+    }
+    // A set saved after the logos keeps the old words: the user typed them.
+    const typed = normalizeVisualizerParams({
+      ...saved,
+      logos: [],
+      classico: { artist: "AIMELODIA", website: "STEFANDSL.COM" },
+    });
+    expect(typed.classico.artist).toBe("AIMELODIA");
+    expect(typed.classico.website).toBe("STEFANDSL.COM");
+  });
+
+  it("keeps up to two logos, reading each field by field", () => {
+    const url = "/media/uploads/u/0b4f9c1e-1111-4b7a-9c2e-123456789abc.png";
+    const read = normalizeVisualizerParams({
+      logos: [
+        { assetUrl: url, position: "bottom-left", size: 20, opacity: 70 },
+        { assetUrl: url, position: "middle", size: 99, opacity: -5 },
+        { assetUrl: "https://evil.example/logo.png", position: "top-left" },
+        { assetUrl: url },
+      ],
+    });
+    expect(read.logos).toEqual([
+      { assetUrl: url, position: "bottom-left", size: 20, opacity: 70 },
+      {
+        assetUrl: url,
+        position: "top-right",
+        size: LOGO_SIZE.default,
+        opacity: 100,
+      },
+    ]);
+    expect(normalizeVisualizerParams({ logos: "nope" }).logos).toEqual([]);
+    expect(
+      normalizeVisualizerParams({ logos: [null, 3, { size: 10 }] }).logos,
+    ).toEqual([]);
+    expect(VisualizerParamsSchema.safeParse(read).success).toBe(true);
+    const base = defaultVisualizerParams();
+    const logo = {
+      assetUrl: url,
+      position: "top-left",
+      size: 12,
+      opacity: 100,
+    };
+    for (const bad of [
+      [logo, logo, logo],
+      [{ ...logo, size: 3 }],
+      [{ ...logo, size: 31 }],
+      [{ ...logo, opacity: 101 }],
+      [{ ...logo, position: "centre" }],
+      [{ ...logo, assetUrl: "/media/uploads/../previews/x.png" }],
+    ])
+      expect(
+        VisualizerParamsSchema.safeParse({ ...base, logos: bad }).success,
+      ).toBe(false);
+    expect(LOGO_POSITIONS).toHaveLength(4);
+    expect(MAX_LOGOS).toBe(2);
+  });
+
+  it("puts a new logo in the first free corner, top right first", () => {
+    const url = "/media/uploads/u/a.png";
+    const first = newLogo(url);
+    expect(first).toEqual({
+      assetUrl: url,
+      position: "top-right",
+      size: 12,
+      opacity: 100,
+    });
+    expect(newLogo(url, [first]).position).toBe("top-left");
   });
 });

@@ -155,8 +155,6 @@ function scene(
     images: {
       background: pic(1920, 1080),
       center: pic(),
-      trumpet: pic(),
-      gramophone: pic(),
     },
     ...over,
   };
@@ -303,14 +301,12 @@ describe("MellodifAI Classico", () => {
     expect(L.wave.y).toBeCloseTo(1080 * 0.72);
     expect(L.badge).toMatchObject({ x: 960, y: 1080 * 0.13 });
     expect(L.badge.d).toBeCloseTo(1080 * 0.15);
-    expect(L.trumpet.x).toBeCloseTo(1920 * 0.18);
-    expect(L.gramophone.x).toBeCloseTo(1920 * 0.88);
   });
 
   it("lays itself out again for full-frame 9:16, inside the frame", () => {
     const L = classicoLayout(1080, 1920);
     expect(L.tall).toBe(true);
-    for (const item of [L.badge, L.trumpet, L.gramophone]) {
+    for (const item of [L.badge]) {
       expect(item.x).toBeGreaterThan(0);
       expect(item.x).toBeLessThan(1080);
       expect(item.y).toBeLessThan(1920);
@@ -337,6 +333,7 @@ describe("MellodifAI Classico", () => {
       ...defaultVisualizerParams(),
       preset: "classico" as const,
     };
+    params.classico.artist = "Lucia";
     const texts = (time: number) =>
       draw(params, { time, duration: 200 })
         .filter((c) => c[0] === "fillText")
@@ -686,7 +683,7 @@ describe("centre picture fit", () => {
     const params = { ...defaultVisualizerParams(), preset };
     params.centerImage.fit = fit;
     const s = scene(params, {
-      images: { background: null, center, trumpet: null, gramophone: null },
+      images: { background: null, center },
     });
     return draw(params, s).filter((c) => c[0] === "drawImage");
   };

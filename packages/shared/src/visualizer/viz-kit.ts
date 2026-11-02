@@ -110,12 +110,11 @@ export type VisualizerScene = {
   history?: readonly AnalysisFrame[];
   title: string;
   // The resolved pictures: background (stock, upload, video frame or cover), centre image,
-  // and the two brand marks of MellodifAI Classico.
+  // and the user's logos, one per entry of `params.logos` (null while one loads or is missing).
   images: {
     background?: Picture | null;
     center?: Picture | null;
-    trumpet?: Picture | null;
-    gramophone?: Picture | null;
+    logos?: readonly (Picture | null | undefined)[];
   };
   fontFamily?: string;
 };
@@ -503,6 +502,26 @@ export function songLines(scene: VisualizerScene): {
     artist: c.artist.trim().toUpperCase(),
     album: c.album.trim().toUpperCase(),
   };
+}
+
+// A column of text lines read top to bottom from `top`, the top edge of the first line: the
+// centre of each line and `end`, the bottom of the last one drawn. Each line sits `gap` below
+// the line drawn before it; an empty line takes no room, so it leaves no hole.
+export function stackDown(
+  top: number,
+  lines: readonly { text: string; size: number; gap?: number }[],
+): { centres: number[]; end: number } {
+  let y = top;
+  let first = true;
+  const centres = lines.map((line) => {
+    if (!line.text) return y;
+    if (!first) y += line.gap ?? 0;
+    first = false;
+    const centre = y + line.size / 2;
+    y += line.size;
+    return centre;
+  });
+  return { centres, end: y };
 }
 
 // Song progress 0..1.

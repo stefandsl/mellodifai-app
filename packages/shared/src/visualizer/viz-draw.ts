@@ -3,7 +3,6 @@ import {
   BASE,
   barValues,
   type Canvas2D,
-  drawContain,
   drawCover,
   drawTitle,
   fitText,
@@ -12,7 +11,6 @@ import {
   type Gradient,
   hash01,
   mix,
-  type Picture,
   particleAt,
   particleCount,
   rgba,
@@ -22,7 +20,9 @@ import {
   unitOf,
   type VisualizerScene,
 } from "./viz-kit.js";
+import { type Box, drawLogos, logoLayout, textProbe } from "./viz-logos.js";
 import {
+  badgeBoxes,
   drawBadges,
   drawLook,
   drawsOwnParticles,
@@ -413,13 +413,7 @@ export function classicoLayout(width: number, height: number) {
       y: height * (tall ? 0.74 : 0.72),
       amp: height * (tall ? 0.05 : 0.085),
     },
-    trumpet: tall
-      ? { x: width * 0.24, y: height * 0.53, size: short * 0.46 }
-      : { x: width * 0.18, y: height * 0.43, size: height * 0.32 },
-    gramophone: tall
-      ? { x: width * 0.84, y: height * 0.33, size: short * 0.24 }
-      : { x: width * 0.88, y: height * 0.25, size: height * 0.17 },
-    // Tall frames have room under the wave; there the ruler cannot touch the trumpet player.
+    // Tall frames have room under the wave.
     ruler: tall
       ? { y: height * 0.815, x0: width * 0.3, x1: width * 0.7 }
       : { y: height * 0.6, x0: width * 0.36, x1: width * 0.64 },
@@ -437,34 +431,7 @@ function easeWindow(time: number, start: number, end: number, fade = 0.6) {
   return Math.min(1, (time - start) / fade, (end - time) / fade);
 }
 
-function tinted(
-  scratch: ScratchCanvas | null,
-  pic: Picture,
-  color: string,
-  size: number,
-): Picture | null {
-  if (!scratch) return null;
-  const s = Math.max(1, Math.round(size));
-  scratch.width = s;
-  scratch.height = s;
-  const c = scratch.getContext("2d") as Canvas2D | null;
-  if (!c) return null;
-  c.clearRect(0, 0, s, s);
-  c.globalCompositeOperation = "source-over";
-  drawContain(c, pic, s / 2, s / 2, s);
-  c.globalCompositeOperation = "source-in";
-  c.fillStyle = color;
-  c.fillRect(0, 0, s, s);
-  c.globalCompositeOperation = "source-over";
-  return { source: scratch, width: s, height: s };
-}
-
-function presetClassico(
-  ctx: Canvas2D,
-  scene: VisualizerScene,
-  level: number,
-  scratch: ScratchCanvas | null,
-) {
+function presetClassico(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const { params, width: w, height: h, time, duration } = scene;
   const u = unitOf(w, h);
   const L = classicoLayout(w, h);
@@ -522,24 +489,6 @@ function presetClassico(
   ctx.fill();
   ctx.restore();
 
-  // Brand marks: the red trumpet player left, the gramophone top right (red or black).
-  if (scene.images.trumpet)
-    drawContain(
-      ctx,
-      scene.images.trumpet,
-      L.trumpet.x,
-      L.trumpet.y,
-      L.trumpet.size,
-    );
-  if (scene.images.gramophone) {
-    const pic =
-      params.classico.gramophone === "black"
-        ? tinted(scratch, scene.images.gramophone, "#0b0b0b", L.gramophone.size)
-        : scene.images.gramophone;
-    if (pic)
-      drawContain(ctx, pic, L.gramophone.x, L.gramophone.y, L.gramophone.size);
-  }
-
   // Play badge with the teal glow, pulsing with the bass.
   const { x: bx, y: by, d } = L.badge;
   const r = (d / 2) * (1 + level * 0.05);
@@ -589,9 +538,10 @@ function presetClassico(
   }
 
   if (!params.classico.cards) return;
-  const artist = params.classico.artist.trim().toUpperCase() || "MELLODIFAI";
-  // Intro lower third: ARTIST / PRESENTS with the gold bar, the first five seconds.
-  const intro = easeWindow(time, 0.2, 5.2);
+  const artist = params.classico.artist.trim().toUpperCase();
+  // Intro lower third: ARTIST / PRESENTS with the gold bar, the first five seconds. Without an
+  // artist there is nobody to present: no intro.
+  const intro = artist ? easeWindow(time, 0.2, 5.2) : 0;
   if (intro > 0) {
     ctx.save();
     ctx.globalAlpha = intro;
@@ -647,8 +597,10 @@ function presetClassico(
     ctx.textBaseline = "middle";
     ctx.font = font(scene, 44 * u, 600);
     ctx.fillText("SUBSCRIBE", w / 2, y + bh / 2);
-    ctx.font = font(scene, 40 * u, 300);
-    ctx.fillText(artist, w / 2, y - 60 * u);
+    if (artist) {
+      ctx.font = font(scene, 40 * u, 300);
+      ctx.fillText(artist, w / 2, y - 60 * u);
+    }
     ctx.restore();
   }
 }
@@ -901,6 +853,78 @@ function applyEffect(
   }
 }
 
+function drawPreset(ctx: Canvas2D, scene: VisualizerScene, level: number) {
+  switch (scene.params.preset) {
+    case "circle":
+      return presetCircle(ctx, scene, level);
+    case "spectrum":
+      return presetSpectrum(ctx, scene, level);
+    case "mirror":
+      return presetMirror(ctx, scene, level);
+    case "waveform":
+      return presetWaveform(ctx, scene, level);
+    case "particles":
+      return presetParticles(ctx, scene, level);
+    case "minimal":
+      return presetMinimal(ctx, scene, level);
+    case "classico":
+      return presetClassico(ctx, scene, level);
+    default:
+      return drawLook(ctx, scene, level);
+  }
+}
+
+// The moments the preset's text is read at for the logos: any time for the text that stays, plus
+// the Classico intro card and subscribe callout, which show only for a while. A logo keeps one
+// place for the whole video, clear of all of them.
+export function textProbeTimes(scene: VisualizerScene): number[] {
+  const times = [2.7];
+  if (scene.params.preset === "classico" && scene.params.classico.cards) {
+    const [start, end] = subscribeWindow(scene.duration);
+    times.push((start + end) / 2);
+  }
+  return times;
+}
+
+// Every box of text the preset draws (title, artist, album, times, cards), read on a silent
+// frame at the probe times. `measure` gives a text's width in a font, from a real canvas.
+export function presetTextBoxes(
+  scene: VisualizerScene,
+  measure: (font: string, text: string) => number,
+): Box[] {
+  const quiet = silentFrame();
+  return textProbeTimes(scene).flatMap((time) => {
+    const probe = textProbe(measure);
+    drawPreset(
+      probe.ctx,
+      { ...scene, time, bands: quiet.bands, wave: quiet.wave, history: [] },
+      0,
+    );
+    return probe.boxes;
+  });
+}
+
+// What decides where the preset's text goes: everything but the looks of the frame.
+function textLayoutKey(scene: VisualizerScene): string {
+  const {
+    logos: _logos,
+    effects: _effects,
+    textLayers: _layers,
+    colors: _colors,
+    background: _background,
+    particles: _particles,
+    ...rest
+  } = scene.params;
+  return JSON.stringify([
+    rest,
+    scene.title,
+    scene.width,
+    scene.height,
+    scene.fontFamily ?? "",
+    Math.round(scene.duration),
+  ]);
+}
+
 // Draws one frame. The preview calls it on every animation frame, the Remotion composition once
 // per video frame; with the same scene both draw the same picture.
 export function createVisualizerRenderer(makeCanvas: CanvasFactory | null) {
@@ -912,7 +936,10 @@ export function createVisualizerRenderer(makeCanvas: CanvasFactory | null) {
         grain: [0, 1, 2, 3].map(() => makeCanvas(1, 1)),
       }
     : null;
-  const mark = makeCanvas ? makeCanvas(1, 1) : null;
+  // The preset's text boxes for the logo layout, read again only when what places the text
+  // changes (not every frame), so a logo keeps its place for the whole video.
+  let textKey = "";
+  let textBoxes: Box[] = [];
   return function draw(ctx: Canvas2D, scene: VisualizerScene): void {
     const { params } = scene;
     const level = levelOf(scene.bands);
@@ -922,32 +949,28 @@ export function createVisualizerRenderer(makeCanvas: CanvasFactory | null) {
     ctx.globalCompositeOperation = "source-over";
     drawBackground(ctx, scene);
     drawParticles(ctx, scene, level);
-    switch (params.preset) {
-      case "circle":
-        presetCircle(ctx, scene, level);
-        break;
-      case "spectrum":
-        presetSpectrum(ctx, scene, level);
-        break;
-      case "mirror":
-        presetMirror(ctx, scene, level);
-        break;
-      case "waveform":
-        presetWaveform(ctx, scene, level);
-        break;
-      case "particles":
-        presetParticles(ctx, scene, level);
-        break;
-      case "minimal":
-        presetMinimal(ctx, scene, level);
-        break;
-      case "classico":
-        presetClassico(ctx, scene, level, mark);
-        break;
-      default:
-        drawLook(ctx, scene, level);
-    }
+    drawPreset(ctx, scene, level);
     drawBadges(ctx, scene, level);
+    const logos = scene.images.logos ?? [];
+    if (params.logos.length && logos.some(Boolean)) {
+      const key = textLayoutKey(scene);
+      if (key !== textKey) {
+        ctx.save();
+        textBoxes = presetTextBoxes(scene, (f, text) => {
+          ctx.font = f;
+          return ctx.measureText(text).width;
+        });
+        ctx.restore();
+        textKey = key;
+      }
+      drawLogos(
+        ctx,
+        logoLayout(scene, params.logos, logos, [
+          ...textBoxes,
+          ...badgeBoxes(scene),
+        ]),
+      );
+    }
     drawTextLayers(ctx, scene);
     for (const id of VISUALIZER_EFFECTS) {
       const effect = effectOf(params, id);
