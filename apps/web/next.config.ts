@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "./i18n.js": "../../packages/shared/src/i18n.ts",
       "./lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
+      "./lyrics-assist.js": "../../packages/shared/src/lyrics-assist.ts",
       "./remake/index.js": "../../packages/shared/src/remake/index.ts",
       "./analysis.js": "../../packages/shared/src/remake/analysis.ts",
       "./blueprint.js": "../../packages/shared/src/remake/blueprint.ts",

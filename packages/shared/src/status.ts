@@ -3,6 +3,9 @@ import type { Stage } from "./stages.js";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 export type VersionStatus =
+  // A "Rifai da YouTube" remake: R1 to R3 run and the person reviews the new lyrics in the
+  // create panel; accepting moves the song to song_queued (migration 20261102000025).
+  | "analysing"
   | "drafting"
   | "lyrics_review"
   | "song_queued"
@@ -17,6 +20,7 @@ export type VersionStatus =
   | "failed";
 
 const STATUS_STAGES: Record<VersionStatus, Stage[]> = {
+  analysing: ["remake_ingest", "remake_analyse", "remake_rewrite"],
   drafting: ["draft_lyrics"],
   lyrics_review: [],
   song_queued: ["generate_song"],
@@ -77,6 +81,7 @@ export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
     return STEMS_STATUSES.includes(status);
   if (stage === "replace_section") return REWRITE_STATUSES.includes(status);
   const allowed: Record<VersionStatus, readonly Stage[]> = {
+    analysing: ["remake_ingest", "remake_analyse", "remake_rewrite"],
     drafting: ["draft_lyrics"],
     lyrics_review: ["draft_lyrics"],
     song_queued: ["generate_song", "import_audio"],
