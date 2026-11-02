@@ -151,6 +151,9 @@ importers:
 
   ops:
     dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.118.0
+        version: 2.118.0
       postgres:
         specifier: ^4.0.0
         version: 4.0.0

@@ -6,6 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -96,6 +97,56 @@ function fixture(applied = false) {
   };
 }
 const input = { target: "m1-test", hasAuth: true, skipMigrations: false };
+
+it("loads pinned set-owner and deploy tools with only standalone dependencies", async () => {
+  const root = temp();
+  const pnpm = process.env.npm_execpath;
+  if (!pnpm) throw new Error("Run the package tests through pnpm");
+  const runner: Runner = (cmd, args, opts) => {
+    const installArgs = [...args];
+    // Share only the package store, never the invoking workspace's node_modules.
+    installArgs[installArgs.indexOf("--store-dir") + 1] =
+      process.env.npm_config_store_dir ??
+      join(process.env.RUNNER_TEMP ?? "E:/mellodifai", "cache/pnpm");
+    return realRunner(cmd, installArgs, opts);
+  };
+  const pinned = await pinOps(
+    fileURLToPath(new URL("../../", import.meta.url)),
+    root,
+    runner,
+    pnpm,
+  );
+  const script = join(pinned, "load-tools.mts");
+  writeFileSync(
+    script,
+    `
+    import { createRequire } from "node:module";
+    import { dirname, join } from "node:path";
+    import { fileURLToPath } from "node:url";
+    import { setOwner } from "./set-owner.ts";
+    import "./deploy.ts";
+    import "./services.ts";
+    import "./check-no-keys.ts";
+    const require = createRequire(import.meta.url);
+    const dependency = require.resolve("@supabase/supabase-js");
+    if (!dependency.startsWith(join(dirname(fileURLToPath(import.meta.url)), "node_modules"))) throw new Error("Ancestor dependency used");
+    if (typeof setOwner !== "function") throw new Error("setOwner did not load");
+    console.log("Pinned tools loaded with standalone dependencies");
+  `,
+  );
+  const result = await realRunner(
+    process.execPath,
+    [createRequire(join(pinned, "package.json")).resolve("tsx/cli"), script],
+    {
+      cwd: pinned,
+      env: { NODE_PATH: "", TEMP: root, TMP: root, TMPDIR: root },
+    },
+  );
+  expect(result.code, result.stderr).toBe(0);
+  expect(result.stdout).toContain(
+    "Pinned tools loaded with standalone dependencies",
+  );
+}, 120_000);
 
 describe("deploy", () => {
   it("copies the invoking checkout's ops package to <root>/ops-pinned/<ts> and runs every tool from there", async () => {
