@@ -97,8 +97,10 @@ export function centerLayout(
         cy: height * (tall ? 0.36 : 0.34),
         r: short * 0.12,
       };
-    case "classico":
-      return { cx: width / 2, cy: height * 0.13, r: short * 0.075 };
+    case "classico": {
+      const { badge } = classicoLayout(width, height);
+      return { cx: badge.x, cy: badge.y, r: badge.d / 2 };
+    }
     default:
       return lookCenter(params, width, height);
   }
@@ -407,16 +409,20 @@ export function classicoLayout(width: number, height: number) {
   const short = Math.min(width, height);
   return {
     tall,
-    badge: { x: width / 2, y: height * (tall ? 0.1 : 0.13), d: short * 0.15 },
-    textTop: height * (tall ? 0.16 : 0.235),
+    // One centred column: badge, text stack, ruler and wave. Without the old brand marks at
+    // the sides the column sits lower, so the frame has no empty middle; in 9:16 it stays
+    // clear of the top bar and the bottom captions of a Short.
+    badge: { x: width / 2, y: height * (tall ? 0.27 : 0.2), d: short * 0.15 },
+    textTop: height * (tall ? 0.33 : 0.305),
     wave: {
-      y: height * (tall ? 0.74 : 0.72),
+      y: height * (tall ? 0.6 : 0.72),
       amp: height * (tall ? 0.05 : 0.085),
     },
-    // Tall frames have room under the wave.
     ruler: tall
-      ? { y: height * 0.815, x0: width * 0.3, x1: width * 0.7 }
+      ? { y: height * 0.69, x0: width * 0.3, x1: width * 0.7 }
       : { y: height * 0.6, x0: width * 0.36, x1: width * 0.64 },
+    // The intro lower third.
+    intro: { x: width * 0.06, y: height * (tall ? 0.75 : 0.8) },
   };
 }
 
@@ -545,8 +551,8 @@ function presetClassico(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   if (intro > 0) {
     ctx.save();
     ctx.globalAlpha = intro;
-    const x = w * 0.06 - (1 - intro) * 60 * u;
-    const y = h * (L.tall ? 0.865 : 0.8);
+    const x = L.intro.x - (1 - intro) * 60 * u;
+    const y = L.intro.y;
     ctx.fillStyle = "#f2a516";
     ctx.fillRect(x, y, 10 * u, 112 * u);
     ctx.textAlign = "left";
