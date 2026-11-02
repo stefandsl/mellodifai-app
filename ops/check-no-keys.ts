@@ -24,29 +24,30 @@ export async function findKeyMaterial(roots: string[]): Promise<Finding[]> {
     )
       return;
     const entry = await lstat(path);
-    // Do not traverse directory links into other checkouts or runtime trees.
-    // Linked files are still inspected, so a linked private key cannot bypass the check.
     const info = entry.isSymbolicLink() ? await stat(path) : entry;
-    if (info.isDirectory() && entry.isSymbolicLink()) return;
+    // Names belong to directory entries, not canonical targets. Check every
+    // file alias before deduplicating JSON reads or traversing directory cycles.
+    if (info.isFile() && /^(signing_keys.*|.*jwks.*)\.json$/i.test(name)) {
+      findings.push({ path, reason: "name" });
+      return;
+    }
+    if (!info.isDirectory() && !(info.isFile() && name.endsWith(".json")))
+      return;
     const canonical = await realpath(path);
     if (visited.has(canonical)) return;
     visited.add(canonical);
     if (info.isDirectory()) {
       for (const child of (await readdir(path)).sort())
         await visit(join(path, child));
-    } else if (info.isFile()) {
-      if (/^(signing_keys.*|.*jwks.*)\.json$/i.test(name)) {
-        findings.push({ path, reason: "name" });
-      } else if (name.endsWith(".json")) {
-        const contents = await readFile(path, "utf8");
-        let value: unknown;
-        try {
-          value = JSON.parse(contents.replace(/^\uFEFF/, ""));
-        } catch {
-          return;
-        }
-        if (privateJwk(value)) findings.push({ path, reason: "jwk" });
+    } else {
+      const contents = await readFile(path, "utf8");
+      let value: unknown;
+      try {
+        value = JSON.parse(contents.replace(/^\uFEFF/, ""));
+      } catch {
+        return;
       }
+      if (privateJwk(value)) findings.push({ path, reason: "jwk" });
     }
   }
   for (const root of roots) await visit(resolve(root));
