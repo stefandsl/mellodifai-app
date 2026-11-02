@@ -11,6 +11,7 @@ import {
   silentFrame,
   VISUALIZER_FONT,
   type VisualizerParams,
+  withFocus,
 } from "@mellodifai/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -52,12 +53,29 @@ type Loaded = {
   gramophone: Picture | null;
 };
 
-async function picture(file: string | null): Promise<Picture | null> {
+function scratchCanvas(width: number, height: number) {
+  const c = document.createElement("canvas");
+  c.width = width;
+  c.height = height;
+  return c;
+}
+
+// `subject`: also read where the subject sits (the centre picture's square crop follows it, as
+// in the preview).
+async function picture(
+  file: string | null,
+  subject = false,
+): Promise<Picture | null> {
   if (!file) return null;
   const img = new Image();
   img.src = staticFile(file);
   await img.decode();
-  return { source: img, width: img.naturalWidth, height: img.naturalHeight };
+  const pic: Picture = {
+    source: img,
+    width: img.naturalWidth,
+    height: img.naturalHeight,
+  };
+  return subject ? withFocus(pic, scratchCanvas) : pic;
 }
 
 // Everything the frames need, loaded once before the first frame is taken.
@@ -83,7 +101,7 @@ function useLoaded(props: VisualizerProps): Loaded | null {
                 .then((b) => new Uint8Array(b))
             : null,
           picture(bgImage),
-          picture(center),
+          picture(center, true),
           picture(trumpet),
           picture(gramophone),
           ...[300, 500, 600].map((weight) =>
