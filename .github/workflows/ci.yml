@@ -12,11 +12,10 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    env:
-      MELLODIFAI_ROOT: ${{ runner.temp }}/mellodifai
     outputs:
       has-supabase-config: ${{ steps.supabase-config.outputs.exists }}
     steps:
+      - run: echo "MELLODIFAI_ROOT=$RUNNER_TEMP/mellodifai" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - name: Check for Supabase config
         id: supabase-config
@@ -38,9 +37,9 @@ jobs:
     if: needs.checks.outputs.has-supabase-config == 'true'
     runs-on: ubuntu-latest
     env:
-      MELLODIFAI_ROOT: ${{ runner.temp }}/mellodifai
       WORKER_FAKE: "1"
     steps:
+      - run: echo "MELLODIFAI_ROOT=$RUNNER_TEMP/mellodifai" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
