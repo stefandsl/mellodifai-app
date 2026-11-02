@@ -45,8 +45,16 @@ codex_resume() { # thread prompt-file out-last json-out
     -o "$3" "$(cat "$2")" < /dev/null > "$4" 2> "$4.err"
 }
 codex_read() { # prompt-file out-last json-out
-  timeout "$TIMEOUT" "$CODEX" exec --sandbox read-only -C "$ROOT" --json \
+  # The Windows read-only sandbox kills Codex's tool host ("code-mode host exited during
+  # handshake"), so reviewers run with access and are held to read-only by their prompt;
+  # any commit or tracked change they leave is undone here.
+  local before tree; before="$(git rev-parse HEAD)"; tree="$(git status --porcelain --untracked-files=no)"
+  timeout "$TIMEOUT" "$CODEX" exec --sandbox danger-full-access -C "$ROOT" --json \
     -o "$2" "$(cat "$1")" < /dev/null > "$3" 2> "$3.err"
+  if [ "$(git rev-parse HEAD)" != "$before" ] || [ "$(git status --porcelain --untracked-files=no)" != "$tree" ]; then
+    log "Warning: read-only reviewer changed the tree ($1); restored to ${before:0:7}"
+    [ -z "$tree" ] && git reset -q --hard "$before" || git reset -q --soft "$before"
+  fi
 }
 
 package() { # base head out
