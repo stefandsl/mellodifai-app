@@ -194,5 +194,7 @@ export const RemakeCostSplitSchema = z.object({
   analysisUsd: z.number().nonnegative().default(0),
   rewriteUsd: z.number().nonnegative().default(0),
   sectionsUsd: z.number().nonnegative().default(0),
+  // Runs that failed after paying for some calls (the privacy filter, a cap).
+  failedUsd: z.number().nonnegative().default(0),
 });
 export type RemakeCostSplit = z.infer<typeof RemakeCostSplitSchema>;

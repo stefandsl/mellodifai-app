@@ -76,7 +76,8 @@ export function toView(row: Row): RemakeView | null {
       Math.round(
         ((cost.analysisUsd ?? 0) +
           (cost.rewriteUsd ?? 0) +
-          (cost.sectionsUsd ?? 0)) *
+          (cost.sectionsUsd ?? 0) +
+          (cost.failedUsd ?? 0)) *
           1e4,
       ) / 1e4,
     job: row.job ?? null,

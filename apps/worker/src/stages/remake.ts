@@ -89,7 +89,9 @@ export type RemakeEngine = {
 export const packageEngine: RemakeEngine = {
   client: (env, signal) =>
     createClient({
-      key: env.require("OPENROUTER_API_KEY"),
+      // As in the lyric pipeline (draft-lyrics.ts): a key without OpenRouter's privacy
+      // guardrail keeps lyrics intact.
+      key: env.get("LYRICS_OPENROUTER_KEY") ?? env.require("OPENROUTER_API_KEY"),
       ledger: new Ledger(),
       signal,
     }),
@@ -399,6 +401,24 @@ export function remakeStages(
           throw new Error("the lyrics kept changing while they were checked");
         }
         throw new Error(`unknown remake_rewrite mode ${mode}`);
+      } catch (error) {
+        // A failed run was still paid for: its calls go on the remake's ledger.
+        if (client.ledger.usd > 0) {
+          const fresh = await context.db.getRemakeByVersion(context.version.id);
+          await context.db.patchRemake(remake.id, {
+            cost: {
+              ...(fresh?.cost ?? remake.cost),
+              failedUsd:
+                Math.round(
+                  ((fresh?.cost.failedUsd ?? 0) + client.ledger.usd) * 1e6,
+                ) / 1e6,
+            },
+          });
+          await context.log(
+            `failed run cost: ${costLine(client.ledger.toJSON())}`,
+          );
+        }
+        throw error;
       } finally {
         embedder.close();
       }
