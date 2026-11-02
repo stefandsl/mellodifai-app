@@ -1143,6 +1143,70 @@ There is no RED/GREEN database evidence and no verified database-stack result
 yet. Status is DONE_WITH_CONCERNS under the owner's instruction for open owner
 actions; the outstanding experiments must be resumed before dependent work.
 
+### Spike 3: MCP transport (Task 3, 2026-11-02)
+
+**Decision:** use the section 7.1 transport directly. The local Next route and
+both required Inspector CLI operations pass; `mcp-handler` fallback was not
+needed or tested. No disagreement with the revision 6 design was found.
+
+Disposable app, package lock, HTTP tests and evidence live in
+`E:/mellodifai/spikes/mcp/`, not in the repository. Tested Node 22.13.0,
+Next 16.4.3, React/React DOM 19.3.0, `@modelcontextprotocol/server@2.4.0`
+and Inspector 1.0.3 (the version resolved by npm and pinned in the scratch
+lockfile). Inspector emits a v1 deprecation warning but both CLI commands
+exit 0. This is local transport compatibility evidence, not remote OAuth or
+hosted connector verification.
+
+**Wiring for Task 41:** import `McpServer` and
+`WebStandardStreamableHTTPServerTransport` from
+`@modelcontextprotocol/server`. Export `runtime = 'nodejs'`. Inside each POST,
+create a new server, register `ping` returning text `pong`, then create
+`WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined,
+enableJsonResponse: true })`. Await `server.connect(transport)`, then await
+`transport.handleRequest(request)` with the original Web Request. Close the
+server in `finally` after handling completes. Do not pre-parse the body or
+override the default body-size limit. GET returns 405 with `Allow: POST`.
+
+**RED/GREEN:** `spike.test.mjs` was written before the route. Against the
+running app without `/api/mcp`, all three checks failed with 404 instead of
+405, 200 and 413 (`evidence/red-no-route.log`). After adding the route, all
+three passed. The final run used the app's own installed Next with default
+Turbopack on loopback port 3323 (`evidence/green.log`):
+
+- GET: 405.
+- Three independent list/call pairs: HTTP 200, JSON listing exactly `ping`,
+  `pong` text on calls, and no `mcp-session-id` response header.
+- JSON body larger than the default 4 MiB: HTTP 413.
+
+From `E:/mellodifai/spikes/mcp`, start with `./start.ps1`, then reproduce:
+
+```powershell
+node --test spike.test.mjs
+npx @modelcontextprotocol/inspector --cli http://127.0.0.1:3323/api/mcp --method tools/list
+npx @modelcontextprotocol/inspector --cli http://127.0.0.1:3323/api/mcp --method tools/call --tool-name ping
+```
+
+Both exact Inspector commands exited 0; outputs in
+`evidence/inspector-list.log` and `evidence/inspector-call.log` contain one
+`ping` tool and `{"content":[{"type":"text","text":"pong"}]}` respectively.
+The scratch listener was stopped after verification. No provider calls,
+credentials, Supabase requests or production endpoints were involved.
+
+**Repository gates:** a fresh tracked-source copy under the spike's `gates/`
+directory passed frozen offline installation using the existing E: pnpm
+store, lint, root typecheck, web typecheck and unit tests (1,284 passed,
+2 existing skips). Chocolatey's installed FFmpeg was selected in the test
+process PATH, following Task 2's environment diagnosis. All new cache, tmp
+and test output stayed on E:. Logs are `evidence/gate-*.log`.
+
+Database and e2e gates were not run: Docker's physical data disk remains
+`C:/Users/Asus/AppData/Local/Docker/wsl/disk/docker_data.vhdx`, as in Spike 2.
+The owner must relocate Docker storage to E:/G: or provide a compliant
+isolated daemon before those gates can run. No previous task's DB/e2e
+results are claimed for this commit. Task 3's transport experiment is
+complete; status is DONE_WITH_CONCERNS for those pending repository gates.
+Full report: `.superpowers/sdd/2026-11-02-m1-agent-access/task-3-report.md`.
+
 ## Deploy log
 
 (Filled by Tasks 33 and 47.)
