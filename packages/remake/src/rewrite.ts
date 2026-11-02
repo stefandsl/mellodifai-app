@@ -449,9 +449,16 @@ async function runJury(
     gates.misfitLines === 0 &&
     gates.phraseOk &&
     gates.sectionsOk;
+  // Every member read the same text: if the privacy filter altered it for one, the whole
+  // round judged altered lyrics, so no verdict of the round counts (fail-closed).
+  const redacted =
+    verdicts.some((v) => v.error?.includes(REDACTED_INPUT)) ||
+    devil.error === REDACTED_INPUT;
+  const available = valid.length > 0 && !redacted;
+  if (redacted) issues.unshift({ line: null, problem: REDACTED_INPUT });
   return {
     round,
-    available: valid.length > 0,
+    available,
     scores,
     failing,
     issues,
@@ -459,10 +466,7 @@ async function runJury(
     verdicts,
     gates,
     passed:
-      valid.length > 0 &&
-      failing.length === 0 &&
-      devil.blocking === 0 &&
-      gatesOk,
+      available && failing.length === 0 && devil.blocking === 0 && gatesOk,
   };
 }
 
@@ -681,8 +685,12 @@ export async function rewrite(
   let stoppedBecause: RemakeLyrics["jury"]["stoppedBecause"] = "round_cap";
 
   for (let round = 1; round <= maxRounds; round++) {
-    // Deterministic gates first: two passes of targeted line fixes.
-    for (let pass = 0; pass < 2 && spent() < costCap; pass++) {
+    // Deterministic gates first: targeted line fixes (two passes on the first draft).
+    for (
+      let pass = 0;
+      pass < (round === 1 ? 2 : 1) && spent() < costCap;
+      pass++
+    ) {
       const targets = gateTargets(states, gates);
       const titleBad =
         !gates.phrase.ok && gates.phrase.detail.startsWith(`"${title}"`);
@@ -724,6 +732,10 @@ export async function rewrite(
     // Design 10.1: a new jury is fail-closed.
     if (!jury.available) {
       stoppedBecause = "jury_unavailable";
+      if (jury.issues.some((i) => i.problem === REDACTED_INPUT))
+        log(
+          `JURY UNAVAILABLE: ${REDACTED_INPUT}. The lyrics themselves are intact, but no judge can read them until the filter is switched off (OpenRouter settings, Privacy).`,
+        );
       break;
     }
     if (round === maxRounds) break;

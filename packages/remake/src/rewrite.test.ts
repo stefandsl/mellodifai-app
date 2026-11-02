@@ -347,7 +347,7 @@ describe("rewrite", () => {
     ).rejects.toBeInstanceOf(RedactionError);
   });
 
-  it("discards a judge that read filter tags but keeps the others", async () => {
+  it("stops fail-closed when the filter altered what a judge read, keeping the lyrics", async () => {
     const { client } = scripted({ draft: () => GOOD, redactJudge: true });
     const result = await rewrite(
       analysisFixture(),
@@ -358,8 +358,15 @@ describe("rewrite", () => {
     expect(
       round?.verdicts.find((v) => v.model.includes("haiku"))?.error,
     ).toMatch(/privacy filter/u);
-    expect(round?.available).toBe(true);
-    expect(result.jury.passed).toBe(true);
+    expect(round?.available).toBe(false);
+    expect(round?.issues[0]?.problem).toMatch(/privacy filter/u);
+    expect(result.jury).toMatchObject({
+      passed: false,
+      stoppedBecause: "jury_unavailable",
+    });
+    expect(result.sections.flatMap((s) => s.lines).map((l) => l.text)).toEqual(
+      GOOD,
+    );
   });
 
   it("does not let a devil's advocate that read filter tags clear the draft", async () => {
@@ -372,7 +379,7 @@ describe("rewrite", () => {
       { lang: "it" },
       deps(client),
     );
-    expect(result.jury.rounds.map((r) => r.passed)).toEqual([false, true]);
+    expect(result.jury.stoppedBecause).toBe("jury_unavailable");
     expect(result.jury.rounds[0]?.devil.blocking).toBe(1);
   });
 
