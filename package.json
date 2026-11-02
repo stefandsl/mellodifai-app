@@ -6,6 +6,8 @@
     "node": ">=22.12"
   },
   "scripts": {
+    "ops": "pnpm --filter @mellodifai/ops exec tsx",
+    "prepare": "git config core.hooksPath .githooks",
     "lint": "biome check .",
     "typecheck": "tsc -b",
     "test": "pnpm -r --if-present test",

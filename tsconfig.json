@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./ops" },
     { "path": "./packages/shared" },
     { "path": "./packages/shared/tsconfig.test.json" },
     { "path": "./packages/remake" },
