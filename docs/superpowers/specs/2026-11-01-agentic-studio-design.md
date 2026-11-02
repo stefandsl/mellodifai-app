@@ -53,16 +53,16 @@ with no owner action, in Autopilot, standard tier, where:
 
 These are the owner's. Builders implement them and never re-argue them. Cited as "(OD n)".
 
-| # | Date | Decision |
-| --- | --- | --- |
-| OD1 | 31/10, 01/11 | A remake keeps the source's **timing, structure and mood**; the lyrics are rewritten or translated to carry **the same meaning and vibe in new words**, staying on the safe side of copyright for YouTube; graphics follow motion and graphic design practice and pass the jury. |
-| OD2 | 01/11 | Agents connect **locally** (CLI and stdio MCP) **and remotely** (Streamable HTTP MCP for claude.ai and ChatGPT connectors) in the **same milestone**. |
-| OD3 | 01/11 | Publishing **auto-schedules with a veto window**: the owner (and his agent) is notified and can cancel before it goes live. |
-| OD4 | 01/11 | The daily improvement loop is **fully autonomous, including code merges**, with no human approval step. Safety comes from enforced mechanisms (section 13). |
-| OD5 | 01/11 | Image routing order: (1) Midjourney through the kie.ai reseller API (the owner accepts it is unofficial and may stop working), (2) GPT Image on his ChatGPT plan through `codex exec`, (3) Nano Banana through the cheapest official route, (4) OpenRouter image models, (5) local open models. |
-| OD6 | 01/11 | Remotion is the renderer and in-app preview. Each video has a **JSON timeline document** edited by the web UI and by agents; HyperFrames is not the engine. |
-| OD7 | 01/11 | Builders have full autonomy: they test, commit and push without asking. |
-| OD8 | 01/11 | The app runs on his Windows PC (RTX 3070 8 GB, local Supabase in Docker, worker on the PC) and must stay portable to a future Debian GPU server. |
+| #   | Date         | Decision                                                                                                                                                                                                                                                                                        |
+| --- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OD1 | 31/10, 01/11 | A remake keeps the source's **timing, structure and mood**; the lyrics are rewritten or translated to carry **the same meaning and vibe in new words**, staying on the safe side of copyright for YouTube; graphics follow motion and graphic design practice and pass the jury.                |
+| OD2 | 01/11        | Agents connect **locally** (CLI and stdio MCP) **and remotely** (Streamable HTTP MCP for claude.ai and ChatGPT connectors) in the **same milestone**.                                                                                                                                           |
+| OD3 | 01/11        | Publishing **auto-schedules with a veto window**: the owner (and his agent) is notified and can cancel before it goes live.                                                                                                                                                                     |
+| OD4 | 01/11        | The daily improvement loop is **fully autonomous, including code merges**, with no human approval step. Safety comes from enforced mechanisms (section 13).                                                                                                                                     |
+| OD5 | 01/11        | Image routing order: (1) Midjourney through the kie.ai reseller API (the owner accepts it is unofficial and may stop working), (2) GPT Image on his ChatGPT plan through `codex exec`, (3) Nano Banana through the cheapest official route, (4) OpenRouter image models, (5) local open models. |
+| OD6 | 01/11        | Remotion is the renderer and in-app preview. Each video has a **JSON timeline document** edited by the web UI and by agents; HyperFrames is not the engine.                                                                                                                                     |
+| OD7 | 01/11        | Builders have full autonomy: they test, commit and push without asking.                                                                                                                                                                                                                         |
+| OD8 | 01/11        | The app runs on his Windows PC (RTX 3070 8 GB, local Supabase in Docker, worker on the PC) and must stay portable to a future Debian GPU server.                                                                                                                                                |
 
 ### 2.2 Standing owner rules (from earlier sessions, still binding)
 
@@ -76,35 +76,35 @@ These rules bind every agent, including the daily loop (13.2) and image route 2 
 
 Cited as "(AC n)". "Default" means the value ships configured and can be changed in Settings.
 
-| # | Call | Status |
-| --- | --- | --- |
-| AC1 | Production runs on the PC behind a **Cloudflare Tunnel** on mellodifai.com subdomains; Vercel plus hosted Supabase is retired as production (section 5). | in force |
-| AC2 | Remote MCP authorization uses a **small authorization server of our own** (`apps/auth`, built on the `oidc-provider` library) that issues **opaque** tokens, so OAuth tokens can never be used against Supabase. Fallback if the M1 spike fails: the same service on `@node-oauth/oauth2-server` with the same opaque tokens (6.4). | in force (changed in revisions 3 and 4) |
-| AC3 | Agent compositions are **data only** (the timeline document); no agent-authored code is ever executed (section 9). | in force |
-| AC4 | The publish **clock is owned by the app**: uploads stay private until the app flips them; YouTube `publishAt` is not used and the `scheduled` privacy path is retired (section 12). | in force |
-| AC5 | Veto window default **24 h** before the slot; one veto cancels the whole bundle. | default |
-| AC6 | Loop rails, merge gate, frozen evaluator and isolation exactly as in section 13. | in force; owner may confirm (section 22) |
-| AC7 | Per-video budget and caps in 11.6 (target 0.15 USD median, hard cap 0.25 USD per run). | default |
-| AC8 | Golden set: 5 items in M2a, 10 items plus canaries before the loop merges (13.4). | in force |
-| AC9 | Two takes per generation (one kie generate call returns two), Short at most 3 minutes, thumbnails 3 candidates. | default |
-| AC10 | Downloading a YouTube source with yt-dlp for **analysis only** is part of OD1's workflow; the source media are never re-published, never given to a generator, and deleted once R2 passes (derived fingerprints and transcript are kept, 8.4). | in force; owner may confirm (section 22) |
-| AC11 | "Keeps timing" (OD1) is measured as: same section sequence, tempo within 5%, each section's duration within 15% of the source (8.4, R4). | in force; owner may confirm (section 22) |
-| AC12 | Push notifications go through **ntfy** (public ntfy.sh server, private random topic). | default |
-| AC13 | `main` becomes the production branch before the loop is enabled (13.6). | in force |
-| AC14 | Every write to the database by people and agents goes through the **operations layer** (schema `ops`, called by Next as the Postgres role `mdf_web` and by `apps/auth` as `mdf_auth`, neither of which can call any `public` function); the `authenticated` role keeps only reads under RLS (6.3). | in force (new in revision 3, roles split in revision 4) |
-| AC15 | In M1 the tunnel exposes only what remote agents need (5.2); the remote web UI for family and friends is a separate later step (W1, 21.1). | in force (new in revision 3) |
+| #    | Call                                                                                                                                                                                                                                                                                                                                | Status                                                  |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| AC1  | Production runs on the PC behind a **Cloudflare Tunnel** on mellodifai.com subdomains; Vercel plus hosted Supabase is retired as production (section 5).                                                                                                                                                                            | in force                                                |
+| AC2  | Remote MCP authorization uses a **small authorization server of our own** (`apps/auth`, built on the `oidc-provider` library) that issues **opaque** tokens, so OAuth tokens can never be used against Supabase. Fallback if the M1 spike fails: the same service on `@node-oauth/oauth2-server` with the same opaque tokens (6.4). | in force (changed in revisions 3 and 4)                 |
+| AC3  | Agent compositions are **data only** (the timeline document); no agent-authored code is ever executed (section 9).                                                                                                                                                                                                                  | in force                                                |
+| AC4  | The publish **clock is owned by the app**: uploads stay private until the app flips them; YouTube `publishAt` is not used and the `scheduled` privacy path is retired (section 12).                                                                                                                                                 | in force                                                |
+| AC5  | Veto window default **24 h** before the slot; one veto cancels the whole bundle.                                                                                                                                                                                                                                                    | default                                                 |
+| AC6  | Loop rails, merge gate, frozen evaluator and isolation exactly as in section 13.                                                                                                                                                                                                                                                    | in force; owner may confirm (section 22)                |
+| AC7  | Per-video budget and caps in 11.6 (target 0.15 USD median, hard cap 0.25 USD per run).                                                                                                                                                                                                                                              | default                                                 |
+| AC8  | Golden set: 5 items in M2a, 10 items plus canaries before the loop merges (13.4).                                                                                                                                                                                                                                                   | in force                                                |
+| AC9  | Two takes per generation (one kie generate call returns two), Short at most 3 minutes, thumbnails 3 candidates.                                                                                                                                                                                                                     | default                                                 |
+| AC10 | Downloading a YouTube source with yt-dlp for **analysis only** is part of OD1's workflow; the source media are never re-published, never given to a generator, and deleted once R2 passes (derived fingerprints and transcript are kept, 8.4).                                                                                      | in force; owner may confirm (section 22)                |
+| AC11 | "Keeps timing" (OD1) is measured as: same section sequence, tempo within 5%, each section's duration within 15% of the source (8.4, R4).                                                                                                                                                                                            | in force; owner may confirm (section 22)                |
+| AC12 | Push notifications go through **ntfy** (public ntfy.sh server, private random topic).                                                                                                                                                                                                                                               | default                                                 |
+| AC13 | `main` becomes the production branch before the loop is enabled (13.6).                                                                                                                                                                                                                                                             | in force                                                |
+| AC14 | Every write to the database by people and agents goes through the **operations layer** (schema `ops`, called by Next as the Postgres role `mdf_web` and by `apps/auth` as `mdf_auth`, neither of which can call any `public` function); the `authenticated` role keeps only reads under RLS (6.3).                                  | in force (new in revision 3, roles split in revision 4) |
+| AC15 | In M1 the tunnel exposes only what remote agents need (5.2); the remote web UI for family and friends is a separate later step (W1, 21.1).                                                                                                                                                                                          | in force (new in revision 3)                            |
 
 ### 2.4 Rules of the 31/10 design that this document supersedes
 
-| 31/10 rule | New rule | Replacement control |
-| --- | --- | --- |
+| 31/10 rule                                                                  | New rule                                                  | Replacement control                                                                                                                                                               |
+| --------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Going public is a separate, explicit click per video (31/10 sections 2, 3). | Kept until M4; then auto-schedule with veto window (OD3). | Until M4: admin-only, cookie-only `confirm_publication` (6.3). From M4: publish gate (10.8), app-owned clock (12.2), Autopilot policy row (6.5), flag `auto_publish_public` (20). |
-| Every kie generation needs a confirm click (31/10 section 8). | Copilot keeps the click; Autopilot replaces it. | `reserve_spend` caps inside the RPCs (11.5) and the Autopilot policy row. |
-| A song generation is never re-sent without the admin asking. | **Unchanged.** | A kie submit timeout or unknown outcome stops the run with `ambiguous_spend` and is never retried (8.6). |
-| GPT Image via codex first, kie as fallback. | OD5 order. | Router in 11.3. |
-| TikTok and Instagram publishing are non-goals. | Goals, through Postiz and Blotato (T19). | 12.5. |
-| Hosting on Vercel plus hosted Supabase. | PC plus Cloudflare Tunnel (AC1). | Section 5; README deploy section and `.github/workflows/keepalive.yml` retired in M1. |
-| No third-party secret reachable from the browser. | **Unchanged.** | 5.4. |
+| Every kie generation needs a confirm click (31/10 section 8).               | Copilot keeps the click; Autopilot replaces it.           | `reserve_spend` caps inside the RPCs (11.5) and the Autopilot policy row.                                                                                                         |
+| A song generation is never re-sent without the admin asking.                | **Unchanged.**                                            | A kie submit timeout or unknown outcome stops the run with `ambiguous_spend` and is never retried (8.6).                                                                          |
+| GPT Image via codex first, kie as fallback.                                 | OD5 order.                                                | Router in 11.3.                                                                                                                                                                   |
+| TikTok and Instagram publishing are non-goals.                              | Goals, through Postiz and Blotato (T19).                  | 12.5.                                                                                                                                                                             |
+| Hosting on Vercel plus hosted Supabase.                                     | PC plus Cloudflare Tunnel (AC1).                          | Section 5; README deploy section and `.github/workflows/keepalive.yml` retired in M1.                                                                                             |
+| No third-party secret reachable from the browser.                           | **Unchanged.**                                            | 5.4.                                                                                                                                                                              |
 
 ## 3. Current state (verified in the code on 02/11/2026)
 
@@ -274,15 +274,15 @@ where stated:
 
 Production is the owner's PC, with these services:
 
-| Service | Listens on | Runs as | Notes |
-| --- | --- | --- | --- |
-| Next (`next start -H 127.0.0.1 -p 3000`) | `127.0.0.1:3000` only | Windows account `mdf-web` (owner action; fallback: the owner's account) | `mdf-web` cannot read `apps/worker/.env.local` or `<runtime root>/secrets/` (NTFS ACL). It has its own env file `apps/web/.env.local` (7.5). |
-| Remote edge proxy (`ops/edge-proxy.ts`) | `127.0.0.1:3080` only | `mdf-web` | Only `cloudflared` talks to it. It enforces the path allowlist of 5.2, the `Next-Action` rule of 5.2, the rate limits of 6.7 for `/oauth/*` and `/login`, sets `x-mdf-remote: 1` on every request (overwriting any incoming value) and forwards to 3000 or 3010. |
-| Authorization server (`apps/auth`, bound with `HOST=127.0.0.1`) | `127.0.0.1:3010` only | `mdf-web` | 6.4. Connects to Postgres as `mdf_auth`. |
-| Worker | none | owner's account | Needs the codex login, ComfyUI, the GPU and the engine repo. |
-| Supabase (Docker) | `127.0.0.1:54321-54329` | Docker Desktop | Never tunnelled in M1 (5.2). Studio disabled in production (`[studio] enabled = false`). |
-| Postiz (Docker) | `127.0.0.1:4007` | Docker Desktop | Tunnelled from M4. |
-| `cloudflared` | outbound only | service | Locally managed tunnel (5.5). |
+| Service                                                         | Listens on              | Runs as                                                                 | Notes                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Next (`next start -H 127.0.0.1 -p 3000`)                        | `127.0.0.1:3000` only   | Windows account `mdf-web` (owner action; fallback: the owner's account) | `mdf-web` cannot read `apps/worker/.env.local` or `<runtime root>/secrets/` (NTFS ACL). It has its own env file `apps/web/.env.local` (7.5).                                                                                                                     |
+| Remote edge proxy (`ops/edge-proxy.ts`)                         | `127.0.0.1:3080` only   | `mdf-web`                                                               | Only `cloudflared` talks to it. It enforces the path allowlist of 5.2, the `Next-Action` rule of 5.2, the rate limits of 6.7 for `/oauth/*` and `/login`, sets `x-mdf-remote: 1` on every request (overwriting any incoming value) and forwards to 3000 or 3010. |
+| Authorization server (`apps/auth`, bound with `HOST=127.0.0.1`) | `127.0.0.1:3010` only   | `mdf-web`                                                               | 6.4. Connects to Postgres as `mdf_auth`.                                                                                                                                                                                                                         |
+| Worker                                                          | none                    | owner's account                                                         | Needs the codex login, ComfyUI, the GPU and the engine repo.                                                                                                                                                                                                     |
+| Supabase (Docker)                                               | `127.0.0.1:54321-54329` | Docker Desktop                                                          | Never tunnelled in M1 (5.2). Studio disabled in production (`[studio] enabled = false`).                                                                                                                                                                         |
+| Postiz (Docker)                                                 | `127.0.0.1:4007`        | Docker Desktop                                                          | Tunnelled from M4.                                                                                                                                                                                                                                               |
+| `cloudflared`                                                   | outbound only           | service                                                                 | Locally managed tunnel (5.5).                                                                                                                                                                                                                                    |
 
 **Remote detection fails closed.** Next and `apps/auth` treat a request as remote when any of
 `x-mdf-remote: 1`, `cf-connecting-ip` or `cf-ray` is present. Because both bind only to
@@ -304,14 +304,14 @@ The `cloudflared` ingress points every public hostname at the edge proxy (`127.0
 edge proxy enforces the path allowlist below and returns 404 for anything else, and the
 `cloudflared` ingress ends with `http_status:404`.
 
-| Step | Hostname | Allowed paths | Upstream |
-| --- | --- | --- | --- |
-| M1 | `app.mellodifai.com` | `/api/mcp`, `/api/v1/*`, `/.well-known/oauth-protected-resource*`, `/login`, `/auth/confirm`, `/consent`, `/api/health`, `/_next/static/*` | Next |
-| M1 | `app.mellodifai.com` | `/.well-known/oauth-authorization-server*`, `/.well-known/openid-configuration`, `/oauth/*` | `apps/auth` |
-| W1 (later) | `app.mellodifai.com` | every UI page | Next |
-| W1 (later) | `api.mellodifai.com` | `/auth/v1/*`, `/rest/v1/*`, `/storage/v1/*`, `/realtime/v1/*` | Supabase gateway |
-| M4 | `app.mellodifai.com` | `/m/*` (capability media links) | Next |
-| M4 | `post.mellodifai.com` | the Postiz paths listed in the M4 plan (admin UI, social OAuth callbacks, public uploads) | Postiz |
+| Step       | Hostname              | Allowed paths                                                                                                                              | Upstream         |
+| ---------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| M1         | `app.mellodifai.com`  | `/api/mcp`, `/api/v1/*`, `/.well-known/oauth-protected-resource*`, `/login`, `/auth/confirm`, `/consent`, `/api/health`, `/_next/static/*` | Next             |
+| M1         | `app.mellodifai.com`  | `/.well-known/oauth-authorization-server*`, `/.well-known/openid-configuration`, `/oauth/*`                                                | `apps/auth`      |
+| W1 (later) | `app.mellodifai.com`  | every UI page                                                                                                                              | Next             |
+| W1 (later) | `api.mellodifai.com`  | `/auth/v1/*`, `/rest/v1/*`, `/storage/v1/*`, `/realtime/v1/*`                                                                              | Supabase gateway |
+| M4         | `app.mellodifai.com`  | `/m/*` (capability media links)                                                                                                            | Next             |
+| M4         | `post.mellodifai.com` | the Postiz paths listed in the M4 plan (admin UI, social OAuth callbacks, public uploads)                                                  | Postiz           |
 
 **Server actions through allowed pages.** Next dispatches server actions by the `Next-Action`
 header on a POST to any page, so an allowed page such as `/login` could otherwise reach every
@@ -353,9 +353,9 @@ containers the controls are the rotated Postgres password (5.3) and the probe of
      (`SUPABASE_SERVICE_ROLE_KEY`) and `apps/web/.env.local` (`NEXT_PUBLIC_SUPABASE_ANON_KEY`);
    - exit test: a `service_role` JWT signed with the public demo secret is refused by the local
      gateway.
-   CI generates a throwaway key into `supabase/signing_keys.json` before `supabase start`. The e2e
-   stack has its own working folder and its own key (21.2 step 1), so e2e tokens never verify on
-   production.
+     CI generates a throwaway key into `supabase/signing_keys.json` before `supabase start`. The e2e
+     stack has its own working folder and its own key (21.2 step 1), so e2e tokens never verify on
+     production.
 2. **Postgres superuser password: mandatory.** The production `postgres` password is changed to a
    random value stored in `<runtime root>/secrets/supabase/db-password`; every CLI call that needs
    the database (`supabase migration up`, `ops/deploy.ts`) passes `--db-url` with it. The step 0
@@ -419,15 +419,15 @@ of `ops.health()` called as `mdf_web` (so an app that cannot use the ops layer i
 
 ### 6.1 Principals
 
-| Principal | Credential | Reaches the database through |
-| --- | --- | --- |
-| Person in the web UI | Supabase cookie session | Reads: supabase-js under RLS, as today. Writes: the ops layer as `mdf_web` (6.3). |
-| Agent with a personal access token (PAT) | `Authorization: Bearer mdf_pat_...` | The ops layer only, reads included (6.3, 7.3). |
-| Remote agent (claude.ai, ChatGPT) | opaque OAuth access token `mdf_oat_...` from `apps/auth` | The ops layer only, through `/api/mcp`. |
-| Authorization server `apps/auth` | Postgres role `mdf_auth` | Only the `ops.oauth_*` storage functions (6.4). |
-| Autopilot | system token row, no secret | Worker-only functions (6.5). |
-| Canary and test jobs | `canary` or `test_mode` token rows | The ops layer; fake providers only (6.9). |
-| Worker | service role (on the PC only) | As today, plus the worker ledger functions (11.5). |
+| Principal                                | Credential                                               | Reaches the database through                                                      |
+| ---------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Person in the web UI                     | Supabase cookie session                                  | Reads: supabase-js under RLS, as today. Writes: the ops layer as `mdf_web` (6.3). |
+| Agent with a personal access token (PAT) | `Authorization: Bearer mdf_pat_...`                      | The ops layer only, reads included (6.3, 7.3).                                    |
+| Remote agent (claude.ai, ChatGPT)        | opaque OAuth access token `mdf_oat_...` from `apps/auth` | The ops layer only, through `/api/mcp`.                                           |
+| Authorization server `apps/auth`         | Postgres role `mdf_auth`                                 | Only the `ops.oauth_*` storage functions (6.4).                                   |
+| Autopilot                                | system token row, no secret                              | Worker-only functions (6.5).                                                      |
+| Canary and test jobs                     | `canary` or `test_mode` token rows                       | The ops layer; fake providers only (6.9).                                         |
+| Worker                                   | service role (on the PC only)                            | As today, plus the worker ledger functions (11.5).                                |
 
 ### 6.2 Scopes and roles
 
@@ -469,10 +469,10 @@ cannot be skipped by anything that holds those credentials.
 
 #### 6.3.1 Roles and connections
 
-| Role | Login | Used by | Connection env var (password in the same file) |
-| --- | --- | --- | --- |
-| `mdf_web` | yes | Next (`apps/web/lib/db/ops-client.ts`, `postgres` npm client) | `MDF_WEB_DATABASE_URL` in `apps/web/.env.local` |
-| `mdf_auth` | yes | `apps/auth` | `MDF_AUTH_DATABASE_URL` in `apps/auth/.env.local` |
+| Role       | Login | Used by                                                       | Connection env var (password in the same file)    |
+| ---------- | ----- | ------------------------------------------------------------- | ------------------------------------------------- |
+| `mdf_web`  | yes   | Next (`apps/web/lib/db/ops-client.ts`, `postgres` npm client) | `MDF_WEB_DATABASE_URL` in `apps/web/.env.local`   |
+| `mdf_auth` | yes   | `apps/auth`                                                   | `MDF_AUTH_DATABASE_URL` in `apps/auth/.env.local` |
 
 Migration `ops_scopes` creates both roles `NOLOGIN`; `ops/deploy.ts` (production) and
 `ops/e2e-stack.ts` (e2e, CI) set `LOGIN PASSWORD` from their env files. Neither role inherits
@@ -578,20 +578,20 @@ savepoint).
 
 #### 6.3.5 Error codes (frozen; additive only)
 
-| Code | HTTP | Meaning |
-| --- | --- | --- |
-| `unauthorized` | 401 | no or bad credential, unknown session |
-| `forbidden_scope` | 403 | missing scope, wrong role, admin rule, remote rule, test-run rule |
-| `not_found` | 404 | object missing or not the actor's |
-| `conflict` | 409 | the object is not in the state the operation needs |
-| `idempotency_mismatch` | 409 | same key, different request |
-| `in_progress` | 409 | same key, request still running (`retry_after` 2) |
-| `ambiguous_spend` | 409 | a kie submission's outcome is unknown; resolve it first |
-| `validation` | 422 | bad input |
-| `cap_exceeded` | 402 | a spend cap refused the reservation (`details` names scope, provider, period) |
-| `rate_limited` | 429 | rate limit (`retry_after`) |
-| `provider_unavailable` | 503 | a provider call failed (web-side calls only) |
-| `internal` | 500 | anything unmapped |
+| Code                   | HTTP | Meaning                                                                       |
+| ---------------------- | ---- | ----------------------------------------------------------------------------- |
+| `unauthorized`         | 401  | no or bad credential, unknown session                                         |
+| `forbidden_scope`      | 403  | missing scope, wrong role, admin rule, remote rule, test-run rule             |
+| `not_found`            | 404  | object missing or not the actor's                                             |
+| `conflict`             | 409  | the object is not in the state the operation needs                            |
+| `idempotency_mismatch` | 409  | same key, different request                                                   |
+| `in_progress`          | 409  | same key, request still running (`retry_after` 2)                             |
+| `ambiguous_spend`      | 409  | a kie submission's outcome is unknown; resolve it first                       |
+| `validation`           | 422  | bad input                                                                     |
+| `cap_exceeded`         | 402  | a spend cap refused the reservation (`details` names scope, provider, period) |
+| `rate_limited`         | 429  | rate limit (`retry_after`)                                                    |
+| `provider_unavailable` | 503  | a provider call failed (web-side calls only)                                  |
+| `internal`             | 500  | anything unmapped                                                             |
 
 `runAction` maps each code to the translated message `errors.<code>` in `ActionResult`; the API
 returns the envelope of 7.2. Mapping from the RPCs' existing free-text exceptions is done by
@@ -606,7 +606,7 @@ returns the envelope of 7.2. Mapping from the RPCs' existing free-text exception
    `prompt or title required`, `task id required`, `video id required`,
    `override reason required`, `lyrics of the part required`,
    `publish_at requires scheduled privacy` -> `validation`.
-6. Any other message ending in `required`, or containing ` already `, plus `transition not
+6. Any other message ending in `required`, or containing `already`, plus `transition not
    allowed`, `version not approved`, `rewrite discarded`, `song not ready for a rewrite`,
    `the song has new takes since this rewrite`, `this engine cannot start from audio in this way`
    -> `conflict`.
@@ -614,9 +614,9 @@ returns the envelope of 7.2. Mapping from the RPCs' existing free-text exception
    (`MDF02` `cap_exceeded`, `MDF03` `forbidden_scope`, `MDF10` `ambiguous_spend`, and so on, listed
    in `packages/shared/src/ops/errors.ts`).
 8. Anything else -> `internal` (logged with the message, returned without it).
-A test (`supabase/tests/ops_errors.test.ts`) extracts every `raise exception '...'` text from
-`supabase/migrations/*.sql` and fails if one maps to `internal` and is raised by a function an
-ops wrapper calls; so a new message must be classified when it is added.
+   A test (`supabase/tests/ops_errors.test.ts`) extracts every `raise exception '...'` text from
+   `supabase/migrations/*.sql` and fails if one maps to `internal` and is raised by a function an
+   ops wrapper calls; so a new message must be classified when it is added.
 
 #### 6.3.6 The functions `mdf_web` may call (the complete M1 list)
 
@@ -848,7 +848,7 @@ a model derives from them (the blueprint and the meaning map). Rules:
      reserve (`ops.style_format_reserve`), call the provider, then `ops.settle_spend`, which also
      marks the key `done`. If Next dies between the provider call and the settle, the key goes
      stale and a retry may pay again (bounded by the caps).
-  Keys are purged after 24 h (`purge_idempotency`).
+     Keys are purged after 24 h (`purge_idempotency`).
 - Pagination: `?cursor=&limit=` (max 100); `cursor` is opaque (base64 of the last sort key).
 - Progress: SSE at `/api/v1/jobs/{id}/events`, a streaming route handler that calls
   `ops.job_events_since(p_ctx, job, after_id)` every 2 s, sends a `: keepalive` comment every 25 s
@@ -865,7 +865,7 @@ a model derives from them (the blueprint and the meaning map). Rules:
      staged file and marks the row `ready` with that path, or `rejected` with a reason.
   3. `GET /api/v1/uploads/{id}` (`upload_status`) returns the state; `song_import` takes the
      `upload_id` of a `ready` row.
-  The staging folder is writable by `mdf-web` and readable by the worker's account only.
+     The staging folder is writable by `mdf-web` and readable by the worker's account only.
 
 ### 7.3 Operations catalogue
 
@@ -874,43 +874,43 @@ plan); the `ops` function and the `public` RPC it calls; scope; spend reserved; 
 "Cookie" means cookie-only, never callable by tokens; "admin" adds the admin and local rules of
 6.3.4.
 
-| Operation | MCP tool | `ops` function -> RPC | Scope | Spend reserved (11.5) | Ships |
-| --- | --- | --- | --- | --- | --- |
-| List songs | `songs_list` | `ops.songs_list` (read) | read | - | M1 |
-| Get song | `song_get` | `ops.song_get` (read) | read | - | M1 |
-| Job status, job events | `job_status` | `ops.job_status`, `ops.job_events_since` (read) | read | - | M1 |
-| Costs | `costs_get` | `ops.costs_get` (read) | read | - | M1 |
-| Notifications list, mark read | `notifications_list`, `notifications_read` | `ops.notifications_list` (read), `ops.notifications_read` | read | - | M1 |
-| Create song (idea or source) | `song_create` | `ops.song_create` -> `create_song` | spend | one `draft_lyrics` job per language: OpenRouter | M1 |
-| Approve lyrics (starts generation) | `lyrics_approve` | `ops.lyrics_approve` -> `approve_lyrics` | spend | `generate_song`: kie (generate, cover or extend by source) plus Groq for take scoring, unless local engine | M1 |
-| Back to lyrics | `lyrics_back` | `ops.lyrics_back` -> `back_to_lyrics` | create | - | M1 |
-| Generate again | `song_generate_again` | `ops.song_generate_again` -> `generate_again` | spend | as approve lyrics | M1 |
-| Pick take | `take_pick` | `ops.take_pick` -> `pick_take` | create | `timing`: Groq | M1 |
-| Choose take (audio-only songs) | `take_choose` | `ops.take_choose` -> `choose_take` | create | - | M1 |
-| Keep audio (with or without visualizer) | `audio_keep` | `ops.audio_keep` -> `keep_audio` (+ `request_visualizer`) | create | - | M1 |
-| Make video, render again | `video_make`, `video_rerender` | `ops.video_make`, `ops.video_rerender` -> `make_video`, `render_again` | create | `timing` when queued: Groq | M1 |
-| Approve video (no override) | `video_approve` | `ops.video_approve` -> `approve_video` | create | - | M1 |
-| Retry a failed stage | `stage_retry` | `ops.stage_retry` -> `retry_stage` (refuses `publish`, `set_privacy` for tokens and customers) | create, or spend for a paid stage | that stage's rule | M1 |
-| Cancel a queued job | `job_cancel` | `ops.job_cancel` (replaces the dropped cancel policy) | create | releases its reservations | M1 |
-| Stems, visualizer | `stems_request`, `visualizer_request` | `ops.stems_request`, `ops.visualizer_request` -> `request_stems`, `request_visualizer` | create | - | M1 |
-| Section edit: request | `section_edit_request` | `ops.section_edit_request` -> `request_section_edit` | spend | `replace_section`: kie replace, unless local engine | M1 |
-| Section edit: keep, discard | `section_edit_keep`, `section_edit_discard` | -> `keep_section_edit`, `discard_section_edit` | create | - | M1 |
-| Save edited take | none | `ops.take_save_edit` -> `save_edited_take` | cookie | - | M1 (tokens later, with uploads for edits) |
-| Upload a file | `upload_create`, `upload_status` | `ops.upload_intent`, `ops.upload_status` | create | - | M1 |
-| Import song, set song source | `song_import`, `song_source_set` | `ops.song_import`, `ops.song_source_set` -> `import_song`, `set_song_source` | create | `import_audio`: Groq for take scoring | M1 |
-| Suno share-link import | none | `app/api/suno-link` (storage write as the user) | cookie | - | M1 |
-| Playlists | `playlist_create`, `playlist_add`, `playlist_remove`, `playlist_reorder`, `playlist_rename`, `playlist_delete` | `ops.playlist_*` -> the playlist RPCs | create | - | M1 |
-| React, rename, trash, restore, count play | `song_react`, `song_rename`, `song_trash`, `song_restore`, `song_play` | `ops.song_*` -> `set_reaction`, `rename_version`, `trash_versions`, `restore_versions`, `count_play` | create | - | M1 |
-| Format style | `style_format` | `ops.style_format_reserve`, provider call in Next, `ops.settle_spend` | spend | OpenRouter fast writer | M1 |
-| Transcribe | `audio_transcribe` | `ops.transcribe_reserve`, provider call in Next, `ops.settle_spend` | spend | Groq Whisper | M1 |
-| Create project (older entry point) | none | `ops.admin_project_create` -> `create_project` | cookie, admin | as create song | M1 |
-| Approve video with override reason | none | `ops.admin_video_approve_override` -> `approve_video` | cookie, admin | - | M1 |
-| Upload private to YouTube | none | `ops.admin_enqueue_publish` -> `enqueue_publish` | cookie, admin | - | M1 (P0) |
-| Set privacy | none | `ops.admin_confirm_publication` -> `confirm_publication` (no `scheduled`) | cookie, admin | - | M1 (P0) |
-| Resolve kie submission | none | `ops.admin_resolve_kie_submission` -> `resolve_kie_submission` | cookie, admin | a resend reserves as approve lyrics | M1 |
-| Resolve an ambiguous YouTube upload | none | `ops.admin_resolve_upload` -> `resolve_upload` (`20261031000009_final_fixes.sql:62-77`) | cookie, admin | - | M1 |
-| Tokens, caps, flags, roles, allowlist, close remote access | none | `ops.admin_*` (6.3.6) | cookie, admin | - | M1 |
-| Remake, timeline, publishing and loop tools | as in revision 3 | 8, 9, 12, 13 | - | - | M2a-M6 |
+| Operation                                                  | MCP tool                                                                                                       | `ops` function -> RPC                                                                                | Scope                             | Spend reserved (11.5)                                                                                      | Ships                                     |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| List songs                                                 | `songs_list`                                                                                                   | `ops.songs_list` (read)                                                                              | read                              | -                                                                                                          | M1                                        |
+| Get song                                                   | `song_get`                                                                                                     | `ops.song_get` (read)                                                                                | read                              | -                                                                                                          | M1                                        |
+| Job status, job events                                     | `job_status`                                                                                                   | `ops.job_status`, `ops.job_events_since` (read)                                                      | read                              | -                                                                                                          | M1                                        |
+| Costs                                                      | `costs_get`                                                                                                    | `ops.costs_get` (read)                                                                               | read                              | -                                                                                                          | M1                                        |
+| Notifications list, mark read                              | `notifications_list`, `notifications_read`                                                                     | `ops.notifications_list` (read), `ops.notifications_read`                                            | read                              | -                                                                                                          | M1                                        |
+| Create song (idea or source)                               | `song_create`                                                                                                  | `ops.song_create` -> `create_song`                                                                   | spend                             | one `draft_lyrics` job per language: OpenRouter                                                            | M1                                        |
+| Approve lyrics (starts generation)                         | `lyrics_approve`                                                                                               | `ops.lyrics_approve` -> `approve_lyrics`                                                             | spend                             | `generate_song`: kie (generate, cover or extend by source) plus Groq for take scoring, unless local engine | M1                                        |
+| Back to lyrics                                             | `lyrics_back`                                                                                                  | `ops.lyrics_back` -> `back_to_lyrics`                                                                | create                            | -                                                                                                          | M1                                        |
+| Generate again                                             | `song_generate_again`                                                                                          | `ops.song_generate_again` -> `generate_again`                                                        | spend                             | as approve lyrics                                                                                          | M1                                        |
+| Pick take                                                  | `take_pick`                                                                                                    | `ops.take_pick` -> `pick_take`                                                                       | create                            | `timing`: Groq                                                                                             | M1                                        |
+| Choose take (audio-only songs)                             | `take_choose`                                                                                                  | `ops.take_choose` -> `choose_take`                                                                   | create                            | -                                                                                                          | M1                                        |
+| Keep audio (with or without visualizer)                    | `audio_keep`                                                                                                   | `ops.audio_keep` -> `keep_audio` (+ `request_visualizer`)                                            | create                            | -                                                                                                          | M1                                        |
+| Make video, render again                                   | `video_make`, `video_rerender`                                                                                 | `ops.video_make`, `ops.video_rerender` -> `make_video`, `render_again`                               | create                            | `timing` when queued: Groq                                                                                 | M1                                        |
+| Approve video (no override)                                | `video_approve`                                                                                                | `ops.video_approve` -> `approve_video`                                                               | create                            | -                                                                                                          | M1                                        |
+| Retry a failed stage                                       | `stage_retry`                                                                                                  | `ops.stage_retry` -> `retry_stage` (refuses `publish`, `set_privacy` for tokens and customers)       | create, or spend for a paid stage | that stage's rule                                                                                          | M1                                        |
+| Cancel a queued job                                        | `job_cancel`                                                                                                   | `ops.job_cancel` (replaces the dropped cancel policy)                                                | create                            | releases its reservations                                                                                  | M1                                        |
+| Stems, visualizer                                          | `stems_request`, `visualizer_request`                                                                          | `ops.stems_request`, `ops.visualizer_request` -> `request_stems`, `request_visualizer`               | create                            | -                                                                                                          | M1                                        |
+| Section edit: request                                      | `section_edit_request`                                                                                         | `ops.section_edit_request` -> `request_section_edit`                                                 | spend                             | `replace_section`: kie replace, unless local engine                                                        | M1                                        |
+| Section edit: keep, discard                                | `section_edit_keep`, `section_edit_discard`                                                                    | -> `keep_section_edit`, `discard_section_edit`                                                       | create                            | -                                                                                                          | M1                                        |
+| Save edited take                                           | none                                                                                                           | `ops.take_save_edit` -> `save_edited_take`                                                           | cookie                            | -                                                                                                          | M1 (tokens later, with uploads for edits) |
+| Upload a file                                              | `upload_create`, `upload_status`                                                                               | `ops.upload_intent`, `ops.upload_status`                                                             | create                            | -                                                                                                          | M1                                        |
+| Import song, set song source                               | `song_import`, `song_source_set`                                                                               | `ops.song_import`, `ops.song_source_set` -> `import_song`, `set_song_source`                         | create                            | `import_audio`: Groq for take scoring                                                                      | M1                                        |
+| Suno share-link import                                     | none                                                                                                           | `app/api/suno-link` (storage write as the user)                                                      | cookie                            | -                                                                                                          | M1                                        |
+| Playlists                                                  | `playlist_create`, `playlist_add`, `playlist_remove`, `playlist_reorder`, `playlist_rename`, `playlist_delete` | `ops.playlist_*` -> the playlist RPCs                                                                | create                            | -                                                                                                          | M1                                        |
+| React, rename, trash, restore, count play                  | `song_react`, `song_rename`, `song_trash`, `song_restore`, `song_play`                                         | `ops.song_*` -> `set_reaction`, `rename_version`, `trash_versions`, `restore_versions`, `count_play` | create                            | -                                                                                                          | M1                                        |
+| Format style                                               | `style_format`                                                                                                 | `ops.style_format_reserve`, provider call in Next, `ops.settle_spend`                                | spend                             | OpenRouter fast writer                                                                                     | M1                                        |
+| Transcribe                                                 | `audio_transcribe`                                                                                             | `ops.transcribe_reserve`, provider call in Next, `ops.settle_spend`                                  | spend                             | Groq Whisper                                                                                               | M1                                        |
+| Create project (older entry point)                         | none                                                                                                           | `ops.admin_project_create` -> `create_project`                                                       | cookie, admin                     | as create song                                                                                             | M1                                        |
+| Approve video with override reason                         | none                                                                                                           | `ops.admin_video_approve_override` -> `approve_video`                                                | cookie, admin                     | -                                                                                                          | M1                                        |
+| Upload private to YouTube                                  | none                                                                                                           | `ops.admin_enqueue_publish` -> `enqueue_publish`                                                     | cookie, admin                     | -                                                                                                          | M1 (P0)                                   |
+| Set privacy                                                | none                                                                                                           | `ops.admin_confirm_publication` -> `confirm_publication` (no `scheduled`)                            | cookie, admin                     | -                                                                                                          | M1 (P0)                                   |
+| Resolve kie submission                                     | none                                                                                                           | `ops.admin_resolve_kie_submission` -> `resolve_kie_submission`                                       | cookie, admin                     | a resend reserves as approve lyrics                                                                        | M1                                        |
+| Resolve an ambiguous YouTube upload                        | none                                                                                                           | `ops.admin_resolve_upload` -> `resolve_upload` (`20261031000009_final_fixes.sql:62-77`)              | cookie, admin                     | -                                                                                                          | M1                                        |
+| Tokens, caps, flags, roles, allowlist, close remote access | none                                                                                                           | `ops.admin_*` (6.3.6)                                                                                | cookie, admin                     | -                                                                                                          | M1                                        |
+| Remake, timeline, publishing and loop tools                | as in revision 3                                                                                               | 8, 9, 12, 13                                                                                         | -                                 | -                                                                                                          | M2a-M6                                    |
 
 The later rows (`remake_start`, `remake_status`, `remake_stage_*`, `remake_driver_*`,
 `artefact_submit`, `timeline_get`, `timeline_patch`, `publish_schedule`, `publish_veto`,
@@ -922,14 +922,14 @@ and 13; each gets its row here when its milestone is planned. Editor operations 
 filters by the resolved actor and returns only these fields; media bytes and URLs are not part of
 M1 and are added later as new fields):
 
-| Shape | Fields |
-| --- | --- |
-| `SongSummary` | `version_id`, `project_id`, `title`, `lang`, `status`, `engine`, `created_at`, `updated_at`, `take_count`, `duration_s` (chosen take, or null), `test_run` |
-| `SongDetail` | `SongSummary` plus `lyrics` (lyric pack or null), `takes[]` (`take_id`, `generation`, `duration_s`, `chosen`), `renders[]` (`render_id`, `kind`, `approved`, `qa_passed`), `publications[]` (`publication_id`, `privacy`, `youtube_video_id`), `active_jobs[]` (`JobStatus`), `lyric_jury` (`available`, `passed`, `scores`) or null, `cost_usd` |
-| `JobStatus` | `job_id`, `version_id`, `stage`, `status`, `attempts`, `progress` (0-1 or null), `error_code` (6.3.5 code or null), `error_message` (redacted, at most 300 characters, or null), `created_at`, `started_at`, `finished_at` |
-| `JobEvent` | `id`, `at`, `kind`, `progress`, `message` (at most 300 characters) |
-| `CostsSummary` | `from`, `to`, `by_provider[]` (`provider`, `usd`, `units` per unit), `caps[]` (`scope`, `provider`, `unit`, `period`, `limit`, `used`) |
-| `Notification` | the `notifications` columns except `user_id` |
+| Shape          | Fields                                                                                                                                                                                                                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SongSummary`  | `version_id`, `project_id`, `title`, `lang`, `status`, `engine`, `created_at`, `updated_at`, `take_count`, `duration_s` (chosen take, or null), `test_run`                                                                                                                                                                                       |
+| `SongDetail`   | `SongSummary` plus `lyrics` (lyric pack or null), `takes[]` (`take_id`, `generation`, `duration_s`, `chosen`), `renders[]` (`render_id`, `kind`, `approved`, `qa_passed`), `publications[]` (`publication_id`, `privacy`, `youtube_video_id`), `active_jobs[]` (`JobStatus`), `lyric_jury` (`available`, `passed`, `scores`) or null, `cost_usd` |
+| `JobStatus`    | `job_id`, `version_id`, `stage`, `status`, `attempts`, `progress` (0-1 or null), `error_code` (6.3.5 code or null), `error_message` (redacted, at most 300 characters, or null), `created_at`, `started_at`, `finished_at`                                                                                                                       |
+| `JobEvent`     | `id`, `at`, `kind`, `progress`, `message` (at most 300 characters)                                                                                                                                                                                                                                                                               |
+| `CostsSummary` | `from`, `to`, `by_provider[]` (`provider`, `usd`, `units` per unit), `caps[]` (`scope`, `provider`, `unit`, `period`, `limit`, `used`)                                                                                                                                                                                                           |
+| `Notification` | the `notifications` columns except `user_id`                                                                                                                                                                                                                                                                                                     |
 
 MCP resources in M1: `mellodifai://songs/{id}` (a `SongDetail`) and `mellodifai://notifications`.
 MCP prompt in M1: `new_song`.
@@ -969,22 +969,22 @@ holds these two keys, `MDF_WEB_DATABASE_URL`, and the session cookies of active 
   arrives in M5.
 - **Tier** (what may cost money), defined only here:
 
-| Tier | Generation routes | Juries and app reasoning | Cost rule | Autopilot |
-| --- | --- | --- | --- | --- |
-| free | ACE-Step local music, GPT Image via codex, local images; reasoning by the driving agent's subscription or the app's fast writer | app juries on OpenRouter (juries are the quality guarantee and are never skipped) | at most 0.03 USD per run, all of it juries and app reasoning | yes |
-| standard (default) | kie Suno, OD5 image routes 1-4, cheap OpenRouter models | app juries | per-run hard cap 0.25 USD, median target 0.15 USD | yes |
-| premium | standard plus Higgsfield shots and Comfy Cloud workflows | app juries | per-run budget set at start; cost shown before confirm in Copilot | only with a premium budget above 0 in the policy row |
+| Tier               | Generation routes                                                                                                               | Juries and app reasoning                                                          | Cost rule                                                         | Autopilot                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------- |
+| free               | ACE-Step local music, GPT Image via codex, local images; reasoning by the driving agent's subscription or the app's fast writer | app juries on OpenRouter (juries are the quality guarantee and are never skipped) | at most 0.03 USD per run, all of it juries and app reasoning      | yes                                                  |
+| standard (default) | kie Suno, OD5 image routes 1-4, cheap OpenRouter models                                                                         | app juries                                                                        | per-run hard cap 0.25 USD, median target 0.15 USD                 | yes                                                  |
+| premium            | standard plus Higgsfield shots and Comfy Cloud workflows                                                                        | app juries                                                                        | per-run budget set at start; cost shown before confirm in Copilot | only with a premium budget above 0 in the policy row |
 
 Within a tier the image routes keep the OD5 order; the tier only removes routes (free skips
 routes 1, 3 and 4).
 
 ### 8.2 Who reasons and who pays
 
-| Driver | Mode | Lyrics (R3) and timeline (R5) | Juries | Paid by |
-| --- | --- | --- | --- | --- |
-| Person in the UI | Copilot | app's internal writers (existing pipeline) | app | owner's OpenRouter key, ledger |
-| Agent holding the driver lease | Copilot or Autopilot | the agent writes and submits artefacts, or asks the app to write | app (always) | agent's own subscription for authoring; owner's key for juries |
-| Nobody (lease absent or expired) | Autopilot | app's internal writers | app | owner's key |
+| Driver                           | Mode                 | Lyrics (R3) and timeline (R5)                                    | Juries       | Paid by                                                        |
+| -------------------------------- | -------------------- | ---------------------------------------------------------------- | ------------ | -------------------------------------------------------------- |
+| Person in the UI                 | Copilot              | app's internal writers (existing pipeline)                       | app          | owner's OpenRouter key, ledger                                 |
+| Agent holding the driver lease   | Copilot or Autopilot | the agent writes and submits artefacts, or asks the app to write | app (always) | agent's own subscription for authoring; owner's key for juries |
+| Nobody (lease absent or expired) | Autopilot            | app's internal writers                                           | app          | owner's key                                                    |
 
 An agent can never submit jury scores. The driver lease (`remakes.driver`, `driver_lease_until`)
 lasts 15 minutes and renews on every call by its holder. When it expires: in Autopilot the app's
@@ -1006,18 +1006,18 @@ moves the stage run to `passed` or `awaiting_approval` (8.5) and enqueues the fi
 stage run. Approvals arrive through `ops.remake_stage_action`, which moves the stage run and
 enqueues the next stage the same way. One stage run can own several jobs (R7 owns four, R9 three).
 
-| R-stage | Jobs | New or existing | Resource class |
-| --- | --- | --- | --- |
-| R1 ingest | `remake_ingest` | new | net |
-| R2 analyse | `remake_separate` (Demucs on the source), then `remake_analyse` (beats, sections, transcript, meaning map, blueprint, fingerprints) | new | gpu, then net |
-| R3 rewrite lyrics | `draft_lyrics` with a remake mode | existing, extended | net |
-| R4 music | `generate_song` (which already calls `score_takes`) | existing | net |
-| R4b timing of the new take | `timing`, plus section detection | existing, extended | cpu |
-| R5 composition | `compose_timeline` | new | net |
-| R6 images | `images` | new | net or gpu |
-| R7 render | `render_master`, `render_hook`, `art`, `qa` (extended to the hook render) | existing, extended | gpu (renders), cpu |
-| R8 visual jury | `visual_jury` | new | net, cpu |
-| R9 publish | `schedule_publish`, `publish`, `set_privacy` | new plus existing | net |
+| R-stage                    | Jobs                                                                                                                                | New or existing    | Resource class     |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------ |
+| R1 ingest                  | `remake_ingest`                                                                                                                     | new                | net                |
+| R2 analyse                 | `remake_separate` (Demucs on the source), then `remake_analyse` (beats, sections, transcript, meaning map, blueprint, fingerprints) | new                | gpu, then net      |
+| R3 rewrite lyrics          | `draft_lyrics` with a remake mode                                                                                                   | existing, extended | net                |
+| R4 music                   | `generate_song` (which already calls `score_takes`)                                                                                 | existing           | net                |
+| R4b timing of the new take | `timing`, plus section detection                                                                                                    | existing, extended | cpu                |
+| R5 composition             | `compose_timeline`                                                                                                                  | new                | net                |
+| R6 images                  | `images`                                                                                                                            | new                | net or gpu         |
+| R7 render                  | `render_master`, `render_hook`, `art`, `qa` (extended to the hook render)                                                           | existing, extended | gpu (renders), cpu |
+| R8 visual jury             | `visual_jury`                                                                                                                       | new                | net, cpu           |
+| R9 publish                 | `schedule_publish`, `publish`, `set_privacy`                                                                                        | new plus existing  | net                |
 
 Each new stage gets the check-list migration, `STAGES` and `STAGE_STATUS` entries, a
 `stageAllowed` rule, registration in `stages/index.ts` and a `resource_class`. `art` stops setting
@@ -1187,61 +1187,166 @@ of letters, digits, spaces and basic punctuation (`Safe(n)` below: at most n cha
 
 ```ts
 const Hex = z.string().regex(/^#[0-9a-f]{6}$/i);
-const Safe = (n: number) => z.string().max(n).regex(/^[\p{L}\p{N} .,'!?-]*$/u);
-const Key = z.enum([/* 24 keys: "C", "Cm", "C#", "C#m", ... "B", "Bm" */]);
+const Safe = (n: number) =>
+  z
+    .string()
+    .max(n)
+    .regex(/^[\p{L}\p{N} .,'!?-]*$/u);
+const Key = z.enum([
+  /* 24 keys: "C", "Cm", "C#", "C#m", ... "B", "Bm" */
+]);
 
-const Blueprint = z.object({
-  schemaVersion: z.literal(1),
-  source: z.object({ videoId: z.string().regex(/^[\w-]{11}$/), durationS: z.number().positive() }),
-  music: z.object({
-    bpm: z.number().min(40).max(220), key: Key,
-    timeSig: z.enum(["2/4", "3/4", "4/4", "6/8", "12/8"]),
-    sections: z.array(z.object({
-      id: z.string().regex(/^s\d{1,2}$/),
-      label: z.enum(["intro", "verse", "pre", "chorus", "hook", "bridge", "outro", "other"]),
-      startS: z.number().min(0), endS: z.number(), energy: z.number().min(0).max(1),
-    }).refine((s) => s.endS > s.startS)).min(1).max(40),
-    downbeatsS: z.array(z.number()).max(2000),
-    vocal: z.enum(["male", "female", "duet", "choir", "none"]),
-    instrumentation: z.array(z.enum([/* fixed list of about 40 instrument tags */])).max(12),
-  }),
-  shots: z.array(z.object({
-    id: z.string().regex(/^h\d{1,3}$/), sectionId: z.string(),
-    startS: z.number().min(0), endS: z.number(), offsetInSection: z.number().min(0).max(1),
-    layout: z.enum(["full_bleed", "centered_title", "lower_third", "split", "grid", "visualizer_center", "text_only"]),
-    typographyRoles: z.array(z.object({
-      role: z.enum(["title", "lyric", "caption", "credit"]),
-      weight: z.enum(["light", "regular", "bold", "black"]),
-      case: z.enum(["upper", "title", "sentence"]),
-      position: z.enum(["top", "center", "bottom", "left", "right"]),
-    })).max(4),
-    palette: z.array(Hex).max(6),
-    motion: z.object({
-      camera: z.enum(["static", "push_in", "pull_out", "pan", "shake"]), cutOnBeat: z.boolean(),
-      kineticText: z.enum(["none", "word_pop", "line_slide", "typewriter", "scale_pulse"]),
-      visualizer: z.enum([/* the look ids of packages/shared/src/visualizer/viz-looks.ts */]).nullable(),
+const Blueprint = z
+  .object({
+    schemaVersion: z.literal(1),
+    source: z.object({
+      videoId: z.string().regex(/^[\w-]{11}$/),
+      durationS: z.number().positive(),
     }),
-    transition: z.enum(["cut", "crossfade", "whip", "zoom", "glitch"]),
-    overlays: z.array(z.object({
-      kind: z.enum(["lyric", "title", "logo_slot", "shape"]),
-      position: z.enum(["top", "center", "bottom", "left", "right"]),
-    })).max(6),
-    imageNeed: z.enum(["none", "background", "subject"]),
-  }).refine((s) => s.endS > s.startS)).max(200),
-  global: z.object({
-    palette: z.array(Hex).max(8), aspect: z.enum(["16:9", "9:16"]),
-    typeScale: z.object({ basePx: z.number().min(16).max(96), ratio: z.number().min(1.1).max(1.8) }),
-  }),
-}).superRefine(/* every shot.sectionId exists in music.sections; shots sorted and inside durationS */);
+    music: z.object({
+      bpm: z.number().min(40).max(220),
+      key: Key,
+      timeSig: z.enum(["2/4", "3/4", "4/4", "6/8", "12/8"]),
+      sections: z
+        .array(
+          z
+            .object({
+              id: z.string().regex(/^s\d{1,2}$/),
+              label: z.enum([
+                "intro",
+                "verse",
+                "pre",
+                "chorus",
+                "hook",
+                "bridge",
+                "outro",
+                "other",
+              ]),
+              startS: z.number().min(0),
+              endS: z.number(),
+              energy: z.number().min(0).max(1),
+            })
+            .refine((s) => s.endS > s.startS),
+        )
+        .min(1)
+        .max(40),
+      downbeatsS: z.array(z.number()).max(2000),
+      vocal: z.enum(["male", "female", "duet", "choir", "none"]),
+      instrumentation: z
+        .array(
+          z.enum([
+            /* fixed list of about 40 instrument tags */
+          ]),
+        )
+        .max(12),
+    }),
+    shots: z
+      .array(
+        z
+          .object({
+            id: z.string().regex(/^h\d{1,3}$/),
+            sectionId: z.string(),
+            startS: z.number().min(0),
+            endS: z.number(),
+            offsetInSection: z.number().min(0).max(1),
+            layout: z.enum([
+              "full_bleed",
+              "centered_title",
+              "lower_third",
+              "split",
+              "grid",
+              "visualizer_center",
+              "text_only",
+            ]),
+            typographyRoles: z
+              .array(
+                z.object({
+                  role: z.enum(["title", "lyric", "caption", "credit"]),
+                  weight: z.enum(["light", "regular", "bold", "black"]),
+                  case: z.enum(["upper", "title", "sentence"]),
+                  position: z.enum([
+                    "top",
+                    "center",
+                    "bottom",
+                    "left",
+                    "right",
+                  ]),
+                }),
+              )
+              .max(4),
+            palette: z.array(Hex).max(6),
+            motion: z.object({
+              camera: z.enum(["static", "push_in", "pull_out", "pan", "shake"]),
+              cutOnBeat: z.boolean(),
+              kineticText: z.enum([
+                "none",
+                "word_pop",
+                "line_slide",
+                "typewriter",
+                "scale_pulse",
+              ]),
+              visualizer: z
+                .enum([
+                  /* the look ids of packages/shared/src/visualizer/viz-looks.ts */
+                ])
+                .nullable(),
+            }),
+            transition: z.enum(["cut", "crossfade", "whip", "zoom", "glitch"]),
+            overlays: z
+              .array(
+                z.object({
+                  kind: z.enum(["lyric", "title", "logo_slot", "shape"]),
+                  position: z.enum([
+                    "top",
+                    "center",
+                    "bottom",
+                    "left",
+                    "right",
+                  ]),
+                }),
+              )
+              .max(6),
+            imageNeed: z.enum(["none", "background", "subject"]),
+          })
+          .refine((s) => s.endS > s.startS),
+      )
+      .max(200),
+    global: z.object({
+      palette: z.array(Hex).max(8),
+      aspect: z.enum(["16:9", "9:16"]),
+      typeScale: z.object({
+        basePx: z.number().min(16).max(96),
+        ratio: z.number().min(1.1).max(1.8),
+      }),
+    }),
+  })
+  .superRefine(
+    /* every shot.sectionId exists in music.sections; shots sorted and inside durationS */
+  );
 
 const MeaningMap = z.object({
   schemaVersion: z.literal(1),
-  sections: z.array(z.object({
-    sectionId: z.string(), theme: Safe(120), storyBeat: Safe(120),
-    imagery: z.array(Safe(40)).max(5),
-    emotion: z.enum(["joy", "longing", "anger", "calm", "pride", "sadness", "hope", "irony", "love", "fear"]),
-    hookIdea: Safe(120),
-  })),
+  sections: z.array(
+    z.object({
+      sectionId: z.string(),
+      theme: Safe(120),
+      storyBeat: Safe(120),
+      imagery: z.array(Safe(40)).max(5),
+      emotion: z.enum([
+        "joy",
+        "longing",
+        "anger",
+        "calm",
+        "pride",
+        "sadness",
+        "hope",
+        "irony",
+        "love",
+        "fear",
+      ]),
+      hookIdea: Safe(120),
+    }),
+  ),
 });
 ```
 
@@ -1266,15 +1371,15 @@ document. Revisions are append-only (`timelines` table), each with its author.
 
 ### 9.3 Timeline blocks v1 (`packages/shared/src/timeline/blocks.ts`, created first in M2b)
 
-| Block | Params (all bounded) |
-| --- | --- |
-| `visualizer` | `look` (enum of `viz-looks.ts` ids), `primary`, `secondary` (hex), `particles` 0-1, `intensity` 0-1, `background` (asset ref or null), `centreImage` (asset ref or null) |
-| `kinetic_lyrics` | `style` (`word_pop`, `line_slide`, `typewriter`, `scale_pulse`, `karaoke_fill`), `font` (whitelist), `position` (enum), `maxLines` 1-3, `case` (enum) |
-| `image_motion` | `asset` (image ref), `camera` (enum), `fromScale`, `toScale` 1-1.3, `focusX`, `focusY` 0-1 |
-| `title_card` | `text` (at most 60 characters), `subtitle` (at most 80), `font`, `align` (enum) |
-| `split` | `left` (an `image_motion` or `visualizer` params object), `right` (a `kinetic_lyrics` params object), `ratio` 0.3-0.7 |
-| `color_field` | `from`, `to` (hex), `angle` 0-360, `grain` 0-1 |
-| `video_clip` (premium) | `asset` (video ref), `trimStartS`, `playbackRate` 0.5-2, `mute` true |
+| Block                  | Params (all bounded)                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `visualizer`           | `look` (enum of `viz-looks.ts` ids), `primary`, `secondary` (hex), `particles` 0-1, `intensity` 0-1, `background` (asset ref or null), `centreImage` (asset ref or null) |
+| `kinetic_lyrics`       | `style` (`word_pop`, `line_slide`, `typewriter`, `scale_pulse`, `karaoke_fill`), `font` (whitelist), `position` (enum), `maxLines` 1-3, `case` (enum)                    |
+| `image_motion`         | `asset` (image ref), `camera` (enum), `fromScale`, `toScale` 1-1.3, `focusX`, `focusY` 0-1                                                                               |
+| `title_card`           | `text` (at most 60 characters), `subtitle` (at most 80), `font`, `align` (enum)                                                                                          |
+| `split`                | `left` (an `image_motion` or `visualizer` params object), `right` (a `kinetic_lyrics` params object), `ratio` 0.3-0.7                                                    |
+| `color_field`          | `from`, `to` (hex), `angle` 0-360, `grain` 0-1                                                                                                                           |
+| `video_clip` (premium) | `asset` (video ref), `trimStartS`, `playbackRate` 0.5-2, `mute` true                                                                                                     |
 
 Scene `effects[]`: `grain`, `vhs`, `scanlines`, `vignette`, `aberration`, `glitch`, each with
 `intensity` 0-1. Adding a block is an ordinary reviewed change (and a denylisted path for the loop,
@@ -1392,11 +1497,11 @@ the RPC that creates the version. Function `publish_gate_status(p_render uuid)` 
 or failed reports; `approve_video` (for the version's master), `enqueue_publish(render_id)` and
 `schedule_publish` refuse when it is not empty. Required reports, each `available` and `passed`:
 
-| Content kind | Required |
-| --- | --- |
-| `remake` | QA, lyric jury, lyric originality, visual jury, visual originality, distinctness, thumbnail |
-| `idea` | QA, lyric jury, visual jury, distinctness, thumbnail |
-| `import` (the owner's own song), `lyric_video`, `visualizer` | QA, visual jury, distinctness, thumbnail |
+| Content kind                                                 | Required                                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `remake`                                                     | QA, lyric jury, lyric originality, visual jury, visual originality, distinctness, thumbnail |
+| `idea`                                                       | QA, lyric jury, visual jury, distinctness, thumbnail                                        |
+| `import` (the owner's own song), `lyric_video`, `visualizer` | QA, visual jury, distinctness, thumbnail                                                    |
 
 A person in Copilot may still approve with an override reason (cookie-only, recorded and shown);
 Autopilot has no override.
@@ -1478,17 +1583,17 @@ stale price only skews estimates, and settles use the provider's reported cost.
 - `provider` is `''` for "all providers" or one provider; `unit` is `usd` or a price unit such as
   `credit` (a non-`usd` unit needs a provider);
 - `period` is `day` or `month` (calendar windows in Europe/Rome) or `run` (no window).
-Seeded defaults (AC7, editable in Settings > Costi, "Costs"):
+  Seeded defaults (AC7, editable in Settings > Costi, "Costs"):
 
-| scope | key | provider | unit | period | limit |
-| --- | --- | --- | --- | --- | --- |
-| global | `''` | `''` | usd | day | 3.00 |
-| global | `''` | `''` | usd | month | 40.00 |
-| global | `''` | kie | credit | day | 120 |
-| user | `default:customer` | `''` | usd | day | 0.10 |
-| user | `default:customer` | kie | credit | day | 0 |
-| token | each token (written at creation) | `''` | usd | day | 1.00 |
-| run | each run (written at run start, M2a) | `''` | usd | run | 0.25 standard, 0.03 free |
+| scope  | key                                  | provider | unit   | period | limit                    |
+| ------ | ------------------------------------ | -------- | ------ | ------ | ------------------------ |
+| global | `''`                                 | `''`     | usd    | day    | 3.00                     |
+| global | `''`                                 | `''`     | usd    | month  | 40.00                    |
+| global | `''`                                 | kie      | credit | day    | 120                      |
+| user   | `default:customer`                   | `''`     | usd    | day    | 0.10                     |
+| user   | `default:customer`                   | kie      | credit | day    | 0                        |
+| token  | each token (written at creation)     | `''`     | usd    | day    | 1.00                     |
+| run    | each run (written at run start, M2a) | `''`     | usd    | run    | 0.25 standard, 0.03 free |
 
 `default:admin` has no rows, so the owner is bound only by global, token and run caps. **User
 fallback:** if a user has at least one row with `key = <user id>`, only those user rows apply;
@@ -1537,13 +1642,13 @@ ops.settle_spend(p_ctx, p_entry, p_items, p_usd) returns jsonb    -- only for an
 **When a job needs a reservation** (`public.job_spend_rule(job) returns setof (provider, model,
 items)`; returns nothing for fake jobs, `fake_providers = true`):
 
-| Stage | Reserves | Returns nothing when |
-| --- | --- | --- |
-| `draft_lyrics` | OpenRouter: writer plus three judges, one round (the estimate in `provider_operations`) | - |
-| `generate_song` | kie: generate, cover or extend (by the version's source) credits; Groq: take scoring for two takes of the expected length | the version's engine is local (ACE-Step, YuE2): Groq only; `versions.kie_task_id` is set (a resume after `resolve_kie_submission` with charged outcome, or `retry_stage` of a submitted task): Groq only |
-| `replace_section` | kie replace-section credits | the engine is local |
-| `import_audio`, `timing` | Groq: take scoring for the audio's length | - |
-| every other stage | - | always |
+| Stage                    | Reserves                                                                                                                  | Returns nothing when                                                                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `draft_lyrics`           | OpenRouter: writer plus three judges, one round (the estimate in `provider_operations`)                                   | -                                                                                                                                                                                                        |
+| `generate_song`          | kie: generate, cover or extend (by the version's source) credits; Groq: take scoring for two takes of the expected length | the version's engine is local (ACE-Step, YuE2): Groq only; `versions.kie_task_id` is set (a resume after `resolve_kie_submission` with charged outcome, or `retry_stage` of a submitted task): Groq only |
+| `replace_section`        | kie replace-section credits                                                                                               | the engine is local                                                                                                                                                                                      |
+| `import_audio`, `timing` | Groq: take scoring for the audio's length                                                                                 | -                                                                                                                                                                                                        |
+| every other stage        | -                                                                                                                         | always                                                                                                                                                                                                   |
 
 Extra rounds beyond the estimate (lyric revision rounds, extra jury rounds) are reserved inside the
 stage with `worker_reserve_spend` right before the call.
@@ -1597,18 +1702,18 @@ M2a (scope relief; caps already bound kie spend).
 Allocations are targets checked against the price book at the start of M3 and re-measured on the
 golden set; the hard per-run cap is what is enforced.
 
-| Item | Allocation (USD) | Basis |
-| --- | --- | --- |
-| Music (one kie generate, two takes) | 0.060 | 12 credits at 0.005 |
-| R2: literal translation and blueprint (Gemini Flash) | 0.010 | about 12 images and 4k text tokens |
-| Lyrics: writer, up to 3 jury rounds, devil's advocate | 0.020 | about 20k tokens on the fast writer and judges |
-| R5 composition writer | 0.005 | about 3k tokens |
-| Publish kit and metadata | 0.005 | about 3k tokens |
-| Images (route 1 calls; free routes once spent) | 0.020 | at most one Midjourney call, pending the kie price |
-| Visual jury (rounds 1-2 Gemini Flash, final round two judges) | 0.020 | 4 images per judge per round |
-| Retry reserve | 0.010 | second generation share, extra rounds |
-| **Target (median over the golden set)** | **0.150** | |
-| **Hard per-run cap** | **0.250** | |
+| Item                                                          | Allocation (USD) | Basis                                              |
+| ------------------------------------------------------------- | ---------------- | -------------------------------------------------- |
+| Music (one kie generate, two takes)                           | 0.060            | 12 credits at 0.005                                |
+| R2: literal translation and blueprint (Gemini Flash)          | 0.010            | about 12 images and 4k text tokens                 |
+| Lyrics: writer, up to 3 jury rounds, devil's advocate         | 0.020            | about 20k tokens on the fast writer and judges     |
+| R5 composition writer                                         | 0.005            | about 3k tokens                                    |
+| Publish kit and metadata                                      | 0.005            | about 3k tokens                                    |
+| Images (route 1 calls; free routes once spent)                | 0.020            | at most one Midjourney call, pending the kie price |
+| Visual jury (rounds 1-2 Gemini Flash, final round two judges) | 0.020            | 4 images per judge per round                       |
+| Retry reserve                                                 | 0.010            | second generation share, extra rounds              |
+| **Target (median over the golden set)**                       | **0.150**        |                                                    |
+| **Hard per-run cap**                                          | **0.250**        |                                                    |
 
 When an item's allocation is spent its stage moves to 0 USD routes or, for juries, continues within
 the hard cap; if the hard cap is reached the run stops with `cost_cap`. If the M3 measurement shows
@@ -1879,12 +1984,12 @@ module `apps/worker/src/providers/**`; `apps/worker/src/stages/publish.ts` and `
 
 ### 14.2 Capacity (rough, measured again in M2a)
 
-| Work | GPU time |
-| --- | --- |
-| Remake: Demucs on source and take | about 5 min |
-| Remake: master render 1080p, 3-minute song | about 10 min |
-| Remake: Short and thumbnails | about 4 min |
-| Remake: local images (free tier, 8 images) | about 8 min |
+| Work                                                                   | GPU time     |
+| ---------------------------------------------------------------------- | ------------ |
+| Remake: Demucs on source and take                                      | about 5 min  |
+| Remake: master render 1080p, 3-minute song                             | about 10 min |
+| Remake: Short and thumbnails                                           | about 4 min  |
+| Remake: local images (free tier, 8 images)                             | about 8 min  |
 | Loop: one hypothesis (10 items, k = 2, 2 arms, stills, 2 full renders) | about 45 min |
 
 ### 14.3 Disk (M2a)
@@ -1904,23 +2009,23 @@ One mechanism for timed work: the **worker scheduler** (`apps/worker/src/schedul
 row selected `FOR UPDATE SKIP LOCKED`) and runs it in process, then calls
 `public.finish_scheduled_task(p_name, p_ok, p_error)`. Tasks:
 
-| Task | Cadence | From |
-| --- | --- | --- |
-| `expire_reservations` | every 5 min | M1 |
-| `ingest_uploads` | every 10 s | M1 |
-| `purge_idempotency` | hourly | M1 |
-| `purge_oauth` (expired and consumed `oauth_store` rows) | hourly | M1 |
-| `notify_push` | every 30 s | M1 |
-| `purge_audit` (180 days) | daily 03:30 | M1 |
-| `purge_test_runs` (test versions older than 7 days) | daily 03:45 | M1 |
-| `price_book_sync`, `kie_reconcile` | daily 04:00, 05:00 | M2a (deferred from M1) |
-| `retention_sweep` | daily 03:00 | M2a |
-| `disk_guard` | every 10 min | M2a |
-| `publish_slots` | every minute | M4 |
-| `veto_reminders` | every 10 min | M4 |
-| `capability_expire` | hourly | M4 |
-| `analytics_daily` | daily 06:00 | M4 |
-| `canary_jobs` | daily 00:30 | M6 |
+| Task                                                    | Cadence            | From                   |
+| ------------------------------------------------------- | ------------------ | ---------------------- |
+| `expire_reservations`                                   | every 5 min        | M1                     |
+| `ingest_uploads`                                        | every 10 s         | M1                     |
+| `purge_idempotency`                                     | hourly             | M1                     |
+| `purge_oauth` (expired and consumed `oauth_store` rows) | hourly             | M1                     |
+| `notify_push`                                           | every 30 s         | M1                     |
+| `purge_audit` (180 days)                                | daily 03:30        | M1                     |
+| `purge_test_runs` (test versions older than 7 days)     | daily 03:45        | M1                     |
+| `price_book_sync`, `kie_reconcile`                      | daily 04:00, 05:00 | M2a (deferred from M1) |
+| `retention_sweep`                                       | daily 03:00        | M2a                    |
+| `disk_guard`                                            | every 10 min       | M2a                    |
+| `publish_slots`                                         | every minute       | M4                     |
+| `veto_reminders`                                        | every 10 min       | M4                     |
+| `capability_expire`                                     | hourly             | M4                     |
+| `analytics_daily`                                       | daily 06:00        | M4                     |
+| `canary_jobs`                                           | daily 00:30        | M6                     |
 
 Times are Europe/Rome.
 
@@ -2130,23 +2235,23 @@ The `ops` functions, the ledger functions and their exact grants are listed in 6
 
 ### 15.2 Later tables (key fields; DDL written in each milestone's plan before it starts)
 
-| Entity | Key fields | Milestone, migration |
-| --- | --- | --- |
-| `remakes` | owner, source url and id, mode, tier, driver, lease, defaults snapshot, status, stop reason, project, primary version | M2a `remakes` |
-| `stage_runs` | remake, version, r-stage, state, round, `stage_version` (optimistic counter), stop reason, cost reserved and settled, driver; `jobs.stage_run_id` links jobs to it | M2a `remakes` |
-| `remake_analyses` | remake, music, transcript with word timestamps, literal translations, meaning map, blueprint (schema versions), models, cost, `untrusted` | M2a `remakes` |
-| `remake_defaults` | user, fields of 8.7 | M2a `remakes` |
-| `jury_reports` | subject kind and id, round, judges, rubric version, scores, must-fix, devil's notes, available, passed | M2a `jury_reports` |
-| `versions.status` value `analysing`; new stages in `jobs_stage_check`; `ledger_entries.run_id` foreign key | | M2a `remakes` |
-| `gpu_lease` | holder, heartbeat, priority, expires_at | M2a `gpu_lease` |
-| `timelines` | version, revision, document, author | M2b `timelines` |
-| `images` | owner, version, shot, provider, model, prompt hash, ledger entry, path, sha256 | M3 `images` |
-| `fingerprints` | subject kind (`source`, `render`), subject id, shot or frame index, pHash, DINOv2 embedding | M2a (source) `remakes`, M3 (renders) `images` |
-| `versions.content_kind`, `publish_gate_status()` | 10.8 | M3 `publish_gate` |
-| `publications` new columns (12.5), `publish_schedules`, `capability_links` | 12.2, 12.5, 5.4 | M4 `publish_routes` |
-| `analytics_snapshots` | video id, date, views, average view duration, retention, impressions and CTR if available | M4 `analytics` |
-| `autopilot_policies` | 6.5 | M5 `autopilot` |
-| `loop_runs`, `loop_watch` | night, hypothesis, files, scores, noise band, decision, commit, revert | M6 `loop` |
+| Entity                                                                                                     | Key fields                                                                                                                                                         | Milestone, migration                          |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `remakes`                                                                                                  | owner, source url and id, mode, tier, driver, lease, defaults snapshot, status, stop reason, project, primary version                                              | M2a `remakes`                                 |
+| `stage_runs`                                                                                               | remake, version, r-stage, state, round, `stage_version` (optimistic counter), stop reason, cost reserved and settled, driver; `jobs.stage_run_id` links jobs to it | M2a `remakes`                                 |
+| `remake_analyses`                                                                                          | remake, music, transcript with word timestamps, literal translations, meaning map, blueprint (schema versions), models, cost, `untrusted`                          | M2a `remakes`                                 |
+| `remake_defaults`                                                                                          | user, fields of 8.7                                                                                                                                                | M2a `remakes`                                 |
+| `jury_reports`                                                                                             | subject kind and id, round, judges, rubric version, scores, must-fix, devil's notes, available, passed                                                             | M2a `jury_reports`                            |
+| `versions.status` value `analysing`; new stages in `jobs_stage_check`; `ledger_entries.run_id` foreign key |                                                                                                                                                                    | M2a `remakes`                                 |
+| `gpu_lease`                                                                                                | holder, heartbeat, priority, expires_at                                                                                                                            | M2a `gpu_lease`                               |
+| `timelines`                                                                                                | version, revision, document, author                                                                                                                                | M2b `timelines`                               |
+| `images`                                                                                                   | owner, version, shot, provider, model, prompt hash, ledger entry, path, sha256                                                                                     | M3 `images`                                   |
+| `fingerprints`                                                                                             | subject kind (`source`, `render`), subject id, shot or frame index, pHash, DINOv2 embedding                                                                        | M2a (source) `remakes`, M3 (renders) `images` |
+| `versions.content_kind`, `publish_gate_status()`                                                           | 10.8                                                                                                                                                               | M3 `publish_gate`                             |
+| `publications` new columns (12.5), `publish_schedules`, `capability_links`                                 | 12.2, 12.5, 5.4                                                                                                                                                    | M4 `publish_routes`                           |
+| `analytics_snapshots`                                                                                      | video id, date, views, average view duration, retention, impressions and CTR if available                                                                          | M4 `analytics`                                |
+| `autopilot_policies`                                                                                       | 6.5                                                                                                                                                                | M5 `autopilot`                                |
+| `loop_runs`, `loop_watch`                                                                                  | night, hypothesis, files, scores, noise band, decision, commit, revert                                                                                             | M6 `loop`                                     |
 
 ## 16. Observability and notifications
 
@@ -2161,47 +2266,47 @@ The `ops` functions, the ledger functions and their exact grants are listed in 6
 
 ## 17. Threat model and risks
 
-| Risk | Surface | Likelihood / impact | Mitigation | Milestone |
-| --- | --- | --- | --- | --- |
-| Direct database calls bypass caps, roles, veto | PostgREST | high once exposed / critical | `ops_scopes` revokes (6.3); Supabase not exposed in M1 (5.2) | M1 |
-| Every allowlisted user is admin | auth trigger | certain today / high | `ops_roles` (6.2) | M1 |
-| Forged service-role JWT with the demo secret | gateway | high if exposed / critical | Key rotation and exit test (5.3) | M1 |
-| Private services exposed by the tunnel | tunnel | medium / critical | Edge-proxy path allowlist, catch-all 404, firewall rule (5.2) | M1 |
-| OAuth token used against Supabase | OAuth | eliminated by design | Opaque tokens from `apps/auth` (6.4) | M1 |
-| Compromised Next process | web | low / high | `mdf_web` can call only the `ops` functions of 6.3.6 and no `public` function, so every write still passes scope, cap, reservation, audit and admin rules; it can act for a cookie user only with a live session id of that user (6.3.4) and cannot reach admin operations remotely; it holds its own OpenRouter and Groq keys (7.5) but no worker secret and no signing key (5.1) | M1 |
-| Compromised `apps/auth` | auth | low / medium | `mdf_auth` can call only the `ops.oauth_*` storage functions; it cannot create grants or act for users (6.4) | M1 |
-| Overspend under concurrency | ledger | medium / high | `reserve_spend` with row locks inside the wrappers; paid-call module (11.5) | M1 |
-| Agent-authored code execution | renders | eliminated by design | Data-only timeline (9.2), file validation (9.4) | M2b |
-| Prompt injection from source content | Autopilot writer, agents, route 2, loop | medium / medium | Enum and `Safe` fields (6.8), route 2 container (11.3) | M2a, M3 |
-| Unjudged content in Autopilot | juries | medium / high | Fail-closed `jury_unavailable` (10.1) | M5 |
-| Video public against a veto | publishing | low / high | App-owned clock, fail closed (12.2) | M4 |
-| Loop loosens production gates | loop | high without rails / high | Gates in denylisted paths, canaries, revert scored by the frozen evaluator (13.3-13.7) | M6 |
-| Candidate code reaches credentials or production | loop | medium / critical | Sandbox on an internal network, probe, scorer and merger split (13.1, 13.2) | M6 |
-| Content ID claim | YouTube | medium / medium | Originality gates; claim report pauses Autopilot publishing (12.5) | M4 |
-| kie or the Midjourney reseller disappears | providers | medium / low | OD5 fallthrough; ACE-Step for music | M3 |
-| YouTube audit rejected or lock still applies | publishing | medium / medium | P0 re-verification and early audit (12.1) | P0 |
-| GPU queue bottleneck | worker | high / medium | GPU lease and priorities (14.1) | M2a |
-| Disk fills | E: | medium / medium | Retention and guard (14.3) | M2a |
-| Non-owner machines as workers | future | later / high | Portability rule on credentials (25) | M8 |
+| Risk                                             | Surface                                 | Likelihood / impact          | Mitigation                                                                                                                                                                                                                                                                                                                                                                         | Milestone |
+| ------------------------------------------------ | --------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Direct database calls bypass caps, roles, veto   | PostgREST                               | high once exposed / critical | `ops_scopes` revokes (6.3); Supabase not exposed in M1 (5.2)                                                                                                                                                                                                                                                                                                                       | M1        |
+| Every allowlisted user is admin                  | auth trigger                            | certain today / high         | `ops_roles` (6.2)                                                                                                                                                                                                                                                                                                                                                                  | M1        |
+| Forged service-role JWT with the demo secret     | gateway                                 | high if exposed / critical   | Key rotation and exit test (5.3)                                                                                                                                                                                                                                                                                                                                                   | M1        |
+| Private services exposed by the tunnel           | tunnel                                  | medium / critical            | Edge-proxy path allowlist, catch-all 404, firewall rule (5.2)                                                                                                                                                                                                                                                                                                                      | M1        |
+| OAuth token used against Supabase                | OAuth                                   | eliminated by design         | Opaque tokens from `apps/auth` (6.4)                                                                                                                                                                                                                                                                                                                                               | M1        |
+| Compromised Next process                         | web                                     | low / high                   | `mdf_web` can call only the `ops` functions of 6.3.6 and no `public` function, so every write still passes scope, cap, reservation, audit and admin rules; it can act for a cookie user only with a live session id of that user (6.3.4) and cannot reach admin operations remotely; it holds its own OpenRouter and Groq keys (7.5) but no worker secret and no signing key (5.1) | M1        |
+| Compromised `apps/auth`                          | auth                                    | low / medium                 | `mdf_auth` can call only the `ops.oauth_*` storage functions; it cannot create grants or act for users (6.4)                                                                                                                                                                                                                                                                       | M1        |
+| Overspend under concurrency                      | ledger                                  | medium / high                | `reserve_spend` with row locks inside the wrappers; paid-call module (11.5)                                                                                                                                                                                                                                                                                                        | M1        |
+| Agent-authored code execution                    | renders                                 | eliminated by design         | Data-only timeline (9.2), file validation (9.4)                                                                                                                                                                                                                                                                                                                                    | M2b       |
+| Prompt injection from source content             | Autopilot writer, agents, route 2, loop | medium / medium              | Enum and `Safe` fields (6.8), route 2 container (11.3)                                                                                                                                                                                                                                                                                                                             | M2a, M3   |
+| Unjudged content in Autopilot                    | juries                                  | medium / high                | Fail-closed `jury_unavailable` (10.1)                                                                                                                                                                                                                                                                                                                                              | M5        |
+| Video public against a veto                      | publishing                              | low / high                   | App-owned clock, fail closed (12.2)                                                                                                                                                                                                                                                                                                                                                | M4        |
+| Loop loosens production gates                    | loop                                    | high without rails / high    | Gates in denylisted paths, canaries, revert scored by the frozen evaluator (13.3-13.7)                                                                                                                                                                                                                                                                                             | M6        |
+| Candidate code reaches credentials or production | loop                                    | medium / critical            | Sandbox on an internal network, probe, scorer and merger split (13.1, 13.2)                                                                                                                                                                                                                                                                                                        | M6        |
+| Content ID claim                                 | YouTube                                 | medium / medium              | Originality gates; claim report pauses Autopilot publishing (12.5)                                                                                                                                                                                                                                                                                                                 | M4        |
+| kie or the Midjourney reseller disappears        | providers                               | medium / low                 | OD5 fallthrough; ACE-Step for music                                                                                                                                                                                                                                                                                                                                                | M3        |
+| YouTube audit rejected or lock still applies     | publishing                              | medium / medium              | P0 re-verification and early audit (12.1)                                                                                                                                                                                                                                                                                                                                          | P0        |
+| GPU queue bottleneck                             | worker                                  | high / medium                | GPU lease and priorities (14.1)                                                                                                                                                                                                                                                                                                                                                    | M2a       |
+| Disk fills                                       | E:                                      | medium / medium              | Retention and guard (14.3)                                                                                                                                                                                                                                                                                                                                                         | M2a       |
+| Non-owner machines as workers                    | future                                  | later / high                 | Portability rule on credentials (25)                                                                                                                                                                                                                                                                                                                                               | M8        |
 
 ## 18. Alternatives considered
 
-| Choice | Chosen | Rejected and why |
-| --- | --- | --- |
-| Remake rule, agents, veto window, loop, image order, renderer, PC hosting | Owner decisions OD1-OD8 | Not re-argued. |
-| Hosting | PC plus tunnel (AC1) | Vercel plus hosted Supabase: the worker, GPU and database live on the PC anyway. |
-| Tunnel | Cloudflare Tunnel | Tailscale Funnel: one `*.ts.net` hostname, no WAF, not on the owner's domain. |
-| M1 public surface | MCP, OAuth and sign-in only (AC15) | Whole app plus Supabase in M1: the largest attack surface, not needed by OD2. |
-| Authorization server | `apps/auth` on `oidc-provider` with opaque tokens (AC2) | Supabase OAuth server: its tokens are Supabase JWTs usable on PostgREST, Realtime and storage, which needs extra blocks everywhere (the fallback is now `@node-oauth/oauth2-server` with the same opaque tokens). |
-| Internal identity | `mdf_web` and `mdf_auth` Postgres roles and the `ops` schema (AC14) | Minting Supabase JWTs in Next: puts a key that can mint `service_role` in the internet-facing process. |
-| Publish clock | App-owned (AC4) | `publishAt`, Blotato or Postiz schedules: an offline PC would publish against a veto. |
-| Agent compositions | JSON timeline (AC3) | TSX in a sandbox: remote code execution on the PC. |
-| Loop gate | Sandbox, scorer and host merger split | One gate container: candidate code next to the push credential. |
-| Image route 2 | codex in a container with only an output folder | codex on the host: a shell-capable agent on untrusted prompts under the owner's account. |
-| stdio MCP | Bridge to `/api/mcp` | A stdio server on the database: a second implementation. |
-| Scheduler | Worker scheduler | `pg_cron`: half the tasks need the network and Python in the worker anyway. |
-| Ops scripts | TypeScript on Node with thin OS wrappers | PowerShell plus POSIX copies: the untested copy rots. |
-| Push channel | ntfy (AC12) | Email (needs SMTP for every alert), Telegram (a bot to run). |
+| Choice                                                                    | Chosen                                                              | Rejected and why                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remake rule, agents, veto window, loop, image order, renderer, PC hosting | Owner decisions OD1-OD8                                             | Not re-argued.                                                                                                                                                                                                    |
+| Hosting                                                                   | PC plus tunnel (AC1)                                                | Vercel plus hosted Supabase: the worker, GPU and database live on the PC anyway.                                                                                                                                  |
+| Tunnel                                                                    | Cloudflare Tunnel                                                   | Tailscale Funnel: one `*.ts.net` hostname, no WAF, not on the owner's domain.                                                                                                                                     |
+| M1 public surface                                                         | MCP, OAuth and sign-in only (AC15)                                  | Whole app plus Supabase in M1: the largest attack surface, not needed by OD2.                                                                                                                                     |
+| Authorization server                                                      | `apps/auth` on `oidc-provider` with opaque tokens (AC2)             | Supabase OAuth server: its tokens are Supabase JWTs usable on PostgREST, Realtime and storage, which needs extra blocks everywhere (the fallback is now `@node-oauth/oauth2-server` with the same opaque tokens). |
+| Internal identity                                                         | `mdf_web` and `mdf_auth` Postgres roles and the `ops` schema (AC14) | Minting Supabase JWTs in Next: puts a key that can mint `service_role` in the internet-facing process.                                                                                                            |
+| Publish clock                                                             | App-owned (AC4)                                                     | `publishAt`, Blotato or Postiz schedules: an offline PC would publish against a veto.                                                                                                                             |
+| Agent compositions                                                        | JSON timeline (AC3)                                                 | TSX in a sandbox: remote code execution on the PC.                                                                                                                                                                |
+| Loop gate                                                                 | Sandbox, scorer and host merger split                               | One gate container: candidate code next to the push credential.                                                                                                                                                   |
+| Image route 2                                                             | codex in a container with only an output folder                     | codex on the host: a shell-capable agent on untrusted prompts under the owner's account.                                                                                                                          |
+| stdio MCP                                                                 | Bridge to `/api/mcp`                                                | A stdio server on the database: a second implementation.                                                                                                                                                          |
+| Scheduler                                                                 | Worker scheduler                                                    | `pg_cron`: half the tasks need the network and Python in the worker anyway.                                                                                                                                       |
+| Ops scripts                                                               | TypeScript on Node with thin OS wrappers                            | PowerShell plus POSIX copies: the untested copy rots.                                                                                                                                                             |
+| Push channel                                                              | ntfy (AC12)                                                         | Email (needs SMTP for every alert), Telegram (a bot to run).                                                                                                                                                      |
 
 ## 19. Testing strategy
 
@@ -2255,13 +2360,13 @@ All with zero kie spend.
 
 ## 20. Rollout, feature flags and rollback
 
-| Flag | Turns on | Enablement gate | Kill path |
-| --- | --- | --- | --- |
-| `remote_mcp` | remote PATs and OAuth at `/api/mcp` | M1 exit tests pass | Settings > Agenti "Chiudi accesso remoto" ("Close remote access", `ops.admin_remote_close`): flag off, every OAuth grant and remote PAT revoked; hard kill: stop `cloudflared` |
-| `autopilot` | Autopilot runs | M3 gates and M1 caps in place, 5 Copilot remakes passed every gate | flag off; running Autopilot runs stop with `owner_cancelled` at the stage boundary |
-| `auto_publish_public` | the slot flip to public | P0 lock re-verification or a verified Blotato route; 3 Copilot publishes done | flag off: bundles stay private |
-| `loop_merge` | the merger | 7 dry-run nights (13.8) | kill switch file or Settings toggle |
-| `premium` | premium tier | M7 acceptance | flag off |
+| Flag                  | Turns on                            | Enablement gate                                                               | Kill path                                                                                                                                                                      |
+| --------------------- | ----------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `remote_mcp`          | remote PATs and OAuth at `/api/mcp` | M1 exit tests pass                                                            | Settings > Agenti "Chiudi accesso remoto" ("Close remote access", `ops.admin_remote_close`): flag off, every OAuth grant and remote PAT revoked; hard kill: stop `cloudflared` |
+| `autopilot`           | Autopilot runs                      | M3 gates and M1 caps in place, 5 Copilot remakes passed every gate            | flag off; running Autopilot runs stop with `owner_cancelled` at the stage boundary                                                                                             |
+| `auto_publish_public` | the slot flip to public             | P0 lock re-verification or a verified Blotato route; 3 Copilot publishes done | flag off: bundles stay private                                                                                                                                                 |
+| `loop_merge`          | the merger                          | 7 dry-run nights (13.8)                                                       | kill switch file or Settings toggle                                                                                                                                            |
+| `premium`             | premium tier                        | M7 acceptance                                                                 | flag off                                                                                                                                                                       |
 
 **Deploy and rollback** (`ops/deploy.ts`, M1):
 1. wait for idle (no running job);
@@ -2272,6 +2377,7 @@ All with zero kie spend.
 6. `next build` and the `apps/auth` build;
 7. restart services;
 8. health check: `/api/health` must report `ops: "ok"` and the expected `schema`.
+
 - On a failed health check the script returns automatically to the previous commit **only if
   step 5 applied no migration**; otherwise it leaves the new commit running, marks the deploy
   failed and notifies (a migration is never undone by checking out older code).
@@ -2285,22 +2391,22 @@ All with zero kie spend.
 
 ### 21.1 Summary
 
-| Milestone | Goals | Covers | Needs | Owner actions |
-| --- | --- | --- | --- | --- |
-| M0 (running) | - | T12, storyboard bug | - | - |
-| P0 (parallel, from now) | 5 (manual) | 12.1 | nothing | Google OAuth client, audit submission |
-| M1 Safe agent access | 2, 4 (ledger) | 5, 6, 7, 11.5, 14.4, 15.1, 16, 19, 20 | the head of `build/studio-ui` (T12 included) | DNS, tunnel creation, SMTP, `mdf-web` account, firewall rule, kie rate, ntfy |
-| M2a Remade song (Copilot) | 1 (song half), 3 (lyrics, originality) | R1-R4b; 8, 9.1, 10.1-10.3, 14.1, 14.3 | M1 | confirm AC10, AC11 (optional) |
-| M2b Remade video (Copilot) | 1 (video half) | R5, R7; 9.2-9.4 | M2a | - |
-| M3 Visual quality and images | 3, 4 (images) | R6, R8; 10.4-10.8, 11.3; T15, T18; thumbnails; web timeline editor | M2b | Gemini key, kie Midjourney, eval OpenRouter key, codex device login in `mdf-img` |
-| M4 Publishing | 5 | R9; 12.2-12.6; T17, T19; project page hub; `post.` and `/m/` | M3, P0 | Blotato key |
-| M5 Autopilot | 1 (Autopilot), success criterion | 6.5; flag `autopilot` | M1, M3, M4 | remake defaults |
-| M6 Daily loop | 6 | 13 | M5, `main` cutover | confirm AC6 (optional) |
-| M7 Premium | 4 (premium) | Higgsfield, T14 | M3 | Comfy Cloud key |
-| M8 Portable runtime | - | 25 | M6 | Debian server later |
-| W1 Remote web UI | - | 5.4 browser URL, `api.` host, Access decision | M1, DNS | none |
-| UI track | - | 1080p previews, karaoke mode (plan) | T12 | - |
-| Later | - | T11b, T16, T20, T21, T22, Riffusion items, direct Anthropic client | M4 | - |
+| Milestone                    | Goals                                  | Covers                                                             | Needs                                        | Owner actions                                                                    |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------- | -------------------------------------------------------------------------------- |
+| M0 (running)                 | -                                      | T12, storyboard bug                                                | -                                            | -                                                                                |
+| P0 (parallel, from now)      | 5 (manual)                             | 12.1                                                               | nothing                                      | Google OAuth client, audit submission                                            |
+| M1 Safe agent access         | 2, 4 (ledger)                          | 5, 6, 7, 11.5, 14.4, 15.1, 16, 19, 20                              | the head of `build/studio-ui` (T12 included) | DNS, tunnel creation, SMTP, `mdf-web` account, firewall rule, kie rate, ntfy     |
+| M2a Remade song (Copilot)    | 1 (song half), 3 (lyrics, originality) | R1-R4b; 8, 9.1, 10.1-10.3, 14.1, 14.3                              | M1                                           | confirm AC10, AC11 (optional)                                                    |
+| M2b Remade video (Copilot)   | 1 (video half)                         | R5, R7; 9.2-9.4                                                    | M2a                                          | -                                                                                |
+| M3 Visual quality and images | 3, 4 (images)                          | R6, R8; 10.4-10.8, 11.3; T15, T18; thumbnails; web timeline editor | M2b                                          | Gemini key, kie Midjourney, eval OpenRouter key, codex device login in `mdf-img` |
+| M4 Publishing                | 5                                      | R9; 12.2-12.6; T17, T19; project page hub; `post.` and `/m/`       | M3, P0                                       | Blotato key                                                                      |
+| M5 Autopilot                 | 1 (Autopilot), success criterion       | 6.5; flag `autopilot`                                              | M1, M3, M4                                   | remake defaults                                                                  |
+| M6 Daily loop                | 6                                      | 13                                                                 | M5, `main` cutover                           | confirm AC6 (optional)                                                           |
+| M7 Premium                   | 4 (premium)                            | Higgsfield, T14                                                    | M3                                           | Comfy Cloud key                                                                  |
+| M8 Portable runtime          | -                                      | 25                                                                 | M6                                           | Debian server later                                                              |
+| W1 Remote web UI             | -                                      | 5.4 browser URL, `api.` host, Access decision                      | M1, DNS                                      | none                                                                             |
+| UI track                     | -                                      | 1080p previews, karaoke mode (plan)                                | T12                                          | -                                                                                |
+| Later                        | -                                      | T11b, T16, T20, T21, T22, Riffusion items, direct Anthropic client | M4                                           | -                                                                                |
 
 ### 21.2 M1 contents checklist (the single source for M1)
 
@@ -2347,18 +2453,18 @@ the ntfy sender; the engine-repo change for `MELLODIFAI_NO_KEYFILES` (11.5).
 
 **Files** (C = create, M = modify, D = delete):
 
-| Area | Files |
-| --- | --- |
-| ops scripts | C `ops/services.ts`, `ops/edge-proxy.ts`, `ops/deploy.ts`, `ops/set-owner.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-auth-keys.ts`, `ops/e2e-stack.ts`, `ops/cloudflared/config.template.yml` |
-| web, create | `apps/web/lib/ops/**` (including `tokens.ts`), `apps/web/lib/mcp/**`, `apps/web/lib/db/ops-client.ts`, `apps/web/app/api/v1/**`, `apps/web/app/api/mcp/route.ts`, `apps/web/app/api/health/route.ts`, `apps/web/app/.well-known/oauth-protected-resource/**`, `apps/web/app/consent/**`, `apps/web/app/(app)/settings/agents/**`, `apps/web/app/(app)/settings/costs/**` |
-| web, modify | `apps/web/app/actions/**`, `apps/web/lib/run-action.ts` (adds `remoteAction` and the remote refusal), `apps/web/lib/auth.ts` (session id for `p_ctx`), `apps/web/lib/supabase/server.ts`, `apps/web/proxy.ts`, `apps/web/app/auth/confirm/route.ts`, `apps/web/app/(auth)/login/page.tsx`, `apps/web/lib/redirect-url.ts`, `apps/web/components/login-form.tsx`, `apps/web/app/media/[...path]/route.ts`, `apps/web/lib/studio/clips.ts`, `apps/web/lib/studio/stems.ts`, `apps/web/app/(app)/projects/[id]/page.tsx`, `apps/web/app/actions/format-style.ts`, `apps/web/app/api/transcribe/route.ts`, `apps/web/lib/openrouter-key.ts`, `apps/web/app/(app)/settings/page.tsx`, `apps/web/lib/rate-limit.ts`, `apps/web/next.config.*` (`allowedOrigins`), `apps/web/package.json` (`next start -H 127.0.0.1`), `apps/web/e2e/global-setup.ts`, `apps/web/e2e/local-env.ts` |
-| auth server | C `apps/auth/**` (including `redirect-allowlist.json`) |
-| shared and gates | C `packages/shared/src/ops/**` (including `errors.ts`, `reads.ts`), `packages/gates/**`, `config/gates/**`; M `packages/shared/src/stages.ts` (resource classes), `apps/web/app/actions/schemas.ts` (re-exports) |
-| worker | C `apps/worker/src/providers/paid.ts`, `apps/worker/src/providers/kie-client.ts` (moved from `kie/client.ts`), `apps/worker/src/scheduler.ts`, `apps/worker/src/notify.ts`, `apps/worker/src/uploads.ts`; M `apps/worker/src/db.ts`, `apps/worker/src/loop.ts`, `apps/worker/src/main.ts`, `apps/worker/src/workspace.ts`, `apps/worker/src/engine.ts`, `apps/worker/src/authorization.ts`, `apps/worker/src/fake/index.ts`, `apps/worker/src/stages/generate-song.ts`, `draft-lyrics.ts`, `lyric-jury.ts`, `qa.ts`, `replace-section.ts`, `import-audio.ts`, `score-takes.ts`, `timing.ts`, `local-engine.ts`, `source-audio.ts`; D `apps/worker/src/kie/client.ts` |
-| engine repo | M `C:\Users\Asus\Documents\suno-remake\tools\kie.mjs`, its `whisper_words.py` (honour `MELLODIFAI_NO_KEYFILES`) |
-| cli | C `packages/cli/**` (including `skill/`) |
-| database | C the five migrations, `supabase/tests/ops_acl.test.ts`, `ops_errors.test.ts`, `ops_*.test.ts`, `acl-allowlist.json`, a test helper `opsCall`; M `supabase/config.toml`, `supabase/seed.sql`, the ten existing `supabase/tests/*.test.ts` files that call RPCs directly; `.gitignore` (`supabase/signing_keys.json`) |
-| repo | M root `package.json` (`test:db` guard), `README.md`, `.github/workflows/ci.yml`; D `.github/workflows/keepalive.yml` |
+| Area             | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ops scripts      | C `ops/services.ts`, `ops/edge-proxy.ts`, `ops/deploy.ts`, `ops/set-owner.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-auth-keys.ts`, `ops/e2e-stack.ts`, `ops/cloudflared/config.template.yml`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| web, create      | `apps/web/lib/ops/**` (including `tokens.ts`), `apps/web/lib/mcp/**`, `apps/web/lib/db/ops-client.ts`, `apps/web/app/api/v1/**`, `apps/web/app/api/mcp/route.ts`, `apps/web/app/api/health/route.ts`, `apps/web/app/.well-known/oauth-protected-resource/**`, `apps/web/app/consent/**`, `apps/web/app/(app)/settings/agents/**`, `apps/web/app/(app)/settings/costs/**`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| web, modify      | `apps/web/app/actions/**`, `apps/web/lib/run-action.ts` (adds `remoteAction` and the remote refusal), `apps/web/lib/auth.ts` (session id for `p_ctx`), `apps/web/lib/supabase/server.ts`, `apps/web/proxy.ts`, `apps/web/app/auth/confirm/route.ts`, `apps/web/app/(auth)/login/page.tsx`, `apps/web/lib/redirect-url.ts`, `apps/web/components/login-form.tsx`, `apps/web/app/media/[...path]/route.ts`, `apps/web/lib/studio/clips.ts`, `apps/web/lib/studio/stems.ts`, `apps/web/app/(app)/projects/[id]/page.tsx`, `apps/web/app/actions/format-style.ts`, `apps/web/app/api/transcribe/route.ts`, `apps/web/lib/openrouter-key.ts`, `apps/web/app/(app)/settings/page.tsx`, `apps/web/lib/rate-limit.ts`, `apps/web/next.config.*` (`allowedOrigins`), `apps/web/package.json` (`next start -H 127.0.0.1`), `apps/web/e2e/global-setup.ts`, `apps/web/e2e/local-env.ts` |
+| auth server      | C `apps/auth/**` (including `redirect-allowlist.json`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| shared and gates | C `packages/shared/src/ops/**` (including `errors.ts`, `reads.ts`), `packages/gates/**`, `config/gates/**`; M `packages/shared/src/stages.ts` (resource classes), `apps/web/app/actions/schemas.ts` (re-exports)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| worker           | C `apps/worker/src/providers/paid.ts`, `apps/worker/src/providers/kie-client.ts` (moved from `kie/client.ts`), `apps/worker/src/scheduler.ts`, `apps/worker/src/notify.ts`, `apps/worker/src/uploads.ts`; M `apps/worker/src/db.ts`, `apps/worker/src/loop.ts`, `apps/worker/src/main.ts`, `apps/worker/src/workspace.ts`, `apps/worker/src/engine.ts`, `apps/worker/src/authorization.ts`, `apps/worker/src/fake/index.ts`, `apps/worker/src/stages/generate-song.ts`, `draft-lyrics.ts`, `lyric-jury.ts`, `qa.ts`, `replace-section.ts`, `import-audio.ts`, `score-takes.ts`, `timing.ts`, `local-engine.ts`, `source-audio.ts`; D `apps/worker/src/kie/client.ts`                                                                                                                                                                                                         |
+| engine repo      | M `C:\Users\Asus\Documents\suno-remake\tools\kie.mjs`, its `whisper_words.py` (honour `MELLODIFAI_NO_KEYFILES`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| cli              | C `packages/cli/**` (including `skill/`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| database         | C the five migrations, `supabase/tests/ops_acl.test.ts`, `ops_errors.test.ts`, `ops_*.test.ts`, `acl-allowlist.json`, a test helper `opsCall`; M `supabase/config.toml`, `supabase/seed.sql`, the ten existing `supabase/tests/*.test.ts` files that call RPCs directly; `.gitignore` (`supabase/signing_keys.json`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| repo             | M root `package.json` (`test:db` guard), `README.md`, `.github/workflows/ci.yml`; D `.github/workflows/keepalive.yml`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 **New dependencies:** `@modelcontextprotocol/sdk` and `postgres` (web), `oidc-provider` (auth).
 **No** JWT library, no keyring library.
@@ -2439,25 +2545,25 @@ next to its master; analytics snapshots arrive.
 
 ## 22. Owner actions and open questions
 
-| Item | Blocks | Who acts | Fallback while pending | Status |
-| --- | --- | --- | --- | --- |
-| Google Cloud project, OAuth client, consent screen with the four scopes of 12.1 | P0, M4 | owner | publishing stays as today | open |
-| YouTube API audit submission | public API route if the lock still applies | owner submits, author prepares | Blotato with verified disclosure | open |
-| Move mellodifai.com nameservers to Cloudflare; `cloudflared tunnel login` and `tunnel create` | M1 remote exit | owner (author writes the config) | local stdio only, `remote_mcp` off | open |
-| SMTP sender for sign-in codes | M1 remote sign-in | owner | sign-in on the PC only | open |
-| Windows account `mdf-web` and the firewall rule of 5.2 (both need administrator rights) | M1 hardening | owner (author gives the exact commands) | Next under the owner's account; loopback binding only | open |
-| kie USD rate per credit | M1 price book | owner | 0.005 USD per credit, `verified = false` | open |
-| Separate, lower-limit OpenRouter and Groq keys for Next (7.5) | none | owner (optional) | Next uses copies of the worker's key values | open |
-| ntfy app subscribed to the topic | M1 push | owner | in-app notifications only | open |
-| Confirm AC10 and AC11 | none (in force) | owner | proceed | open question |
-| Gemini API key | M3 route 3 | owner | route 3 off | open |
-| kie Midjourney access and price per call | M3 route 1 | owner | route 1 off | open |
-| Codex device login inside `mdf-img` | M3 route 2 | owner (one command) | route 2 off | open |
-| Evaluation OpenRouter key with a credit limit | M3 calibration, M6 | owner | calibration on the main key within caps | open |
-| Blotato API key | M4 fallback | owner | Postiz only | open |
-| Veto window length, remake defaults | M4, M5 | owner in Settings | 24 h; defaults of 8.7 | default set |
-| Confirm the loop rails (AC6) | none (in force) | owner | in force | open question |
-| Comfy Cloud key | M7 | owner | premium without Comfy Cloud | open |
+| Item                                                                                          | Blocks                                     | Who acts                                | Fallback while pending                                | Status        |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------- | ----------------------------------------------------- | ------------- |
+| Google Cloud project, OAuth client, consent screen with the four scopes of 12.1               | P0, M4                                     | owner                                   | publishing stays as today                             | open          |
+| YouTube API audit submission                                                                  | public API route if the lock still applies | owner submits, author prepares          | Blotato with verified disclosure                      | open          |
+| Move mellodifai.com nameservers to Cloudflare; `cloudflared tunnel login` and `tunnel create` | M1 remote exit                             | owner (author writes the config)        | local stdio only, `remote_mcp` off                    | open          |
+| SMTP sender for sign-in codes                                                                 | M1 remote sign-in                          | owner                                   | sign-in on the PC only                                | open          |
+| Windows account `mdf-web` and the firewall rule of 5.2 (both need administrator rights)       | M1 hardening                               | owner (author gives the exact commands) | Next under the owner's account; loopback binding only | open          |
+| kie USD rate per credit                                                                       | M1 price book                              | owner                                   | 0.005 USD per credit, `verified = false`              | open          |
+| Separate, lower-limit OpenRouter and Groq keys for Next (7.5)                                 | none                                       | owner (optional)                        | Next uses copies of the worker's key values           | open          |
+| ntfy app subscribed to the topic                                                              | M1 push                                    | owner                                   | in-app notifications only                             | open          |
+| Confirm AC10 and AC11                                                                         | none (in force)                            | owner                                   | proceed                                               | open question |
+| Gemini API key                                                                                | M3 route 3                                 | owner                                   | route 3 off                                           | open          |
+| kie Midjourney access and price per call                                                      | M3 route 1                                 | owner                                   | route 1 off                                           | open          |
+| Codex device login inside `mdf-img`                                                           | M3 route 2                                 | owner (one command)                     | route 2 off                                           | open          |
+| Evaluation OpenRouter key with a credit limit                                                 | M3 calibration, M6                         | owner                                   | calibration on the main key within caps               | open          |
+| Blotato API key                                                                               | M4 fallback                                | owner                                   | Postiz only                                           | open          |
+| Veto window length, remake defaults                                                           | M4, M5                                     | owner in Settings                       | 24 h; defaults of 8.7                                 | default set   |
+| Confirm the loop rails (AC6)                                                                  | none (in force)                            | owner                                   | in force                                              | open question |
+| Comfy Cloud key                                                                               | M7                                         | owner                                   | premium without Comfy Cloud                           | open          |
 
 ## 23. Constraints
 
@@ -2569,42 +2675,42 @@ except that R2-B1 and R2-B2 now point to 28.0. "Partly" names what remains.
 
 ### 28.0 Round 3 findings (M1 readiness)
 
-| Id | Disposition |
-| --- | --- |
-| Blocker 1 | Fixed in 6.3.1-6.3.2 and 6.3.6: `mdf_ops` replaced by `mdf_web` and `mdf_auth`, which get USAGE on `ops` and EXECUTE only on the named `ops` functions; mutating `public` RPCs are granted to nobody (the security-definer wrappers run as their owner); exit tests prove `mdf_web` and `mdf_auth` cannot execute any `public` function even after `set_config`. |
-| Blocker 2 | Fixed in 6.3.2, 6.3.3 and 15.1: `alter default privileges for role postgres` revokes functions, tables and sequences from `public`, `anon`, `authenticated` in `public` and `ops`; explicit revokes on every new object; `ops_scopes` runs last; the CI ACL test compares every object's grants with `acl-allowlist.json`. |
-| Blocker 3 | Fixed in 11.5 and 15.1: caps and counters keyed `(scope, key, provider, unit, period)`; `default:customer` has `('', usd, day, 0.10)` and `(kie, credit, day, 0)`; user fallback rule; the 6.3.7 exit test traced on paper (kie refused, OpenRouter allowed). |
-| Blocker 4 | Fixed in 11.5 and 15.1: no wall-clock expiry while the job is queued or running; expiry only for terminal or missing jobs (ambiguous from `kie_submit_state`) and stale web-side entries; `job_spend_rule` per stage, engine and resume; fake jobs need none; grandfathered jobs reserve on demand; settle by entry id, including `ops.settle_spend` for web-side calls; the done-when uses `test_mode` with zero ledger entries plus a separate reservation-path test (19). |
+| Id        | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocker 1 | Fixed in 6.3.1-6.3.2 and 6.3.6: `mdf_ops` replaced by `mdf_web` and `mdf_auth`, which get USAGE on `ops` and EXECUTE only on the named `ops` functions; mutating `public` RPCs are granted to nobody (the security-definer wrappers run as their owner); exit tests prove `mdf_web` and `mdf_auth` cannot execute any `public` function even after `set_config`.                                                                                                                                                            |
+| Blocker 2 | Fixed in 6.3.2, 6.3.3 and 15.1: `alter default privileges for role postgres` revokes functions, tables and sequences from `public`, `anon`, `authenticated` in `public` and `ops`; explicit revokes on every new object; `ops_scopes` runs last; the CI ACL test compares every object's grants with `acl-allowlist.json`.                                                                                                                                                                                                  |
+| Blocker 3 | Fixed in 11.5 and 15.1: caps and counters keyed `(scope, key, provider, unit, period)`; `default:customer` has `('', usd, day, 0.10)` and `(kie, credit, day, 0)`; user fallback rule; the 6.3.7 exit test traced on paper (kie refused, OpenRouter allowed).                                                                                                                                                                                                                                                               |
+| Blocker 4 | Fixed in 11.5 and 15.1: no wall-clock expiry while the job is queued or running; expiry only for terminal or missing jobs (ambiguous from `kie_submit_state`) and stale web-side entries; `job_spend_rule` per stage, engine and resume; fake jobs need none; grandfathered jobs reserve on demand; settle by entry id, including `ops.settle_spend` for web-side calls; the done-when uses `test_mode` with zero ledger entries plus a separate reservation-path test (19).                                                |
 | Blocker 5 | Fixed in 6.3.6, 7.2 and 7.3: token reads through named `ops` read functions with explicit owner filters and frozen shapes (`SongSummary`, `SongDetail`, `JobStatus`, `JobEvent`, `CostsSummary`, `Notification`); uploads through Next staging, `ops.upload_intent` and worker ingestion; the admin function list; the frozen error-code table and the ordered mapping from existing RPC messages, with a test. Token access to media bytes and file-bearing editor operations is deferred to M2a (stated in 7.3 and 21.2). |
-| Major 1 | Fixed in 6.3.2: revokes for `projects` INSERT and `jobs` UPDATE, the cancel policy dropped and replaced by `ops.job_cancel`; storage policies named; the delete policy gains its profile check; the token view uses `security_invoker = true`. |
-| Major 2 | Fixed in 7.2, 7.3 and 11.5: the paying stages come from `job_spend_rule` (kie cover and extend inside `generate_song` by source; `import_audio` pays Groq only); wrappers find their jobs by `created_at = now()`; responses return a `jobs` array. |
-| Major 3 | Fixed in 11.5: every ledger signature, item lists with units, settle by entry id. |
-| Major 4 | Fixed in 11.5: counters inserted with `on conflict do nothing`, then locked in one fixed order by every ledger function. |
-| Major 5 | Fixed in 11.5 and 21.2: the `engine.run` rule for paid `secretEnv`, `MELLODIFAI_NO_KEYFILES` with the engine-repo change, Groq reserved for `import_audio`, `timing` and take scoring, the missing files listed. |
-| Major 6 | Fixed in 3 and 7.3: `resolve_upload` is cookie-only and admin-only; uploads have their own operation; section 3 lists every admin check. |
-| Major 7 | Fixed in 6.3.6 and 6.3.7: `ops.stage_retry` refuses `publish` and `set_privacy` for tokens and customers, with an exit test. |
-| Major 8 | Fixed in 6.2, 15.1, 19 and 21.2: roles copied at migration time, `ops/set-owner.ts` by `MELLODIFAI_OWNER_EMAIL` at deploy, unique index on `lower(email)`, seed and e2e setup with roles, the ten test files and `ci.yml` in the Modify list, CI throwaway signing key, `CI=true` guard, `ops/e2e-stack.ts` for the role passwords. |
-| Major 9 | Fixed in 5.3, 6.4 and 20: migrations in the deploy script, no automatic rollback across a migration, a migration floor for `--to`, the health check through `ops.health()`, a key rotation script, and an OAuth fallback that keeps AC15 and needs no JWT library. |
-| Major 10 | Fixed in 7.2: the key is opened in its own committed transaction and closed atomically with the work; the web-side multi-step case is stated. |
-| Major 11 | Fixed in 3, 7.1 and 21.2: base branch named, T12 folded into `ops_scopes`, no separate T12 migration. |
-| Major 12 | Fixed in 5.4 and 21.2: `/auth/confirm` is Modify with `token_hash` or `code` and a validated `next`; the `code` rewrite is kept; login page and `redirect-url.ts` listed. |
-| Major 13 | Fixed in 5.2: the edge proxy refuses `Next-Action` outside `/login` and `/consent`, `runAction` refuses remote calls, `remoteAction` only for sign-in and consent, a wrapping test, and a step 0 check. |
-| Major 14 | Fixed in 5.1: Next and `apps/auth` bind `127.0.0.1`; remote when `x-mdf-remote`, `cf-connecting-ip` or `cf-ray` is present. |
-| Major 15 | Fixed in 7.5 and 17: Next has its own OpenRouter and Groq keys; `openrouter-key.ts` stops reading the worker's env files. |
-| Major 16 | Fixed in 7.1: the SDK's web-standard Streamable HTTP transport in stateless JSON mode (no SSE on `/api/mcp`, so no keepalive there), pinned in the step 0 spike, with the `mcp-handler` fallback. |
-| Major 17 | Fixed in 6.4 and 6.9: an admin-only test box at consent, `fake_providers` derived from the token row, propagation through `worker_enqueue`, the real env var `WORKER_FAKE` with `main.ts` and `workspace.ts` listed, test versions refused for real paid or publish operations. |
-| Major 18 | Fixed in 6.4, 6.7 and 15.1: `agent_tokens.grant_id` and `oauth_consents`, the joins and return of `resolve_access_token`, the scope intersection rule, key storage, edge-proxy limits for registration, `/oauth/*` and `/login`, a redirect URI allowlist, consent defaulting to `read`. |
-| Major 19 | Fixed in 6.3.1, 6.3.4, 6.4 and 17: separate `mdf_auth` with only the storage functions, `session_id` checked against `auth.sessions`, admin operations refused remotely (except closing remote access), threat model corrected. |
-| Major 20 | Fixed in 5.2 and 5.3: the firewall is not relied on against containers; the Postgres password change is mandatory and the container probe is an M1 exit criterion. |
-| Nit 1 | Fixed in 11.5 and 6.6: windows in Europe/Rome, a `run` sentinel, the token cap only in `spend_caps`. |
-| Nit 2 | Fixed in 6.3.4: wrappers return result JSON and do the failing work in a savepoint, so audit rows and `cap_hit` notifications persist. |
-| Nit 3 | Fixed in 6.3.2: `search_path = ''` on every `ops` function, schema `ops` closed to `public`, checked by the ACL test. |
-| Nit 4 | Fixed in 15.1 and 14.4: `on delete` rules, `oauth_store` indexes and `purge_oauth`, the view named `agent_tokens_public`, `resource_class` set by a trigger. |
-| Nit 5 | Fixed in 3. |
-| Nit 6 | Fixed in 5.2, 7.3 and 21.2: the Suno share-link row, `lib/auth.ts` and `authorization.ts` listed, `allowedOrigins`. |
-| Nit 7 | Fixed in 6.2, 6.4 and 15.1: tokens resolved without cache (only flags cached, and the kill path revokes rows), OAuth grants expire after 90 days and renew at consent, customers hold no tokens in M1. |
-| Nit 8 | Fixed in 21.2 step 3: judge model ids and the Jev id move too; `config/gates/` is JSON validated by zod. |
-| Nit 9 | Accepted: `price_book_sync`, `kie_reconcile`, the keyring, `Last-Event-ID`, and token media and editor file operations are deferred to M2a (21.2). |
+| Major 1   | Fixed in 6.3.2: revokes for `projects` INSERT and `jobs` UPDATE, the cancel policy dropped and replaced by `ops.job_cancel`; storage policies named; the delete policy gains its profile check; the token view uses `security_invoker = true`.                                                                                                                                                                                                                                                                              |
+| Major 2   | Fixed in 7.2, 7.3 and 11.5: the paying stages come from `job_spend_rule` (kie cover and extend inside `generate_song` by source; `import_audio` pays Groq only); wrappers find their jobs by `created_at = now()`; responses return a `jobs` array.                                                                                                                                                                                                                                                                         |
+| Major 3   | Fixed in 11.5: every ledger signature, item lists with units, settle by entry id.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Major 4   | Fixed in 11.5: counters inserted with `on conflict do nothing`, then locked in one fixed order by every ledger function.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Major 5   | Fixed in 11.5 and 21.2: the `engine.run` rule for paid `secretEnv`, `MELLODIFAI_NO_KEYFILES` with the engine-repo change, Groq reserved for `import_audio`, `timing` and take scoring, the missing files listed.                                                                                                                                                                                                                                                                                                            |
+| Major 6   | Fixed in 3 and 7.3: `resolve_upload` is cookie-only and admin-only; uploads have their own operation; section 3 lists every admin check.                                                                                                                                                                                                                                                                                                                                                                                    |
+| Major 7   | Fixed in 6.3.6 and 6.3.7: `ops.stage_retry` refuses `publish` and `set_privacy` for tokens and customers, with an exit test.                                                                                                                                                                                                                                                                                                                                                                                                |
+| Major 8   | Fixed in 6.2, 15.1, 19 and 21.2: roles copied at migration time, `ops/set-owner.ts` by `MELLODIFAI_OWNER_EMAIL` at deploy, unique index on `lower(email)`, seed and e2e setup with roles, the ten test files and `ci.yml` in the Modify list, CI throwaway signing key, `CI=true` guard, `ops/e2e-stack.ts` for the role passwords.                                                                                                                                                                                         |
+| Major 9   | Fixed in 5.3, 6.4 and 20: migrations in the deploy script, no automatic rollback across a migration, a migration floor for `--to`, the health check through `ops.health()`, a key rotation script, and an OAuth fallback that keeps AC15 and needs no JWT library.                                                                                                                                                                                                                                                          |
+| Major 10  | Fixed in 7.2: the key is opened in its own committed transaction and closed atomically with the work; the web-side multi-step case is stated.                                                                                                                                                                                                                                                                                                                                                                               |
+| Major 11  | Fixed in 3, 7.1 and 21.2: base branch named, T12 folded into `ops_scopes`, no separate T12 migration.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Major 12  | Fixed in 5.4 and 21.2: `/auth/confirm` is Modify with `token_hash` or `code` and a validated `next`; the `code` rewrite is kept; login page and `redirect-url.ts` listed.                                                                                                                                                                                                                                                                                                                                                   |
+| Major 13  | Fixed in 5.2: the edge proxy refuses `Next-Action` outside `/login` and `/consent`, `runAction` refuses remote calls, `remoteAction` only for sign-in and consent, a wrapping test, and a step 0 check.                                                                                                                                                                                                                                                                                                                     |
+| Major 14  | Fixed in 5.1: Next and `apps/auth` bind `127.0.0.1`; remote when `x-mdf-remote`, `cf-connecting-ip` or `cf-ray` is present.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Major 15  | Fixed in 7.5 and 17: Next has its own OpenRouter and Groq keys; `openrouter-key.ts` stops reading the worker's env files.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Major 16  | Fixed in 7.1: the SDK's web-standard Streamable HTTP transport in stateless JSON mode (no SSE on `/api/mcp`, so no keepalive there), pinned in the step 0 spike, with the `mcp-handler` fallback.                                                                                                                                                                                                                                                                                                                           |
+| Major 17  | Fixed in 6.4 and 6.9: an admin-only test box at consent, `fake_providers` derived from the token row, propagation through `worker_enqueue`, the real env var `WORKER_FAKE` with `main.ts` and `workspace.ts` listed, test versions refused for real paid or publish operations.                                                                                                                                                                                                                                             |
+| Major 18  | Fixed in 6.4, 6.7 and 15.1: `agent_tokens.grant_id` and `oauth_consents`, the joins and return of `resolve_access_token`, the scope intersection rule, key storage, edge-proxy limits for registration, `/oauth/*` and `/login`, a redirect URI allowlist, consent defaulting to `read`.                                                                                                                                                                                                                                    |
+| Major 19  | Fixed in 6.3.1, 6.3.4, 6.4 and 17: separate `mdf_auth` with only the storage functions, `session_id` checked against `auth.sessions`, admin operations refused remotely (except closing remote access), threat model corrected.                                                                                                                                                                                                                                                                                             |
+| Major 20  | Fixed in 5.2 and 5.3: the firewall is not relied on against containers; the Postgres password change is mandatory and the container probe is an M1 exit criterion.                                                                                                                                                                                                                                                                                                                                                          |
+| Nit 1     | Fixed in 11.5 and 6.6: windows in Europe/Rome, a `run` sentinel, the token cap only in `spend_caps`.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Nit 2     | Fixed in 6.3.4: wrappers return result JSON and do the failing work in a savepoint, so audit rows and `cap_hit` notifications persist.                                                                                                                                                                                                                                                                                                                                                                                      |
+| Nit 3     | Fixed in 6.3.2: `search_path = ''` on every `ops` function, schema `ops` closed to `public`, checked by the ACL test.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Nit 4     | Fixed in 15.1 and 14.4: `on delete` rules, `oauth_store` indexes and `purge_oauth`, the view named `agent_tokens_public`, `resource_class` set by a trigger.                                                                                                                                                                                                                                                                                                                                                                |
+| Nit 5     | Fixed in 3.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Nit 6     | Fixed in 5.2, 7.3 and 21.2: the Suno share-link row, `lib/auth.ts` and `authorization.ts` listed, `allowedOrigins`.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Nit 7     | Fixed in 6.2, 6.4 and 15.1: tokens resolved without cache (only flags cached, and the kill path revokes rows), OAuth grants expire after 90 days and renew at consent, customers hold no tokens in M1.                                                                                                                                                                                                                                                                                                                      |
+| Nit 8     | Fixed in 21.2 step 3: judge model ids and the Jev id move too; `config/gates/` is JSON validated by zod.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Nit 9     | Accepted: `price_book_sync`, `kie_reconcile`, the keyring, `Last-Event-ID`, and token media and editor file operations are deferred to M2a (21.2).                                                                                                                                                                                                                                                                                                                                                                          |
 
 **Counts for round 3:** 5 of 5 Blockers fixed; 20 of 20 Majors fixed, 0 deferred; 9 of 9 Nits
 fixed or accepted. The two remaining unknowns are spike items with written fallbacks, not open
@@ -2613,119 +2719,119 @@ web-standard transport.
 
 ### 28.1 Round 2 findings
 
-| Id | Disposition |
-| --- | --- |
-| R2-B1 | Partly closed by revision 3 (round 3); closed in revision 4 by round-3 Blockers 1, 2, 4 and Major 1 (28.0). Revision 3 text: resolved in 6.3: exact revokes (jobs insert grant and policy, versions grants, every public function), deny-by-default EXECUTE, `mdf_ops` and schema `ops`, reservation inside the wrapper transaction, worker refusal without a reservation and the paid-call module (11.5), cookie-only admin-only publishing until M4, exit tests. |
-| R2-B2 | Residue found by round 3 (Major 8), closed in revision 4 (28.0). Revision 3 text: resolved in 3 (corrected) and 6.2: `admin_allowlist.role` default `customer`, trigger change, backfill with the owner check, database test (21.2). |
-| R2-B3 | Resolved in 10.1 and 13.3-13.7: every gate, threshold, judge prompt and router or cap constant moved to denylisted `packages/gates/**` and `config/gates/**`, so step 1 is a pure path check; deterministic canaries must still be rejected; revert signals scored by the frozen evaluator. |
-| R2-B4 | Resolved in 13.1-13.2: sandbox on an `--internal` network with no socket and no credentials, scorer without candidate code, merger on the host with the only push right, supervisor-started gate stack, probe that aborts the night, firewall rule (5.2), Postgres password spike (5.3). |
-| R2-B5 | Resolved in 11.3 and 6.8: route 2 runs only in the `mdf-img` container with an output folder, read-only sandbox, egress allowlist, prompts from enums and `Safe` fields, single-image acceptance, injection test. |
-| R2-M1 | Resolved by design in 6.4: opaque tokens from `apps/auth` cannot reach Supabase; discovery on the app host; scopes in our grant row; step 0 spike with a written fallback that includes the round-2 recommendations. |
-| R2-M2 | Resolved in 6.3: no signing key in Next at all; `mdf_ops` role with only `ops.*` EXECUTE; token lookups and audit writes in narrow security-definer functions; env var named. |
-| R2-M3 | Resolved in 5.4: `SUPABASE_INTERNAL_URL`, server-side sign-in in M1, per-request browser URL and pinned cookie name in W1 after the DNS move, server-made signed URLs replaced by `/media`, files listed in 21.2. |
-| R2-M4 | Resolved in 6.2, 6.3 and 7.3: `publish` not grantable before M4; `uploadPrivate` and `setPrivacy` cookie-only and admin-only. |
-| R2-M5 | Resolved in 6.2 and 6.5: Autopilot needs an admin cookie session or spend plus publish; initiating token's caps apply; M5 exit test. |
-| R2-M6 | Resolved in 11.5 and 15.1: `user` cap scope with role defaults, `run_id` without foreign key until M2a, price seeds and sync, the list of reserving RPCs, settle by `job_id`. |
-| R2-M7 | Resolved in 7.3: every existing server action listed with tool, RPC, scope, estimate and milestone; cookie-only rows; schema naming rule in 7.1; response shapes in 7.2; M1 CLI and skill limited to M1 operations (7.4); `create_song` named correctly in 3. |
-| R2-M8 | Resolved for M1 in 21.2 (Create and Modify list, dependencies, `/m/` moved to M4); partly for M2-M6: each must write its file list before planning (21.4). |
-| R2-M9 | Resolved for M1 (DDL in 15.1, RLS and grants rule); stage orchestrator and `jobs.stage_run_id` defined in 8.3; partly: M2+ DDL is written in each milestone's plan (15.2). |
-| R2-M10 | Resolved in 6.6 (format, entropy, hash, hint, expiry). |
-| R2-M11 | Resolved in 7.1, 7.2 and 7.4 (MCP SDK in stateless mode, protocol revision floor, keyring library, install commands, `idempotency_key` input). |
-| R2-M12 | Resolved in 19 and 21.2: per-job fakes through `test_mode` tokens on the real instance. |
-| R2-M13 | Resolved in 5.2 and 5.5: no Access or WAF in M1; tunnel steps and file locations; double sign-in gone. |
-| R2-M14 | Resolved in 21.2 and 20: `ops/deploy.ts` with rollback is built in M1 step 1. |
-| R2-M15 | Resolved in 14.4: worker scheduler, table, claim function and the task list with cadences. |
-| R2-M16 | Resolved in 5.2 and AC15: M1 exposes only MCP, OAuth and sign-in; Supabase, UI, `post.` and `/m/` move to W1 and M4. |
-| R2-M17 | Partly resolved in 11.6 and 13.4: complete budget table with its basis, smaller visual jury input, eval cost formula with k = 2 and two arms; remains: real prices (kie Midjourney, Haiku vision) are measured in M3, with the stated first cut if over budget. |
-| R2-M18 | Resolved in 8.1: free tier allows juries and app reasoning up to 0.03 USD per run; "local reasoning" removed. |
-| R2-M19 | Resolved in 8.4 (R2) and 10.3: transcript, word timestamps, literal translations and source fingerprints kept; translation by Gemini Flash; LaBSE for the section check. |
-| R2-M20 | Resolved in 10.8: required reports per content kind. |
-| R2-M21 | Resolved in 10.1: dual-write from M2a, UI moved in M3, column dropped later by a human migration. |
-| R2-M22 | Resolved in 12.1 and 12.5: render-addressed publish stage, lookups by publication, `scheduled` path retired, `yt.py` scopes and token location. |
-| R2-M23 | Resolved in 14.1: `jobs.priority`, lease timing, R2 split into two jobs, supervisor holding the lease for evaluation. |
-| R2-M24 | Resolved in 13.1 and 13.7: supervisor and merger hold the credentials; watch extended to 3 runs or 7 days; nightly canary jobs. |
-| R2-M25 | Resolved in 8.7 and 15.2: `remake_defaults` in M2a; Italian sources default to an Italian rewrite. |
-| R2-M26 | Resolved in 9.3: v1 blocks and params; the file is created first in M2b. |
-| R2-M27 | Resolved in 8.4 (R4): per-provider mapping, post-generation timing check as a failed round, metric renamed to lyric recall at least 0.75. |
-| R2-M28 | Resolved in section 4, goal 4. |
-| R2-M29 | Resolved in 12.5 (T19 linked, route choice kept) and 26 (placements only). |
-| R2-M30 | Partly resolved in 12.6: task name, token location, `thumbnail_style` column; remains: availability of per-video impressions and CTR in the API is checked as the first M4 step, with a stated fallback. |
-| R2-M31 | Resolved in 25 (credentials off the PC, loop channel, signing key). |
-| R2-M32 | Resolved in 12.1 and 21.1: track P0 starts now. |
-| R2-M33 | Resolved in 21.1 and 21.4: M2 split into M2a and M2b; previews to the UI track; Anthropic client to Later. |
-| R2-M34 | Resolved in 25 and 18: ops scripts in TypeScript on Node. |
-| R2-M35 | Partly resolved: meaning-map schema (9.1), Python runtimes and counters (8.4, 10.3), kinetic components (9.3), golden source (13.4), Tesseract and imagehash and DINOv2 runtimes (10.3, 10.4), editor scope (21.5), Autopilot start and daily limit (6.5), images, proxy, scanner, runner and cutover (13.1, 13.2, 13.6). Remains: exact container image digests and the Squid allowlist file, written in the M6 plan. |
-| Nit 1 | Resolved: customers 0 kie credits (6.2, 11.5). |
-| Nit 2 | Resolved: `song_create` and `remake_start` need `spend` (6.2, 7.3). |
-| Nit 3 | Resolved: remote detection by the edge proxy header, not the Host (5.1, 6.6). |
-| Nit 4 | Resolved: maximum plus mean (10.6). |
-| Nit 5 | Resolved: link created at hand-off (5.4). |
-| Nit 6 | Resolved: enums, `Safe` strings, refinements, contact-sheet tiling (9.1, 8.4). |
-| Nit 7 | Resolved: `held_gate_failed` state, notification, veto until the flip (12.2). |
-| Nit 8 | Resolved: kie submit timeout is `ambiguous_spend`, never retried (8.6). |
-| Nit 9 | Resolved: Inspector CLI commands (19). |
-| Nit 10 | Resolved: sliding window, write definition, idempotency mismatch and in-flight (6.7, 7.2). |
-| Nit 11 | Resolved: ntfy server, env var, sender, payload rules (16). |
-| Nit 12 | Resolved: `post.` in M4, Settings routes (21.2), `/api/health` (5.6), flag caching (15.1), `song_create` scope (6.2). |
-| Nit 13 | Resolved: `score_takes` described as a function (3, 8.3, 27). |
-| Nit 14 | Resolved: current `claim_job` cited and extended (3, 14.1). |
-| Nit 15 | Resolved: stage registration and `STAGE_STATUS` (3, 8.3); `art` and `visual_jury` statuses (8.3). |
-| Nit 16 | Resolved: the existing 15 s heartbeat is used (3, 8.5). |
-| Nit 17 | Resolved: hard-coded paths listed (3, 25); remake folder under the workspace root (8.3). |
-| Nit 18 | Resolved: allowlist uses `viz-looks.ts` (13.3). |
-| Nit 19 | Resolved: `test:db` reuses the e2e guard (13.2, 21.2). |
-| Nit 20 | Resolved: the gate checks by render (10.8). |
-| Nit 21 | Resolved: keepalive workflow deleted in M1 (2.4, 21.2). |
-| Nit 22 | Resolved: rendering reuse named, QA on the hook render (8.4 R7). |
-| Nit 23 | Resolved: no `publications.kind`; thumbnails are not publications (12.5). |
-| Nit 24 | Resolved: `create_song` (3, 7.3). |
-| Nit 25 | Resolved: this section rewritten with honest states and corrected references. |
-| Nit 26 | Resolved: the blockquote line and long prose lines fixed. |
-| Nit 27 | Resolved: `golden_items` table dropped; the manifest is the only source (13.4). |
-| Nit 28 | Resolved: `rate_counters` dropped; the in-memory limiter is reused (6.7). |
-| Nit 29 | Resolved: `loop/main` dropped (13.6). |
-| Nit 30 | Resolved: claim report placed in M4 with a catalogue row (7.3, 12.5). |
-| Nit 31 | Resolved: sections 25 and 26 keep rules and placements only. |
-| Nit 32 | Partly resolved: glossary path for the brief and the "Formatta con AI" gloss added; remains: the one-line fix in `task-24-brief.md:18` itself, not made here because this revision may change only this file. |
-| Nit 33 | Resolved: the M1 contents checklist (21.2). |
+| Id     | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R2-B1  | Partly closed by revision 3 (round 3); closed in revision 4 by round-3 Blockers 1, 2, 4 and Major 1 (28.0). Revision 3 text: resolved in 6.3: exact revokes (jobs insert grant and policy, versions grants, every public function), deny-by-default EXECUTE, `mdf_ops` and schema `ops`, reservation inside the wrapper transaction, worker refusal without a reservation and the paid-call module (11.5), cookie-only admin-only publishing until M4, exit tests. |
+| R2-B2  | Residue found by round 3 (Major 8), closed in revision 4 (28.0). Revision 3 text: resolved in 3 (corrected) and 6.2: `admin_allowlist.role` default `customer`, trigger change, backfill with the owner check, database test (21.2).                                                                                                                                                                                                                               |
+| R2-B3  | Resolved in 10.1 and 13.3-13.7: every gate, threshold, judge prompt and router or cap constant moved to denylisted `packages/gates/**` and `config/gates/**`, so step 1 is a pure path check; deterministic canaries must still be rejected; revert signals scored by the frozen evaluator.                                                                                                                                                                        |
+| R2-B4  | Resolved in 13.1-13.2: sandbox on an `--internal` network with no socket and no credentials, scorer without candidate code, merger on the host with the only push right, supervisor-started gate stack, probe that aborts the night, firewall rule (5.2), Postgres password spike (5.3).                                                                                                                                                                           |
+| R2-B5  | Resolved in 11.3 and 6.8: route 2 runs only in the `mdf-img` container with an output folder, read-only sandbox, egress allowlist, prompts from enums and `Safe` fields, single-image acceptance, injection test.                                                                                                                                                                                                                                                  |
+| R2-M1  | Resolved by design in 6.4: opaque tokens from `apps/auth` cannot reach Supabase; discovery on the app host; scopes in our grant row; step 0 spike with a written fallback that includes the round-2 recommendations.                                                                                                                                                                                                                                               |
+| R2-M2  | Resolved in 6.3: no signing key in Next at all; `mdf_ops` role with only `ops.*` EXECUTE; token lookups and audit writes in narrow security-definer functions; env var named.                                                                                                                                                                                                                                                                                      |
+| R2-M3  | Resolved in 5.4: `SUPABASE_INTERNAL_URL`, server-side sign-in in M1, per-request browser URL and pinned cookie name in W1 after the DNS move, server-made signed URLs replaced by `/media`, files listed in 21.2.                                                                                                                                                                                                                                                  |
+| R2-M4  | Resolved in 6.2, 6.3 and 7.3: `publish` not grantable before M4; `uploadPrivate` and `setPrivacy` cookie-only and admin-only.                                                                                                                                                                                                                                                                                                                                      |
+| R2-M5  | Resolved in 6.2 and 6.5: Autopilot needs an admin cookie session or spend plus publish; initiating token's caps apply; M5 exit test.                                                                                                                                                                                                                                                                                                                               |
+| R2-M6  | Resolved in 11.5 and 15.1: `user` cap scope with role defaults, `run_id` without foreign key until M2a, price seeds and sync, the list of reserving RPCs, settle by `job_id`.                                                                                                                                                                                                                                                                                      |
+| R2-M7  | Resolved in 7.3: every existing server action listed with tool, RPC, scope, estimate and milestone; cookie-only rows; schema naming rule in 7.1; response shapes in 7.2; M1 CLI and skill limited to M1 operations (7.4); `create_song` named correctly in 3.                                                                                                                                                                                                      |
+| R2-M8  | Resolved for M1 in 21.2 (Create and Modify list, dependencies, `/m/` moved to M4); partly for M2-M6: each must write its file list before planning (21.4).                                                                                                                                                                                                                                                                                                         |
+| R2-M9  | Resolved for M1 (DDL in 15.1, RLS and grants rule); stage orchestrator and `jobs.stage_run_id` defined in 8.3; partly: M2+ DDL is written in each milestone's plan (15.2).                                                                                                                                                                                                                                                                                         |
+| R2-M10 | Resolved in 6.6 (format, entropy, hash, hint, expiry).                                                                                                                                                                                                                                                                                                                                                                                                             |
+| R2-M11 | Resolved in 7.1, 7.2 and 7.4 (MCP SDK in stateless mode, protocol revision floor, keyring library, install commands, `idempotency_key` input).                                                                                                                                                                                                                                                                                                                     |
+| R2-M12 | Resolved in 19 and 21.2: per-job fakes through `test_mode` tokens on the real instance.                                                                                                                                                                                                                                                                                                                                                                            |
+| R2-M13 | Resolved in 5.2 and 5.5: no Access or WAF in M1; tunnel steps and file locations; double sign-in gone.                                                                                                                                                                                                                                                                                                                                                             |
+| R2-M14 | Resolved in 21.2 and 20: `ops/deploy.ts` with rollback is built in M1 step 1.                                                                                                                                                                                                                                                                                                                                                                                      |
+| R2-M15 | Resolved in 14.4: worker scheduler, table, claim function and the task list with cadences.                                                                                                                                                                                                                                                                                                                                                                         |
+| R2-M16 | Resolved in 5.2 and AC15: M1 exposes only MCP, OAuth and sign-in; Supabase, UI, `post.` and `/m/` move to W1 and M4.                                                                                                                                                                                                                                                                                                                                               |
+| R2-M17 | Partly resolved in 11.6 and 13.4: complete budget table with its basis, smaller visual jury input, eval cost formula with k = 2 and two arms; remains: real prices (kie Midjourney, Haiku vision) are measured in M3, with the stated first cut if over budget.                                                                                                                                                                                                    |
+| R2-M18 | Resolved in 8.1: free tier allows juries and app reasoning up to 0.03 USD per run; "local reasoning" removed.                                                                                                                                                                                                                                                                                                                                                      |
+| R2-M19 | Resolved in 8.4 (R2) and 10.3: transcript, word timestamps, literal translations and source fingerprints kept; translation by Gemini Flash; LaBSE for the section check.                                                                                                                                                                                                                                                                                           |
+| R2-M20 | Resolved in 10.8: required reports per content kind.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| R2-M21 | Resolved in 10.1: dual-write from M2a, UI moved in M3, column dropped later by a human migration.                                                                                                                                                                                                                                                                                                                                                                  |
+| R2-M22 | Resolved in 12.1 and 12.5: render-addressed publish stage, lookups by publication, `scheduled` path retired, `yt.py` scopes and token location.                                                                                                                                                                                                                                                                                                                    |
+| R2-M23 | Resolved in 14.1: `jobs.priority`, lease timing, R2 split into two jobs, supervisor holding the lease for evaluation.                                                                                                                                                                                                                                                                                                                                              |
+| R2-M24 | Resolved in 13.1 and 13.7: supervisor and merger hold the credentials; watch extended to 3 runs or 7 days; nightly canary jobs.                                                                                                                                                                                                                                                                                                                                    |
+| R2-M25 | Resolved in 8.7 and 15.2: `remake_defaults` in M2a; Italian sources default to an Italian rewrite.                                                                                                                                                                                                                                                                                                                                                                 |
+| R2-M26 | Resolved in 9.3: v1 blocks and params; the file is created first in M2b.                                                                                                                                                                                                                                                                                                                                                                                           |
+| R2-M27 | Resolved in 8.4 (R4): per-provider mapping, post-generation timing check as a failed round, metric renamed to lyric recall at least 0.75.                                                                                                                                                                                                                                                                                                                          |
+| R2-M28 | Resolved in section 4, goal 4.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| R2-M29 | Resolved in 12.5 (T19 linked, route choice kept) and 26 (placements only).                                                                                                                                                                                                                                                                                                                                                                                         |
+| R2-M30 | Partly resolved in 12.6: task name, token location, `thumbnail_style` column; remains: availability of per-video impressions and CTR in the API is checked as the first M4 step, with a stated fallback.                                                                                                                                                                                                                                                           |
+| R2-M31 | Resolved in 25 (credentials off the PC, loop channel, signing key).                                                                                                                                                                                                                                                                                                                                                                                                |
+| R2-M32 | Resolved in 12.1 and 21.1: track P0 starts now.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| R2-M33 | Resolved in 21.1 and 21.4: M2 split into M2a and M2b; previews to the UI track; Anthropic client to Later.                                                                                                                                                                                                                                                                                                                                                         |
+| R2-M34 | Resolved in 25 and 18: ops scripts in TypeScript on Node.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| R2-M35 | Partly resolved: meaning-map schema (9.1), Python runtimes and counters (8.4, 10.3), kinetic components (9.3), golden source (13.4), Tesseract and imagehash and DINOv2 runtimes (10.3, 10.4), editor scope (21.5), Autopilot start and daily limit (6.5), images, proxy, scanner, runner and cutover (13.1, 13.2, 13.6). Remains: exact container image digests and the Squid allowlist file, written in the M6 plan.                                             |
+| Nit 1  | Resolved: customers 0 kie credits (6.2, 11.5).                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Nit 2  | Resolved: `song_create` and `remake_start` need `spend` (6.2, 7.3).                                                                                                                                                                                                                                                                                                                                                                                                |
+| Nit 3  | Resolved: remote detection by the edge proxy header, not the Host (5.1, 6.6).                                                                                                                                                                                                                                                                                                                                                                                      |
+| Nit 4  | Resolved: maximum plus mean (10.6).                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Nit 5  | Resolved: link created at hand-off (5.4).                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Nit 6  | Resolved: enums, `Safe` strings, refinements, contact-sheet tiling (9.1, 8.4).                                                                                                                                                                                                                                                                                                                                                                                     |
+| Nit 7  | Resolved: `held_gate_failed` state, notification, veto until the flip (12.2).                                                                                                                                                                                                                                                                                                                                                                                      |
+| Nit 8  | Resolved: kie submit timeout is `ambiguous_spend`, never retried (8.6).                                                                                                                                                                                                                                                                                                                                                                                            |
+| Nit 9  | Resolved: Inspector CLI commands (19).                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Nit 10 | Resolved: sliding window, write definition, idempotency mismatch and in-flight (6.7, 7.2).                                                                                                                                                                                                                                                                                                                                                                         |
+| Nit 11 | Resolved: ntfy server, env var, sender, payload rules (16).                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Nit 12 | Resolved: `post.` in M4, Settings routes (21.2), `/api/health` (5.6), flag caching (15.1), `song_create` scope (6.2).                                                                                                                                                                                                                                                                                                                                              |
+| Nit 13 | Resolved: `score_takes` described as a function (3, 8.3, 27).                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Nit 14 | Resolved: current `claim_job` cited and extended (3, 14.1).                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Nit 15 | Resolved: stage registration and `STAGE_STATUS` (3, 8.3); `art` and `visual_jury` statuses (8.3).                                                                                                                                                                                                                                                                                                                                                                  |
+| Nit 16 | Resolved: the existing 15 s heartbeat is used (3, 8.5).                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Nit 17 | Resolved: hard-coded paths listed (3, 25); remake folder under the workspace root (8.3).                                                                                                                                                                                                                                                                                                                                                                           |
+| Nit 18 | Resolved: allowlist uses `viz-looks.ts` (13.3).                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Nit 19 | Resolved: `test:db` reuses the e2e guard (13.2, 21.2).                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Nit 20 | Resolved: the gate checks by render (10.8).                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Nit 21 | Resolved: keepalive workflow deleted in M1 (2.4, 21.2).                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Nit 22 | Resolved: rendering reuse named, QA on the hook render (8.4 R7).                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Nit 23 | Resolved: no `publications.kind`; thumbnails are not publications (12.5).                                                                                                                                                                                                                                                                                                                                                                                          |
+| Nit 24 | Resolved: `create_song` (3, 7.3).                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Nit 25 | Resolved: this section rewritten with honest states and corrected references.                                                                                                                                                                                                                                                                                                                                                                                      |
+| Nit 26 | Resolved: the blockquote line and long prose lines fixed.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Nit 27 | Resolved: `golden_items` table dropped; the manifest is the only source (13.4).                                                                                                                                                                                                                                                                                                                                                                                    |
+| Nit 28 | Resolved: `rate_counters` dropped; the in-memory limiter is reused (6.7).                                                                                                                                                                                                                                                                                                                                                                                          |
+| Nit 29 | Resolved: `loop/main` dropped (13.6).                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Nit 30 | Resolved: claim report placed in M4 with a catalogue row (7.3, 12.5).                                                                                                                                                                                                                                                                                                                                                                                              |
+| Nit 31 | Resolved: sections 25 and 26 keep rules and placements only.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Nit 32 | Partly resolved: glossary path for the brief and the "Formatta con AI" gloss added; remains: the one-line fix in `task-24-brief.md:18` itself, not made here because this revision may change only this file.                                                                                                                                                                                                                                                      |
+| Nit 33 | Resolved: the M1 contents checklist (21.2).                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### 28.2 Round 1 findings
 
-| Id | Disposition after revision 3 |
-| --- | --- |
-| B1 | Resolved (revision 2, confirmed by round 2); refined in 5 (smaller M1 surface). |
-| B2 | Resolved through R2-B3. |
-| B3 | Resolved through R2-B4. |
-| B4 | Resolved (confirmed by round 2); `publish` before M4 through R2-M4. |
-| B5 | Resolved (confirmed by round 2); blocks through R2-M26. |
-| B6 | Resolved through R2-B2 and the `mdf_ops` design (6.3). |
-| B7 | Resolved through R2-M1 (own authorization server). |
-| B8 | Resolved through R2-B1 and R2-M6. |
-| B9 | Resolved through R2-B1 (no immediate publish for tokens; admin click only until M4) and 12.2. |
-| B10 | Partly resolved through R2-M9: orchestrator and stage-job link defined; M2a DDL is written in its plan. |
-| B11 | Resolved (confirmed by round 2); refinements through Nit 6. |
-| B12 | Resolved through R2-M19 and R2-B3. |
-| B13 | Resolved through R2-M24 and R2-M14. |
-| B14 | Partly resolved through R2-M8: complete for M1; later milestones write their file lists before planning. |
-| B15 | Resolved through R2-M7, R2-M11. |
-| B16 | Resolved through R2-M23. |
-| B17 | Resolved through R2-M22 and R2-M32. |
-| M1, M2, M3, M4, M8, M9, M10, M13, M14, M15, M17, M18, M20, M21, M22, M23, M24, M25, M26, M28, M31 | Resolved (confirmed by round 2). M24's security gap is R2-B5, resolved. |
-| M5 | Resolved through R2-M28. |
-| M6 | Partly resolved through R2-M17 (prices measured in M3). |
-| M7 | Resolved through R2-M17 (eval formula). |
-| M11 | Resolved through R2-M26. |
-| M12 | Resolved through R2-M25. |
-| M16 | Resolved through R2-M18. |
-| M19 | Resolved through R2-M14. |
-| M27 | Resolved through R2-M27. |
-| M29 | Partly resolved through R2-M15 and R2-M30 (API metric availability checked in M4). |
-| M30 | Resolved through R2-M29. |
-| N1 | Resolved (stateless MCP chosen, 7.1). |
-| N2 | Resolved (6.7). |
-| N3, N4, N6, N8, N9, N10, N11, N12, N13 | Resolved (confirmed by round 2). |
-| N5 | Resolved (8.4 R7). |
-| N7 | Resolved (24). |
+| Id                                                                                                | Disposition after revision 3                                                                             |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| B1                                                                                                | Resolved (revision 2, confirmed by round 2); refined in 5 (smaller M1 surface).                          |
+| B2                                                                                                | Resolved through R2-B3.                                                                                  |
+| B3                                                                                                | Resolved through R2-B4.                                                                                  |
+| B4                                                                                                | Resolved (confirmed by round 2); `publish` before M4 through R2-M4.                                      |
+| B5                                                                                                | Resolved (confirmed by round 2); blocks through R2-M26.                                                  |
+| B6                                                                                                | Resolved through R2-B2 and the `mdf_ops` design (6.3).                                                   |
+| B7                                                                                                | Resolved through R2-M1 (own authorization server).                                                       |
+| B8                                                                                                | Resolved through R2-B1 and R2-M6.                                                                        |
+| B9                                                                                                | Resolved through R2-B1 (no immediate publish for tokens; admin click only until M4) and 12.2.            |
+| B10                                                                                               | Partly resolved through R2-M9: orchestrator and stage-job link defined; M2a DDL is written in its plan.  |
+| B11                                                                                               | Resolved (confirmed by round 2); refinements through Nit 6.                                              |
+| B12                                                                                               | Resolved through R2-M19 and R2-B3.                                                                       |
+| B13                                                                                               | Resolved through R2-M24 and R2-M14.                                                                      |
+| B14                                                                                               | Partly resolved through R2-M8: complete for M1; later milestones write their file lists before planning. |
+| B15                                                                                               | Resolved through R2-M7, R2-M11.                                                                          |
+| B16                                                                                               | Resolved through R2-M23.                                                                                 |
+| B17                                                                                               | Resolved through R2-M22 and R2-M32.                                                                      |
+| M1, M2, M3, M4, M8, M9, M10, M13, M14, M15, M17, M18, M20, M21, M22, M23, M24, M25, M26, M28, M31 | Resolved (confirmed by round 2). M24's security gap is R2-B5, resolved.                                  |
+| M5                                                                                                | Resolved through R2-M28.                                                                                 |
+| M6                                                                                                | Partly resolved through R2-M17 (prices measured in M3).                                                  |
+| M7                                                                                                | Resolved through R2-M17 (eval formula).                                                                  |
+| M11                                                                                               | Resolved through R2-M26.                                                                                 |
+| M12                                                                                               | Resolved through R2-M25.                                                                                 |
+| M16                                                                                               | Resolved through R2-M18.                                                                                 |
+| M19                                                                                               | Resolved through R2-M14.                                                                                 |
+| M27                                                                                               | Resolved through R2-M27.                                                                                 |
+| M29                                                                                               | Partly resolved through R2-M15 and R2-M30 (API metric availability checked in M4).                       |
+| M30                                                                                               | Resolved through R2-M29.                                                                                 |
+| N1                                                                                                | Resolved (stateless MCP chosen, 7.1).                                                                    |
+| N2                                                                                                | Resolved (6.7).                                                                                          |
+| N3, N4, N6, N8, N9, N10, N11, N12, N13                                                            | Resolved (confirmed by round 2).                                                                         |
+| N5                                                                                                | Resolved (8.4 R7).                                                                                       |
+| N7                                                                                                | Resolved (24).                                                                                           |
 
 **Counts:** round 2: 73 findings: 67 resolved, 6 partly resolved (R2-M8, R2-M9, R2-M17, R2-M30,
 R2-M35, Nit 32), 0 rejected. Round 1: 61 findings: 57
