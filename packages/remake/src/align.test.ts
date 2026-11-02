@@ -62,9 +62,9 @@ describe("captions", () => {
     expect(cleanCaption("Leeeeave us, DOOOOOON'T shut")).toBe(
       "Leave us, DON'T shut",
     );
-    expect(cleanCaption("Alone, alone— in the crowd")).toBe(
-      "Alone, alone - in the crowd",
-    );
+    expect(
+      cleanCaption(`Alone, alone${String.fromCharCode(0x2014)} in the crowd`),
+    ).toBe("Alone, alone - in the crowd");
   });
 
   it("parses manual captions", () => {

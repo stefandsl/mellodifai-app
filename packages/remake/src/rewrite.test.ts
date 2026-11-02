@@ -62,6 +62,8 @@ type Script = {
   objections?: (round: number) => unknown[];
   writerText?: string;
   judgesDown?: boolean;
+  redactJudge?: boolean;
+  redactDevil?: (n: number) => boolean;
   cost?: number;
 };
 
@@ -112,6 +114,11 @@ function scripted(script: Script = {}) {
       }
       case "judge of remake lyrics":
         counts.judge++;
+        if (script.redactJudge)
+          return chatReply(
+            { scores: PASS, issues: ["line 1 mentions [PERSON_NAME]"] },
+            cost,
+          );
         return chatReply(
           {
             scores: script.jury?.(round()) ?? PASS,
@@ -121,6 +128,20 @@ function scripted(script: Script = {}) {
         );
       case "devil's advocate":
         counts.devil++;
+        if (script.redactDevil?.(counts.devil))
+          return chatReply(
+            {
+              objections: [
+                {
+                  category: "other",
+                  severity: "note",
+                  line: null,
+                  text: "[PERSON_NAME] is odd",
+                },
+              ],
+            },
+            cost,
+          );
         return chatReply(
           {
             objections: script.objections?.(counts.devil) ?? [
@@ -320,6 +341,35 @@ describe("rewrite", () => {
     await expect(
       rewrite(analysisFixture(), { lang: "it" }, deps(client)),
     ).rejects.toBeInstanceOf(RedactionError);
+  });
+
+  it("discards a judge that read filter tags but keeps the others", async () => {
+    const { client } = scripted({ draft: () => GOOD, redactJudge: true });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    const round = result.jury.rounds[0];
+    expect(
+      round?.verdicts.find((v) => v.model.includes("haiku"))?.error,
+    ).toMatch(/privacy filter/u);
+    expect(round?.available).toBe(true);
+    expect(result.jury.passed).toBe(true);
+  });
+
+  it("does not let a devil's advocate that read filter tags clear the draft", async () => {
+    const { client } = scripted({
+      draft: () => GOOD,
+      redactDevil: (n) => n === 1,
+    });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    expect(result.jury.rounds.map((r) => r.passed)).toEqual([false, true]);
+    expect(result.jury.rounds[0]?.devil.blocking).toBe(1);
   });
 
   it("asks again when the writer returns the wrong number of lines", async () => {

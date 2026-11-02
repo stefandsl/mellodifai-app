@@ -189,8 +189,13 @@ function enumList(name: string, values: readonly string[]) {
   return `${name}: ${values.join(" | ")}`;
 }
 
+// The vision model reads 640 px wide copies: about a quarter of the image tokens of
+// the full sheets, which keeps the call inside its 0.01 USD budget.
+export const VISION_WIDTH = 640;
+
 async function sheetImages(
   manifest: IngestManifest,
+  runner: Run,
 ): Promise<{ parts: ContentPart[]; used: number[] }> {
   const sheets = manifest.frames.contactSheets;
   const step = Math.max(1, sheets.length / MAX_SHEETS);
@@ -205,6 +210,22 @@ async function sheetImages(
   for (const k of used) {
     const sheet = sheets[k];
     if (!sheet || !existsSync(sheet.file)) continue;
+    const small = sheet.file.replace(/sheet_(\d+)\.jpg$/u, "vision_$1.jpg");
+    if (small !== sheet.file && !existsSync(small))
+      await runner("ffmpeg", [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        sheet.file,
+        "-vf",
+        `scale=${VISION_WIDTH}:-2`,
+        "-q:v",
+        "4",
+        small,
+      ]).catch(() => null);
+    const image = existsSync(small) ? small : sheet.file;
     parts.push({
       type: "text",
       text: `Sheet ${k + 1}: ${sheet.start}-${sheet.end} s, ${sheet.cols}x${sheet.rows} cells, one frame per second, timestamp burned in.`,
@@ -212,7 +233,7 @@ async function sheetImages(
     parts.push({
       type: "image_url",
       image_url: {
-        url: `data:image/jpeg;base64,${(await readFile(sheet.file)).toString("base64")}`,
+        url: `data:image/jpeg;base64,${(await readFile(image)).toString("base64")}`,
       },
     });
   }
@@ -498,7 +519,7 @@ export async function analyse(
     sections,
     durationS,
   });
-  const { parts, used } = await sheetImages(manifest);
+  const { parts, used } = await sheetImages(manifest, runner);
   const sectionOf = new Map(sections.map((s) => [s.id, s]));
   const visionUser: ContentPart[] = [
     {

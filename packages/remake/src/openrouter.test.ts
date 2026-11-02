@@ -74,6 +74,25 @@ describe("chat", () => {
     expect(String(error)).not.toContain(KEY);
   });
 
+  it("asks every model for low reasoning effort unless told otherwise", async () => {
+    const { fetchFn, calls } = fakeFetch(() => chatReply("ok"));
+    const client = createClient({ key: KEY, fetchFn });
+    await client.chat({
+      step: "v",
+      model: "google/gemini-3.8-flash",
+      system: "s",
+      user: "u",
+    });
+    await client.chat({
+      step: "w",
+      model: "anthropic/claude-sonnet-5.5",
+      system: "s",
+      user: "u",
+    });
+    expect(calls[0]?.body.reasoning).toEqual({ effort: "low" });
+    expect(calls[1]?.body.reasoning).toEqual({ effort: "low" });
+  });
+
   it("parses fenced JSON and JSON wrapped in prose", () => {
     expect(parseJsonReply('```json\n{"a":1}\n```')).toEqual({ a: 1 });
     expect(parseJsonReply('Here it is: {"a":2} hope it helps')).toEqual({

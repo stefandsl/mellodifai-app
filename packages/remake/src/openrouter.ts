@@ -89,6 +89,8 @@ export type ChatRequest = {
   json?: boolean;
   maxTokens?: number;
   temperature?: number;
+  // Reasoning cannot be disabled on these models; low effort keeps the hidden, output-billed tokens small.
+  reasoning?: { effort: "low" | "medium" | "high" };
 };
 
 export type Client = {
@@ -200,14 +202,20 @@ export function createClient(options: {
         ...(request.json ? { response_format: { type: "json_object" } } : {}),
         max_tokens: request.maxTokens ?? 2000,
         temperature: request.temperature ?? 0.7,
+        // These endpoints always reason, and hidden reasoning counts against max_tokens
+        // (seen live: Sonnet 5.5 spent all 3000 tokens thinking and returned nothing).
+        reasoning: request.reasoning ?? { effort: "low" },
         usage: { include: true },
       },
       90_000,
-    )) as { choices?: { message?: { content?: string } }[]; usage?: Usage };
+    )) as {
+      choices?: { finish_reason?: string; message?: { content?: string } }[];
+      usage?: Usage;
+    };
     record(request.step, request.model, json.usage);
     // Owner rule: no em or en dash characters anywhere in what the engine writes.
     const content = (json.choices?.[0]?.message?.content ?? "").replace(
-      /[—–]/gu,
+      new RegExp(`[${String.fromCharCode(0x2014, 0x2013)}]`, "gu"),
       "-",
     );
     if (!content.trim())
@@ -215,6 +223,11 @@ export function createClient(options: {
         `${request.model} returned an empty reply (${request.step})`,
       );
     assertNotRedacted(content, request.step);
+    const finish = json.choices?.[0]?.finish_reason;
+    if (finish && finish !== "stop" && finish !== "end_turn")
+      throw new Error(
+        `${request.model} stopped early (${finish}) in "${request.step}" after ${content.length} characters`,
+      );
     return content;
   }
 
@@ -232,7 +245,14 @@ export function createClient(options: {
           json: true,
           system: `${request.system}\nReply with one valid JSON object only, no prose.`,
         });
-        return parseJsonReply(again) as T;
+        try {
+          return parseJsonReply(again) as T;
+        } catch (error) {
+          const at = Number(/position (\d+)/u.exec(String(error))?.[1] ?? 0);
+          throw new Error(
+            `${request.model} returned invalid JSON twice in "${request.step}" (${String(error)}; near: ${JSON.stringify(again.slice(Math.max(0, at - 120), at + 60))}; ${again.length} chars)`,
+          );
+        }
       }
     },
     async embed(texts, model, step = "embeddings") {

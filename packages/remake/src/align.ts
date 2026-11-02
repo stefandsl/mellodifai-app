@@ -8,6 +8,10 @@ import type {
 } from "@mellodifai/shared";
 import { countSyllables, lineEnding } from "./syllables.js";
 
+// Em and en dashes, built from code points so no source file contains the characters.
+export const DASHES = String.fromCharCode(0x2014, 0x2013);
+const SPACED_DASHES = new RegExp(`\\s*[${DASHES}]\\s*`, "gu");
+
 const ENTITIES: Record<string, string> = {
   "&amp;": "&",
   "&lt;": "<",
@@ -26,7 +30,7 @@ export function cleanCaption(text: string): string {
       .replace(/[♪♫♬]/gu, "")
       // Lyric captions stretch sung vowels ("Leeeeave", "DOOOOON'T"): one letter is enough.
       .replace(/(\p{L})\1{2,}/gu, "$1")
-      .replace(/\s*[—–]\s*/gu, " - ")
+      .replace(SPACED_DASHES, " - ")
       .replace(/^\s*(?:>>|-)\s*/u, "")
       .replace(/\s+/gu, " ")
       .trim()

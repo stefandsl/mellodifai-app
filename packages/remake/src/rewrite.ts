@@ -119,7 +119,7 @@ function draftProblems(draft: Draft, analysis: RemakeAnalysis): string[] {
   return problems;
 }
 
-function writerSystem(options: RewriteOptions): string {
+export function writerSystem(options: RewriteOptions): string {
   return [
     "ROLE: lyric writer for a remake.",
     OWNER_RULE,
@@ -131,7 +131,10 @@ function writerSystem(options: RewriteOptions): string {
   ].join("\n");
 }
 
-function writerUser(analysis: RemakeAnalysis, options: RewriteOptions): string {
+export function writerUser(
+  analysis: RemakeAnalysis,
+  options: RewriteOptions,
+): string {
   return [
     `Target language: ${languageName(options.lang)}${options.country ? ` (country: ${options.country})` : ""}`,
     `Source language: ${languageName(analysis.sourceLanguage)}`,
@@ -257,12 +260,13 @@ function reviewUser(
 ): string {
   const rows = states.map((s) => {
     const fit = fitOf(s, options.lang);
-    return `${s.line.index}. [${s.sectionId}] "${s.text}" (target ${range(s.line.syllables)} syllables; counted ${range(fit.syllables)}) | source: "${s.line.text}"`;
+    return `${s.line.index}. [${s.sectionId}] "${s.text.toLowerCase()}" (target ${range(s.line.syllables)} syllables; counted ${range(fit.syllables)}) | source: "${s.line.text.toLowerCase()}"`;
   });
   return [
     `Target language: ${languageName(options.lang)}${options.country ? `, adapted for ${options.country}` : ""}`,
     `Source title: ${analysis.title}`,
-    `New title: ${title}`,
+    `New title: ${title.toLowerCase()}`,
+    "Lines are shown in lower case on purpose; do not judge capitalisation.",
     "Meaning map per section:",
     ...lyricSections(analysis).map(
       (s) => `${s.id}: ${meaningText(analysis, s.id)}`,
@@ -305,6 +309,8 @@ async function jevVerdict(
   return { scores, issues: [] };
 }
 
+const REDACTED_INPUT =
+  "OpenRouter's privacy filter replaced words of the lyrics with tags such as [PERSON_NAME] before this model read them";
 const isRedaction = (error: unknown) =>
   error instanceof Error && error.name === "RedactionError";
 
@@ -346,7 +352,14 @@ async function runJury(
           issues: issuesOf(reply.issues),
         };
       } catch (error) {
-        if (isRedaction(error)) throw error;
+        // The filter altered what this judge read: its verdict is discarded (our lyrics
+        // are intact; a writer reply with tags still fails the run).
+        if (isRedaction(error))
+          return {
+            model,
+            ms: Math.round(performance.now() - t0),
+            error: `verdict discarded: ${REDACTED_INPUT}`,
+          };
         return {
           model,
           ms: Math.round(performance.now() - t0),
@@ -374,13 +387,28 @@ async function runJury(
       ).length,
     };
   } catch (error) {
-    if (isRedaction(error)) throw error;
-    devil = {
-      model: models.devil,
-      objections: [],
-      blocking: 0,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    // Fail-closed: a devil's advocate that read altered lyrics cannot clear the draft.
+    if (isRedaction(error))
+      devil = {
+        model: models.devil,
+        objections: [
+          {
+            category: "safety",
+            severity: "must_fix",
+            line: null,
+            text: REDACTED_INPUT,
+          },
+        ],
+        blocking: 1,
+        error: REDACTED_INPUT,
+      };
+    else
+      devil = {
+        model: models.devil,
+        objections: [],
+        blocking: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
   }
   const valid = verdicts.filter(
     (v): v is RemakeVerdict & { scores: Record<RemakeJuryCriterion, number> } =>
