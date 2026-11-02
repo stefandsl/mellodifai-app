@@ -139,6 +139,9 @@ required Task 6 equivalents. CLI 3.0.0 rejects inbucket; use local_smtp in TOML.
 Task 5 provides ENV_TABLE, renderConfig and prepareStackDir. Task 6 must call
 prepareStackDir for repository links and supported CLI pins, then translate the
 rendered settings into the pinned compose backend. Owner SMTP remains unconfigured.
+Task 5 final validation passed after review R2: 124 database tests and 3 e2e tests
+on API 45621 and Next 3210. The conflicting Next process on the reserved e2e port
+was stopped for this run. Keep 3210 available for isolated e2e validation.
 
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
