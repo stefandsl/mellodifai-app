@@ -279,3 +279,14 @@ explicitly null until Task 14 supplies applied migration metadata and the ops
 write/read probe through narrowly granted `ops.health()` as `mdf_web`.
 `pnpm --filter @mellodifai/web build` records `git describe --tags` in
 `apps/web/.next/mdf-version`; absent metadata falls back to `dev`.
+
+M1 Task 14 installs `20261102000028_ops_layer.sql`: restricted ops functions,
+session/PAT actor resolution, idempotency opening, frozen error mappings,
+flags, audit and heartbeat tables. The base `agent_tokens` table is included
+here per preflight ruling 2; Task 15 must reuse it and add OAuth resolution
+and token operations. OAuth currently fails closed. `mdf_web` connects through
+`MDF_WEB_DATABASE_URL`; local `/api/health` now uses its write/read ops probe
+and reports applied migration metadata without a cookie. Remote health remains
+web-only. Stack start/migrate writes the fake-stack flag from `ENV_TABLE` as
+postgres; callers cannot disable real caps. Existing application grants remain
+until Task 32 lockdown. No production migration or owner action was performed.

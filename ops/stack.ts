@@ -213,15 +213,12 @@ function actions(env: StackEnv, runner: Runner): StackActions {
     execute,
     async migrate() {
       await execute(planStackCommand("migrate", env, {}));
-      // Task 5 exposes ops before Task 14 installs its objects. PostgREST 16
-      // refuses its entire cache when a configured namespace is missing.
-      // No functions, data, grants or fake_stack flag are provisioned here.
       const secrets = await loadStackSecrets(env);
       const sql = ownerConnection(
         databaseUrl("postgres", secrets.postgres, ENV_TABLE[env].ports.db),
       );
       try {
-        await sql`create schema if not exists ops authorization postgres`;
+        await sql`update public.stack_settings set fake_stack = ${ENV_TABLE[env].fakeStack} where id`;
         await sql`notify pgrst, 'reload schema'`;
       } finally {
         await sql.end();

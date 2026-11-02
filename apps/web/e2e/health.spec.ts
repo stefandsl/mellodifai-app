@@ -12,8 +12,11 @@ test("health exposes only web remotely and local detail without caching", async 
     expect(response.headers()["cache-control"]).toBe("no-store");
   }
   const local = await request.get("/api/health");
+  expect(local.status()).toBe(200);
+  expect(await local.json()).toMatchObject({ db: "ok", ops: "ok" });
   expect(Object.keys(await local.json()).sort()).toEqual([
     "db",
+    "ops",
     "queue_depth",
     "schema",
     "version",
