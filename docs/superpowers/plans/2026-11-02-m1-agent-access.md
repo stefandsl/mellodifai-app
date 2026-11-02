@@ -1061,8 +1061,14 @@ typechecks, unit tests (1284 passed, 2 skipped) and e2e-stack database tests
 occupied by a pre-existing Node process; it was not stopped or reused. The full
 report and RED/GREEN evidence index are in
 `.superpowers/sdd/2026-11-02-m1-agent-access/task-1-report.md` (gitignored).
-Completion status: DONE_WITH_CONCERNS for the blocked e2e gate and pending live
-connector verification.
+Initial implementation status: DONE_WITH_CONCERNS. Review R1 requires a passing
+e2e result before acceptance, so Task 1 acceptance is BLOCKED. The follow-up
+confirmed that port 3210 belongs to PID 83308, a Next server launched from
+`E:/mellodifai/wt/local-launcher`, outside this task's permitted worktree scope.
+The owner must free port 3210 or explicitly authorize stopping that process;
+then run the prepared `E:/mellodifai/spikes/oidc/run-review-r1-e2e.ps1` and record
+the result. The R1 focused spike rerun passed all 8 tests. No passing e2e result
+is claimed. Live connector verification remains pending separately.
 
 ## Deploy log
 
