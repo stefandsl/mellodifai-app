@@ -16,7 +16,7 @@ import { parseVtt, type TimedWord, wordsToLines } from "./align.js";
 import type { Env } from "./env.js";
 import { checkMetadata, classifyYtDlp, RemakeError } from "./errors.js";
 import { ENGINE_ROOT, PYTHON, remakesRoot } from "./paths.js";
-import { run as defaultRun, type Run, runChecked } from "./run.js";
+import { run as defaultRun, type Run, runChecked, withSignal } from "./run.js";
 import { capFrames, SHEET } from "./shots.js";
 
 // suno-remake tools/whisper_words.py supports these Whisper language codes.
@@ -96,6 +96,7 @@ export type IngestOptions = {
   sceneThreshold?: number;
   force?: boolean;
   env: Env;
+  signal?: AbortSignal;
   run?: Run;
   log?: (line: string) => void;
 };
@@ -119,7 +120,7 @@ export async function ingest(
   url: string,
   options: IngestOptions,
 ): Promise<IngestManifest> {
-  const runner = options.run ?? defaultRun;
+  const runner = withSignal(options.run ?? defaultRun, options.signal);
   const log = options.log ?? (() => {});
   const videoId = parseVideoId(url);
   if (!videoId) throw new Error(`not a YouTube video link: ${url}`);

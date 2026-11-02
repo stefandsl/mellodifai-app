@@ -176,6 +176,8 @@ export function createClient(options: {
   ledger?: Ledger;
   timeoutMs?: number;
   retries?: number;
+  // A cancelled job stops its requests (and their retries).
+  signal?: AbortSignal;
 }): Client {
   const fetchFn = options.fetchFn ?? globalThis.fetch;
   const ledger = options.ledger ?? new Ledger();
@@ -197,7 +199,12 @@ export function createClient(options: {
             "X-Title": "mellodifai remake",
           },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(options.timeoutMs ?? timeoutMs),
+          signal: options.signal
+            ? AbortSignal.any([
+                options.signal,
+                AbortSignal.timeout(options.timeoutMs ?? timeoutMs),
+              ])
+            : AbortSignal.timeout(options.timeoutMs ?? timeoutMs),
         });
         if (response.ok) return await response.json();
         const detail = (await response.text().catch(() => "")).slice(0, 300);
@@ -207,6 +214,7 @@ export function createClient(options: {
         if (response.status !== 429 && response.status < 500) break;
       } catch (error) {
         lastError = error;
+        if (options.signal?.aborted) break;
       }
       if (attempt < retries)
         await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
