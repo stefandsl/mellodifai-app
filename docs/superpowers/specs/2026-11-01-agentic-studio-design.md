@@ -1,15 +1,14 @@
 # MellodifAI Agentic Studio - master design
 
-- **Date:** 2026-11-01, revised 2026-11-02. **Revision:** 4. It answers three goldfish reviews:
-  `docs/egm/agentic-studio/goldfish_review_report.md` (round 1),
-  `docs/egm/agentic-studio/goldfish_review_round2.md` (round 2) and
-  `docs/egm/agentic-studio/goldfish_review_round3_m1.md` (round 3, M1 only). Section 28 gives the
-  disposition of every finding.
-- **Status:** M1 is ready to plan from sections 5, 6, 7, 11.5, 14.4, 15.1, 16, 19, 20 and 21.2
-  (21.2 is the single checklist). M2-M6 have
-  their contracts here; each needs its file list written before it is planned (section 21).
-  Owner decisions (section 2.1) are final. Author's calls (section 2.3) hold until the owner
-  overrules them.
+- **Date:** 2026-11-01, revised 2026-11-02. **Revision:** 5. It answers four goldfish reviews
+  (`docs/egm/agentic-studio/goldfish_review_report.md`, `goldfish_review_round2.md`,
+  `goldfish_review_round3_m1.md`, `goldfish_review_round4_m1.md`); section 28 gives the
+  disposition of every finding and the coordinator's rulings on round 4.
+- **Status:** M1 is ready to plan from 21.2, its single checklist, which points to sections 5, 6,
+  7, 11.5, 14.4, 15.1, 19 and 20. Revision 5 made M1 smaller: what agent access does not need
+  moved to M2a or W1 (21.2). M2-M6 have their contracts here; each needs its file list written
+  before it is planned. Owner decisions (2.1) are final; author's calls (2.3) hold until the
+  owner overrules them.
 - **Author:** Claude (Opus 5.5), from the owner's requests of 31/10 and 01/11, the research listed
   in section 27, and a read of the code on branch `build/studio-ui`.
 - **Extends and partly supersedes:** `docs/superpowers/specs/2026-10-31-mellodifai-design.md`
@@ -79,7 +78,7 @@ Cited as "(AC n)". "Default" means the value ships configured and can be changed
 | # | Call | Status |
 | --- | --- | --- |
 | AC1 | Production runs on the PC behind a **Cloudflare Tunnel** on mellodifai.com subdomains; Vercel plus hosted Supabase is retired as production (section 5). | in force |
-| AC2 | Remote MCP authorization uses a **small authorization server of our own** (`apps/auth`, built on the `oidc-provider` library) that issues **opaque** tokens, so OAuth tokens can never be used against Supabase. Fallback if the M1 spike fails: the same service on `@node-oauth/oauth2-server` with the same opaque tokens (6.4). | in force (changed in revisions 3 and 4) |
+| AC2 | Remote MCP authorization uses a **small authorization server of our own** (`apps/auth` on `oidc-provider`, running as `mdf-auth`) that issues **opaque** tokens, so OAuth tokens can never be used against Supabase; registration only in an admin pairing window; consent bound to the starting browser by a nonce cookie. Fallback if the M1 spike fails: the same service on `@node-oauth/oauth2-server` (6.4). | in force (changed in revisions 3, 4 and 5) |
 | AC3 | Agent compositions are **data only** (the timeline document); no agent-authored code is ever executed (section 9). | in force |
 | AC4 | The publish **clock is owned by the app**: uploads stay private until the app flips them; YouTube `publishAt` is not used and the `scheduled` privacy path is retired (section 12). | in force |
 | AC5 | Veto window default **24 h** before the slot; one veto cancels the whole bundle. | default |
@@ -92,14 +91,14 @@ Cited as "(AC n)". "Default" means the value ships configured and can be changed
 | AC12 | Push notifications go through **ntfy** (public ntfy.sh server, private random topic). | default |
 | AC13 | `main` becomes the production branch before the loop is enabled (13.6). | in force |
 | AC14 | Every write to the database by people and agents goes through the **operations layer** (schema `ops`, called by Next as the Postgres role `mdf_web` and by `apps/auth` as `mdf_auth`, neither of which can call any `public` function); the `authenticated` role keeps only reads under RLS (6.3). | in force (new in revision 3, roles split in revision 4) |
-| AC15 | In M1 the tunnel exposes only what remote agents need (5.2); the remote web UI for family and friends is a separate later step (W1, 21.1). | in force (new in revision 3) |
+| AC15 | M1 is safe agent access only: the tunnel exposes the MCP, API, OAuth and sign-in routes (5.2); the remote web UI is W1; every M1 feature that agent access does not need moved to M2a (21.2). | in force (narrowed in revision 5) |
 
 ### 2.4 Rules of the 31/10 design that this document supersedes
 
 | 31/10 rule | New rule | Replacement control |
 | --- | --- | --- |
 | Going public is a separate, explicit click per video (31/10 sections 2, 3). | Kept until M4; then auto-schedule with veto window (OD3). | Until M4: admin-only, cookie-only `confirm_publication` (6.3). From M4: publish gate (10.8), app-owned clock (12.2), Autopilot policy row (6.5), flag `auto_publish_public` (20). |
-| Every kie generation needs a confirm click (31/10 section 8). | Copilot keeps the click; Autopilot replaces it. | `reserve_spend` caps inside the RPCs (11.5) and the Autopilot policy row. |
+| Every kie generation needs a confirm click (31/10 section 8). | Copilot keeps the click; Autopilot replaces it. | `ops.reserve_job` caps inside the RPCs (11.5) and the Autopilot policy row. |
 | A song generation is never re-sent without the admin asking. | **Unchanged.** | A kie submit timeout or unknown outcome stops the run with `ambiguous_spend` and is never retried (8.6). |
 | GPT Image via codex first, kie as fallback. | OD5 order. | Router in 11.3. |
 | TikTok and Instagram publishing are non-goals. | Goals, through Postiz and Blotato (T19). | 12.5. |
@@ -138,7 +137,7 @@ role check, including the paid ones (`create_song`, `approve_lyrics`, `generate_
 `confirm_publication`, which also accepts `public` at once). The functions that check for `admin`
 today are `resolve_kie_submission`, `resolve_upload` (`20261031000009_final_fixes.sql:66`), and
 `create_song` and `request_section_edit` for local engines (`024:27`, `023:127`). Other direct
-grants still in place: INSERT on `projects` (`core.sql:236`; update and delete were revoked in
+grants still in place: INSERT on `projects` (`core.sql:237`; update and delete were revoked in
 `final_fixes.sql:2`) and `update (status)` on `jobs` with the policy "owners cancel queued jobs"
 (`security.sql:31,47-51`). `versions.lyric_pack` UPDATE was already revoked (`web_flow.sql:8`).
 `create_allowlisted_profile` is one function behind two triggers (on insert and on email
@@ -146,7 +145,8 @@ confirmation), and `[auth] enable_signup = false` (`config.toml:177`). Supabase'
 privileges grant `anon` and `authenticated` on new objects created by `postgres`
 (`final_fixes.sql:79-81`), which is why existing migrations revoke function by function.
 Today PostgREST is reachable only on the PC, so this is safe; once anything Supabase is reachable
-from outside it is not, which is why M1 changes it first (6.3). The web app writes nothing to tables directly: every write is an RPC from a server action through `runAction`
+from outside it is not, which is why M1 changes it first (6.3). The web app writes nothing to
+tables directly: every write is an RPC from a server action through `runAction`
 (`apps/web/lib/run-action.ts`), which also revalidates the affected pages. The create panel calls
 `create_song`; `create_project` is the older entry point.
 
@@ -182,7 +182,7 @@ most -1 dBTP, crushed words, a 20-frame contact sheet); `render.ts` (`render_mas
 `packages/visualizer/scripts/render.mjs` (renders this repo's Remotion project); `art.ts` (thumbnail
 and SRT; it sets the version to `video_review`, line 30); `storyboard.ts` (writes
 `data/<lang>/storyboard.json`). `score_takes` is not a stage: it is `tools/score_takes.py` in the
-engine repo, called inside `generate_song`, `import-audio.ts:66` and `local-engine.ts:570`; its
+engine repo, called inside `generate_song`, `import-audio.ts:66` and `local-engine.ts:569`; its
 `fidelity` value is in-order token recall of the intended lyrics in a Whisper transcript.
 `approve_video` requires QA gates and an override reason when one fails
 (`20261031000006_web_flow.sql:63-73`).
@@ -258,8 +258,8 @@ where stated:
 - copying the source's melody, recordings, graphics, footage or exact lyrics (only structure,
   timing, mood and meaning carry over) - originality gates (10.3), source audio never given to a
   generator (8.4);
-- spending money without the cost shown and within caps - `reserve_spend` inside every paying RPC
-  and every paid call in a stage (11.5);
+- spending money without the cost shown and within caps - a capped reservation for every job
+  with paid calls, and a spend entry for every paid call in a stage (11.5);
 - publishing a video that failed a required gate or has broken text, wrong lyrics, or silence -
   database publish gate (10.8);
 - mass-produced sameness - distinctness gate (10.6);
@@ -272,148 +272,166 @@ where stated:
 
 ### 5.1 One production topology (AC1)
 
-Production is the owner's PC, with these services:
+Production is the owner's PC, with these services. Every service runs from the repo checkout
+`C:\Users\Asus\Documents\mellodifai` unless noted; the checkout holds no key material (5.3).
 
-| Service | Listens on | Runs as | Notes |
+| Service | Listens on | Windows account | Can read |
 | --- | --- | --- | --- |
-| Next (`next start -H 127.0.0.1 -p 3000`) | `127.0.0.1:3000` only | Windows account `mdf-web` (owner action; fallback: the owner's account) | `mdf-web` cannot read `apps/worker/.env.local` or `<runtime root>/secrets/` (NTFS ACL). It has its own env file `apps/web/.env.local` (7.5). |
-| Remote edge proxy (`ops/edge-proxy.ts`) | `127.0.0.1:3080` only | `mdf-web` | Only `cloudflared` talks to it. It enforces the path allowlist of 5.2, the `Next-Action` rule of 5.2, the rate limits of 6.7 for `/oauth/*` and `/login`, sets `x-mdf-remote: 1` on every request (overwriting any incoming value) and forwards to 3000 or 3010. |
-| Authorization server (`apps/auth`, bound with `HOST=127.0.0.1`) | `127.0.0.1:3010` only | `mdf-web` | 6.4. Connects to Postgres as `mdf_auth`. |
-| Worker | none | owner's account | Needs the codex login, ComfyUI, the GPU and the engine repo. |
-| Supabase (Docker) | `127.0.0.1:54321-54329` | Docker Desktop | Never tunnelled in M1 (5.2). Studio disabled in production (`[studio] enabled = false`). |
-| Postiz (Docker) | `127.0.0.1:4007` | Docker Desktop | Tunnelled from M4. |
-| `cloudflared` | outbound only | service | Locally managed tunnel (5.5). |
+| Next (`next start -H 127.0.0.1 -p 3000`) | `127.0.0.1:3000` | `mdf-web` | the checkout, `apps/web/.env.local` |
+| Edge proxy (`ops/edge-proxy.ts`, run with `tsx`) | `127.0.0.1:3080` | `mdf-web` | the checkout |
+| Authorization server (`apps/auth`, `HOST=127.0.0.1`) | `127.0.0.1:3010` | `mdf-auth` | the checkout, `apps/auth/.env.local`, `<runtime root>/secrets/auth/` |
+| Worker | none | the owner's account | everything, as today |
+| Supabase (Docker) | `127.0.0.1:54321-54329` | Docker Desktop (owner) | its own volumes; `<runtime root>/secrets/supabase/` |
+| `cloudflared` | outbound only | service | `<runtime root>/secrets/cloudflared/` |
 
-**Remote detection fails closed.** Next and `apps/auth` treat a request as remote when any of
-`x-mdf-remote: 1`, `cf-connecting-ip` or `cf-ray` is present. Because both bind only to
-`127.0.0.1`, a request without these headers can only come from the PC itself.
-
-Services are started by `ops/services.ts` (a TypeScript script run with Node, registered as
-Windows services through a thin wrapper chosen by the builder; systemd units in M8). Start order:
-Docker and Supabase, worker, auth server, Next, edge proxy, `cloudflared`. The dev server (port
-3001) is never tunnelled. Vercel plus hosted Supabase is retired; M1 rewrites the README deploy
-section and deletes `.github/workflows/keepalive.yml`.
-
-Prerequisite (owner action, section 22): move the mellodifai.com nameservers from Hostinger to
-Cloudflare (free plan) and create the tunnel. Until then the remote half of M1 cannot pass its
-exit test; the local half can.
+- NTFS ACLs (set by `ops/services.ts install`, owner action because it needs administrator
+  rights): `apps/web/.env.local` readable by the owner and `mdf-web` only;
+  `apps/auth/.env.local` and `<runtime root>/secrets/auth/` by the owner and `mdf-auth` only;
+  `apps/worker/.env.local` and every other folder under `<runtime root>/secrets/` by the owner only.
+- Fallback if the owner does not create `mdf-web` and `mdf-auth`: every service runs as the
+  owner's account. That voids every ACL claim above, and section 17 records that a compromise of
+  Next or `apps/auth` is then a compromise of the PC.
+- The dev server also binds loopback only (`next dev -H 127.0.0.1 -p 3001`) and is never tunnelled.
+- **Remote** means "arrived through the tunnel": Next and `apps/auth` treat a request as remote
+  when any of `x-mdf-remote: 1` (set by the edge proxy, overwriting any incoming value),
+  `cf-connecting-ip` or `cf-ray` is present. Code already running on the PC, including Docker
+  containers reaching the host through `host.docker.internal`, counts as local by design: the
+  local-only rules (6.6) protect against use from the internet, not against code on the PC.
+- `ops/services.ts` (a TypeScript script run with `tsx`, in the workspace package `@mellodifai/ops`)
+  installs and starts the services in this order: Docker and Supabase, worker, `apps/auth`, Next,
+  edge proxy, `cloudflared`. Before starting `cloudflared` it compares the live ingress file with
+  `ops/cloudflared/config.template.yml` and refuses to start on a difference (tunnel drift).
+- Vercel plus hosted Supabase is retired; M1 rewrites the README deploy section and deletes
+  `.github/workflows/keepalive.yml`.
+- Prerequisite (owner action, 22): move the mellodifai.com nameservers to Cloudflare and create
+  the tunnel. Until then the remote half of M1 cannot pass its exit test; the local half can.
 
 ### 5.2 Public hostnames and routes (deny by default)
 
-The `cloudflared` ingress points every public hostname at the edge proxy (`127.0.0.1:3080`); the
-edge proxy enforces the path allowlist below and returns 404 for anything else, and the
-`cloudflared` ingress ends with `http_status:404`.
+`cloudflared` points every public hostname at the edge proxy; the edge proxy forwards only the
+paths below and returns 404 for everything else; the `cloudflared` ingress ends with
+`http_status:404`.
 
 | Step | Hostname | Allowed paths | Upstream |
 | --- | --- | --- | --- |
-| M1 | `app.mellodifai.com` | `/api/mcp`, `/api/v1/*`, `/.well-known/oauth-protected-resource*`, `/login`, `/auth/confirm`, `/consent`, `/api/health`, `/_next/static/*` | Next |
-| M1 | `app.mellodifai.com` | `/.well-known/oauth-authorization-server*`, `/.well-known/openid-configuration`, `/oauth/*` | `apps/auth` |
-| W1 (later) | `app.mellodifai.com` | every UI page | Next |
-| W1 (later) | `api.mellodifai.com` | `/auth/v1/*`, `/rest/v1/*`, `/storage/v1/*`, `/realtime/v1/*` | Supabase gateway |
-| M4 | `app.mellodifai.com` | `/m/*` (capability media links) | Next |
-| M4 | `post.mellodifai.com` | the Postiz paths listed in the M4 plan (admin UI, social OAuth callbacks, public uploads) | Postiz |
+| M1 | `app.mellodifai.com` | `/api/mcp`, `/api/v1/*`, `/.well-known/oauth-protected-resource`, `/.well-known/oauth-protected-resource/api/mcp`, `/login`, `/auth/confirm`, `/consent`, `/api/health`, `/_next/static/*`, `/_next/image`, `/favicon.ico` | Next |
+| M1 | `app.mellodifai.com` | `/oauth/*`, `/.well-known/oauth-authorization-server/oauth`, `/.well-known/openid-configuration/oauth` | `apps/auth` |
+| W1 | `app.mellodifai.com` | every UI page | Next |
+| W1 | `api.mellodifai.com` | `/auth/v1/*`, `/rest/v1/*`, `/storage/v1/*`, `/realtime/v1/*` | Supabase gateway |
+| M4 | `app.mellodifai.com` | `/m/*` | Next |
+| M4 | `post.mellodifai.com` | the Postiz paths listed in the M4 plan | Postiz |
 
-**Server actions through allowed pages.** Next dispatches server actions by the `Next-Action`
-header on a POST to any page, so an allowed page such as `/login` could otherwise reach every
-action. Two locks, both in M1:
-1. The edge proxy rejects (403) any request that carries a `Next-Action` header unless the path is
-   `/login` or `/consent`.
-2. Every server action runs through `runAction` or `remoteAction` (`apps/web/lib/run-action.ts`).
-   `runAction` refuses (code `forbidden_scope`) any call made remotely (5.1). `remoteAction` is used
-   only by the sign-in actions (`sendSignInLink`) and the consent actions (`consentDecide`). A unit
-   test fails if an exported function in `apps/web/app/**/actions*.ts` or `apps/web/app/actions/**`
-   is not wrapped by one of the two.
-
-`next.config` sets `experimental.serverActions.allowedOrigins` to `app.mellodifai.com`,
-`127.0.0.1:3000` and `localhost:3000`, because the edge proxy changes the forwarded host.
-
-In M1 nothing of Supabase is reachable from outside: sign-in for the consent page happens through
-Next (5.4), and remote agents use only `/api/mcp`, `/api/v1` and the OAuth endpoints. No
-Cloudflare Access is used in M1 (no UI pages are exposed, so there is no double sign-in). W1
-decides Access for the UI pages when it exposes them.
-
-**Never exposed:** Postgres 54322, Supabase Studio 54323, the mail catcher 54324, the Supabase
-meta and functions routes, ComfyUI (no auth), the worker, the dev server, Postiz's database and
-Redis, the Docker API. A Windows Firewall rule (owner action, 22) blocking inbound connections to
-3000, 3010, 4007, 8188 and 54321-54329 on every interface except loopback is defence in depth for
-LAN clients only: it is **not** relied on against Docker containers, because Docker Desktop on
-WSL2 may forward container traffic to published host ports without passing that filter. Against
-containers the controls are the rotated Postgres password (5.3) and the probe of 5.3 and 13.2.
+- **Credentials per route.** `/api/v1/*` accepts only a PAT in `Authorization: Bearer`. `/api/mcp`
+  accepts a PAT or an OAuth access token. Neither ever accepts a cookie, so a remote cookie session
+  reaches no operation through them. `/login`, `/auth/confirm` and `/consent` use the cookie.
+- **Server actions.** Next dispatches server actions on a POST to any page, so an allowed page could
+  reach every action. The control is in `runAction` (`apps/web/lib/run-action.ts`): it refuses
+  (`forbidden_scope`) any call made remotely. Only the actions that `remoteAction` wraps run
+  remotely: `sendSignInLink` (5.4) and `consentDecide` (6.4). A unit test scans every module that
+  starts with `"use server"` and fails if an exported function is wrapped by neither; actions that
+  return their own result type (`formatStyle`) call the same remote check directly. The edge proxy
+  also refuses a `Next-Action` header outside `/login` and `/consent` as an extra filter (multipart
+  action posts carry no such header, which is why `runAction` is the real control).
+- `next.config` sets `experimental.serverActions.allowedOrigins` to `app.mellodifai.com`,
+  `127.0.0.1:3000` and `localhost:3000`.
+- **Never exposed:** Postgres 54322, Supabase Studio 54323, the mail catcher 54324, the Supabase
+  meta and functions routes, ComfyUI, the worker, the dev server, the Docker API. A Windows
+  Firewall rule (owner action) blocking LAN access to 3000, 3001, 3010, 3080, 4007, 8188 and
+  54321-54329 is defence in depth against the LAN only; against containers the controls are the
+  rotated database passwords and the probe (5.3).
 
 ### 5.3 Supabase hardening (M1, before any route goes live)
 
-1. **Key rotation flow** (`ops/rotate-supabase-keys.ts`, run once in M1 and on demand):
-   - generates an ES256 signing key with `supabase gen signing-key --algorithm ES256` into
-     `<runtime root>/secrets/supabase/signing_keys.json` and copies it to the gitignored
-     `supabase/signing_keys.json`, which `config.toml` names in `signing_keys_path`;
-   - sets a new random JWT secret (the exact `config.toml` field or env substitution is confirmed
-     in the step 0 spike, written result in the M1 plan);
-   - restarts the stack, reads the new anon and service keys from `supabase status -o json`
-     without printing them, and writes them into `apps/worker/.env.local`
-     (`SUPABASE_SERVICE_ROLE_KEY`) and `apps/web/.env.local` (`NEXT_PUBLIC_SUPABASE_ANON_KEY`);
-   - exit test: a `service_role` JWT signed with the public demo secret is refused by the local
-     gateway.
-   CI generates a throwaway key into `supabase/signing_keys.json` before `supabase start`. The e2e
-   stack has its own working folder and its own key (21.2 step 1), so e2e tokens never verify on
-   production.
-2. **Postgres superuser password: mandatory.** The production `postgres` password is changed to a
-   random value stored in `<runtime root>/secrets/supabase/db-password`; every CLI call that needs
-   the database (`supabase migration up`, `ops/deploy.ts`) passes `--db-url` with it. The step 0
-   spike confirms the CLI commands M1 uses work this way. **Probe (M1 exit criterion):** from a
-   throwaway container on Docker's default bridge network, connecting to
-   `host.docker.internal:54322` as `postgres` with the old default password must fail, and so must
-   `mdf_web` and `mdf_auth` without their passwords. M1 does not exit until the probe passes.
-3. `site_url = https://app.mellodifai.com`; `additional_redirect_urls` = the app host plus
-   `http://127.0.0.1:3000/**` and `http://localhost:3000/**`. `[auth] enable_signup = false` stays
-   (`config.toml:177`): accounts exist only for allowlisted emails.
-4. A real SMTP sender for one-time codes (owner action). The email template links to
-   `https://app.mellodifai.com/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=...`, so
-   verification is server-side.
-5. Postiz gets `DISABLE_REGISTRATION=true` after the owner's account exists (M4).
+1. **One rendered working folder per stack, outside the checkout.** `ops/stack.ts render
+   --env <prod|e2e|ci|dev>` writes `<stack folder>/supabase/config.toml` from the repo's
+   `supabase/config.toml` plus the per-environment values below, and links the repo's
+   `supabase/migrations`, `supabase/seed.sql` and `supabase/templates`. Every `supabase` CLI call
+   for that stack uses `--workdir <stack folder>`. Stack folders: production
+   `<runtime root>/stacks/prod`, e2e `<runtime root>/stacks/e2e`, CI `$RUNNER_TEMP/stack`, dev
+   `<runtime root>/stacks/dev`. The repo's own `config.toml` stays valid for a plain `supabase
+   start` and holds no production values.
 
-### 5.4 Sign-in, URLs and media
+   | Value | dev | e2e | CI | prod |
+   | --- | --- | --- | --- | --- |
+   | `SITE_URL` (`auth.site_url`, and Next's server-only `SITE_URL`) | `http://127.0.0.1:3000` | `http://127.0.0.1:3210` | `http://127.0.0.1:3210` | `https://app.mellodifai.com` |
+   | `additional_redirect_urls` | `http://127.0.0.1:3000/**`, `http://localhost:3000/**` | `http://127.0.0.1:3210/**` | `http://127.0.0.1:3210/**` | `https://app.mellodifai.com/**`, `http://127.0.0.1:3000/**`, `http://localhost:3000/**` |
+   | API port (and neighbours) | 54321 | 45621 | 54321 | 54321 |
+   | SMTP | mail catcher | mail catcher (45624) | mail catcher (54324) | the owner's SMTP sender (owner action) |
+   | `signing_keys_path` | throwaway key in the stack folder | throwaway key in the stack folder | throwaway key in `$RUNNER_TEMP` | `<runtime root>/secrets/supabase/signing_keys.json` |
+   | `[auth.sessions]` | default | default | default | `timebox = "168h"`, `inactivity_timeout = "24h"` |
+   | `app.fake_stack` database setting | off | on | on | off (the deploy refuses to run if on) |
 
-- **Sign-in through the server (M1).** `components/login-form.tsx` calls the server action
-  `sendSignInLink(email, next)` (wrapped by `remoteAction`), which runs `signInWithOtp` on the
-  server with `emailRedirectTo` built by `lib/redirect-url.ts` from the public origin and the
-  validated `next`. `app/auth/confirm/route.ts` (Modify: it exists and today only exchanges a PKCE
-  `code` and redirects to `/create`) accepts either `token_hash` plus `type` (`verifyOtp`) or
-  `code` (`exchangeCodeForSession`), then redirects to `next`. `next` is validated: a relative
-  path that is `/consent?uid=<id>` or, for local requests only, any app path; anything else falls
-  back to `/create` locally and `/consent` remotely. `app/(auth)/login/page.tsx` stops reading
-  `NEXT_PUBLIC_SUPABASE_URL` and passes `next` through. The `proxy.ts` rewrite of stray `?code=`
-  requests to `/auth/confirm` is kept (that path is allowed).
-- **Server URL.** The server uses a new server-only variable `SUPABASE_INTERNAL_URL`
-  (`http://127.0.0.1:54321`) in `proxy.ts` and `lib/supabase/server.ts`.
-- **Browser URL (W1).** `NEXT_PUBLIC_SUPABASE_URL` stops being used by the browser client. The
-  root layout passes the browser a URL chosen per request: `http://127.0.0.1:54321` when the
-  request is local, `https://api.mellodifai.com` when it is remote. All three clients pin
-  `cookieOptions.name = "sb-mellodifai-auth-token"`. Done in W1, after the DNS move.
-- **Media.** From M1, `/media/...` keeps the session check and **streams** the object through Next
-  (HTTP Range supported, read with the server client), instead of redirecting to the storage host.
-  The server-made signed URLs in `clips.ts:498`, `stems.ts:153` and `projects/[id]/page.tsx:66,143`
-  are replaced by `/media/...` paths. Token callers get no media bytes in M1 (7.3).
-- **Capability links (M4).** `/m/<token>` serves one render to external fetchers (Postiz, Blotato,
-  platforms): a random 256-bit token, only its hash stored, created at hand-off time, expiring 72 h
-  after hand-off, revoked on veto and 24 h after the post is confirmed.
-- Secrets never reach the browser; the service key never leaves the worker's env file.
+2. **Signing key outside the checkout (ruling 4).** `ops/rotate-supabase-keys.ts` generates an
+   ES256 key with `supabase gen signing-key --algorithm ES256` directly into
+   `<runtime root>/secrets/supabase/signing_keys.json` (readable by the owner only), sets a new JWT
+   secret in the rendered production config, restarts, reads the new anon and service keys from
+   `supabase status -o json` without printing them, and writes them into
+   `apps/worker/.env.local` (`SUPABASE_SERVICE_ROLE_KEY`) and `apps/web/.env.local`
+   (`NEXT_PUBLIC_SUPABASE_ANON_KEY`). `ops/check-no-keys.ts` (run in CI, by `ops/deploy.ts` and by a
+   pre-commit hook) fails when a file named `signing_keys*.json` or `*jwks*.json`, or a JSON file
+   holding a private JWK (`"d":`), exists anywhere in the working tree, tracked or not. Exit test: a
+   `service_role` JWT signed with the public demo secret is refused by the local gateway.
+3. **Every database login password rotated (ruling 8).** Spike 2 lists every login role in the
+   pinned Supabase Postgres image (`select rolname from pg_roles where rolcanlogin`; expected at
+   least `postgres`, `supabase_admin`, `authenticator`, `supabase_auth_admin`,
+   `supabase_storage_admin`, `supabase_functions_admin`, `supabase_replication_admin`,
+   `supabase_read_only_user`, `pgbouncer`, plus `mdf_web` and `mdf_auth`) and records how the
+   service containers receive their passwords. `ops/rotate-db-passwords.ts` sets a new random
+   password for every one of them, stored in `<runtime root>/secrets/supabase/db-passwords.json`,
+   and re-templates the service containers to use them. If the CLI-managed stack cannot take
+   per-role passwords, spike 2's written fallback runs the production database stack from
+   Supabase's pinned self-hosting compose files, which template every service role from one
+   `POSTGRES_PASSWORD`, rendered into `<runtime root>/stacks/prod`. **Exit probe:** from a throwaway
+   container on Docker's default bridge network, a login to `host.docker.internal:54322` as every
+   listed role with the default password `postgres` must fail; so must `mdf_web` and `mdf_auth`
+   without their passwords. M1 does not exit until it does.
+4. `[auth] enable_signup = false` stays (`config.toml:177`).
+5. Postiz gets `DISABLE_REGISTRATION=true` in M4.
 
-### 5.5 Cloudflare setup (who does what)
+### 5.4 Sign-in
 
-- Tunnel: locally managed. The owner runs `cloudflared tunnel login` and `cloudflared tunnel
-  create mellodifai` once (they need his Cloudflare login). The credentials JSON and `config.yml`
-  live in `<runtime root>/secrets/cloudflared/`; the repo holds the template
-  `ops/cloudflared/config.template.yml`, which the builder fills.
-- No Access application and no WAF rule are needed in M1; the edge proxy and the app rate-limit
-  (6.7).
+- `components/login-form.tsx` calls the server action `sendSignInLink(email, next)` (wrapped by
+  `remoteAction`). It validates `next` (below), builds `emailRedirectTo` per request with
+  `lib/redirect-url.ts` (the local origin `http://127.0.0.1:3000` for a local request, `SITE_URL`
+  for a remote one, then `/auth/confirm?next=<encoded next>`), and runs `signInWithOtp` with
+  `shouldCreateUser: false` on the server. It answers the same way whether or not the email is
+  allowlisted, and limits 5 calls per 15 minutes per email.
+- **Email template** `supabase/templates/magic_link.html` (Create; named in the rendered config as
+  `[auth.email.template.magic_link] content_path`): its link is
+  `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`, so the link always returns to the
+  origin the request came from (ruling 6).
+- `app/auth/confirm/route.ts` (Modify) accepts `token_hash` plus `type` (`verifyOtp`) or `code`
+  (`exchangeCodeForSession`), then redirects to the validated `next`.
+- **`next` rule:** a relative path. Remote requests accept only `/consent?uid=<id>`; local
+  requests accept any app path. Anything else becomes `/create` (local) or `/login` (remote).
+- `lib/redirect-url.ts` (Modify) builds absolute URLs from the request's origin for local requests
+  and from the server-only `SITE_URL` for remote ones; `NEXT_PUBLIC_SITE_URL` is replaced by
+  `SITE_URL` in Next, `playwright.config.ts` and `ci.yml`.
+- `proxy.ts` keeps its rewrite of stray `?code=` requests to `/auth/confirm`, takes Supabase's
+  URL from the new server-only `SUPABASE_INTERNAL_URL`, and excludes `/api/v1`, `/api/mcp`,
+  `/.well-known/`, `/api/health` and `/api/transcribe` from its matcher (the last because the proxy
+  buffers at most 10 MB and silently truncates larger transcription uploads today).
+- New users: there is no sign-up and no in-app way to add people in M1. `ops/add-user.ts <email>
+  <role>` (owner, local, service key) inserts the allowlist row and creates the auth user with
+  `auth.admin.createUser({ email, email_confirm: true })`. Inviting from Settings is M2a.
 
-### 5.6 Session proxy and health
+### 5.5 Cloudflare setup
 
-`apps/web/proxy.ts` excludes `/api/v1`, `/api/mcp`, `/m/`, `/.well-known/` and `/api/health` from
-its matcher. `/api/health` returns `{ web: "ok", db: "ok"|"down", ops: "ok"|"down",
-worker_heartbeat_age_s, queue_depth, version, schema }` and nothing else, where `ops` is the result
-of `ops.health()` called as `mdf_web` (so an app that cannot use the ops layer is unhealthy) and
-`schema` is the newest applied migration name.
+The owner runs `cloudflared tunnel login` and `cloudflared tunnel create mellodifai` once. The
+credentials JSON and the live `config.yml` live in `<runtime root>/secrets/cloudflared/`; the repo
+holds `ops/cloudflared/config.template.yml`. No Access application and no WAF rule in M1.
+
+### 5.6 Health
+
+`/api/health` returns `{ web: "ok" }` to remote callers. Local callers also get `db`, `ops`
+(`ops.health()` called as `mdf_web`, which writes and reads back a heartbeat row, so a read-only or
+broken ops layer is unhealthy), `worker_heartbeat_age_s`, `queue_depth`, `version` and `schema`
+(the newest applied migration).
+
+### 5.7 Moved out of M1
+
+`/media` streaming, the browser Supabase URL switch and cookie-name pinning go to W1 (they matter
+only once UI pages are remote). Capability links stay M4.
 
 ## 6. Identity, scopes and authorization
 
@@ -421,306 +439,322 @@ of `ops.health()` called as `mdf_web` (so an app that cannot use the ops layer i
 
 | Principal | Credential | Reaches the database through |
 | --- | --- | --- |
-| Person in the web UI | Supabase cookie session | Reads: supabase-js under RLS, as today. Writes: the ops layer as `mdf_web` (6.3). |
-| Agent with a personal access token (PAT) | `Authorization: Bearer mdf_pat_...` | The ops layer only, reads included (6.3, 7.3). |
-| Remote agent (claude.ai, ChatGPT) | opaque OAuth access token `mdf_oat_...` from `apps/auth` | The ops layer only, through `/api/mcp`. |
-| Authorization server `apps/auth` | Postgres role `mdf_auth` | Only the `ops.oauth_*` storage functions (6.4). |
-| Autopilot | system token row, no secret | Worker-only functions (6.5). |
-| Canary and test jobs | `canary` or `test_mode` token rows | The ops layer; fake providers only (6.9). |
-| Worker | service role (on the PC only) | As today, plus the worker ledger functions (11.5). |
+| Person in the web UI | Supabase cookie session | Reads: supabase-js under RLS, as today. Writes: `ops` functions as `mdf_web` (6.3). |
+| Agent with a personal access token (PAT) | `Authorization: Bearer mdf_pat_...` | `ops` functions only, reads included. |
+| Remote agent (claude.ai, ChatGPT) | opaque OAuth access token from `apps/auth` | `ops` functions only, through `/api/mcp`. |
+| Authorization server `apps/auth` | Postgres role `mdf_auth` | Only the `ops.oauth_*` functions of 6.4. |
+| Worker | service role | As today, plus the worker ledger and scheduler functions (11.5, 14.4). |
+| Autopilot (M5) | system token row | Worker-only functions (6.5). |
 
 ### 6.2 Scopes and roles
 
-- `read`: read the owner's own songs, jobs, costs and notifications.
-- `create`: actions with no paid call (edit, pick, render, stems, visualizer, playlists, uploads).
-- `spend`: any action that reserves paid spend, including `song_create` (paid lyric drafting) and
-  `remake_start` (paid analysis).
-- `publish`: schedule publishing. **Not grantable before M4**; from M4 it only schedules through
-  the veto window. There is no "publish now" operation for tokens at any time.
-- **Admin operations** (6.3.6) are cookie-only, admin-only and, in M1, local-only (refused when
-  the request is remote), except `admin_remote_close`, which only removes power and works remotely.
-- **Who holds tokens in M1:** only admins create PATs and only admins see the consent page's
-  `spend` box, so customers have no tokens in M1. Customers still use the UI with their caps.
-- **Roles** (migration `ops_roles`, DDL in 15.1):
-  - `admin_allowlist` gains `role text not null default 'customer'`, and a unique index on
-    `lower(email)` (the migration raises if two rows differ only by case).
-  - The migration copies today's roles from `profiles` into `admin_allowlist` (so nothing changes
-    at migration time and CI stays env-free), then changes `create_allowlisted_profile` to insert
-    the allowlist row's role.
-  - The deploy step `ops/set-owner.ts` (run by `ops/deploy.ts` right after migrations, as
-    `postgres`) sets `role = 'admin'` for `MELLODIFAI_OWNER_EMAIL` and `role = 'customer'` for
-    every other row in both `admin_allowlist` and `profiles`, then aborts the deploy unless exactly
-    one admin exists and it is that email. A recreated owner account therefore comes back as admin.
-  - `supabase/seed.sql` inserts `('admin@mellodifai.local', 'admin')`;
-    `apps/web/e2e/global-setup.ts` upserts the e2e admin with `role: 'admin'` and a second e2e user
-    with `role: 'customer'`.
-  - The storage policy on `previews` keeps "admins read all", which now means only the owner.
-- Customers may hold `read`, `create` and `spend` in principle; never `publish`, never local
-  engines. Their spending is bounded by the role default caps (11.5): 0.10 USD per day and **0 kie
-  credits**, so no music generation until the owner raises their kie cap.
-- Selecting Autopilot (M5) needs an admin cookie session or a token holding both `spend` and
-  `publish`; the initiating token's caps also apply to the run (6.5).
+- `read`: read the actor's own songs, jobs and costs.
+- `create`: actions with no kie or other generation spend. They may reserve bounded incidental
+  transcription (Groq take scoring for `take_pick`, `video_make`, `video_rerender`; at most the
+  `provider_operations` estimate, counted against the caps like any spend).
+- `spend`: actions that reserve generation spend (`song_create`, `lyrics_approve`,
+  `song_generate_again`, a retry of a paid stage).
+- `publish`: not grantable before M4.
+- **Who holds tokens in M1: admins only.** `ops.admin_token_create` and `ops.oauth_consent` refuse
+  an owner whose role is not `admin` (exit test). Customers use the web UI only.
+- **Admin operations** (6.3.6) need a cookie session of an admin, made locally, with a recently
+  refreshed session (6.3.4).
+- **Roles** (migration `ops_roles`, 15.1): `admin_allowlist` gains `role` (default `customer`) and
+  a unique index on `lower(email)`; the migration copies today's roles from `profiles`, then
+  `create_allowlisted_profile` inserts the allowlist row's role. `ops/set-owner.ts` (run by
+  `ops/deploy.ts` after migrations, as the database owner) sets `admin` for
+  `MELLODIFAI_OWNER_EMAIL` and `customer` for every other row in both tables, and aborts the deploy
+  unless exactly one admin exists. There is no role editing in the app in M1, so nothing is undone
+  at the next deploy. `supabase/seed.sql` inserts `('admin@mellodifai.local', 'admin')`;
+  `apps/web/e2e/global-setup.ts` creates the e2e admin with role `admin` and a second e2e user with
+  role `customer`.
+- Customers are never granted `publish` or local engines; their UI spending is bounded by the
+  `default:customer` caps (11.5).
 
 ### 6.3 The operations layer in the database (AC14)
 
-The database is the enforcement point. No role used by Next or `apps/auth` can call a mutating
-`public` function, so scopes, caps, reservations, idempotency, audit and the admin-session rule
-cannot be skipped by anything that holds those credentials.
+No role used by Next or `apps/auth` can call a mutating `public` function, so scopes, caps,
+reservations, idempotency, audit and the admin rules cannot be skipped by anything that holds those
+credentials.
 
 #### 6.3.1 Roles and connections
 
-| Role | Login | Used by | Connection env var (password in the same file) |
-| --- | --- | --- | --- |
-| `mdf_web` | yes | Next (`apps/web/lib/db/ops-client.ts`, `postgres` npm client) | `MDF_WEB_DATABASE_URL` in `apps/web/.env.local` |
-| `mdf_auth` | yes | `apps/auth` | `MDF_AUTH_DATABASE_URL` in `apps/auth/.env.local` |
+| Role | Used by | Connection env var |
+| --- | --- | --- |
+| `mdf_web` | Next (`apps/web/lib/db/ops-client.ts`, `postgres` npm client) | `MDF_WEB_DATABASE_URL` in `apps/web/.env.local` |
+| `mdf_auth` | `apps/auth` | `MDF_AUTH_DATABASE_URL` in `apps/auth/.env.local` |
 
-Migration `ops_scopes` creates both roles `NOLOGIN`; `ops/deploy.ts` (production) and
-`ops/e2e-stack.ts` (e2e, CI) set `LOGIN PASSWORD` from their env files. Neither role inherits
-anything (`NOINHERIT`), is a member of any other role, or owns anything. The secret redaction of
-both apps covers both URLs. There is no JWT signing key in Next or `apps/auth`.
+The migration creates both roles only if they do not exist (`do $$ begin if not exists (select 1
+from pg_roles where rolname = 'mdf_web') then create role mdf_web nologin noinherit; end if; ...`),
+because roles are cluster-wide and a `db reset` can keep them. `ops/rotate-db-passwords.ts` (prod)
+and `ops/stack.ts` (e2e, CI) set `LOGIN PASSWORD`. Neither role owns anything or is a member of
+any role. There is no JWT signing key in Next or `apps/auth`.
 
-#### 6.3.2 Exact grants (migration `ops_scopes`)
+#### 6.3.2 Grants
 
 ```sql
--- Schema ops: owned by postgres, closed to everyone else.
+-- Global default: no new function is executable by PUBLIC (the per-schema form cannot remove the
+-- built-in PUBLIC EXECUTE on functions; this global form can).
+alter default privileges for role postgres revoke execute on functions from public;
+-- Supabase's per-schema defaults grant anon and authenticated directly
+-- (20261031000009_final_fixes.sql:79-81); reverse them for both schemas.
+alter default privileges for role postgres in schema public revoke execute on functions from anon, authenticated;
+alter default privileges for role postgres in schema public revoke all on tables, sequences from anon, authenticated;
+alter default privileges for role postgres in schema ops    revoke execute on functions from anon, authenticated, service_role;
+alter default privileges for role postgres in schema ops    revoke all on tables, sequences from anon, authenticated, service_role;
 create schema ops;
-revoke all on schema ops from public, anon, authenticated, service_role;
-grant usage on schema ops to mdf_web, mdf_auth;
-
--- Default privileges (Supabase grants anon and authenticated directly for objects created by
--- postgres, see 20261031000009_final_fixes.sql:79-81). Revoke them for everything created
--- from now on, in both schemas.
-alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated;
-alter default privileges for role postgres in schema public revoke all on tables    from anon, authenticated;
-alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated;
-alter default privileges for role postgres in schema ops    revoke execute on functions from public, anon, authenticated, service_role;
-alter default privileges for role postgres in schema ops    revoke all on tables    from public, anon, authenticated, service_role;
-alter default privileges for role postgres in schema ops    revoke all on sequences from public, anon, authenticated, service_role;
-
--- Existing functions: deny all, then re-grant exactly.
-revoke execute on all functions in schema public from public, anon, authenticated;
-grant execute on function public.my_playlists(), public.my_queue_positions(), public.my_section_queue(),
-  public.my_stems_queue(), public.my_visualizer_queue(), public.playlist_membership(uuid)
-  to authenticated;                        -- read RPCs used by the UI (exact signatures from pg_proc)
-grant execute on function <every function referenced by a policy> to authenticated;
-  -- listed by the migration from pg_policies (for example owned_playlist, audio_upload_ok,
-  -- visualizer_asset_ok, stems_allowed_status, rewrite_allowed_status); the ACL test below fails
-  -- if one is missing or extra
--- service_role keeps the worker functions it has today (claim_job, heartbeat_job, requeue_stale,
--- reserve_youtube_upload, reserve_publication_upload, release_youtube_upload) and gets the new
--- worker ledger and scheduler functions (11.5, 14.4). Mutating public RPCs (create_song,
--- approve_lyrics, ...) are granted to nobody: only their owner (postgres) can run them, which is
--- how the security-definer ops wrappers call them.
-
--- Direct writes that survive today.
-revoke insert on public.jobs from authenticated;                -- security.sql:30, pipeline_hardening.sql:26
-revoke update on public.jobs from authenticated;                -- the update (status) grant, security.sql:31
-drop policy "owners enqueue jobs" on public.jobs;               -- perf_indexes.sql:22-33
-drop policy "owners cancel queued jobs" on public.jobs;         -- security.sql:47-51 (cancel becomes ops.job_cancel)
-revoke insert on public.projects from authenticated;            -- core.sql:236 (update, delete revoked in final_fixes.sql:2)
-revoke insert on public.versions from authenticated;            -- pipeline_hardening.sql:23 (column grant)
--- versions.lyric_pack UPDATE was already revoked in web_flow.sql:8; the ACL test confirms it.
-
--- Every ops function: owner postgres, security definer, set search_path = '', EXECUTE granted
--- by name only, to mdf_web (6.3.6 list) or mdf_auth (6.4 list).
+revoke all on schema ops from public;
+grant usage on schema ops to mdf_web, mdf_auth, service_role;
+-- Every ops function: security definer, owner postgres, set search_path = '', and EXECUTE granted
+-- by name to exactly one of mdf_web, mdf_auth, service_role (6.3.6, 6.4, 11.5, 14.4) after an
+-- explicit revoke from public.
 ```
 
-Storage writes that stay for cookie sessions in the UI (PostgREST storage is not reachable from
-outside in M1): the policies "owners upload studio files", "owners read studio files" and
-"owners delete studio files" (`20261101000022_visualizer.sql:40-59`; the delete policy gains the
-same profile check as the upload policy), and "owners upload edited audio", "owners read edited
-audio" and "owners delete unsaved edited audio" (`20261101000020_stems_and_editor.sql:104-128`).
-`audio_upload_ok` and `visualizer_asset_ok` are the validator functions these policies and RPCs
-use. Token callers never write storage directly (7.3, uploads).
+The lockdown (migration `ops_lockdown`, the last M1 migration, 21.2):
+
+```sql
+revoke execute on all functions in schema public from public, anon, authenticated;
+grant execute on function public.my_playlists(), public.my_queue_positions(),
+  public.my_section_queue(), public.my_stems_queue(), public.my_visualizer_queue(),
+  public.playlist_membership(uuid[]) to authenticated;   -- the UI's six read RPCs
+-- No RLS or storage policy in the repo calls a public function, so nothing else is re-granted.
+revoke insert on public.jobs from authenticated;                 -- security.sql:30
+revoke update on public.jobs from authenticated;                 -- security.sql:31
+drop policy "owners enqueue jobs" on public.jobs;                -- perf_indexes.sql:22-33
+drop policy "owners cancel queued jobs" on public.jobs;          -- security.sql:47-51
+revoke insert on public.projects from authenticated;             -- core.sql:237
+revoke insert on public.versions from authenticated;             -- pipeline_hardening.sql:23
+drop function public.resolve_kie_submission(uuid, text);        -- the old overload, 007:52-75
+```
+
+`service_role` keeps EXECUTE on the `public` functions it has today (Supabase grants it every
+function; `final_fixes.sql:102` adds some explicitly). That is not a hole, since the service key
+already bypasses RLS; `acl-allowlist.json` lists those grants rather than the migration revoking
+them. Storage write policies used by the cookie UI stay unchanged ("owners upload studio files",
+"owners delete studio files" with a profile check added, "owners upload edited audio", "owners
+delete unsaved edited audio").
 
 #### 6.3.3 ACL test (CI, `supabase/tests/ops_acl.test.ts`)
 
-Connects as `postgres` to the stack under test and, for every function, table, view and sequence
-in schemas `public` and `ops`, reads `has_function_privilege`, `has_table_privilege` and
-`has_sequence_privilege` for `anon`, `authenticated`, `mdf_web`, `mdf_auth` and `service_role`. It
-compares the result with the checked-in file `supabase/tests/acl-allowlist.json` and fails on any
-grant that is not listed or any listed grant that is missing. A new migration therefore cannot add
-a callable object without also changing that file in the same commit, where review sees it. It
-also asserts: `mdf_web` and `mdf_auth` have EXECUTE on no `public` function; every `ops` function
-is `security definer` with `search_path` set to empty; `pg_roles` shows `mdf_web` and `mdf_auth`
-with no memberships.
+Connects as the database owner and compares with `supabase/tests/acl-allowlist.json`:
+- for every function, table, view and sequence in `public` and `ops`: `has_function_privilege`,
+  `has_table_privilege`, `has_sequence_privilege` for `anon`, `authenticated`, `mdf_web`,
+  `mdf_auth`, `service_role`;
+- column grants from `information_schema.column_privileges` for the same five roles;
+- schema USAGE for `mdf_web` and `mdf_auth` in every non-system schema;
+- the `storage.objects` policy names and definitions;
+- `pg_auth_members` rows where `mdf_web` or `mdf_auth` is the member (expected: none);
+- every `ops` function is `security definer` with an empty `search_path`.
+Any difference fails, so a new callable object needs a reviewed change to the allowlist file.
 
 #### 6.3.4 How a wrapper works
 
-Every `ops` function that acts for a user has the form `ops.<op>(p_ctx jsonb, ...) returns jsonb`
-and returns `{"ok": true, "data": ...}` or `{"ok": false, "code": ..., "message": ...}`; it never
-raises to the caller for expected failures, so audit rows and notifications written after a
-failure persist (the failing work runs inside a `begin ... exception ... end` block, which is a
-savepoint).
+An `ops` function that acts for a user has the form `ops.<op>(p_ctx jsonb, ...) returns jsonb` and
+returns `{"ok": true, "data": ...}` or `{"ok": false, "code": ..., "message": ...}`. `p_ctx` holds
+`actor_kind` (`session`, `pat`, `oauth`), `user_id` and `session_id` (sessions), `token_hash` or
+`access_token_hash` (tokens), `remote`, `request_id`, `idempotency_key`, `request_hash`. Steps:
 
-`p_ctx` fields: `actor_kind` (`session`, `pat`, `oauth`), `user_id` and `session_id` (sessions),
-`token_hash` (PAT) or `access_token_hash` (OAuth), `remote` (boolean), `request_id`,
-`idempotency_key`. The wrapper never trusts a user id or flag it can derive itself:
-1. **Resolve the actor.** Session: `ops` checks `auth.sessions` for a row with `id = session_id`,
-   `user_id = user_id` and `not_after` null or in the future; Next takes `session_id` from the
-   verified access token's `session_id` claim after `supabase.auth.getUser()`. PAT:
-   `agent_tokens.token_hash = token_hash`, not revoked, not expired. OAuth: 6.4's resolution. The
-   resolved row gives the actor, role, token id, scopes, `test_mode` and `remote` permission.
-2. **Check** the profile exists, the scope (tokens), the role rule, the admin rule (admin
-   operations: `actor_kind = 'session'`, role `admin`, and `remote = false` except
-   `admin_remote_close`), and the test-run rule (6.9).
-3. **Idempotency**: completes the key that Next opened beforehand (7.2): in the same transaction
-   as the work, the `idempotency_keys` row moves from `in_flight` to `done` with the response.
-4. **Work**: sets `request.jwt.claims` locally (`set_config(..., true)`) to `{"sub": <actor>,
-   "role": "authenticated"}` so the existing RPCs' `auth.uid()` works, calls the `public` RPC,
-   finds the jobs it created (`select ... from public.jobs where owner_id = <actor> and created_at
-   = now()`, which is the current transaction's start time), sets `token_id`, `run_id`,
-   `fake_providers` and `test_run` on them (`fake_providers` from the token's `test_mode`, never
-   from `p_ctx`), and calls `public.reserve_job_spend(job_id)` for each (11.5). Any failure rolls
-   back the savepoint, so a refused reservation leaves no job behind.
-5. **Audit**: one `audit_log` row (ok or error), plus a `cap_hit` notification when the error is
-   `cap_exceeded`.
+1. **Resolve the actor.**
+   - Session: Next reads `session_id` and `sub` with `supabase.auth.getClaims()` (which verifies
+     the access token); the wrapper requires an `auth.sessions` row with that `id` and `user_id`,
+     `not_after` null or future, and `coalesce(refreshed_at, created_at)` within the last 65 minutes
+     (the access-token lifetime plus margin; refreshing the cookie updates it). Production sessions
+     also end by the `timebox` and `inactivity_timeout` of 5.3. Spike 2 confirms that a
+     `postgres`-owned definer function can read `auth.sessions`.
+   - PAT: `agent_tokens.token_hash = token_hash`, not revoked, not expired; if `remote` is true and
+     the token's `remote` is false, refuse.
+   - OAuth: as 6.4, and only while the `remote_mcp` flag is on (read in the database).
+2. **Check** the profile, the scope, the role rule, the admin rule (`actor_kind = 'session'`, role
+   `admin`, `remote = false`), and the test rule: a `test_mode` token may act only on versions with
+   `test_run = true`, and any other actor only on versions with `test_run = false`.
+3. **Idempotency** (operations that enqueue or spend): for token actors the key is required
+   (`validation` if missing). Next has opened the key in its own committed transaction (7.2).
+4. **Work**, inside `begin ... exception ... end` (a savepoint):
+   - set, transaction-locally, **all three** claim settings (ruling 2):
+     `set_config('request.jwt.claim.sub', actor, true)`,
+     `set_config('request.jwt.claim.role', 'authenticated', true)` and
+     `set_config('request.jwt.claims', json_build_object('sub', actor, 'role', 'authenticated')::text, true)`,
+     then assert `auth.uid() = actor` (raises `MDF03` otherwise);
+   - set `mdf.job_ctx` locally to `{token_id, run_id, fake_providers}` (`fake_providers` from the
+     token's `test_mode`, never from `p_ctx`);
+   - call the `public` RPC. The trigger `jobs_stamp_ctx` (`before insert or update` on `jobs`)
+     stamps every job row the RPC inserts or re-queues (including `request_stems` and
+     `request_visualizer` reusing an old row) with the context and appends its id to the
+     transaction-local `mdf.job_ids`;
+   - call `ops.reserve_job(job_id)` for each id in `mdf.job_ids` (11.5);
+   - mark the idempotency key `done` with the response.
+5. **On failure** (any exception in the savepoint): the work is rolled back, and in the same
+   transaction the wrapper deletes the idempotency key row (so a corrected retry with the same key
+   runs) and writes an `error` audit row. **On success** it writes an `ok` audit row. Then it
+   clears the three claim settings and `mdf.job_ctx`.
+
+`request_hash` is the SHA-256 of the canonical JSON (keys sorted, no whitespace) of
+`{"op": <operation>, "input": <validated input>}`.
 
 #### 6.3.5 Error codes (frozen; additive only)
 
 | Code | HTTP | Meaning |
 | --- | --- | --- |
-| `unauthorized` | 401 | no or bad credential, unknown session |
-| `forbidden_scope` | 403 | missing scope, wrong role, admin rule, remote rule, test-run rule |
+| `unauthorized` | 401 | no or bad credential, unknown or stale session |
+| `forbidden_scope` | 403 | missing scope, wrong role, admin, remote or test rule |
 | `not_found` | 404 | object missing or not the actor's |
-| `conflict` | 409 | the object is not in the state the operation needs |
+| `conflict` | 409 | the object is not in the needed state |
 | `idempotency_mismatch` | 409 | same key, different request |
 | `in_progress` | 409 | same key, request still running (`retry_after` 2) |
-| `ambiguous_spend` | 409 | a kie submission's outcome is unknown; resolve it first |
+| `ambiguous_spend` | 409 | a kie submission's outcome is unknown |
 | `validation` | 422 | bad input |
-| `cap_exceeded` | 402 | a spend cap refused the reservation (`details` names scope, provider, period) |
+| `cap_exceeded` | 402 | a cap refused the reservation (`details`: scope, provider, unit, period) |
 | `rate_limited` | 429 | rate limit (`retry_after`) |
-| `provider_unavailable` | 503 | a provider call failed (web-side calls only) |
 | `internal` | 500 | anything unmapped |
 
-`runAction` maps each code to the translated message `errors.<code>` in `ActionResult`; the API
-returns the envelope of 7.2. Mapping from the RPCs' existing free-text exceptions is done by
-`ops.map_error(sqlstate, message)` with these ordered rules (first match wins):
+`ops.map_error(sqlstate, message)`, rules in order (first match wins):
 1. `authentication required`, `profile required` -> `unauthorized`.
 2. `admin required`, `local engines are admin only` -> `forbidden_scope`.
-3. `kie submission state unknown%`, `resolve unknown submission first`,
+3. `owned % required`, `% not found`, `render missing`, `source take required`,
+   `failed job required` -> `not_found`.
+4. `kie submission state unknown%`, `resolve unknown submission first`,
    `kie task may still succeed%` -> `ambiguous_spend`.
-4. `% not found`, `render missing` -> `not_found`.
 5. `invalid %`, `%too long`, `too many %`, `% must %`, `a part is %`, `range outside the take`,
    `an upload or a take, not both`, `title required`, `language required`, `metadata required`,
    `prompt or title required`, `task id required`, `video id required`,
    `override reason required`, `lyrics of the part required`,
    `publish_at requires scheduled privacy` -> `validation`.
-6. Any other message ending in `required`, or containing ` already `, plus `transition not
+6. any other message ending in `required` or containing ` already `, plus `transition not
    allowed`, `version not approved`, `rewrite discarded`, `song not ready for a rewrite`,
    `the song has new takes since this rewrite`, `this engine cannot start from audio in this way`
    -> `conflict`.
-7. SQLSTATE `MDF01`..`MDF12` raised by `ops` and ledger functions map to their own code
-   (`MDF02` `cap_exceeded`, `MDF03` `forbidden_scope`, `MDF10` `ambiguous_spend`, and so on, listed
-   in `packages/shared/src/ops/errors.ts`).
-8. Anything else -> `internal` (logged with the message, returned without it).
-A test (`supabase/tests/ops_errors.test.ts`) extracts every `raise exception '...'` text from
-`supabase/migrations/*.sql` and fails if one maps to `internal` and is raised by a function an
-ops wrapper calls; so a new message must be classified when it is added.
+7. SQLSTATEs `MDF01`-`MDF12` -> their codes (`packages/shared/src/ops/errors.ts`).
+8. anything else -> `internal`.
 
-#### 6.3.6 The functions `mdf_web` may call (the complete M1 list)
+Test (`supabase/tests/ops_errors.test.ts`): starting from every `ops` function, it follows
+`public.<name>(` references in `pg_proc.prosrc` transitively, collects every `raise exception '...'`
+text of the functions reached, and fails if one maps to `internal`.
 
-- **Operations** (one per row of 7.3 marked M1 and callable by tokens or cookies):
-  `ops.song_create`, `ops.lyrics_approve`, `ops.lyrics_back`, `ops.song_generate_again`,
-  `ops.take_pick`, `ops.take_choose`, `ops.audio_keep`, `ops.video_make`, `ops.video_rerender`,
-  `ops.video_approve`, `ops.stage_retry`, `ops.job_cancel`, `ops.stems_request`,
-  `ops.visualizer_request`, `ops.section_edit_request`, `ops.section_edit_keep`,
-  `ops.section_edit_discard`, `ops.take_save_edit`, `ops.song_import`, `ops.song_source_set`,
-  `ops.playlist_create`, `ops.playlist_add`, `ops.playlist_remove`, `ops.playlist_reorder`,
-  `ops.playlist_rename`, `ops.playlist_delete`, `ops.song_react`, `ops.song_rename`,
-  `ops.song_trash`, `ops.song_restore`, `ops.song_play`, `ops.upload_intent`, `ops.upload_status`,
-  `ops.style_format_reserve`, `ops.transcribe_reserve`, `ops.settle_spend`,
-  `ops.notifications_read`, `ops.oauth_consent`, `ops.oauth_consent_info`.
-- **Reads for token callers** (cookie UI keeps its RLS reads): `ops.songs_list`, `ops.song_get`,
-  `ops.job_status`, `ops.job_events_since`, `ops.costs_get`, `ops.notifications_list`.
-- **Admin** (cookie, admin, local): `ops.admin_token_create`, `ops.admin_token_revoke`,
-  `ops.admin_tokens_list`, `ops.admin_caps_set`, `ops.admin_caps_list`, `ops.admin_flag_set`,
-  `ops.admin_role_set`, `ops.admin_allowlist_add`, `ops.admin_remote_close` (remote allowed),
+#### 6.3.6 Which role may call what
+
+- `mdf_web`, cookie operations (every server action, one wrapper each): the M1 rows of 7.3 plus
+  `ops.style_format_check` and `ops.transcribe_check` (rate and role checks for the two web-side
+  tools, 11.5), `ops.take_save_edit`, `ops.song_import`, `ops.song_source_set`, the playlist,
+  reaction, rename, trash, restore and play wrappers, the section-edit wrappers.
+- `mdf_web`, token operations: exactly the rows of 7.3 whose MCP tool is not "none".
+- `mdf_web`, admin (cookie, admin, local): `ops.admin_token_create`, `ops.admin_token_revoke`,
+  `ops.admin_tokens_list`, `ops.admin_flag_set`, `ops.admin_pairing_open`,
   `ops.admin_resolve_kie_submission`, `ops.admin_resolve_upload`, `ops.admin_enqueue_publish`,
-  `ops.admin_confirm_publication` (refuses `scheduled`, AC4), `ops.admin_video_approve_override`,
-  `ops.admin_project_create` (the older `create_project` entry point).
-- **Infrastructure**: `ops.resolve_access_token` (6.4), `ops.idem_begin` (7.2), `ops.flags`,
-  `ops.health`.
+  `ops.admin_confirm_publication` (refuses `scheduled`), `ops.admin_video_approve_override`,
+  `ops.admin_project_create`.
+- `mdf_web`, infrastructure: `ops.idem_begin`, `ops.resolve_access_token`, `ops.oauth_consent_info`,
+  `ops.oauth_consent`, `ops.flags`, `ops.health`.
+- `mdf_auth`: the `ops.oauth_*` storage functions of 6.4.
+- `service_role`: the ledger and scheduler functions of 11.5 and 14.4, `ops.worker_enqueue`.
+`ops.stage_retry` refuses the stages `publish` and `set_privacy` for token actors and non-admin
+sessions.
 
-Signatures and `data` shapes are in `packages/shared/src/ops/` (7.1). Retry rule:
-`ops.stage_retry` refuses the stages `publish` and `set_privacy` for every token actor and for
-non-admin sessions (`retry_stage` on those stages re-enqueues `enqueue_publish` or a confirmed
-privacy, `20261031000006_web_flow.sql:118-124`); admins retry them through the UI.
+#### 6.3.7 Exit tests (database, M1)
 
-#### 6.3.7 Exit tests (database, M1; `supabase/tests/ops_*.test.ts`)
-
-- As `mdf_web` and `mdf_auth`: `has_function_privilege` is false for every `public` function;
-  calling `public.approve_lyrics` after `set_config('request.jwt.claims', ...)` fails with
-  permission denied.
-- With a customer session JWT against the local PostgREST: a direct `jobs` insert, a `jobs`
-  status update, a `projects` insert, `approve_lyrics`, `generate_again`, `enqueue_publish` and
-  `confirm_publication` are all refused; the same with an admin session JWT.
-- Through `ops` as a customer session: `ops.lyrics_approve` returns `cap_exceeded` (details
-  `user, kie, credit, day`) because the customer kie credit limit is 0; `ops.song_create` succeeds
-  and reserves OpenRouter spend under the customer's 0.10 USD cap.
-- Through `ops` with a PAT holding `create` only: `ops.stage_retry` on a failed `publish` job
-  returns `forbidden_scope`; `ops.lyrics_approve` returns `forbidden_scope`.
-- `ops.admin_caps_set` with `remote = true` returns `forbidden_scope`; with a session id that is
-  not in `auth.sessions` returns `unauthorized`.
-- The ACL test (6.3.3) and the error-map test (6.3.5) pass.
+- `mdf_web` and `mdf_auth` hold EXECUTE on no `public` function; `mdf_web` cannot call any
+  `ops.oauth_*` storage function and `mdf_auth` cannot call any other `ops` function.
+- **Claim injection (ruling 2):** as `mdf_web`, `set_config('request.jwt.claim.sub', <user B>,
+  false)`, then `ops.song_rename` with user A's valid context on user B's version returns
+  `not_found`, and B's row is unchanged; the same with `request.jwt.claims` preset.
+- With a customer session JWT against the local PostgREST: a direct `jobs` insert, a `jobs` update,
+  a `projects` insert, `approve_lyrics`, `generate_again`, `enqueue_publish` and
+  `confirm_publication` are refused; the same with an admin session JWT.
+- Through `ops` as a customer session: `ops.lyrics_approve` returns `cap_exceeded` (kie credit cap
+  0); `ops.song_create` succeeds under the customer USD cap with the pinned test prices.
+- A customer cannot get a PAT or complete `ops.oauth_consent` (`forbidden_scope`).
+- A PAT with `create` only: `ops.lyrics_approve` and `ops.stage_retry` on a `publish` job return
+  `forbidden_scope`; a `test_mode` PAT on a real version returns `forbidden_scope`.
+- An admin operation with `remote = true`, a stale session (`refreshed_at` 2 hours ago) or an
+  unknown session id is refused.
+- The ACL test and the error-map test pass.
 
 ### 6.4 Remote MCP authorization (AC2)
 
-- **Authorization server:** `apps/auth`, a small Node service built on `oidc-provider` (panva,
-  MIT), issuer `https://app.mellodifai.com/oauth`, at `/oauth/*`: dynamic client registration,
-  PKCE required (S256), authorization code grant only, resource indicators (RFC 8707) required and
-  limited to `https://app.mellodifai.com/api/mcp`, **opaque** access tokens (`mdf_oat_` plus 32
-  random bytes, 1 h) and rotating refresh tokens (`mdf_ort_`, 30 days). Metadata at
-  `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration`; advertised
-  scopes `read create spend` (plus `publish` from M4).
-- **Secrets of `apps/auth`:** signing keys for ID tokens in `<runtime root>/secrets/auth/jwks.json`
-  (generated by `ops/rotate-auth-keys.ts`), cookie keys in `MDF_AUTH_COOKIE_KEYS` and the database
-  URL in `MDF_AUTH_DATABASE_URL`, both in `apps/auth/.env.local`. Opaque access tokens are not
-  signed, so `/api/mcp` needs none of these.
-- **Storage:** an adapter over table `oauth_store` (15.1) through the only functions `mdf_auth`
-  may call: `ops.oauth_find(model, id_hash)`, `ops.oauth_find_by_uid(uid)`,
-  `ops.oauth_find_by_user_code(code)`, `ops.oauth_upsert(model, id_hash, payload, grant_id, uid,
-  expires_at)`, `ops.oauth_consume(model, id_hash)`, `ops.oauth_destroy(model, id_hash)`,
-  `ops.oauth_revoke_by_grant(grant_id)`, `ops.oauth_interaction_result(uid)` (reads the consent
-  decision) and `ops.oauth_bind_grant(uid, grant_id)`. Ids are stored as SHA-256 hashes. `mdf_auth`
-  cannot create grant rows, act for a user, or call anything else; a compromised `apps/auth` can
-  at worst issue tokens for consents that users actually gave.
-- **Registration limits:** the edge proxy allows at most 10 registrations per hour per
-  `cf-connecting-ip`, and `apps/auth` accepts only redirect URIs on an allowlist in
-  `apps/auth/redirect-allowlist.json`: the claude.ai and ChatGPT connector callback URLs (exact
-  values written down in the step 0 spike) and `http://127.0.0.1:<port>/...` and
-  `http://localhost:<port>/...` for local clients such as MCP Inspector.
-- **Sign-in and consent:** `apps/auth` sends the browser to
-  `https://app.mellodifai.com/consent?uid=...`. That page requires the Supabase session (through
-  `/login?next=/consent?uid=...`, 5.4), calls `ops.oauth_consent_info(p_ctx, uid)` to show the
-  client name, its redirect host and the requested scopes, with only `read` ticked by default,
-  `create` available to everyone, `spend` shown only to an admin with a second confirmation (typing
-  the client name), and an admin-only "Test (fake providers)" box. The decision is recorded by
-  `ops.oauth_consent(p_ctx, uid, scopes, test_mode)`, which creates or updates the `agent_tokens`
-  row (kind `oauth`, `remote = true`, `expires_at` 90 days, renewed at each consent). The browser
-  returns to `/oauth/interaction/<uid>/resume`; `apps/auth` reads the decision with
-  `ops.oauth_interaction_result(uid)`, creates its Grant with exactly those scopes and records the
-  Grant id with `ops.oauth_bind_grant(uid, grant_id)` into `agent_tokens.grant_id`.
-- **Resource server:** `/api/mcp` serves Protected Resource Metadata at
-  `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp`, and
-  answers 401 with `WWW-Authenticate: Bearer resource_metadata="..."`.
-  `ops.resolve_access_token(token_hash, resource)` joins `oauth_store` (model `AccessToken`, by
-  hash, not expired, not consumed, `aud` equal to the resource) to `agent_tokens` on `grant_id`
-  (kind `oauth`, not revoked, not expired) and returns `{user_id, token_id, scopes, test_mode}`.
-  **Scope rule:** the effective scopes are the intersection of the access token's scopes and the
-  grant row's scopes; the grant row is the upper bound and the only thing Settings edits.
-- **Why this closes the round-2 gaps:** the tokens are not Supabase JWTs, so they cannot be used on
-  PostgREST, Realtime, storage or `/auth/v1/user`; discovery lives on the app host.
-- **Revocation:** Settings > Agenti ("Agents") calls `ops.admin_token_revoke`, which sets
-  `revoked_at` and deletes the grant's `oauth_store` rows in the same transaction. Every call
-  resolves the token in the database (no cache), so revocation applies to the next call.
-- **M1 step 0 spike** (one day, written result in the M1 plan): `oidc-provider` behind the edge
-  proxy with DCR, PKCE and resource indicators, completing the claude.ai connector flow against a
-  stub `/api/mcp`, and recording the exact connector redirect URIs. **Fallback** if it fails: the
-  same `apps/auth` service built on `@node-oauth/oauth2-server` (MIT; authorization code with PKCE)
-  plus hand-written metadata, registration and resource-indicator checks, with the same opaque
-  tokens, the same `oauth_store` table and the same `ops.oauth_*` functions. The fallback keeps
-  AC15 (no Supabase exposure) and needs no JWT library.
+**Service.** `apps/auth`, a small Node service on `oidc-provider` (panva, MIT), running as the
+Windows account `mdf-auth` (ruling 5) on `127.0.0.1:3010`. Wiring (confirmed in step 0 spike 1):
+- issuer `https://app.mellodifai.com/oauth`, mounted under `/oauth`, `proxy: true` (it sits behind
+  the edge proxy and reads `x-forwarded-*`);
+- discovery: the library serves `/oauth/.well-known/openid-configuration`; `apps/auth` also serves
+  the RFC 8414 path-insertion forms `/.well-known/oauth-authorization-server/oauth` and
+  `/.well-known/openid-configuration/oauth` with the same document (both on the edge allowlist);
+- features: dynamic client registration, PKCE required (S256), authorization code grant only,
+  resource indicators required and limited to `https://app.mellodifai.com/api/mcp`, opaque access
+  tokens (the library's default random format; 1 h) and rotating refresh tokens (30 days); no
+  custom token prefix;
+- `interactions.url` returns `/consent?uid=<uid>`; the resume route is `apps/auth`'s own handler at
+  `/oauth/interaction/:uid/resume`, which calls `provider.interactionFinished`; the library's
+  interaction cookies are scoped to path `/oauth`;
+- keys: ID-token signing keys in `<runtime root>/secrets/auth/jwks.json` (generated by
+  `ops/rotate-auth-keys.ts`, readable by the owner and `mdf-auth` only); cookie keys
+  `MDF_AUTH_COOKIE_KEYS` and `MDF_AUTH_DATABASE_URL` in `apps/auth/.env.local`.
+
+**Pairing window (registration only on purpose).** Dynamic registration is accepted only while a
+pairing window is open: the admin clicks "Collega un agente" ("Connect an agent") in Settings >
+Agenti on the PC, which calls `ops.admin_pairing_open()` and opens a 10-minute window; `apps/auth`
+checks it with `ops.oauth_registration_open()` before accepting a registration. The edge proxy
+also limits registrations to 10 per hour per `cf-connecting-ip`. Redirect URIs must be on
+`apps/auth/redirect-allowlist.json` (the claude.ai and ChatGPT connector callbacks recorded by the
+spike, and `http://127.0.0.1:<port>/...` or `http://localhost:<port>/...` for local clients).
+
+**Flow binding (ruling 7).** When `apps/auth` starts an interaction it sets a cookie `mdf_flow`
+(random 256-bit nonce, `HttpOnly`, `Secure` on the public host, `SameSite=Lax`, path `/`, 15
+minutes) and stores `sha256(nonce)` on the interaction through `ops.oauth_upsert`. The consent page
+and the resume both require that cookie:
+1. `/consent?uid=...` requires the Supabase session (via `/login?next=/consent?uid=...`) and the
+   `mdf_flow` cookie; it calls `ops.oauth_consent_info(p_ctx, uid, nonce)`, which returns
+   `{client_name, client_id, redirect_host, registered_at, requested_scopes}` only if the nonce
+   hash matches the interaction; otherwise the page says "start the connection again from your
+   agent in this browser".
+2. The page shows the client name, redirect host and registration time, with only `read` ticked;
+   `create` and `spend` are available (spend with a second confirmation, typing the client name),
+   plus an admin-only "Test (fake providers)" box. `consentDecide` calls
+   `ops.oauth_consent(p_ctx, uid, nonce, scopes, test_mode)`. It refuses non-admin owners and
+   writes, in one transaction, the consent row (`oauth_consents`: uid, user, client id, scopes,
+   test mode, nonce hash, `used_at` null), the `agent_tokens` row (kind `oauth`, `remote = true`,
+   `expires_at` 90 days) and its `spend_caps` token row (1 USD per day).
+3. `/oauth/interaction/:uid/resume` requires the same `mdf_flow` cookie; `apps/auth` calls
+   `ops.oauth_interaction_result(uid, nonce)`, which returns the decision only if the nonce hash
+   matches and `used_at` is null, and sets `used_at` (single use). `apps/auth` then creates its
+   Grant with exactly those scopes and calls `ops.oauth_bind_grant(uid, grant_id)`, which writes
+   `agent_tokens.grant_id` only where it is still null.
+An attacker who starts the flow in his own browser and sends the consent link to the owner gets
+nothing: the owner's browser has no `mdf_flow` cookie for that interaction, so the consent page
+refuses.
+
+**Storage and what `mdf_auth` may do (ruling 5).** `mdf_auth` may call only:
+`ops.oauth_find(model, id_hash)`, `ops.oauth_find_by_uid(uid)`, `ops.oauth_upsert(model, id_hash,
+payload, grant_id, uid, expires_at, flow_nonce_hash)`, `ops.oauth_consume(model, id_hash)`,
+`ops.oauth_destroy(model, id_hash)`, `ops.oauth_revoke_by_grant(grant_id)`,
+`ops.oauth_registration_open()`, `ops.oauth_interaction_result(uid, nonce)`,
+`ops.oauth_bind_grant(uid, grant_id)`. Rules inside them:
+- ids are stored as SHA-256 hashes, and the payload is stored without `jti` (which equals the
+  opaque token value); the spike confirms the adapter works with the hash as its lookup key;
+- `ops.oauth_upsert` for `AuthorizationCode`, `AccessToken` and `RefreshToken` accepts the row only
+  when the grant matches a stored, used consent row with the same client id, uid, nonce hash and
+  scopes (a subset), the grant row is live and not revoked, and `expires_at` is at most the
+  configured lifetime (1 h, 30 days, 10 minutes for codes); otherwise it raises `MDF03`. A
+  compromised `apps/auth` can therefore issue tokens only for consents a user actually gave in the
+  browser that started the flow.
+
+**Resource server.** `/api/mcp` serves Protected Resource Metadata at
+`/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp`, and
+answers 401 with `WWW-Authenticate: Bearer resource_metadata="..."`.
+`ops.resolve_access_token(token_hash, resource)` requires the `remote_mcp` flag on, the
+`AccessToken` row live, unconsumed and bound to the resource, and the `agent_tokens` row (joined on
+`grant_id`) live; it returns `{user_id, token_id, scopes, test_mode}`. Effective scopes are the
+intersection of the token's and the grant row's; the grant row is the upper bound.
+
+**Revocation and kill.** `ops.admin_token_revoke` sets `revoked_at` and deletes the grant's
+`oauth_store` rows in one transaction; tokens are resolved in the database on every call. Turning
+`remote_mcp` off (`ops.admin_flag_set`, local Settings) makes `resolve_access_token`,
+`ops.oauth_consent` and remote PAT use fail at once. The remote kill when the owner is away from
+the PC is outside the app: disable the public hostname in the Cloudflare dashboard (or stop
+`cloudflared` remotely if he has a remote desktop); this is written in the README.
+
+**Spike fallback.** If `oidc-provider` cannot be wired as above, the same `apps/auth` is built on
+`@node-oauth/oauth2-server` (MIT) with hand-written metadata, registration and resource checks,
+the same opaque tokens, `oauth_store`, `mdf_flow` cookie and `ops.oauth_*` functions. No Supabase
+exposure and no JWT library either way.
 
 ### 6.5 Autopilot as an explicit actor (M5)
 
@@ -729,7 +763,7 @@ privacy, `20261031000006_web_flow.sql:118-124`); admins retry them through the U
   ("Autopilot").
 - A system token row (`kind = autopilot`) per owner, so the ledger and audit log charge Autopilot
   by name. A run started by a token is charged to the system token and also counted against the
-  initiating token's caps (both counters are checked by `reserve_spend`).
+  initiating token's caps (both counters are checked by `ops.reserve_job`).
 - Worker-only RPCs (`autopilot_approve_lyrics`, `autopilot_pick_take`, `autopilot_approve_video`,
   `autopilot_schedule_publish`), granted to `service_role` only. Each checks: policy enabled, run
   in Autopilot, the required `jury_reports` for that stage have `available = true` and `passed =
@@ -743,23 +777,29 @@ privacy, `20261031000006_web_flow.sql:118-124`); admins retry them through the U
 
 ### 6.6 Token records and format
 
-Table `agent_tokens` (DDL in 15.1) holds PATs, OAuth grants, the Autopilot system token and canary
-tokens. **PAT format:** `mdf_pat_` followed by 32 random bytes in base62 (43 characters). Next
-generates it (`apps/web/lib/ops/tokens.ts`), passes only its `sha256` hex and
-hint (`mdf_pat_...` plus the last 4 characters) to `ops.admin_token_create`, and shows the full
-token once. PATs have no expiry unless set; a PAT with `remote = true` must have an expiry (default
-90 days). A remote request (5.1) with a local-only PAT is refused. Spend caps for a token live only
-in `spend_caps` (scope `token`); `ops.admin_token_create` writes its default row (1 USD per day).
+`agent_tokens` (15.1) holds PATs, OAuth grants and, from M5, the Autopilot system token. **PAT
+format:** `mdf_pat_` plus 32 random bytes in base62. Next generates it
+(`apps/web/lib/ops/tokens.ts`), passes only its SHA-256 hex and a hint (`mdf_pat_...` plus the last
+4 characters) to `ops.admin_token_create`, and shows the full token once. A PAT is local-only
+unless created with "remote" ticked, which requires an expiry (default 90 days). Every token gets
+its `spend_caps` row when it is created (`ops.admin_token_create`, `ops.oauth_consent`), and a
+token actor without a token cap row is refused (`MDF03`).
+
+**Settings > Agenti** (`app/(app)/settings/agents/page.tsx`, admin only, local only): a table of
+tokens (name, kind, hint, scopes, remote, test, expires, last used, revoked) from
+`ops.admin_tokens_list`; a "Nuovo token" ("New token") form (name, scopes `read` `create` `spend`,
+remote with expiry, test) that shows the token once in a dialog; a "Revoca" ("Revoke") button per
+row with a confirmation; the `remote_mcp` switch; the "Collega un agente" button with the
+remaining pairing time. Every action returns the normal `ActionResult` and refreshes the table.
 
 ### 6.7 Rate limits
 
-- In Next, per token (or per user for cookie sessions), reusing `lib/rate-limit.ts` (sliding
-  window): 60 reads per minute, 10 writes per minute (a write is any non-GET request or any MCP
-  tool marked as mutating), 20 spend reservations per hour. Excess returns 429 with `Retry-After`.
-- In the edge proxy, per `cf-connecting-ip` (sliding window): `/oauth/*` 60 per minute, client
-  registration 10 per hour, `/login` and its sign-in action 5 per 15 minutes; the sign-in action
-  also limits 5 per 15 minutes per email.
-- One Next process is the whole deployment; a second instance would need a shared store (M8).
+- In Next (`lib/rate-limit.ts`, sliding window, per token or per user): 60 reads per minute and 10
+  writes per minute, where a write is a mutating operation (7.3 marks each), so `job_status`
+  polling counts as a read; 20 reservations per hour.
+- In the edge proxy, per `cf-connecting-ip`: `/oauth/*` 60 per minute, registrations 10 per hour,
+  `/login` posts 5 per 15 minutes, `/api/*` 120 per minute.
+- The per-email sign-in limit lives in `sendSignInLink` (5.4).
 
 ### 6.8 Untrusted content (prompt injection boundary)
 
@@ -777,188 +817,126 @@ a model derives from them (the blueprint and the meaning map). Rules:
 
 ### 6.9 Test runs on the real instance (fake providers)
 
-- A token row with `test_mode = true` (a PAT created with the admin-only "test" box, or an OAuth
-  grant whose consent ticked "Test (fake providers)") makes every job it causes run on fakes. The
-  wrapper sets `jobs.fake_providers = true` from the token row (never from `p_ctx`) and marks every
-  version it creates `versions.test_run = true`.
-- Propagation: the worker enqueues child jobs only through `public.worker_enqueue(p_parent_job,
-  p_version, p_stage, p_idempotency_key)` (service role), which copies `token_id`, `run_id`,
-  `fake_providers`, `priority` and `test_run` handling from the parent and reserves spend for the
-  child (11.5). `apps/worker/src/db.ts` `enqueue` calls it with the parent job id (its callers in
-  `loop.ts` and the stages pass the current job).
-- The worker picks the registry per job: `fakeStages` when the process has `WORKER_FAKE=1` (the
-  existing variable read in `main.ts:126,150,160` and `workspace.ts:36`, used by e2e and the gate)
-  **or** the job has `fake_providers = true`; otherwise the real stages.
-- Test versions stay test versions: every ops wrapper refuses (`forbidden_scope`) a paid or publish
-  operation on a version with `test_run = true` unless the actor is a `test_mode` token, so a test
-  song can never later get a real `generate_again` or a publish. Test versions are trashed by the
-  scheduler task `purge_test_runs` after 7 days.
-- Fake jobs need no reservation (11.5) and spend nothing.
+- A `test_mode` token (a PAT created with "test" ticked, or an OAuth grant whose consent ticked
+  "Test (fake providers)") makes every job it causes run on fakes: the wrapper stamps
+  `jobs.fake_providers = true` (from the token row) and marks every version it creates
+  `versions.test_run = true`. The test rule of 6.3.4 keeps test tokens on test versions and every
+  other actor off them, so a test song never gets real spend or a publish.
+- Child jobs: the worker enqueues them only through `ops.worker_enqueue(p_parent_job, p_version,
+  p_stage, p_idempotency_key)` (service role), which copies `token_id`, `run_id`,
+  `fake_providers` and `priority` from the parent and creates the child's reservation (11.5). If
+  the child's reservation is refused, `worker_enqueue` raises `MDF02` and the worker fails the
+  parent job with error code `cap_exceeded`; the parent's reservation then closes as in 11.5.
+  `apps/worker/src/db.ts` `enqueue` (called from `loop.ts:322`) takes the parent job id; `db.ts`
+  lines 161 and 680 change with it.
+- The worker uses `fakeStages` when the process has `WORKER_FAKE=1` (the existing variable,
+  `main.ts:126,150,160`, `workspace.ts:36`; e2e and the gate set it) or the job has
+  `fake_providers = true`.
+- On a stack whose database has `app.fake_stack = on` (e2e, CI; 5.3), `ops.reserve_job` creates no
+  reservation, so e2e jobs never meet caps.
+- `purge_test_runs` trashes test versions after 7 days (14.4).
 
 ## 7. Operations layer, HTTP API, CLI and MCP
 
 ### 7.1 One implementation
 
-- `apps/web/lib/ops/*`: one module per operation. Type `OpsContext = { actorKind, userId?,
-  sessionId?, tokenHash?, accessTokenHash?, remote, requestId, idempotencyKey? }`. Each operation
-  validates input with its zod schema, opens the idempotency key when it has one (7.2), calls its
-  `ops.*` function over the `mdf_web` connection, and returns `Result<Output, OpsError>`; then it
-  revalidates the same paths `runAction` revalidates today. **Server actions call it** through
-  `runAction`, the `/api/v1` handlers call it, and the MCP tools call it.
-- Schemas live in `packages/shared/src/ops/`, named `<Operation>Input` and `<Operation>Output`
-  (for example `LyricsApproveInput`), with `errors.ts` (the 6.3.5 codes and SQLSTATEs) and
-  `reads.ts` (the read shapes of 7.3). The existing schemas in `apps/web/app/actions/schemas.ts`,
-  including T12's (`SectionEditInput`, `ImportSongInput`, `SongSourceInput`), move there in M1;
-  `schemas.ts` re-exports them so imports keep working.
-- **Base branch:** M1 starts from `build/studio-ui` at its head when M1 planning begins; T12 is
-  already there (migrations 23 and 24, `apps/web/app/actions/songs-from-songs.ts`), so its RPCs are
-  wrapped in `ops_scopes` like every other and there is no separate T12 migration.
-- **MCP server:** one tool registry (`apps/web/lib/mcp/*`) served at `/api/mcp` with
-  `@modelcontextprotocol/sdk` (TypeScript), using its web-standard Streamable HTTP server
-  transport (`WebStandardStreamableHTTPServerTransport`, which takes a Fetch `Request` and returns
-  a `Response`, so it fits an App Router route handler) in **stateless** mode
-  (`sessionIdGenerator: undefined`) with `enableJsonResponse: true`: every tool call returns one
-  JSON response, long work returns job ids, and there is no SSE stream on `/api/mcp`, so no
-  keepalive is needed there; GET returns 405. The step 0 spike pins an SDK version that has this
-  transport; if none does, the fallback is the `mcp-handler` adapter over the same registry.
-  Protocol revision: the newest the pinned SDK supports, at least 2025-06-18.
-- The CLI (`packages/cli`) is a thin HTTP client of `/api/v1`. `mellodifai mcp` is the **stdio
-  transport**: a bridge that forwards MCP JSON-RPC from stdio to `/api/mcp` with the PAT. Neither
-  ever talks to the database. Local agents point it at `http://127.0.0.1:3000`.
+- `apps/web/lib/ops/*`: one module per operation. It validates input with the zod schema, opens
+  the idempotency key when the operation needs one (7.2), calls its `ops.*` function over the
+  `mdf_web` connection and returns `Result<Output, OpsError>`, then revalidates the paths
+  `runAction` revalidates today. Server actions, `/api/v1` handlers and MCP tools all call it.
+- Schemas in `packages/shared/src/ops/` (`<Operation>Input`, `<Operation>Output`, `errors.ts`,
+  `reads.ts`); `apps/web/app/actions/schemas.ts` re-exports the moved ones. `runAction` maps codes to
+  the existing message keys under the `error.` prefix (`packages/shared/src/i18n.ts`, new keys
+  `error.forbidden_scope`, `error.cap_exceeded` and so on); `lib/action-result.ts` gains the code.
+- **MCP server:** `@modelcontextprotocol/server` (the v2 split SDK already in `pnpm-lock.yaml` at
+  2.4.0), with `WebStandardStreamableHTTPServerTransport` in stateless JSON mode
+  (`sessionIdGenerator: undefined`, `enableJsonResponse: true`), a new server and transport per
+  request inside `app/api/mcp/route.ts` (Node runtime), the default 4 MiB body limit (no uploads in
+  M1), GET answering 405. Fallback: the `mcp-handler` adapter over the same registry.
+- **CLI** (`packages/cli`): a thin HTTP client of `/api/v1`; `mellodifai mcp` is the stdio
+  transport, a bridge that forwards JSON-RPC from stdio to `/api/mcp` with the PAT. Built into one
+  file with esbuild and installed with `pnpm --filter @mellodifai/cli pack` then
+  `npm install -g <the tarball>` (no `workspace:` dependencies survive the bundle). Credentials in
+  `%APPDATA%\mellodifai\credentials.json`, created and then restricted with
+  `icacls <file> /inheritance:r /grant:r "%USERNAME%:F"` (or mode 0600 elsewhere). Commands:
+  `login`, `songs`, `create`, `status <job> [--watch]` (polls every 3 s), `approve`, `regenerate`,
+  `video`, `costs`, `mcp`; `--json` on all. Claude Code: `claude mcp add mellodifai -- mellodifai
+  mcp`; Codex: `[mcp_servers.mellodifai] command = "mellodifai" args = ["mcp"]`.
+- **Agent skill** (`packages/cli/skill/`, with `AGENTS.md`): the M1 workflows, scopes and caps,
+  always sending `idempotency_key` on spend tools, never retrying `ambiguous_spend`.
 
-### 7.2 HTTP contract (frozen for v1; additive only)
+### 7.2 HTTP and MCP contract (frozen for v1; additive only)
 
-- Versioning: `/api/v1` changes are additive only; a breaking change ships as `/api/v2` and v1
-  stays 90 days. Existing tool names never change.
-- Responses: `{ "data": <Output> }`. Every operation that starts work returns
-  `{ "data": { "jobs": [ { "job_id", "version_id", "stage" } ] } }` (an array, because
-  `create_song` creates one version and one job per language); `song_create` adds `project_id`.
-- Errors: `{ "error": { "code", "message", "details"?, "retry_after"? } }` with the codes and
-  statuses of 6.3.5.
-- **Idempotency.** The `Idempotency-Key` header is required on every POST that enqueues or spends;
-  MCP tools that enqueue or spend have a required `idempotency_key` input instead. Flow:
-  1. Next calls `ops.idem_begin(p_ctx, key, request_hash)` in its **own committed transaction**.
-     It inserts `(actor_key, key, request_hash, 'in_flight', now())` and returns `new`; or, when
-     the row exists, `replay` with the stored response (same hash, `done`), `idempotency_mismatch`
-     (different hash), or `in_progress` (same hash, `in_flight`, younger than 10 minutes). An
-     `in_flight` row older than 10 minutes is taken over and returns `new`.
-  2. The operation's `ops` function marks the row `done` with its response in the same
-     transaction as the work, so a key is `done` exactly when the work committed.
-  3. Web-side provider calls (`style_format`, `audio_transcribe`) span several transactions:
-     reserve (`ops.style_format_reserve`), call the provider, then `ops.settle_spend`, which also
-     marks the key `done`. If Next dies between the provider call and the settle, the key goes
-     stale and a retry may pay again (bounded by the caps).
-  Keys are purged after 24 h (`purge_idempotency`).
-- Pagination: `?cursor=&limit=` (max 100); `cursor` is opaque (base64 of the last sort key).
-- Progress: SSE at `/api/v1/jobs/{id}/events`, a streaming route handler that calls
-  `ops.job_events_since(p_ctx, job, after_id)` every 2 s, sends a `: keepalive` comment every 25 s
-  (Cloudflare drops idle proxied connections after about 100 s), and closes on a terminal status
-  or after 10 minutes (clients reconnect). MCP clients poll `job_status`.
-- **Uploads for every caller** (cookie UI uploads keep their current direct path):
-  1. `POST /api/v1/uploads` (MCP tool `upload_create` takes a base64 body up to 20 MB) streams the
-     body (at most 100 MB) to `<runtime root>/uploads/staging/<uuid>` and calls
-     `ops.upload_intent(p_ctx, kind, filename, size, sha256)` with `kind` `audio` or `image`. It
-     returns `{ upload_id }` and the row is `staged`.
-  2. The worker's scheduler task `ingest_uploads` (every 10 s, service role) validates the file
-     (`ffprobe`: mp3, wav or flac, at most 15 minutes; images as in 9.4), uploads it to the user's
-     storage path (`<user>/audio/<uuid>.<ext>`, the shape `audio_upload_ok` accepts), deletes the
-     staged file and marks the row `ready` with that path, or `rejected` with a reason.
-  3. `GET /api/v1/uploads/{id}` (`upload_status`) returns the state; `song_import` takes the
-     `upload_id` of a `ready` row.
-  The staging folder is writable by `mdf-web` and readable by the worker's account only.
+- `/api/v1` accepts only a PAT; `/api/mcp` accepts a PAT or an OAuth access token; neither accepts
+  cookies (5.2). Versioning: additive only; a breaking change is `/api/v2`, v1 stays 90 days.
+- Success: `{ "data": <Output> }`. Errors: `{ "error": { "code", "message", "details"?,
+  "retry_after"? } }` with the codes of 6.3.5. MCP tools return the same `data` as structured
+  content, and errors as tool errors carrying the same code.
+- **Idempotency.** Required (header `Idempotency-Key`, or MCP input `idempotency_key`, 8-100
+  characters) on every operation marked "key" in 7.3; the database refuses a token actor without
+  one. Flow: Next calls `ops.idem_begin(p_ctx, key, request_hash)` in its own committed
+  transaction, which inserts `in_flight` and returns `new`, or returns `replay` (same hash, `done`,
+  with the stored response), `idempotency_mismatch` (different hash) or `in_progress` (same hash,
+  `in_flight`, younger than 10 minutes; an older row is taken over as `new`). The wrapper marks the
+  key `done` on success and deletes it on failure, in the transaction that commits the result (6.3.4
+  step 5). Keys are purged after 24 h.
+- Pagination: `?cursor=&limit=` (default 20, max 100). The cursor is the base64 of the last row's
+  `(updated_at, id)` for songs and `(created_at, id)` for jobs, sorted descending.
 
-### 7.3 Operations catalogue
+### 7.3 Operations exposed to tokens in M1
 
-Columns: operation; MCP tool (HTTP paths follow `/api/v1/<resource>/...` and are listed in the M1
-plan); the `ops` function and the `public` RPC it calls; scope; spend reserved; ships in.
-"Cookie" means cookie-only, never callable by tokens; "admin" adds the admin and local rules of
-6.3.4.
+Every other existing action (playlists, reactions, rename, trash, restore, play count, section
+edits, save edited take, imports, song source, format style, transcribe) also gets its `ops`
+wrapper in M1, but only for cookie sessions; their token tools move to M2a.
 
-| Operation | MCP tool | `ops` function -> RPC | Scope | Spend reserved (11.5) | Ships |
-| --- | --- | --- | --- | --- | --- |
-| List songs | `songs_list` | `ops.songs_list` (read) | read | - | M1 |
-| Get song | `song_get` | `ops.song_get` (read) | read | - | M1 |
-| Job status, job events | `job_status` | `ops.job_status`, `ops.job_events_since` (read) | read | - | M1 |
-| Costs | `costs_get` | `ops.costs_get` (read) | read | - | M1 |
-| Notifications list, mark read | `notifications_list`, `notifications_read` | `ops.notifications_list` (read), `ops.notifications_read` | read | - | M1 |
-| Create song (idea or source) | `song_create` | `ops.song_create` -> `create_song` | spend | one `draft_lyrics` job per language: OpenRouter | M1 |
-| Approve lyrics (starts generation) | `lyrics_approve` | `ops.lyrics_approve` -> `approve_lyrics` | spend | `generate_song`: kie (generate, cover or extend by source) plus Groq for take scoring, unless local engine | M1 |
-| Back to lyrics | `lyrics_back` | `ops.lyrics_back` -> `back_to_lyrics` | create | - | M1 |
-| Generate again | `song_generate_again` | `ops.song_generate_again` -> `generate_again` | spend | as approve lyrics | M1 |
-| Pick take | `take_pick` | `ops.take_pick` -> `pick_take` | create | `timing`: Groq | M1 |
-| Choose take (audio-only songs) | `take_choose` | `ops.take_choose` -> `choose_take` | create | - | M1 |
-| Keep audio (with or without visualizer) | `audio_keep` | `ops.audio_keep` -> `keep_audio` (+ `request_visualizer`) | create | - | M1 |
-| Make video, render again | `video_make`, `video_rerender` | `ops.video_make`, `ops.video_rerender` -> `make_video`, `render_again` | create | `timing` when queued: Groq | M1 |
-| Approve video (no override) | `video_approve` | `ops.video_approve` -> `approve_video` | create | - | M1 |
-| Retry a failed stage | `stage_retry` | `ops.stage_retry` -> `retry_stage` (refuses `publish`, `set_privacy` for tokens and customers) | create, or spend for a paid stage | that stage's rule | M1 |
-| Cancel a queued job | `job_cancel` | `ops.job_cancel` (replaces the dropped cancel policy) | create | releases its reservations | M1 |
-| Stems, visualizer | `stems_request`, `visualizer_request` | `ops.stems_request`, `ops.visualizer_request` -> `request_stems`, `request_visualizer` | create | - | M1 |
-| Section edit: request | `section_edit_request` | `ops.section_edit_request` -> `request_section_edit` | spend | `replace_section`: kie replace, unless local engine | M1 |
-| Section edit: keep, discard | `section_edit_keep`, `section_edit_discard` | -> `keep_section_edit`, `discard_section_edit` | create | - | M1 |
-| Save edited take | none | `ops.take_save_edit` -> `save_edited_take` | cookie | - | M1 (tokens later, with uploads for edits) |
-| Upload a file | `upload_create`, `upload_status` | `ops.upload_intent`, `ops.upload_status` | create | - | M1 |
-| Import song, set song source | `song_import`, `song_source_set` | `ops.song_import`, `ops.song_source_set` -> `import_song`, `set_song_source` | create | `import_audio`: Groq for take scoring | M1 |
-| Suno share-link import | none | `app/api/suno-link` (storage write as the user) | cookie | - | M1 |
-| Playlists | `playlist_create`, `playlist_add`, `playlist_remove`, `playlist_reorder`, `playlist_rename`, `playlist_delete` | `ops.playlist_*` -> the playlist RPCs | create | - | M1 |
-| React, rename, trash, restore, count play | `song_react`, `song_rename`, `song_trash`, `song_restore`, `song_play` | `ops.song_*` -> `set_reaction`, `rename_version`, `trash_versions`, `restore_versions`, `count_play` | create | - | M1 |
-| Format style | `style_format` | `ops.style_format_reserve`, provider call in Next, `ops.settle_spend` | spend | OpenRouter fast writer | M1 |
-| Transcribe | `audio_transcribe` | `ops.transcribe_reserve`, provider call in Next, `ops.settle_spend` | spend | Groq Whisper | M1 |
-| Create project (older entry point) | none | `ops.admin_project_create` -> `create_project` | cookie, admin | as create song | M1 |
-| Approve video with override reason | none | `ops.admin_video_approve_override` -> `approve_video` | cookie, admin | - | M1 |
-| Upload private to YouTube | none | `ops.admin_enqueue_publish` -> `enqueue_publish` | cookie, admin | - | M1 (P0) |
-| Set privacy | none | `ops.admin_confirm_publication` -> `confirm_publication` (no `scheduled`) | cookie, admin | - | M1 (P0) |
-| Resolve kie submission | none | `ops.admin_resolve_kie_submission` -> `resolve_kie_submission` | cookie, admin | a resend reserves as approve lyrics | M1 |
-| Resolve an ambiguous YouTube upload | none | `ops.admin_resolve_upload` -> `resolve_upload` (`20261031000009_final_fixes.sql:62-77`) | cookie, admin | - | M1 |
-| Tokens, caps, flags, roles, allowlist, close remote access | none | `ops.admin_*` (6.3.6) | cookie, admin | - | M1 |
-| Remake, timeline, publishing and loop tools | as in revision 3 | 8, 9, 12, 13 | - | - | M2a-M6 |
+| Operation, MCP tool | HTTP | Input | Output | Scope | Key | `ops` function -> RPC | Reserves (11.5) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| List songs, `songs_list` | `GET /api/v1/songs` | `cursor`, `limit`, `status` (optional), `include_trashed` (default false) | `{ songs: SongSummary[], next_cursor }` | read | no | `ops.songs_list` | - |
+| Get song, `song_get` | `GET /api/v1/songs/{version_id}` | - | `SongDetail` | read | no | `ops.song_get` | - |
+| Job status, `job_status` | `GET /api/v1/jobs/{job_id}` | `events_after` (optional event id) | `{ job: JobStatus, events: JobEvent[] }` | read | no | `ops.job_status` | - |
+| Costs, `costs_get` | `GET /api/v1/costs` | `from`, `to` (dates, Europe/Rome; default today; at most 31 days) | `CostsSummary` | read | no | `ops.costs_get` | - |
+| Create song, `song_create` | `POST /api/v1/songs` | `CreateSongInput` (the existing create panel schema, without upload sources) | `{ project_id, jobs: JobRef[] }` | spend | yes | `ops.song_create` -> `create_song` | `draft_lyrics` per language |
+| Approve lyrics, `lyrics_approve` | `POST /api/v1/songs/{version_id}/lyrics/approve` | `{ lyric_pack }` | `{ jobs: JobRef[] }` | spend | yes | -> `approve_lyrics` | `generate_song` |
+| Back to lyrics, `lyrics_back` | `POST /api/v1/songs/{version_id}/lyrics/back` | - | `{ version_id, status }` | create | yes | -> `back_to_lyrics` | - |
+| Generate again, `song_generate_again` | `POST /api/v1/songs/{version_id}/generate` | `{ generation }` | `{ jobs: JobRef[] }` | spend | yes | -> `generate_again` | `generate_song` |
+| Pick take, `take_pick` | `POST /api/v1/songs/{version_id}/takes/{take_id}/pick` | - | `{ jobs: JobRef[] }` | create | yes | -> `pick_take` | `timing` (incidental Groq) |
+| Make video, `video_make` | `POST /api/v1/songs/{version_id}/video` | - | `{ jobs: JobRef[] }` | create | yes | -> `make_video` | incidental Groq if `timing` is queued |
+| Render again, `video_rerender` | `POST /api/v1/songs/{version_id}/video/rerender` | - | `{ jobs: JobRef[] }` | create | yes | -> `render_again` | as make video |
+| Approve video, `video_approve` | `POST /api/v1/songs/{version_id}/video/approve` | - | `{ version_id, status }` | create | yes | -> `approve_video` (no override) | - |
+| Retry stage, `stage_retry` | `POST /api/v1/jobs/{job_id}/retry` | - | `{ jobs: JobRef[] }` | create; spend for a paid stage | yes | -> `retry_stage` (not `publish`, `set_privacy`) | that stage's rule |
+| Cancel job, `job_cancel` | `POST /api/v1/jobs/{job_id}/cancel` | - | `{ job: JobStatus }` | create | yes | `ops.job_cancel` | closes the job's reservation |
+| Stems, `stems_request` | `POST /api/v1/songs/{version_id}/stems` | - | `{ jobs: JobRef[] }` | create | yes | -> `request_stems` | - |
+| Visualizer, `visualizer_request` | `POST /api/v1/songs/{version_id}/visualizer` | `VisualizerInput` (existing schema) | `{ jobs: JobRef[] }` | create | yes | -> `request_visualizer` | - |
 
-The later rows (`remake_start`, `remake_status`, `remake_stage_*`, `remake_driver_*`,
-`artefact_submit`, `timeline_get`, `timeline_patch`, `publish_schedule`, `publish_veto`,
-`claim_report`, `loop_report_get`) keep the names, scopes and milestones given in sections 8, 9, 12
-and 13; each gets its row here when its milestone is planned. Editor operations added later
-(cut, fade, normalise, regenerate a section, storyboard changes) join with the same columns.
+`JobRef` is `{ job_id, version_id, stage }`. Mutating rows are the ones with "yes" under Key; the
+rest are reads for the rate limits. MCP resources in M1: `mellodifai://songs/{version_id}` (a
+`SongDetail`); MCP prompt: `new_song`. Later tools (sections 8, 9, 12, 13) keep the names given
+there and get rows when their milestone is planned.
 
-**Read shapes for token callers** (`packages/shared/src/ops/reads.ts`; every `ops` read function
-filters by the resolved actor and returns only these fields; media bytes and URLs are not part of
-M1 and are added later as new fields):
+**Read shapes and their sources** (`packages/shared/src/ops/reads.ts`; trashed versions excluded
+unless asked; every field comes from the actor's own rows):
 
-| Shape | Fields |
+| Shape, field | Source |
 | --- | --- |
-| `SongSummary` | `version_id`, `project_id`, `title`, `lang`, `status`, `engine`, `created_at`, `updated_at`, `take_count`, `duration_s` (chosen take, or null), `test_run` |
-| `SongDetail` | `SongSummary` plus `lyrics` (lyric pack or null), `takes[]` (`take_id`, `generation`, `duration_s`, `chosen`), `renders[]` (`render_id`, `kind`, `approved`, `qa_passed`), `publications[]` (`publication_id`, `privacy`, `youtube_video_id`), `active_jobs[]` (`JobStatus`), `lyric_jury` (`available`, `passed`, `scores`) or null, `cost_usd` |
-| `JobStatus` | `job_id`, `version_id`, `stage`, `status`, `attempts`, `progress` (0-1 or null), `error_code` (6.3.5 code or null), `error_message` (redacted, at most 300 characters, or null), `created_at`, `started_at`, `finished_at` |
-| `JobEvent` | `id`, `at`, `kind`, `progress`, `message` (at most 300 characters) |
-| `CostsSummary` | `from`, `to`, `by_provider[]` (`provider`, `usd`, `units` per unit), `caps[]` (`scope`, `provider`, `unit`, `period`, `limit`, `used`) |
-| `Notification` | the `notifications` columns except `user_id` |
+| `SongSummary.version_id`, `project_id`, `lang`, `status`, `created_at`, `updated_at`, `test_run` | `versions` columns |
+| `SongSummary.title` | `coalesce(versions.display_title, versions.lyric_pack->>'title', projects.topic)` |
+| `SongSummary.take_count` | count of `takes` of the version with `generation = versions.generation_count` |
+| `SongSummary.has_chosen_take`, `trashed` | `versions.chosen_take_id is not null`, `versions.trashed_at is not null` |
+| `SongDetail` | `SongSummary` plus `lyrics` (`versions.lyric_pack`), `takes[]` (`id`, `generation`, `take_number`, `engine`, `chosen` = id equals `chosen_take_id`), `renders[]` (`id`, `kind`, `render_attempt`, `approved` = `approved_at is not null`, `qa_passed` = every `qa_results.gates[].pass` true), `active_jobs[]` (`JobStatus` of jobs `queued` or `running`), `lyric_jury` (`versions.lyric_jury` -> `available`, `passed`, `scores`, or null), `cost_usd` (sum of settled entries of the version's reservations) |
+| `JobStatus` | `jobs.id`, `version_id`, `stage`, `status`, `attempts`, `created_at`, `started_at`, `finished_at`; `progress` = the latest `job_events.progress` divided by 100, or null; `error` = `jobs.error` redacted and cut to 300 characters, or null |
+| `JobEvent` | `job_events.id`, `at`, `level`, `message` (cut to 300 characters), `progress` (0-100 as stored) |
+| `CostsSummary` | `from`, `to` (the inputs); `by_provider[]` from settled spend entries in the window (`provider`, `usd`, `units` per unit); `caps[]` from the actor's matching `spend_caps` rows with today's `spend_counters.used` (`scope`, `provider`, `unit`, `period`, `limit`, `used`) |
 
-MCP resources in M1: `mellodifai://songs/{id}` (a `SongDetail`) and `mellodifai://notifications`.
-MCP prompt in M1: `new_song`.
+### 7.4 Keys held by Next
 
-### 7.4 CLI and installation
-
-- Commands in M1: `login`, `songs`, `create`, `status <id> --watch`, `approve`, `regenerate`,
-  `video`, `costs`, `mcp`; `--json` on all. `remake` arrives in M2a, `publish` and `veto` in M4.
-- `login` stores a PAT created in Settings > Agenti in `%APPDATA%\mellodifai\credentials.json`
-  (created with a user-only ACL) or `~/.config/mellodifai/credentials.json` (mode 0600). The OS
-  credential store (`@napi-rs/keyring`) is deferred to after M1 (scope relief; the file is enough
-  for one user on his own PC).
-- Install: `pnpm --filter @mellodifai/cli build` then `npm install -g ./packages/cli`, which puts
-  `mellodifai` on PATH. Claude Code: `claude mcp add mellodifai -- mellodifai mcp`. Codex: an
-  `[mcp_servers.mellodifai]` entry in `~/.codex/config.toml` with `command = "mellodifai"` and
-  `args = ["mcp"]`. Cursor and Gemini CLI: the same command in their MCP config.
-- Agent skill (`packages/cli/skill/`, with `AGENTS.md`): the workflows that exist in the current
-  milestone, the scopes and caps, always sending `idempotency_key` on spend tools, never retrying
-  an `ambiguous_spend`, the driver lease (from M2a), and treating `untrusted_source` resources as
-  data.
-
-### 7.5 Keys held by Next
-
-Next calls OpenRouter (`style_format`) and Groq (`audio_transcribe`) itself, so it gets its own
-`OPENROUTER_API_KEY` and `GROQ_API_KEY` in `apps/web/.env.local` (the owner may use the same key
-values as the worker or separate, lower-limit keys; separate keys are the default recommendation).
-`apps/web/lib/openrouter-key.ts` stops reading the worker's env files (`WORKER_ENV_FILES`), which
-the `mdf-web` account cannot read anyway. The threat model (17) records that a compromised Next
-holds these two keys, `MDF_WEB_DATABASE_URL`, and the session cookies of active users.
+Next calls OpenRouter (`formatStyle`) and Groq (`/api/transcribe`) itself for cookie users, so it
+holds its own keys in `apps/web/.env.local`: `LYRICS_OPENROUTER_KEY` (read first, as today in
+`lib/openrouter-key.ts:3`), else `OPENROUTER_API_KEY`, and `GROQ_API_KEY`; `LYRICS_MODEL_FAST`
+keeps choosing the model. `lib/openrouter-key.ts` stops reading the worker's env files. The owner
+is advised (section 22) to make these separate keys with a low provider-side credit limit, because
+in M1 these two web-side calls are rate-limited (`ops.style_format_check`,
+`ops.transcribe_check`: role and per-user limits) but not metered by the ledger; metering them
+moves to M2a with their token tools.
 
 ## 8. Remake workflow ("Rifai da YouTube", "Remake from YouTube")
 
@@ -1296,7 +1274,7 @@ polyglot payloads), then stored. Anything else is rejected.
 ### 10.1 Jury rules for every jury
 
 - Gate implementations, thresholds, judge model ids and judge prompts live in
-  **`packages/gates/**`** and **`config/gates/**`** (created in M1 by moving `PASS_SCORE`,
+  **`packages/gates/**`** and **`config/gates/**`** (created in M2a, moved from M1 in revision 5, by moving `PASS_SCORE`,
   `combine()`, `CRITERIA` and the judge prompts out of `lyric-jury.ts`, and the QA thresholds out of
   `qa.ts:90`; every later gate is written there from the start). Stage code imports them. These
   paths are on the loop's denylist (13.3).
@@ -1458,139 +1436,175 @@ Autopilot. Generated footage is upscaled locally (Real-ESRGAN class) before comp
 
 ### 11.5 Ledger and caps (M1, enforced in the database)
 
-Tables in 15.1. All functions here are `security definer`, owned by `postgres`, with
-`search_path = ''`; the `public` ones are granted to `service_role` only, the `ops` ones to
-`mdf_web` only.
+Tables in 15.1. All ledger functions are in schema `ops`, `security definer`, owned by `postgres`,
+`search_path = ''`, and granted to `service_role` (the worker) unless noted; the wrappers call them
+internally.
 
-**Price book.** Seeded in M1 by `supabase/seed.sql` for local stacks and by `ops/deploy.ts` for
-production, each row with `checked_on` and `source`: kie at 0.005 USD per `credit` (from the test
-fixture, `verified = false` until the owner confirms the rate); kie operation sizes in
-`provider_operations` (generate 12 credits; cover, extend and replace-section with the credit
-counts from kie's price page at seed time, `verified = false`); the OpenRouter models the app uses
-(Jev, the two writers, the two judges) with their `mtok_in` and `mtok_out` prices copied from
-OpenRouter's models API at seed time; Groq Whisper per `audio_hour`; codex, Gemini free tier and
-local engines at 0. A daily refresh task (`price_book_sync`) is deferred to M2a; until then a
-stale price only skews estimates, and settles use the provider's reported cost.
+**Model (ruling 1).** One **reservation** per job. It holds the job's estimate and the counter
+amounts it charged, and it collects **spend entries**, one per paid provider call, keyed by a call
+key. A reservation stays open while its job is `queued` or `running`, however long that is; the
+same job (a requeue, a `retryLater`, a graceful stop, a resume of a kie task, an in-stage kie
+balance check) always finds the same reservation, because it is looked up by job id. A new job (a
+`retry_stage`, a resend after `resolve_kie_submission`) gets its own reservation.
 
-**Caps.** A cap row is `(scope, key, provider, unit, period, limit)`:
-- `scope` is `global`, `user`, `token` or `run`; `key` is `''` (global), a user id or
-  `default:<role>` (user), a token id (token), a run id (run);
-- `provider` is `''` for "all providers" or one provider; `unit` is `usd` or a price unit such as
-  `credit` (a non-`usd` unit needs a provider);
-- `period` is `day` or `month` (calendar windows in Europe/Rome) or `run` (no window).
-Seeded defaults (AC7, editable in Settings > Costi, "Costs"):
+**Prices.** `price_book (provider, model, unit, usd_per_unit, checked_on, source, verified)`.
+Lookup: the exact `(provider, model, unit)`, else `(provider, '', unit)`, else raise `MDF05`
+`price_missing` (the call is refused; no null ever reaches a cap check). **Estimates:**
+`provider_operations (provider, operation, model, items)`. Both are seeded **by the migration**
+`spend_ledger` (`insert ... on conflict do nothing`), so every stack, production included, has
+them:
+- kie credits from `KIE_CREDITS` (`packages/shared/src/rewrite.ts:32-37`: generate 12, replace 5,
+  cover 12, extend 12) at 0.005 USD per credit, `verified = false` until the owner confirms;
+- `draft_lyrics` per language: one Jev decision, five calls of the **strong** writer (the worst
+  case) and three judges for one round, each with its token sizes, priced from the OpenRouter
+  models API at migration-writing time (`checked_on` and `source` stored);
+- Groq take scoring: a fixed 6 minutes of audio per take (`audio_hour` 0.1), two takes per
+  generation; settled at the actual duration when the provider reports it, else at the estimate.
+
+**Caps** (`spend_caps`, seeded by the migration, ruling 3): rows `(scope, key, provider, unit,
+period, limit)`; `scope` `global`, `user`, `token` or `run`; `provider` `''` means all; `unit` `usd`
+or a price unit such as `credit`; `period` `day` or `month` (calendar windows in Europe/Rome) or
+`run`. Defaults (editable later in Settings > Costi, M2a; by SQL until then):
 
 | scope | key | provider | unit | period | limit |
 | --- | --- | --- | --- | --- | --- |
 | global | `''` | `''` | usd | day | 3.00 |
 | global | `''` | `''` | usd | month | 40.00 |
 | global | `''` | kie | credit | day | 120 |
-| user | `default:customer` | `''` | usd | day | 0.10 |
+| user | `default:admin` | `''` | usd | day | 3.00 |
+| user | `default:customer` | `''` | usd | day | 0.50 |
 | user | `default:customer` | kie | credit | day | 0 |
-| token | each token (written at creation) | `''` | usd | day | 1.00 |
-| run | each run (written at run start, M2a) | `''` | usd | run | 0.25 standard, 0.03 free |
+| token | each token, written at creation | `''` | usd | day | 1.00 |
 
-`default:admin` has no rows, so the owner is bound only by global, token and run caps. **User
-fallback:** if a user has at least one row with `key = <user id>`, only those user rows apply;
-otherwise the rows of `default:<role>` apply. The counter key is always the real user id.
+The customer USD default is 0.50 so that one language of `draft_lyrics` at the strong-writer
+estimate fits; the M1 plan recomputes the estimate from the seeded prices and keeps the default at
+least three times it.
 
-**Counters.** `spend_counters` has one row per cap row and window:
-`(scope, key, provider, unit, period, window_start, used)`, where `key` is resolved (user id, not
-`default:customer`), `window_start` is today's date (day), the first day of the month (month) or
-`1970-01-01` (run), all in Europe/Rome, and `used` counts reserved plus settled amounts in the
-cap's unit.
+**User caps per dimension** (Major 6): for each `(provider, unit, period)` that appears in either
+the user's own rows (`key = <user id>`) or the `default:<role>` rows, the user's row wins if it
+exists, else the default row applies. Raising one customer's kie cap leaves the role's USD cap in
+force.
+
+**Fail closed (ruling 3).** `ops.reserve_job` and `ops.extend_reservation` refuse with `MDF06`
+`no_cap` when, for the call's provider, no global `usd` `day` row matches, when no user `usd` `day`
+row results from the fallback, or when the actor is a token and has no token row. A database test
+empties `spend_caps` and expects every paid wrapper to return `cap_exceeded` with `details.reason
+= "no_cap"`.
 
 **Functions.**
 
 ```sql
-public.reserve_spend(p_user uuid, p_token uuid, p_run uuid, p_job uuid, p_version uuid,
-                     p_provider text, p_model text, p_items jsonb) returns uuid
-  -- p_items: [{"unit":"mtok_in","units":0.004},{"unit":"mtok_out","units":0.002}] or
-  --          [{"unit":"credit","units":12}]; usd = sum(units * price_book price for that unit).
-  -- 1. collect matching cap rows: global; user rows by the fallback rule; token row; run row;
-  --    each where provider in ('', p_provider) and (unit = 'usd' or a p_items unit equals it);
-  -- 2. insert the needed spend_counters rows with "on conflict do nothing";
-  -- 3. select them "for update" ordered by (scope, key, provider, unit, period, window_start),
-  --    the same order in every ledger function, so concurrent reservations serialise and the
-  --    first reservations of a new window cannot race;
-  -- 4. for each, amount = usd (unit usd) or the sum of p_items units in that unit;
-  --    if used + amount > limit raise sqlstate 'MDF02' 'cap_exceeded:<scope>:<provider>:<unit>:<period>';
-  -- 5. add the amounts, insert ledger_entries (state reserved), return its id.
-public.settle_spend(p_entry uuid, p_items jsonb, p_usd numeric default null) returns void
-  -- actual items (and the provider's reported USD when it gives one, else priced); adjusts the
-  -- same counters by (actual - estimate) under the same lock order; state settled.
-public.release_spend(p_entry uuid) returns void        -- subtracts the estimate; state released
-public.mark_ambiguous(p_entry uuid) returns void       -- state ambiguous; amounts stay counted
-public.claim_reservation(p_job uuid, p_provider text) returns uuid
-  -- the oldest reserved, unclaimed entry of that job and provider; sets claimed_at; null if none
-public.worker_reserve_spend(p_job uuid, p_provider text, p_model text, p_items jsonb) returns uuid
-  -- reserve_spend with user, token, run and version taken from the job (extra rounds)
-public.reserve_job_spend(p_job uuid) returns void
-  -- reserves every item that public.job_spend_rule(p_job) returns; called by the ops wrappers
-  -- and by public.worker_enqueue in the transaction that creates the job
-ops.style_format_reserve(p_ctx, p_model, p_items) returns jsonb   -- web-side, no job
-ops.transcribe_reserve(p_ctx, p_audio_seconds) returns jsonb      -- web-side, no job
-ops.settle_spend(p_ctx, p_entry, p_items, p_usd) returns jsonb    -- only for an entry with no
-                                                                  -- job reserved by this actor
+ops.reserve_job(p_job uuid) returns uuid                 -- called by the wrappers and worker_enqueue
+  -- 1. estimate = ops.job_spend_rule(p_job): setof (provider, model, items); empty for fake jobs,
+  --    on an app.fake_stack database, and for free stages -> no reservation, return null;
+  -- 2. price every item (lookup above); collect matching cap rows (fail closed above);
+  -- 3. insert the needed spend_counters rows in sorted order (scope, key, provider, unit, period,
+  --    window_start) with "on conflict do nothing", then select them "for update" in the same
+  --    order (every ledger function uses this order, so the first reservations of a window
+  --    cannot race and concurrent functions cannot deadlock);
+  -- 4. if any used + amount > limit, raise MDF02 'cap_exceeded:<scope>:<provider>:<unit>:<period>';
+  -- 5. add the amounts, insert the reservation with estimate and the exact charged rows
+  --    (scope, key, provider, unit, period, window_start, amount) in reservations.charges.
+ops.extend_reservation(p_reservation uuid, p_provider text, p_model text, p_items jsonb) returns void
+  -- extra rounds beyond the estimate: same cap check and charge, appended to charges.
+ops.spend_entry_open(p_reservation uuid, p_call_key text, p_provider text, p_model text,
+                     p_items_est jsonb) returns uuid
+  -- before a paid call; idempotent on (reservation, call_key): a re-run gets the same entry id.
+ops.settle_spend(p_entry uuid, p_items jsonb, p_usd numeric default null) returns void
+  -- after the call; actual items, priced (or the provider-reported USD, bounded to between 0 and
+  -- 3 times the entry's estimate); a second settle of the same entry is a no-op. If the
+  -- reservation's settled total for that provider now exceeds what it charged, the excess is
+  -- charged to the same counters (no refusal: the money is spent).
+ops.mark_ambiguous(p_reservation uuid) returns void        -- worker, synchronously (below)
+ops.close_reservation(p_reservation uuid) returns void     -- internal; the close rule below
+ops.expire_reservations() returns integer                  -- scheduler task (14.4)
+ops.job_spend_rule(p_job uuid) returns setof record        -- internal
 ```
 
-**When a job needs a reservation** (`public.job_spend_rule(job) returns setof (provider, model,
-items)`; returns nothing for fake jobs, `fake_providers = true`):
+**When a job reserves** (`ops.job_spend_rule`):
 
-| Stage | Reserves | Returns nothing when |
+| Stage | Reserves | Nothing when |
 | --- | --- | --- |
-| `draft_lyrics` | OpenRouter: writer plus three judges, one round (the estimate in `provider_operations`) | - |
-| `generate_song` | kie: generate, cover or extend (by the version's source) credits; Groq: take scoring for two takes of the expected length | the version's engine is local (ACE-Step, YuE2): Groq only; `versions.kie_task_id` is set (a resume after `resolve_kie_submission` with charged outcome, or `retry_stage` of a submitted task): Groq only |
-| `replace_section` | kie replace-section credits | the engine is local |
-| `import_audio`, `timing` | Groq: take scoring for the audio's length | - |
-| every other stage | - | always |
+| `draft_lyrics` | OpenRouter: the `draft_lyrics` estimate | - |
+| `generate_song` | kie: generate, cover or extend credits (by the version's source); Groq: two takes | engine local (ACE-Step, YuE2): Groq only; `versions.kie_task_id` set (resume): Groq only |
+| `replace_section` | kie: replace credits | engine local; `section_edits.kie_task_id` set (resume) |
+| `import_audio`, `timing` | Groq: one take | - |
+| other stages | - | always |
 
-Extra rounds beyond the estimate (lyric revision rounds, extra jury rounds) are reserved inside the
-stage with `worker_reserve_spend` right before the call.
+**Calls inside a stage.** Every key-bearing call names either a call key (paid) or a free
+operation:
+- Paid calls (each gets `spend_entry_open` before and `settle_spend` after): kie `generate`,
+  `cover`, `extend`, `replace` submits (call key `kie:<op>:<attempt>`; settled at submit
+  acceptance, right after the worker writes `kie_task_id`); every OpenRouter chat or decision call
+  (`openrouter:<role>:<round>:<n>`); every Groq transcription (`groq:<take id>`).
+- Free calls (they carry the key and no entry; listed in `FREE_KEY_CALLS` in
+  `apps/worker/src/providers/paid.ts`): kie `credit` (balance), `job` and `record-info` (status),
+  `wait`, `lyrics-ts`, `upload`, download of results; the worker's periodic balance refresh in
+  `main.ts:124-141`, which has no job. The M1 plan checks this list against kie's price page.
+- Enforcement in code: HTTP calls go through `providers/paid.ts` (with `providers/kie-client.ts`,
+  moved from `kie/client.ts`; `apps/worker/test/rewrite.test.ts:20` and
+  `songs-from-songs.test.ts:13` change their import). Subprocess calls go through `engine.run`
+  (`engine.ts`), which refuses any call whose `secretEnv` contains a name in `PAID_SECRET_NAMES`
+  (`KIE_API_KEY`, `OPENROUTER_API_KEY`, `LYRICS_OPENROUTER_KEY`, `GROQ_API_KEY`,
+  `HIGGSFIELD_API_KEY`) unless it carries an open entry id or a `FREE_KEY_CALLS` name. The worker
+  settles subprocess calls with `ops.settle_spend(entry_id, ...)` from the subprocess's reported
+  result. Today's direct key reads (`source-audio.ts:112`, `replace-section.ts:136`,
+  `score-takes.ts:69-70`, `draft-lyrics.ts:202`) move into `providers/`. A unit test fails if a
+  worker file outside `providers/` names a paid host or reads a paid key.
+- Key files: `engine.ts` sets `MELLODIFAI_ENV_ONLY=1` in every child environment **after**
+  `childEnvironment` (the name does not match the secret-name pattern of `secrets.ts:9-10`, so it
+  is not stripped; a test asserts a child sees it). The engine repo (an M1 change there) makes every
+  script that reads a key file refuse to when the flag is set: `tools/kie.mjs` (refuses `KIE_ENV`
+  and its fallback to `C:/Users/Asus/Documents/Claude/Projects/ita/.env`, `kie.mjs:16-24`),
+  `whisper_words.py` (its `~/.config/watch/.env` fallback), and any other script the M1 plan finds
+  by searching the engine repo for `.env` and `dotenv` reads; a test runs each with no key and the
+  flag and expects a refusal. Callers to map in the plan: `generate-song.ts:108, 211, 242, 287-297,
+  313-318, 352`, `replace-section.ts:143-216`, `source-audio.ts:122-133`, `draft-lyrics.ts:163,
+  239-271`, `lyric-jury.ts:100-110, 376-393`, `import-audio.ts:66`, `local-engine.ts:569`, and
+  `timing.ts:44` (it runs `tools/workspace_pipeline.sh`; builder decides in the plan whether that
+  reaches a paid provider; default: treat it as paid Groq).
 
-**Where the worker enforces it ("no reservation, no paid call").**
-- Every paid call goes through `apps/worker/src/providers/paid.ts`. For HTTP providers
-  (`providers/kie-client.ts`, moved from `kie/client.ts`, and the OpenRouter calls of
-  `lyric-jury.ts` and `draft-lyrics.ts`) it calls `claim_reservation(job, provider)` (or
-  `worker_reserve_spend` for an extra round) and refuses with `no_reservation` when it gets
-  nothing; after the call it calls `settle_spend(entry, actual)`.
-- For subprocesses, `engine.run` (`apps/worker/src/engine.ts`) refuses any call whose `secretEnv`
-  contains a paid key name (`KIE_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`,
-  `HIGGSFIELD_API_KEY`; the list `PAID_SECRET_NAMES` lives in `providers/paid.ts`) unless the
-  options carry a claimed `ledgerEntry`. This covers `tools/kie.mjs` (`generate-song.ts:108, 211,
-  242, 289, 316`, `source-audio.ts:112-125`) and `score_takes.py` with `whisper_words.py`
-  (`score-takes.ts:75-89`, called from `import-audio.ts:66`, `local-engine.ts:569`, `timing.ts:44`).
-  The worker sets `MELLODIFAI_NO_KEYFILES=1` in every child environment, and the engine repo (an
-  M1 change there) makes `tools/kie.mjs` and `whisper_words.py` refuse to read their key-file
-  fallbacks (the engine repo's `.env`, `~/.config/watch/.env`) when it is set, so a key can only
-  arrive through `secretEnv`.
-- A unit test fails if any worker file outside `apps/worker/src/providers/` contains a paid
-  provider host name or a paid key name outside a `secretEnv` list.
-- **Grandfathered jobs:** `jobs.ledger_required` is false for every job that existed before the
-  migration and true for new jobs. For a grandfathered job, `paid.ts` reserves on demand with
-  `worker_reserve_spend` (still capped) instead of refusing.
+**Close rule (never releases settled spend).** `ops.close_reservation` runs when the job is
+`done`, `failed` or `cancelled`, or the job row is gone. It:
+1. counts every settled entry at its actual amount and every open entry (the call may have
+   happened) at its estimate;
+2. for a kie stage whose submit state (`versions.kie_submit_state` for `generate_song`,
+   `section_edits.kie_submit_state` for `replace_section`) is `submitted` with a task id but no
+   submit entry, writes the submit entry at the estimate;
+3. if that submit state is `submitting` (outcome unknown), sets the reservation `ambiguous` and
+   stops: its charges stay counted until `ops.admin_resolve_kie_submission` records the outcome
+   (charged: a submit entry at the estimate; not charged: none) and closes it;
+4. otherwise reduces each charged counter row by the charged amount minus what step 1 counted,
+   only when positive, and sets the reservation `closed`.
+The worker calls `ops.mark_ambiguous` itself, before failing a kie stage whose submit state is
+`submitting`, so the admin never races the expiry task. `ops.job_cancel` cancels a queued job and
+closes its reservation by the same rule. Queued jobs of trashed songs keep their reservations
+(restore resumes them); `purge_test_runs` cancels the jobs of the test versions it trashes.
 
-**Lifecycle (no wall-clock expiry while a job is alive).**
-- A reservation lives as long as its job is `queued` or `running`, however long it waits in the
-  queue or runs (the job heartbeat proves it is alive).
-- The scheduler task `expire_reservations` (every 5 minutes) handles entries still `reserved`:
-  - job `done`, `failed` or `cancelled`, or job deleted: if the job is a kie stage and
-    `versions.kie_submit_state = 'submitting'`, `mark_ambiguous` (counted as spent until
-    `resolve_kie_submission`); otherwise `release_spend`;
-  - no job (web-side) and older than 10 minutes: `release_spend`.
-- `ops.job_cancel` releases the job's entries in the same transaction.
-- `ops.admin_resolve_kie_submission` settles an `ambiguous` entry as spent (charged) or releases
-  it (not charged), and a resend reserves anew through the generated job.
+**Orphans only (ruling 1).** `ops.expire_reservations` (every 5 minutes) closes reservations that
+are still `open` and whose job is terminal or gone. It never touches the reservation of a `queued`
+or `running` job.
 
-**Propagation.** `jobs` gains `token_id`, `run_id`, `fake_providers`, `ledger_required`,
-`resource_class` and `priority`, and `versions` gains `test_run`; `public.worker_enqueue` (6.9)
-copies the job fields from the parent job. `run_id` is a plain uuid in M1 and gets its foreign
-key to `remakes` in M2a.
-`resource_class` is set by a `before insert` trigger from the stage map, so no caller can forget
-it.
+**Web-side tools.** `formatStyle` and `/api/transcribe` are not metered by the ledger in M1 (7.4);
+they move into it in M2a, with their token tools.
 
-**Reconciliation** of `workers.kie_balance` against the ledger (`kie_reconcile`) is deferred to
-M2a (scope relief; caps already bound kie spend).
+**Propagation.** `jobs` gains `token_id`, `run_id`, `fake_providers`, `resource_class` and
+`priority` (stamped by the trigger of 6.3.4 and copied by `worker_enqueue`); `versions` gains
+`test_run`. **A job without a reservation** (one that existed before the migration, or was created
+before the server actions moved onto the wrappers, 21.2) gets one on demand: before its first paid
+call the worker calls `ops.reserve_job(job)`, with the same cap check; a refusal fails the job with
+`cap_exceeded`. So every paid call is covered by a capped reservation, whichever path created the
+job.
+
+**Tests.** A worker integration test (`apps/worker/test/ledger-integration.test.ts`) runs the real
+`generate_song`, `replace_section` and `draft_lyrics` stage code against fake kie, OpenRouter and
+Groq HTTP servers (base URLs from env: `KIE_API_BASE`, `OPENROUTER_BASE_URL`, `GROQ_BASE_URL`, an
+M1 change in the worker and the engine scripts) on the e2e stack with `app.fake_stack` off for that
+test: a normal run, a crash after the kie submit and before the settle, a requeue, a `retryLater`, a
+resume after `resolve_kie_submission`, and a cancel. After each, the counters must equal the
+settled spend (plus open entries at estimate), and every reservation must be `closed` or
+`ambiguous` as expected. Plus the database tests: empty caps (fail closed), 20 parallel
+reservations on a fresh window, a missing price, the per-dimension fallback.
 
 ### 11.6 Per-video budget (standard tier, AC7)
 
@@ -1899,239 +1913,223 @@ module `apps/worker/src/providers/**`; `apps/worker/src/stages/publish.ts` and `
 ### 14.4 Scheduler (M1)
 
 One mechanism for timed work: the **worker scheduler** (`apps/worker/src/scheduler.ts`). Table
-`scheduled_tasks` (15.1); the worker claims a due task atomically with
-`public.claim_scheduled_task(p_worker text)` (service role only: an update of `next_run_at` on a
-row selected `FOR UPDATE SKIP LOCKED`) and runs it in process, then calls
-`public.finish_scheduled_task(p_name, p_ok, p_error)`. Tasks:
+`scheduled_tasks` (15.1), rows inserted by the migration that adds each task. Functions
+(`service_role` only):
+- `ops.claim_scheduled_task(p_worker text) returns text`: picks one row with `next_run_at <= now()`
+  and either `running_by` null or `started_at` older than 10 minutes (a stale claim is taken
+  over), `FOR UPDATE SKIP LOCKED`; sets `running_by`, `started_at`; returns its name.
+- `ops.finish_scheduled_task(p_name text, p_worker text, p_ok boolean, p_error text)`: only the
+  claiming worker can finish it; clears `running_by`, records the result and sets `next_run_at`:
+  `now() + interval_s`, or for daily tasks the next `daily_at` computed as
+  `((current_date + 1) + daily_at) at time zone 'Europe/Rome'` (so a daylight-saving change moves
+  the run by the wall clock, not by 24 hours).
 
-| Task | Cadence | From |
-| --- | --- | --- |
-| `expire_reservations` | every 5 min | M1 |
-| `ingest_uploads` | every 10 s | M1 |
-| `purge_idempotency` | hourly | M1 |
-| `purge_oauth` (expired and consumed `oauth_store` rows) | hourly | M1 |
-| `notify_push` | every 30 s | M1 |
-| `purge_audit` (180 days) | daily 03:30 | M1 |
-| `purge_test_runs` (test versions older than 7 days) | daily 03:45 | M1 |
-| `price_book_sync`, `kie_reconcile` | daily 04:00, 05:00 | M2a (deferred from M1) |
-| `retention_sweep` | daily 03:00 | M2a |
-| `disk_guard` | every 10 min | M2a |
-| `publish_slots` | every minute | M4 |
-| `veto_reminders` | every 10 min | M4 |
-| `capability_expire` | hourly | M4 |
-| `analytics_daily` | daily 06:00 | M4 |
-| `canary_jobs` | daily 00:30 | M6 |
+Each task's body is one SQL function, `service_role` only; the worker just calls it:
 
-Times are Europe/Rome.
+| Task | Body | Cadence | From |
+| --- | --- | --- | --- |
+| `expire_reservations` | `ops.expire_reservations()` (11.5) | every 5 min | M1 |
+| `purge_idempotency` | `ops.purge_idempotency()`: delete keys older than 24 h | hourly | M1 |
+| `purge_oauth` | `ops.purge_oauth()`: delete `oauth_store` rows expired or consumed more than 1 h ago, and `oauth_consents` older than 1 day that never bound a grant | hourly | M1 |
+| `purge_audit` | `ops.purge_audit()`: delete `audit_log` rows older than 180 days | daily 03:30 | M1 |
+| `purge_test_runs` | `ops.purge_test_runs()`: cancel the jobs and trash the versions with `test_run = true` older than 7 days | daily 03:45 | M1 |
+| `price_book_sync`, `kie_reconcile`, `notify_push`, `ingest_uploads` | - | - | M2a |
+| `retention_sweep`, `disk_guard` | - | - | M2a |
+| `publish_slots`, `veto_reminders`, `capability_expire`, `analytics_daily` | - | - | M4 |
+| `canary_jobs` | - | - | M6 |
 
 ## 15. Data model additions
 
 All migrations are additive (new tables, new nullable columns, widened check lists) except the
-privilege changes of `ops_scopes`, which only revoke. Numbers are assigned after T12's last
+privilege changes of `ops_lockdown`, which only revoke. Numbers are assigned after T12's last
 migration.
 
 ### 15.1 M1 tables (DDL level)
 
-Rules for every M1 object, on top of the default-privilege revokes of 6.3.2:
-- Every table has RLS enabled and an explicit `revoke all on <table> from anon, authenticated;`
-  right after `create table` (Supabase's default ALL grants are not trusted, as the repo already
-  does at `019:41` and `023:77`); every function an explicit
-  `revoke execute on function <f> from public, anon, authenticated;` before its one grant.
-- "Read own" means a `select to authenticated using (<owner column> = (select auth.uid()))` policy
-  plus `grant select` on that table to `authenticated` (these are cookie UI reads; token callers
-  read through `ops` functions).
-- Nobody but the `ops` and worker functions writes these tables.
+Rules for every M1 object: RLS on; an explicit `revoke all on <table> from anon, authenticated;`
+after `create table` and `revoke execute on function <f> from public, anon, authenticated;` before
+each function's single grant (6.3.2); no table writes for `anon` or `authenticated`. "Read own" means
+a `select to authenticated using (<owner column> = (select auth.uid()))` policy plus a table-level
+`grant select` to `authenticated`, unless a column list is given.
 
 ```sql
 -- migration ops_roles
+-- (raises first if two allowlist emails differ only by case)
 create unique index admin_allowlist_email_lower on public.admin_allowlist (lower(email));
-  -- preceded by a check that raises if two emails differ only by case
 alter table public.admin_allowlist add column role text not null default 'customer'
   check (role in ('admin','customer'));
 update public.admin_allowlist a set role = p.role
-  from public.profiles p where lower(p.email) = lower(a.email);   -- keep today's roles
--- create_allowlisted_profile(): select role into v_role from admin_allowlist
---   where lower(email) = lower(new.email); insert (new.id, new.email, v_role).
--- ops/set-owner.ts then fixes roles at deploy time (6.2).
+  from public.profiles p where lower(p.email) = lower(a.email);
+-- create_allowlisted_profile(): role from the allowlist row (lower(email) match).
 
--- migration ops_tokens
+-- migration ops_layer (roles guarded as in 6.3.1, schema ops, default privileges, every table and
+-- function below; no revokes of existing grants yet, so the app keeps working)
 create table public.agent_tokens (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles(id) on delete cascade,
-  kind text not null check (kind in ('pat','oauth','autopilot','canary')),
+  kind text not null check (kind in ('pat','oauth','autopilot')),
   name text not null check (length(name) between 1 and 60),
-  token_hash text unique,              -- sha256 hex, pat only
-  token_hint text,                     -- 'mdf_pat_...' plus last 4
-  oauth_client_id text,                -- oauth only
-  grant_id text unique,                -- oauth only, set by ops.oauth_bind_grant
+  token_hash text unique, token_hint text,
+  oauth_client_id text, grant_id text unique,
   scopes text[] not null check (scopes <@ array['read','create','spend','publish']),
   remote boolean not null default false,
   test_mode boolean not null default false,
   expires_at timestamptz,
-  created_at timestamptz not null default now(),
-  last_used_at timestamptz,
-  revoked_at timestamptz,
+  created_at timestamptz not null default now(), last_used_at timestamptz, revoked_at timestamptz,
   check ((kind = 'pat') = (token_hash is not null)),
   check ((kind = 'oauth') = (oauth_client_id is not null)),
   check (not remote or expires_at is not null)
 );
 create unique index agent_tokens_one_grant on public.agent_tokens (owner_id, oauth_client_id)
   where kind = 'oauth' and revoked_at is null;
-create view public.agent_tokens_public with (security_invoker = true) as
-  select id, owner_id, kind, name, token_hint, oauth_client_id, scopes, remote, test_mode,
-         expires_at, created_at, last_used_at, revoked_at
-  from public.agent_tokens;            -- read own through the base table's RLS; no token_hash
+create policy "owners read tokens" on public.agent_tokens for select to authenticated
+  using (owner_id = (select auth.uid()));
+grant select (id, owner_id, kind, name, token_hint, oauth_client_id, scopes, remote, test_mode,
+  expires_at, created_at, last_used_at, revoked_at) on public.agent_tokens to authenticated;
+  -- column grant: token_hash and grant_id are never readable through PostgREST
 
 create table public.oauth_store (
-  model text not null, id_hash text not null, payload jsonb not null,
-  grant_id text, uid text, user_code text, expires_at timestamptz, consumed_at timestamptz,
+  model text not null, id_hash text not null, payload jsonb not null,   -- payload without jti
+  grant_id text, uid text, user_code text, flow_nonce_hash text,
+  expires_at timestamptz, consumed_at timestamptz,
   primary key (model, id_hash)
 );
 create index on public.oauth_store (grant_id);
 create index on public.oauth_store (uid);
-create index on public.oauth_store (expires_at);
--- no grants at all; only ops.oauth_* (mdf_auth) and ops.resolve_access_token (mdf_web)
+create index on public.oauth_store (expires_at);                       -- no grants
 
 create table public.oauth_consents (
-  uid text primary key,                -- the oidc-provider interaction id
+  uid text primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
   client_id text not null, scopes text[] not null, test_mode boolean not null default false,
+  flow_nonce_hash text not null, used_at timestamptz,
   token_id uuid references public.agent_tokens(id) on delete cascade,
   created_at timestamptz not null default now()
-);                                     -- no grants; ops only
+);                                                                      -- no grants
+
+create table public.oauth_pairing (
+  id boolean primary key default true check (id), open_until timestamptz
+);                                                                      -- no grants; one row
 
 create table public.idempotency_keys (
-  actor_key text not null,             -- token id, or 'session:' || user id
-  key text not null check (length(key) between 8 and 100),
-  request_hash text not null,
-  state text not null check (state in ('in_flight','done')),
-  response jsonb,
-  created_at timestamptz not null default now(),
+  actor_key text not null, key text not null check (length(key) between 8 and 100),
+  request_hash text not null, state text not null check (state in ('in_flight','done')),
+  response jsonb, created_at timestamptz not null default now(),
   primary key (actor_key, key)
-);                                     -- no grants; ops only
+);                                                                      -- no grants
 
 create table public.audit_log (
   id bigint generated always as identity primary key,
   at timestamptz not null default now(),
-  owner_id uuid not null references public.profiles(id) on delete cascade,
-  actor_kind text not null check (actor_kind in ('session','pat','oauth','autopilot','canary','worker')),
+  owner_id uuid references public.profiles(id) on delete cascade,      -- null when unresolved
+  actor_kind text not null check (actor_kind in ('session','pat','oauth','worker','unknown')),
   token_id uuid references public.agent_tokens(id) on delete set null,
   operation text not null, args_hash text not null,
   result text not null check (result in ('ok','error')), error_code text,
-  usd_reserved numeric(10,4), remote boolean not null default false
+  remote boolean not null default false
 );
-create index on public.audit_log (owner_id, at desc);   -- read own
-
-create table public.upload_intents (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null references public.profiles(id) on delete cascade,
-  kind text not null check (kind in ('audio','image')),
-  filename text not null check (length(filename) <= 200),
-  size_bytes bigint not null check (size_bytes between 1 and 104857600),
-  sha256 text not null, staging_name uuid not null unique,
-  state text not null default 'staged' check (state in ('staged','ready','rejected')),
-  storage_path text, reason text,
-  created_at timestamptz not null default now()
-);                                     -- read own
-
--- migration spend_ledger
-create table public.price_book (
-  provider text not null, model text not null default '',
-  unit text not null check (unit in ('credit','image','mtok_in','mtok_out','audio_hour','call')),
-  usd_per_unit numeric(12,6) not null, checked_on date not null, source text not null,
-  verified boolean not null default false,
-  primary key (provider, model, unit)
-);                                     -- select granted to authenticated
-
-create table public.provider_operations (
-  provider text not null, operation text not null, model text not null default '',
-  items jsonb not null,                -- the estimate, same shape as reserve_spend's p_items
-  verified boolean not null default false, checked_on date not null, source text not null,
-  primary key (provider, operation, model)
-);                                     -- select granted to authenticated
-
-create table public.ledger_entries (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  provider text not null, model text not null default '',
-  items_est jsonb not null, usd_est numeric(10,4) not null,
-  items_actual jsonb, usd_actual numeric(10,4),
-  state text not null check (state in ('reserved','settled','released','ambiguous')),
-  token_id uuid references public.agent_tokens(id) on delete set null,
-  run_id uuid, job_id uuid references public.jobs(id) on delete set null, version_id uuid,
-  claimed_at timestamptz,
-  created_at timestamptz not null default now(), settled_at timestamptz
-);
-create index on public.ledger_entries (job_id, provider) where state = 'reserved';
-create index on public.ledger_entries (state, created_at);
-create index on public.ledger_entries (user_id, created_at desc);   -- read own
-
-create table public.spend_caps (
-  scope text not null check (scope in ('global','user','token','run')),
-  key text not null default '',
-  provider text not null default '',
-  unit text not null default 'usd',
-  period text not null check (period in ('day','month','run')),
-  "limit" numeric(12,4) not null check ("limit" >= 0),
-  primary key (scope, key, provider, unit, period),
-  check (unit = 'usd' or provider <> ''),
-  check ((scope = 'run') = (period = 'run'))
-);                                     -- no grants; ops.admin_caps_* and ops.costs_get only
-
-create table public.spend_counters (
-  scope text not null, key text not null, provider text not null, unit text not null,
-  period text not null, window_start date not null,
-  used numeric(14,4) not null default 0,
-  primary key (scope, key, provider, unit, period, window_start)
-);                                     -- no grants
-
-alter table public.jobs
-  add column token_id uuid references public.agent_tokens(id) on delete set null,
-  add column run_id uuid,
-  add column resource_class text not null default 'cpu' check (resource_class in ('gpu','cpu','net')),
-  add column priority smallint not null default 0,
-  add column fake_providers boolean not null default false,
-  add column ledger_required boolean not null default false;   -- existing rows: grandfathered
-alter table public.jobs alter column ledger_required set default true;
--- trigger jobs_set_resource_class (before insert) sets resource_class from the stage map
-alter table public.versions add column test_run boolean not null default false;
-
--- migration notifications
-create table public.notifications (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  kind text not null check (kind in ('run_paused','veto_open','veto_reminder','missed_slot','cap_hit',
-    'ambiguous_spend','gate_failed_at_slot','loop_merge','loop_revert','disk_low','system')),
-  severity text not null check (severity in ('info','warn','urgent')),
-  title text not null check (length(title) <= 120), body text check (length(body) <= 500),
-  link text, deadline timestamptz,
-  created_at timestamptz not null default now(), read_at timestamptz, pushed_at timestamptz
-);                                     -- read own
+create index on public.audit_log (owner_id, at desc);                   -- read own
 
 create table public.app_flags (
   flag text primary key check (flag in ('remote_mcp','autopilot','auto_publish_public','loop_merge','premium')),
   enabled boolean not null default false, changed_by uuid, changed_at timestamptz
-);                                     -- select granted to authenticated
+);
+create policy "flags readable" on public.app_flags for select to authenticated using (true);
+grant select on public.app_flags to authenticated;
 
 create table public.scheduled_tasks (
   name text primary key, interval_s integer, daily_at time,
   next_run_at timestamptz not null, running_by text, started_at timestamptz,
   last_ok_at timestamptz, last_error text,
   check ((interval_s is null) <> (daily_at is null))
-);                                     -- no grants; worker functions only
+);                                                                      -- no grants
+
+create table public.ops_health (id boolean primary key default true check (id), at timestamptz);
+
+alter table public.versions add column test_run boolean not null default false;
+
+-- migration spend_ledger (also seeds price_book, provider_operations, spend_caps,
+-- scheduled_tasks rows with "on conflict do nothing")
+create table public.price_book (
+  provider text not null, model text not null default '',
+  unit text not null check (unit in ('credit','image','mtok_in','mtok_out','audio_hour','call')),
+  usd_per_unit numeric(12,6) not null, checked_on date not null, source text not null,
+  verified boolean not null default false,
+  primary key (provider, model, unit)
+);
+create policy "prices readable" on public.price_book for select to authenticated using (true);
+grant select on public.price_book to authenticated;
+
+create table public.provider_operations (
+  provider text not null, operation text not null, model text not null default '',
+  items jsonb not null, verified boolean not null default false,
+  checked_on date not null, source text not null,
+  primary key (provider, operation, model)
+);                                                                      -- no grants
+
+create table public.spend_caps (
+  scope text not null check (scope in ('global','user','token','run')),
+  key text not null default '', provider text not null default '',
+  unit text not null default 'usd',
+  period text not null check (period in ('day','month','run')),
+  "limit" numeric(12,4) not null check ("limit" >= 0),
+  primary key (scope, key, provider, unit, period),
+  check (unit = 'usd' or provider <> ''),
+  check ((scope = 'run') = (period = 'run'))
+);                                                                      -- no grants
+
+create table public.spend_counters (
+  scope text not null, key text not null, provider text not null, unit text not null,
+  period text not null, window_start date not null,          -- Europe/Rome; '1970-01-01' for run
+  used numeric(14,4) not null default 0,
+  primary key (scope, key, provider, unit, period, window_start)
+);                                                                      -- no grants
+
+create table public.reservations (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid unique references public.jobs(id) on delete set null,
+  job_gone boolean not null default false,       -- set by the before-delete trigger on jobs
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  token_id uuid references public.agent_tokens(id) on delete set null,
+  run_id uuid, version_id uuid,
+  estimate jsonb not null,                        -- [{provider, model, items, usd}]
+  charges jsonb not null default '[]',            -- [{scope,key,provider,unit,period,window_start,amount}]
+  state text not null default 'open' check (state in ('open','ambiguous','closed')),
+  created_at timestamptz not null default now(), closed_at timestamptz
+);
+create index on public.reservations (state) where state <> 'closed';
+create index on public.reservations (user_id, created_at desc);         -- read own
+
+create table public.spend_entries (
+  id uuid primary key default gen_random_uuid(),
+  reservation_id uuid not null references public.reservations(id) on delete cascade,
+  call_key text not null, provider text not null, model text not null default '',
+  items_est jsonb not null, usd_est numeric(10,4) not null,
+  items jsonb, usd numeric(10,4),
+  state text not null default 'open' check (state in ('open','settled')),
+  created_at timestamptz not null default now(), settled_at timestamptz,
+  unique (reservation_id, call_key)
+);
+create index on public.spend_entries (provider, settled_at);           -- read through ops.costs_get
+
+alter table public.jobs
+  add column token_id uuid references public.agent_tokens(id) on delete set null,
+  add column run_id uuid,
+  add column resource_class text not null default 'cpu' check (resource_class in ('gpu','cpu','net')),
+  add column priority smallint not null default 0,
+  add column fake_providers boolean not null default false;
+-- triggers on jobs: jobs_stamp_ctx (before insert or update, 6.3.4), jobs_set_resource_class
+-- (before insert, from the stage map), jobs_mark_reservation_gone (before delete: sets job_gone on its reservation)
+
+-- migration ops_lockdown: the revokes of 6.3.2 (last; 21.2)
 ```
-
-Flags are read through `ops.flags()` with a 10 s in-process cache in Next; the kill path
-(`ops.admin_remote_close`) does not depend on the cache, because it also revokes every OAuth grant
-and remote PAT, and tokens are resolved in the database on every call.
-
-The `ops` functions, the ledger functions and their exact grants are listed in 6.3.6, 6.4 and
-11.5; `supabase/tests/acl-allowlist.json` (6.3.3) is the machine-checked copy.
 
 ### 15.2 Later tables (key fields; DDL written in each milestone's plan before it starts)
 
 | Entity | Key fields | Milestone, migration |
 | --- | --- | --- |
+| `notifications`, push through ntfy | as in revision 4 (user, kind, severity, title, body, link, deadline, read, pushed) | M2a `notifications` (moved from M1) |
+| `upload_intents` | owner, kind, size, sha256, staging name, duration, state, storage path | M2a `uploads` (moved from M1) |
 | `remakes` | owner, source url and id, mode, tier, driver, lease, defaults snapshot, status, stop reason, project, primary version | M2a `remakes` |
 | `stage_runs` | remake, version, r-stage, state, round, `stage_version` (optimistic counter), stop reason, cost reserved and settled, driver; `jobs.stage_run_id` links jobs to it | M2a `remakes` |
 | `remake_analyses` | remake, music, transcript with word timestamps, literal translations, meaning map, blueprint (schema versions), models, cost, `untrusted` | M2a `remakes` |
@@ -2154,7 +2152,8 @@ The `ops` functions, the ledger functions and their exact grants are listed in 6
   `jury_reports` (kept); logs under `<runtime root>/logs/` (rotated, 14 days, redacted).
 - **Metrics:** SQL views (`ops_metrics_daily`): job failure rate by stage, render success, mean
   jury scores, cost per video, queue wait, GPU busy share.
-- **Notifications (M1):** the `notifications` table, shown in the app and to agents. Push through
+- **Notifications (M2a, moved from M1 in revision 5):** the `notifications` table, shown in the
+  app and to agents. Push through
   **ntfy** (AC12): the public `https://ntfy.sh` server, a random 24-character topic in `NTFY_TOPIC`
   (`apps/worker/.env.local`), sent by the scheduler task `notify_push`. Payload: title, at most 200
   characters of body, and a link to the app; never lyrics, keys or personal data.
@@ -2163,14 +2162,15 @@ The `ops` functions, the ledger functions and their exact grants are listed in 6
 
 | Risk | Surface | Likelihood / impact | Mitigation | Milestone |
 | --- | --- | --- | --- | --- |
-| Direct database calls bypass caps, roles, veto | PostgREST | high once exposed / critical | `ops_scopes` revokes (6.3); Supabase not exposed in M1 (5.2) | M1 |
+| Direct database calls bypass caps, roles, veto | PostgREST | high once exposed / critical | `ops_lockdown` revokes (6.3); Supabase not exposed in M1 (5.2) | M1 |
 | Every allowlisted user is admin | auth trigger | certain today / high | `ops_roles` (6.2) | M1 |
 | Forged service-role JWT with the demo secret | gateway | high if exposed / critical | Key rotation and exit test (5.3) | M1 |
 | Private services exposed by the tunnel | tunnel | medium / critical | Edge-proxy path allowlist, catch-all 404, firewall rule (5.2) | M1 |
 | OAuth token used against Supabase | OAuth | eliminated by design | Opaque tokens from `apps/auth` (6.4) | M1 |
-| Compromised Next process | web | low / high | `mdf_web` can call only the `ops` functions of 6.3.6 and no `public` function, so every write still passes scope, cap, reservation, audit and admin rules; it can act for a cookie user only with a live session id of that user (6.3.4) and cannot reach admin operations remotely; it holds its own OpenRouter and Groq keys (7.5) but no worker secret and no signing key (5.1) | M1 |
-| Compromised `apps/auth` | auth | low / medium | `mdf_auth` can call only the `ops.oauth_*` storage functions; it cannot create grants or act for users (6.4) | M1 |
-| Overspend under concurrency | ledger | medium / high | `reserve_spend` with row locks inside the wrappers; paid-call module (11.5) | M1 |
+| Compromised Next process | web | low / high | Runs as `mdf-web`. It holds `MDF_WEB_DATABASE_URL`, its own OpenRouter and Groq keys (7.4) and the cookies of active users. Through `mdf_web` it can call only the `ops` functions of 6.3.6, so every write passes scope, cap, reservation, audit, test and claim checks (6.3.4); it can act for a cookie user only with a session id refreshed in the last 65 minutes, and it can claim `remote = false`, so with an active admin session it can perform admin operations: that is the residual risk, bounded by the session recency and the production session timebox. It cannot read the worker's secrets, the Supabase signing key or `apps/auth`'s keys (5.1, 5.3). If the owner keeps every service under his own account (5.1 fallback), a compromise of Next is a compromise of the PC. | M1 |
+| Compromised `apps/auth` | auth | low / medium | Runs as `mdf-auth` (ruling 5). It holds `MDF_AUTH_DATABASE_URL` and its ID-token keys; `mdf_auth` can call only the `ops.oauth_*` functions, and `ops.oauth_upsert` issues codes and tokens only for grants that match a used consent row (client, uid, nonce, scopes) given in the browser that started the flow (6.4). It cannot act for users or read Next's env file. | M1 |
+| Consent phishing with an attacker's client | OAuth | low / high | Registration only inside the admin's 10-minute pairing window, flow-bound `mdf_flow` cookie, registration time shown at consent (6.4) | M1 |
+| Overspend under concurrency | ledger | medium / high | One capped reservation per job, counters locked in a fixed order, fail closed without caps, on-demand reservations for jobs created by other paths, the `engine.run` rule (11.5) | M1 |
 | Agent-authored code execution | renders | eliminated by design | Data-only timeline (9.2), file validation (9.4) | M2b |
 | Prompt injection from source content | Autopilot writer, agents, route 2, loop | medium / medium | Enum and `Safe` fields (6.8), route 2 container (11.3) | M2a, M3 |
 | Unjudged content in Autopilot | juries | medium / high | Fail-closed `jury_unavailable` (10.1) | M5 |
@@ -2207,79 +2207,84 @@ The `ops` functions, the ledger functions and their exact grants are listed in 6
 
 All with zero kie spend.
 
-- **Fakes.** `apps/worker/src/fake` is extended to yt-dlp, kie Midjourney, codex, Nano Banana,
-  OpenRouter text and image, Groq, YouTube, Blotato and Postiz. A job runs on fakes when the worker
-  process has `WORKER_FAKE=1` (the existing variable; e2e and the gate set it) or the job has
-  `fake_providers = true` (6.9).
-- **Remote exit test on production (M1).** An admin `test_mode` PAT (for Claude Code over stdio)
-  and an OAuth grant created with the consent page's "Test (fake providers)" box (for claude.ai)
-  drive the real tunnelled instance; their jobs and child jobs run on fakes, and the ledger shows
-  no entry for them.
-- **Reservation path on the e2e stack.** A database test calls `ops.lyrics_approve` as the e2e
-  admin session (no test mode) and asserts one `generate_song` job with a reserved kie entry of 12
-  credits and a reserved Groq entry; then marks the job `failed` and asserts that
-  `expire_reservations` releases both; then repeats with `kie_submit_state = 'submitting'` and
-  asserts `ambiguous`.
-- **MCP conformance:** `npx @modelcontextprotocol/inspector --cli <url> --method tools/list`, then
-  `tools/call` of `song_get`, `song_create` and `job_status`, over both transports, must succeed;
-  the same with a revoked token must fail with 401.
-- Unit tests: schemas (rejection of unsafe strings and oversize input), `reserve_spend` under
-  concurrency (20 parallel reservations against a fresh window never exceed a cap), the
-  paid-call rule (static scan, and `engine.run` refusing a paid `secretEnv` without a
-  `ledgerEntry`), the `runAction`/`remoteAction` wrapping rule (5.2), the `next` validation of
-  `/auth/confirm`.
-- Database tests (`supabase/tests/`, pinned to a non-production stack): the 6.3.7 exit tests, the
-  ACL test (6.3.3), the error-map test (6.3.5), role rules (a new allowlisted user is a
-  customer; `ops/set-owner.ts` leaves exactly one admin), test-run refusals (6.9). The existing
-  ten test files that call `public` RPCs with `.rpc(` as `authenticated` (about 240 calls) are
-  rewritten to call `ops` functions through a helper `opsCall(session, fn, args)` that connects as
-  `mdf_web`; a few direct calls stay as refusal assertions.
-- OAuth end to end against the local stack: registration (allowlisted and refused redirect URIs),
-  PKCE, consent with only `read` ticked by default, token, tool call, revocation.
-- Tunnel smoke test: allowed routes answer, denied routes return 404, a `Next-Action` POST to
-  `/login` with another action's id is refused, nothing of Supabase answers.
-- Container probe (5.3 item 2).
-- Later milestones: route 2 injection test (11.3); gate tests (13).
+- **Fakes.** `apps/worker/src/fake` is extended to OpenRouter and Groq HTTP fakes (kie fakes exist);
+  later milestones add yt-dlp, Midjourney, codex, Nano Banana, YouTube, Blotato and Postiz. A job
+  runs on fake stages when the process has `WORKER_FAKE=1` or the job has `fake_providers = true`.
+  The ledger integration test (11.5) instead runs the real stage code against fake HTTP servers.
+- **Remote exit test on production (M1).** An admin `test_mode` PAT (Claude Code over stdio) and an
+  OAuth grant with "Test (fake providers)" ticked (claude.ai) drive the real tunnelled instance;
+  their jobs run on fakes and create no reservations or spend entries.
+- **MCP checks:** HTTP: `npx @modelcontextprotocol/inspector --cli https://app.mellodifai.com/api/mcp
+  --method tools/list`, then `--method tools/call --tool-name song_get` (and `song_create`,
+  `job_status`) with the bearer token; stdio: `npx @modelcontextprotocol/inspector --cli mellodifai
+  mcp --method tools/list`. With a revoked token the HTTP call returns 401 and the stdio call
+  returns a JSON-RPC error carrying `unauthorized`.
+- **Unit tests:** schemas, the `"use server"` wrapping rule (5.2), `next` validation (5.4),
+  `check-no-keys`, `engine.run` refusing a paid `secretEnv` without an entry, a child seeing
+  `MELLODIFAI_ENV_ONLY`, the static scan of paid hosts and keys.
+- **Database tests** (`supabase/tests/`, never against production): the 6.3.7 exit tests, the ACL
+  test, the error-map test, the ledger tests of 11.5, the `oauth_upsert` and nonce tests (6.4), the
+  role rules (a new allowlisted user is a customer; `set-owner.ts` leaves one admin). They connect
+  with the `postgres` npm client (a root dev dependency) through `TEST_DB_URL` and `TEST_MDF_WEB_URL`,
+  set by `ops/stack.ts` for e2e and CI. The ten existing files that call `public` RPCs as
+  `authenticated` are rewritten to call `ops` wrappers through a helper `opsCall(session, fn, args)`;
+  `queue.test.ts` keeps its service-role worker calls unchanged.
+- **OAuth end to end** against the local stack: pairing window closed (registration refused) and
+  open, an allowlisted and a refused redirect URI, PKCE, consent with only `read` ticked, a consent
+  attempt from a second browser without `mdf_flow` (refused), a reused nonce (refused), token, tool
+  call, revocation.
+- **Tunnel smoke test:** allowed routes answer, denied routes return 404, a cookie on `/api/v1`
+  is ignored (401), nothing of Supabase answers.
+- **Probes** (5.3): every database login role with the default password fails from a container.
 
-**Stacks and CI.**
-- `ops/e2e-stack.ts` (new) creates the e2e stack in its own working folder
-  `<runtime root>/e2e-supabase/` from the repo's `supabase/` (project id `mellodifai_e2e`, API port
-  45621 and neighbours, a throwaway signing key), applies migrations and the seed, and sets the
-  `mdf_web` and `mdf_auth` passwords from `apps/web/e2e/.env.e2e` (test values, gitignored, created
-  by the script).
-- The `test:db` guard (root `package.json:13`, reusing `apps/web/e2e/local-env.ts`) refuses port
-  54321 unless `CI=true` (GitHub Actions, where 54321 is a throwaway stack).
-- `.github/workflows/ci.yml` (Modify): before `supabase start`, generate a throwaway signing key
-  into `supabase/signing_keys.json`; after it, run `ops/e2e-stack.ts --roles-only` to set the role
-  passwords on the CI stack; `pnpm test:db` and `pnpm e2e` then run as today.
+**CI and e2e.**
+- `ops/stack.ts render --env ci` and `--env e2e` produce the configs of 5.3 (throwaway signing key
+  outside the checkout, `app.fake_stack = on`, mail catcher, local `SITE_URL`), start the stack with
+  `--workdir`, set the `mdf_web` and `mdf_auth` passwords to test values, and print the env lines
+  the tests need.
+- `.github/workflows/ci.yml` (Modify): runs `ops/check-no-keys.ts`; renders and starts the CI stack
+  (API 54321, mail catcher 54324); sets `CI=true` (GitHub's default; the `test:db` guard in root
+  `package.json:13` accepts 54321 only then), `E2E_ALLOW_LIVE_STACK=1` for the e2e step (the guard in
+  `apps/web/e2e/local-env.ts:23-26`; the CI stack is throwaway), `MAILPIT_URL=http://127.0.0.1:54324`,
+  `SUPABASE_INTERNAL_URL`, `MDF_WEB_DATABASE_URL`, `SITE_URL`, `WORKER_FAKE=1`; then `pnpm test:db`
+  and `pnpm e2e` as today.
+- `apps/web/playwright.config.ts` (Modify) passes `SUPABASE_INTERNAL_URL`, `MDF_WEB_DATABASE_URL`
+  and `SITE_URL` to the dev server; `apps/web/e2e/support.ts` (Modify) reads `MAILPIT_URL` (default
+  45624 for the local e2e stack) and follows the sign-in link to `127.0.0.1:3210`.
 
 ## 20. Rollout, feature flags and rollback
 
 | Flag | Turns on | Enablement gate | Kill path |
 | --- | --- | --- | --- |
-| `remote_mcp` | remote PATs and OAuth at `/api/mcp` | M1 exit tests pass | Settings > Agenti "Chiudi accesso remoto" ("Close remote access", `ops.admin_remote_close`): flag off, every OAuth grant and remote PAT revoked; hard kill: stop `cloudflared` |
-| `autopilot` | Autopilot runs | M3 gates and M1 caps in place, 5 Copilot remakes passed every gate | flag off; running Autopilot runs stop with `owner_cancelled` at the stage boundary |
-| `auto_publish_public` | the slot flip to public | P0 lock re-verification or a verified Blotato route; 3 Copilot publishes done | flag off: bundles stay private |
+| `remote_mcp` | remote PATs, OAuth consent and OAuth tokens (checked in the database) | after the local exit tests and the tunnel smoke test pass; the remote exit test then runs with it on | Settings > Agenti switch (local); away from the PC: disable the hostname in the Cloudflare dashboard (README) |
+| `autopilot` | Autopilot runs | M3 gates and the M1 caps in place, 5 Copilot remakes passed every gate | flag off; running runs stop at the stage boundary |
+| `auto_publish_public` | the slot flip to public | P0 lock re-verification or a verified Blotato route; 3 Copilot publishes | flag off |
 | `loop_merge` | the merger | 7 dry-run nights (13.8) | kill switch file or Settings toggle |
 | `premium` | premium tier | M7 acceptance | flag off |
 
-**Deploy and rollback** (`ops/deploy.ts`, M1):
-1. wait for idle (no running job);
-2. `pg_dump` to `<runtime root>/backups/` (kept 14 days);
-3. `git pull --ff-only` (or `git checkout <commit>` with `--to`);
-4. frozen-lockfile install;
-5. `supabase migration up --db-url ...` (5.3), then `ops/set-owner.ts` (6.2);
-6. `next build` and the `apps/auth` build;
-7. restart services;
-8. health check: `/api/health` must report `ops: "ok"` and the expected `schema`.
-- On a failed health check the script returns automatically to the previous commit **only if
-  step 5 applied no migration**; otherwise it leaves the new commit running, marks the deploy
-  failed and notifies (a migration is never undone by checking out older code).
-- `--to <commit>` refuses a target older than the commit that added the newest applied migration
-  (the "migration floor"). The first floor is the commit that adds `ops_scopes`; the old app
-  cannot work after it, because the RPCs it calls are revoked.
-- Migrations are additive except the revokes of `ops_scopes`, which are rolled back only by a
-  human-written migration.
+**Deploy** (`ops/deploy.ts`):
+1. stop `cloudflared`, Next, `apps/auth` and the worker (so no old process enqueues or calls a
+   provider during the migration);
+2. data backup: `supabase db dump --data-only --schema public,auth,storage --db-url ... -f
+   <runtime root>/backups/<timestamp>-<tag>.sql` (kept 14 days; the file name records the tag it
+   was taken on);
+3. `git fetch` and check out the target (a tag `m1-*` or later, or `main` after AC13);
+4. `ops/check-no-keys.ts`; frozen-lockfile install;
+5. `supabase migration up --workdir <runtime root>/stacks/prod --db-url ...` (5.3), then
+   `ops/set-owner.ts`;
+6. build Next and `apps/auth`;
+7. start the services in order; health check: local `/api/health` must report `ops: "ok"` (which
+   includes the smoke write of 5.6) and the expected `schema`.
+- On a failed health check, the script returns automatically to the previous tag **only if step 5
+  applied no migration**; otherwise it leaves the services stopped, marks the deploy failed and
+  writes the reason to `<runtime root>/logs/deploy.log`.
+- `--to <tag>` refuses a tag older than the **migration floor**: the tag `m1-floor`, placed on the
+  commit that lands `ops_lockdown` together with the moved server actions and rewritten tests
+  (21.2 step 5), the first commit where the app and the revokes agree.
+- **Restore** (manual, owner; written in the README): stop every service; check out the tag in the
+  backup's file name; `supabase stop --workdir ... --no-backup` and `supabase start --workdir ...`
+  (a fresh database with that tag's migrations); `psql --db-url ... -f <backup>.sql`;
+  `ops/rotate-db-passwords.ts`; `ops/deploy.ts --to <that tag> --skip-migrations`.
 
 ## 21. Milestones
 
@@ -2289,7 +2294,7 @@ All with zero kie spend.
 | --- | --- | --- | --- | --- |
 | M0 (running) | - | T12, storyboard bug | - | - |
 | P0 (parallel, from now) | 5 (manual) | 12.1 | nothing | Google OAuth client, audit submission |
-| M1 Safe agent access | 2, 4 (ledger) | 5, 6, 7, 11.5, 14.4, 15.1, 16, 19, 20 | the head of `build/studio-ui` (T12 included) | DNS, tunnel creation, SMTP, `mdf-web` account, firewall rule, kie rate, ntfy |
+| M1 Safe agent access | 2, 4 (ledger) | 5, 6, 7, 11.5, 14.4, 15.1, 19, 20 (21.2 is the checklist) | the head of `build/studio-ui` (T12 included) | DNS and tunnel creation, SMTP, `mdf-web` and `mdf-auth` accounts, firewall rule, kie rate |
 | M2a Remade song (Copilot) | 1 (song half), 3 (lyrics, originality) | R1-R4b; 8, 9.1, 10.1-10.3, 14.1, 14.3 | M1 | confirm AC10, AC11 (optional) |
 | M2b Remade video (Copilot) | 1 (video half) | R5, R7; 9.2-9.4 | M2a | - |
 | M3 Visual quality and images | 3, 4 (images) | R6, R8; 10.4-10.8, 11.3; T15, T18; thumbnails; web timeline editor | M2b | Gemini key, kie Midjourney, eval OpenRouter key, codex device login in `mdf-img` |
@@ -2298,89 +2303,88 @@ All with zero kie spend.
 | M6 Daily loop | 6 | 13 | M5, `main` cutover | confirm AC6 (optional) |
 | M7 Premium | 4 (premium) | Higgsfield, T14 | M3 | Comfy Cloud key |
 | M8 Portable runtime | - | 25 | M6 | Debian server later |
-| W1 Remote web UI | - | 5.4 browser URL, `api.` host, Access decision | M1, DNS | none |
+| W1 Remote web UI | - | 5.7 (`/media` streaming, browser URL), `api.` host, Access decision | M1, DNS | none |
 | UI track | - | 1080p previews, karaoke mode (plan) | T12 | - |
 | Later | - | T11b, T16, T20, T21, T22, Riffusion items, direct Anthropic client | M4 | - |
 
 ### 21.2 M1 contents checklist (the single source for M1)
 
-**Base:** a branch from the head of `build/studio-ui` when M1 planning starts; T12 is already
-there and is wrapped like everything else.
+**Scope.** M1 is safe agent access: the ops layer and lockdown, the ledger and caps, PATs and the
+stdio bridge, remote MCP with OAuth, and the tunnel for exactly those routes. Moved to M2a: token
+tools for uploads, imports, section edits, playlists and library edits; uploads for tokens; the
+web-side tools in the ledger; notifications and ntfy; Settings > Costi; the SSE progress route; the
+gates move; price sync and kie reconciliation; the CLI keyring; inviting users from Settings. Moved
+to W1: `/media` streaming and the browser Supabase URL.
 
-**Step 0, spikes (one day each, written results in the M1 plan):**
-1. `oidc-provider` plus the claude.ai connector flow (6.4), with the `@node-oauth/oauth2-server`
-   fallback; record the connector redirect URIs.
-2. Supabase CLI with a changed `postgres` password and `--db-url` for the commands M1 uses; the
-   exact `config.toml` field for a new JWT secret (5.3); the container probe.
-3. The MCP SDK version with `WebStandardStreamableHTTPServerTransport` in stateless JSON mode
-   inside a Next 16.4 route handler (7.1), with the `mcp-handler` fallback.
-4. Confirm that a `Next-Action` POST to an allowed page reaches another action in the pinned Next
-   16.4.3, and that the two locks of 5.2 stop it.
+**Base:** a branch from the head of `build/studio-ui` when planning starts (T12 included).
 
-**Step 1, topology and operations:** `ops/services.ts`, `ops/edge-proxy.ts`, `ops/deploy.ts` and
-`ops/set-owner.ts` (20, 6.2), `ops/rotate-supabase-keys.ts` and `ops/rotate-auth-keys.ts` (5.3,
-6.4), `ops/e2e-stack.ts` (19), the `cloudflared` template, Supabase hardening (5.3), server-side
-sign-in and `/auth/confirm` (5.4), `/media` streaming, `/api/health`, the proxy matcher, binding to
-`127.0.0.1`, README rewrite, keepalive workflow deleted.
+**Steps (every commit leaves lint, typecheck, tests, `test:db` and e2e green):**
+0. **Spikes**, one day each, written results in the plan, each with its stated fallback:
+   1. `oidc-provider` wiring of 6.4 with the claude.ai connector (connector redirect URIs, the
+      adapter with hashed ids and no `jti`, interaction cookie path) - fallback
+      `@node-oauth/oauth2-server`;
+   2. the database stack: list every login role in the pinned image, rotate all of them and
+      re-template the services (5.3) - fallback the pinned self-hosting compose; whether
+      `signing_keys_path` and `--workdir` work with a stack folder outside the checkout; whether a
+      `postgres`-owned definer function can read `auth.sessions`; the container probe;
+   3. `@modelcontextprotocol/server` 2.4.0 `WebStandardStreamableHTTPServerTransport` in stateless
+      JSON mode in a Next 16.4 route handler - fallback `mcp-handler`.
+1. **Additive database** (migrations `ops_roles`, `ops_layer`, `spend_ledger`): roles, schema,
+   tables, seeds, every `ops` function and trigger; no existing grant is revoked, so the app and
+   the existing tests keep working.
+2. **Worker ledger:** `providers/paid.ts`, `providers/kie-client.ts`, the `engine.run` rule,
+   `MELLODIFAI_ENV_ONLY` and the engine-repo change, on-demand reservations, `worker_enqueue`,
+   per-job fakes, the scheduler and its M1 tasks, the ledger integration test.
+3. **Server actions onto the wrappers:** every `"use server"` export calls `lib/ops/*` through
+   `runAction` or `remoteAction`; `getClaims()` for the session; i18n keys.
+4. **Tests onto the wrappers:** the ten `supabase/tests` files rewritten with `opsCall`; the new
+   database tests except the lockdown ones.
+5. **Lockdown** (migration `ops_lockdown`, the ACL test and `acl-allowlist.json`, the 6.3.7
+   refusal tests) in one commit; tag `m1-floor`. Production may first deploy here.
+6. **Topology:** `ops/stack.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-db-passwords.ts`,
+   `ops/check-no-keys.ts`, `ops/set-owner.ts`, `ops/add-user.ts`, `ops/deploy.ts`,
+   `ops/services.ts`, `ops/edge-proxy.ts`, the `cloudflared` template, server-side sign-in and the
+   email template, `/api/health`, the proxy matcher, loopback binding, README, keepalive removal,
+   CI changes.
+7. **Agents:** `/api/v1`, `/api/mcp`, `apps/auth`, `/consent`, Settings > Agenti, `packages/cli`
+   with the stdio bridge and the skill.
+8. **Remote enablement:** the owner's DNS and tunnel actions, the tunnel smoke test, `remote_mcp`
+   on, the remote exit test.
 
-**Step 2, database:** migrations in this order: `ops_roles`, `ops_tokens`, `spend_ledger`,
-`notifications`, `ops_scopes` (last, so its revokes and default-privilege changes see every object;
-it also creates every `ops` function and the grants of 6.3.2); seeds for `price_book`,
-`provider_operations`, `spend_caps`, `scheduled_tasks`; `supabase/tests/acl-allowlist.json`.
-
-**Step 3, gates move:** `PASS_SCORE`, `combine()`, `CRITERIA`, the judge prompts, the judge model
-ids (`DEFAULT_JUDGES`) and the Jev model id (`JEV`) move from `lyric-jury.ts` into
-`packages/gates/src/lyric-jury.ts`, with the values in `config/gates/lyric-jury.json` (JSON,
-validated by a zod schema in `packages/gates`); the QA thresholds of `qa.ts:90` into
-`config/gates/qa.json`. Writer model ids stay in the worker (they are not gates).
-
-**Step 4, ops layer and API:** every M1 row of 7.3 through `lib/ops/*` and `ops.*`; server actions
-moved onto it through `runAction`/`remoteAction`; `/api/v1` with the contract of 7.2; schemas
-moved to `packages/shared/src/ops/`.
-
-**Step 5, agents:** `apps/auth`, `/consent`, protected resource metadata, `/api/mcp`,
-`packages/cli` with the stdio bridge, the skill, Settings > Agenti and Settings > Costi.
-
-**Step 6, worker:** `worker_enqueue` propagation, `providers/paid.ts` and the `engine.run` rule,
-reservation claim and settle, per-job fakes, the scheduler and its M1 tasks, upload ingestion,
-the ntfy sender; the engine-repo change for `MELLODIFAI_NO_KEYFILES` (11.5).
-
-**Files** (C = create, M = modify, D = delete):
+**Files** (C create, M modify, D delete):
 
 | Area | Files |
 | --- | --- |
-| ops scripts | C `ops/services.ts`, `ops/edge-proxy.ts`, `ops/deploy.ts`, `ops/set-owner.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-auth-keys.ts`, `ops/e2e-stack.ts`, `ops/cloudflared/config.template.yml` |
-| web, create | `apps/web/lib/ops/**` (including `tokens.ts`), `apps/web/lib/mcp/**`, `apps/web/lib/db/ops-client.ts`, `apps/web/app/api/v1/**`, `apps/web/app/api/mcp/route.ts`, `apps/web/app/api/health/route.ts`, `apps/web/app/.well-known/oauth-protected-resource/**`, `apps/web/app/consent/**`, `apps/web/app/(app)/settings/agents/**`, `apps/web/app/(app)/settings/costs/**` |
-| web, modify | `apps/web/app/actions/**`, `apps/web/lib/run-action.ts` (adds `remoteAction` and the remote refusal), `apps/web/lib/auth.ts` (session id for `p_ctx`), `apps/web/lib/supabase/server.ts`, `apps/web/proxy.ts`, `apps/web/app/auth/confirm/route.ts`, `apps/web/app/(auth)/login/page.tsx`, `apps/web/lib/redirect-url.ts`, `apps/web/components/login-form.tsx`, `apps/web/app/media/[...path]/route.ts`, `apps/web/lib/studio/clips.ts`, `apps/web/lib/studio/stems.ts`, `apps/web/app/(app)/projects/[id]/page.tsx`, `apps/web/app/actions/format-style.ts`, `apps/web/app/api/transcribe/route.ts`, `apps/web/lib/openrouter-key.ts`, `apps/web/app/(app)/settings/page.tsx`, `apps/web/lib/rate-limit.ts`, `apps/web/next.config.*` (`allowedOrigins`), `apps/web/package.json` (`next start -H 127.0.0.1`), `apps/web/e2e/global-setup.ts`, `apps/web/e2e/local-env.ts` |
-| auth server | C `apps/auth/**` (including `redirect-allowlist.json`) |
-| shared and gates | C `packages/shared/src/ops/**` (including `errors.ts`, `reads.ts`), `packages/gates/**`, `config/gates/**`; M `packages/shared/src/stages.ts` (resource classes), `apps/web/app/actions/schemas.ts` (re-exports) |
-| worker | C `apps/worker/src/providers/paid.ts`, `apps/worker/src/providers/kie-client.ts` (moved from `kie/client.ts`), `apps/worker/src/scheduler.ts`, `apps/worker/src/notify.ts`, `apps/worker/src/uploads.ts`; M `apps/worker/src/db.ts`, `apps/worker/src/loop.ts`, `apps/worker/src/main.ts`, `apps/worker/src/workspace.ts`, `apps/worker/src/engine.ts`, `apps/worker/src/authorization.ts`, `apps/worker/src/fake/index.ts`, `apps/worker/src/stages/generate-song.ts`, `draft-lyrics.ts`, `lyric-jury.ts`, `qa.ts`, `replace-section.ts`, `import-audio.ts`, `score-takes.ts`, `timing.ts`, `local-engine.ts`, `source-audio.ts`; D `apps/worker/src/kie/client.ts` |
-| engine repo | M `C:\Users\Asus\Documents\suno-remake\tools\kie.mjs`, its `whisper_words.py` (honour `MELLODIFAI_NO_KEYFILES`) |
+| workspace | M `pnpm-workspace.yaml` (add `ops`, `apps/auth`), root `tsconfig.json` (references for `ops`, `apps/auth`, `packages/cli`), root `package.json` (`test:db` guard, `postgres` dev dependency), `.github/workflows/ci.yml`, `README.md`; D `.github/workflows/keepalive.yml` |
+| ops (package `@mellodifai/ops`, run with `tsx`) | C `ops/package.json`, `ops/stack.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-db-passwords.ts`, `ops/rotate-auth-keys.ts`, `ops/check-no-keys.ts`, `ops/set-owner.ts`, `ops/add-user.ts`, `ops/deploy.ts`, `ops/services.ts`, `ops/edge-proxy.ts`, `ops/cloudflared/config.template.yml` |
+| database | C migrations `ops_roles`, `ops_layer`, `spend_ledger`, `ops_lockdown`; `supabase/templates/magic_link.html`; `supabase/tests/ops_acl.test.ts`, `ops_errors.test.ts`, `ops_ledger.test.ts`, `ops_oauth.test.ts`, `ops_lockdown.test.ts`, `acl-allowlist.json`, `helpers/ops-call.ts`; M `supabase/config.toml` (template section, no production values), `supabase/seed.sql`, the ten existing `supabase/tests/*.test.ts` files that call `public` RPCs as `authenticated` |
+| web, create | `apps/web/lib/ops/**` (including `tokens.ts`), `apps/web/lib/mcp/**`, `apps/web/lib/db/ops-client.ts`, `apps/web/app/api/v1/**`, `apps/web/app/api/mcp/route.ts`, `apps/web/app/api/health/route.ts`, `apps/web/app/.well-known/oauth-protected-resource/**`, `apps/web/app/consent/**`, `apps/web/app/(app)/settings/agents/**` |
+| web, modify | every `"use server"` module (`apps/web/app/actions/**`, `apps/web/app/**/actions*.ts`), `apps/web/lib/run-action.ts`, `apps/web/lib/action-result.ts`, `apps/web/lib/auth.ts`, `apps/web/lib/supabase/server.ts`, `apps/web/proxy.ts`, `apps/web/app/auth/confirm/route.ts`, `apps/web/app/(auth)/login/page.tsx`, `apps/web/lib/redirect-url.ts`, `apps/web/components/login-form.tsx`, `apps/web/app/actions/format-style.ts`, `apps/web/app/api/transcribe/route.ts`, `apps/web/lib/openrouter-key.ts`, `apps/web/lib/rate-limit.ts`, `apps/web/app/(app)/settings/page.tsx` and the settings navigation, `apps/web/next.config.*`, `apps/web/package.json` (`-H 127.0.0.1` on `dev` and `start`), `apps/web/playwright.config.ts`, `apps/web/e2e/global-setup.ts`, `apps/web/e2e/support.ts`, `apps/web/e2e/local-env.ts` |
+| auth server | C `apps/auth/**` (including `package.json`, `redirect-allowlist.json`) |
+| shared | C `packages/shared/src/ops/**` (`errors.ts`, `reads.ts`, inputs and outputs); M `packages/shared/src/stages.ts` (resource classes), `packages/shared/src/i18n.ts` (`error.*` keys), `apps/web/app/actions/schemas.ts` (re-exports) |
+| worker | C `apps/worker/src/providers/paid.ts`, `apps/worker/src/providers/kie-client.ts`, `apps/worker/src/scheduler.ts`, `apps/worker/test/ledger-integration.test.ts`; M `apps/worker/src/db.ts`, `loop.ts`, `main.ts`, `workspace.ts`, `engine.ts`, `authorization.ts`, `fake/index.ts`, `stages/generate-song.ts`, `draft-lyrics.ts`, `lyric-jury.ts`, `replace-section.ts`, `import-audio.ts`, `score-takes.ts`, `timing.ts`, `local-engine.ts`, `source-audio.ts`, `stages/utils.ts`, `apps/worker/test/rewrite.test.ts`, `songs-from-songs.test.ts`; D `apps/worker/src/kie/client.ts` |
+| engine repo | M `C:\Users\Asus\Documents\suno-remake\tools\kie.mjs`, `whisper_words.py` and the other key-file readers the plan finds (`MELLODIFAI_ENV_ONLY`; base-URL overrides for the fake servers) |
 | cli | C `packages/cli/**` (including `skill/`) |
-| database | C the five migrations, `supabase/tests/ops_acl.test.ts`, `ops_errors.test.ts`, `ops_*.test.ts`, `acl-allowlist.json`, a test helper `opsCall`; M `supabase/config.toml`, `supabase/seed.sql`, the ten existing `supabase/tests/*.test.ts` files that call RPCs directly; `.gitignore` (`supabase/signing_keys.json`) |
-| repo | M root `package.json` (`test:db` guard), `README.md`, `.github/workflows/ci.yml`; D `.github/workflows/keepalive.yml` |
 
-**New dependencies:** `@modelcontextprotocol/sdk` and `postgres` (web), `oidc-provider` (auth).
-**No** JWT library, no keyring library.
+**New dependencies:** `@modelcontextprotocol/server` (web, already locked at 2.4.0), `postgres`
+(web, root dev), `oidc-provider` (auth), `tsx` and `esbuild` (dev). No JWT library.
 
 **Done when:**
 - Claude Code over stdio and claude.ai over remote MCP each complete `song_create`, `job_status`
-  and `lyrics_approve` with a `test_mode` token on the real instance; every job they cause runs on
-  fakes and the ledger has no entry for them;
-- the reservation-path database test of 19 passes on the e2e stack;
-- the Inspector checks of 19 pass on both transports;
-- a revoked PAT and a revoked grant fail on the next call;
-- the 6.3.7 exit tests, the ACL test and the error-map test pass;
-- a demo-secret JWT is refused, and the container probe of 5.3 fails to connect;
-- 20 parallel reservations against a fresh window never exceed a cap;
-- a new allowlisted user is a customer, cannot be given tokens, and is refused kie by its cap;
+  and `lyrics_approve` with a `test_mode` token on the real instance; their jobs run on fakes and
+  create no reservation;
+- the ledger integration test and the ledger database tests pass (counters equal settled spend
+  after normal, crash, requeue, retry-later, resume and cancel runs; empty caps refuse; 20 parallel
+  reservations on a fresh window stay within the cap);
+- the claim-injection test, the other 6.3.7 exit tests, the ACL test and the error-map test pass;
+- the OAuth end-to-end tests pass, including the second-browser and reused-nonce refusals and
+  `oauth_upsert` refusing a grant without a matching consent;
+- the MCP checks of 19 pass on both transports; a revoked PAT and a revoked grant fail on the next
+  call;
+- a demo-secret JWT is refused; `check-no-keys` passes; the container probe fails for every login
+  role with the default password;
 - the tunnel smoke test passes;
-- `ops/deploy.ts --to <the commit that adds ops_scopes>` succeeds and `--to` an older commit is
-  refused.
-
-**Deferred from M1 to M2a (scope relief, round 3 Nit 9):** `price_book_sync`, `kie_reconcile`, the
-OS keyring for the CLI, `Last-Event-ID` resumption of the SSE stream, and token access to media
-bytes and file-bearing editor operations.
+- `ops/deploy.ts --to m1-floor` succeeds and `--to` an older tag is refused.
 
 ### 21.3 M0 (running)
 
@@ -2445,9 +2449,9 @@ next to its master; analytics snapshots arrive.
 | YouTube API audit submission | public API route if the lock still applies | owner submits, author prepares | Blotato with verified disclosure | open |
 | Move mellodifai.com nameservers to Cloudflare; `cloudflared tunnel login` and `tunnel create` | M1 remote exit | owner (author writes the config) | local stdio only, `remote_mcp` off | open |
 | SMTP sender for sign-in codes | M1 remote sign-in | owner | sign-in on the PC only | open |
-| Windows account `mdf-web` and the firewall rule of 5.2 (both need administrator rights) | M1 hardening | owner (author gives the exact commands) | Next under the owner's account; loopback binding only | open |
+| Windows accounts `mdf-web` (Next, edge proxy) and `mdf-auth` (`apps/auth`), the NTFS ACLs of 5.1 and the firewall rule of 5.2 (all need administrator rights; `ops/services.ts install` prints the exact commands) | M1 hardening | owner | every service under the owner's account, recorded as an accepted risk in 17 | open |
 | kie USD rate per credit | M1 price book | owner | 0.005 USD per credit, `verified = false` | open |
-| Separate, lower-limit OpenRouter and Groq keys for Next (7.5) | none | owner (optional) | Next uses copies of the worker's key values | open |
+| Separate OpenRouter and Groq keys for Next with a low provider-side credit limit (7.4) | none | owner (recommended) | Next uses copies of the worker's key values | open |
 | ntfy app subscribed to the topic | M1 push | owner | in-app notifications only | open |
 | Confirm AC10 and AC11 | none (in force) | owner | proceed | open question |
 | Gemini API key | M3 route 3 | owner | route 3 off | open |
@@ -2560,63 +2564,97 @@ style, source of the Classico preset).
 
 ## 28. Review resolution
 
-Revision 2 claimed every round-1 finding resolved; round 2 showed that 13 of the 17 Blockers and 10
-of the 31 Majors were only partly resolved. Revision 3 answered round 2; round 3
-(`docs/egm/agentic-studio/goldfish_review_round3_m1.md`, M1 only) found that R2-B1 was only partly
-closed and R2-B2 had residue, and raised 5 Blockers, 20 Majors and 9 Nits. Revision 4 answers round
-3 (28.0). The round-2 and round-1 tables (28.1, 28.2) are kept as they stood after revision 3,
-except that R2-B1 and R2-B2 now point to 28.0. "Partly" names what remains.
+Four goldfish rounds reviewed this document; round 5 is the last, and anything it leaves becomes
+plan tasks. Revisions 2 to 4 each overclaimed: round 2 found 13 of 17 round-1 Blockers only partly
+resolved, round 4 found round-3 Blockers 2-5 and five other round-3 items only partly closed, and
+every round found new Blockers in text the previous revision had added. Revision 5 therefore
+**shrinks M1** (everything agent access does not need moved to M2a or W1, listed in 21.2) and
+applies the coordinator's rulings on round 4's Blockers as written. "Partly" names what remains.
 
-### 28.0 Round 3 findings (M1 readiness)
+### 28.0 Round 4 findings (`docs/egm/agentic-studio/goldfish_review_round4_m1.md`)
 
-| Id | Disposition |
-| --- | --- |
-| Blocker 1 | Fixed in 6.3.1-6.3.2 and 6.3.6: `mdf_ops` replaced by `mdf_web` and `mdf_auth`, which get USAGE on `ops` and EXECUTE only on the named `ops` functions; mutating `public` RPCs are granted to nobody (the security-definer wrappers run as their owner); exit tests prove `mdf_web` and `mdf_auth` cannot execute any `public` function even after `set_config`. |
-| Blocker 2 | Fixed in 6.3.2, 6.3.3 and 15.1: `alter default privileges for role postgres` revokes functions, tables and sequences from `public`, `anon`, `authenticated` in `public` and `ops`; explicit revokes on every new object; `ops_scopes` runs last; the CI ACL test compares every object's grants with `acl-allowlist.json`. |
-| Blocker 3 | Fixed in 11.5 and 15.1: caps and counters keyed `(scope, key, provider, unit, period)`; `default:customer` has `('', usd, day, 0.10)` and `(kie, credit, day, 0)`; user fallback rule; the 6.3.7 exit test traced on paper (kie refused, OpenRouter allowed). |
-| Blocker 4 | Fixed in 11.5 and 15.1: no wall-clock expiry while the job is queued or running; expiry only for terminal or missing jobs (ambiguous from `kie_submit_state`) and stale web-side entries; `job_spend_rule` per stage, engine and resume; fake jobs need none; grandfathered jobs reserve on demand; settle by entry id, including `ops.settle_spend` for web-side calls; the done-when uses `test_mode` with zero ledger entries plus a separate reservation-path test (19). |
-| Blocker 5 | Fixed in 6.3.6, 7.2 and 7.3: token reads through named `ops` read functions with explicit owner filters and frozen shapes (`SongSummary`, `SongDetail`, `JobStatus`, `JobEvent`, `CostsSummary`, `Notification`); uploads through Next staging, `ops.upload_intent` and worker ingestion; the admin function list; the frozen error-code table and the ordered mapping from existing RPC messages, with a test. Token access to media bytes and file-bearing editor operations is deferred to M2a (stated in 7.3 and 21.2). |
-| Major 1 | Fixed in 6.3.2: revokes for `projects` INSERT and `jobs` UPDATE, the cancel policy dropped and replaced by `ops.job_cancel`; storage policies named; the delete policy gains its profile check; the token view uses `security_invoker = true`. |
-| Major 2 | Fixed in 7.2, 7.3 and 11.5: the paying stages come from `job_spend_rule` (kie cover and extend inside `generate_song` by source; `import_audio` pays Groq only); wrappers find their jobs by `created_at = now()`; responses return a `jobs` array. |
-| Major 3 | Fixed in 11.5: every ledger signature, item lists with units, settle by entry id. |
-| Major 4 | Fixed in 11.5: counters inserted with `on conflict do nothing`, then locked in one fixed order by every ledger function. |
-| Major 5 | Fixed in 11.5 and 21.2: the `engine.run` rule for paid `secretEnv`, `MELLODIFAI_NO_KEYFILES` with the engine-repo change, Groq reserved for `import_audio`, `timing` and take scoring, the missing files listed. |
-| Major 6 | Fixed in 3 and 7.3: `resolve_upload` is cookie-only and admin-only; uploads have their own operation; section 3 lists every admin check. |
-| Major 7 | Fixed in 6.3.6 and 6.3.7: `ops.stage_retry` refuses `publish` and `set_privacy` for tokens and customers, with an exit test. |
-| Major 8 | Fixed in 6.2, 15.1, 19 and 21.2: roles copied at migration time, `ops/set-owner.ts` by `MELLODIFAI_OWNER_EMAIL` at deploy, unique index on `lower(email)`, seed and e2e setup with roles, the ten test files and `ci.yml` in the Modify list, CI throwaway signing key, `CI=true` guard, `ops/e2e-stack.ts` for the role passwords. |
-| Major 9 | Fixed in 5.3, 6.4 and 20: migrations in the deploy script, no automatic rollback across a migration, a migration floor for `--to`, the health check through `ops.health()`, a key rotation script, and an OAuth fallback that keeps AC15 and needs no JWT library. |
-| Major 10 | Fixed in 7.2: the key is opened in its own committed transaction and closed atomically with the work; the web-side multi-step case is stated. |
-| Major 11 | Fixed in 3, 7.1 and 21.2: base branch named, T12 folded into `ops_scopes`, no separate T12 migration. |
-| Major 12 | Fixed in 5.4 and 21.2: `/auth/confirm` is Modify with `token_hash` or `code` and a validated `next`; the `code` rewrite is kept; login page and `redirect-url.ts` listed. |
-| Major 13 | Fixed in 5.2: the edge proxy refuses `Next-Action` outside `/login` and `/consent`, `runAction` refuses remote calls, `remoteAction` only for sign-in and consent, a wrapping test, and a step 0 check. |
-| Major 14 | Fixed in 5.1: Next and `apps/auth` bind `127.0.0.1`; remote when `x-mdf-remote`, `cf-connecting-ip` or `cf-ray` is present. |
-| Major 15 | Fixed in 7.5 and 17: Next has its own OpenRouter and Groq keys; `openrouter-key.ts` stops reading the worker's env files. |
-| Major 16 | Fixed in 7.1: the SDK's web-standard Streamable HTTP transport in stateless JSON mode (no SSE on `/api/mcp`, so no keepalive there), pinned in the step 0 spike, with the `mcp-handler` fallback. |
-| Major 17 | Fixed in 6.4 and 6.9: an admin-only test box at consent, `fake_providers` derived from the token row, propagation through `worker_enqueue`, the real env var `WORKER_FAKE` with `main.ts` and `workspace.ts` listed, test versions refused for real paid or publish operations. |
-| Major 18 | Fixed in 6.4, 6.7 and 15.1: `agent_tokens.grant_id` and `oauth_consents`, the joins and return of `resolve_access_token`, the scope intersection rule, key storage, edge-proxy limits for registration, `/oauth/*` and `/login`, a redirect URI allowlist, consent defaulting to `read`. |
-| Major 19 | Fixed in 6.3.1, 6.3.4, 6.4 and 17: separate `mdf_auth` with only the storage functions, `session_id` checked against `auth.sessions`, admin operations refused remotely (except closing remote access), threat model corrected. |
-| Major 20 | Fixed in 5.2 and 5.3: the firewall is not relied on against containers; the Postgres password change is mandatory and the container probe is an M1 exit criterion. |
-| Nit 1 | Fixed in 11.5 and 6.6: windows in Europe/Rome, a `run` sentinel, the token cap only in `spend_caps`. |
-| Nit 2 | Fixed in 6.3.4: wrappers return result JSON and do the failing work in a savepoint, so audit rows and `cap_hit` notifications persist. |
-| Nit 3 | Fixed in 6.3.2: `search_path = ''` on every `ops` function, schema `ops` closed to `public`, checked by the ACL test. |
-| Nit 4 | Fixed in 15.1 and 14.4: `on delete` rules, `oauth_store` indexes and `purge_oauth`, the view named `agent_tokens_public`, `resource_class` set by a trigger. |
-| Nit 5 | Fixed in 3. |
-| Nit 6 | Fixed in 5.2, 7.3 and 21.2: the Suno share-link row, `lib/auth.ts` and `authorization.ts` listed, `allowedOrigins`. |
-| Nit 7 | Fixed in 6.2, 6.4 and 15.1: tokens resolved without cache (only flags cached, and the kill path revokes rows), OAuth grants expire after 90 days and renew at consent, customers hold no tokens in M1. |
-| Nit 8 | Fixed in 21.2 step 3: judge model ids and the Jev id move too; `config/gates/` is JSON validated by zod. |
-| Nit 9 | Accepted: `price_book_sync`, `kie_reconcile`, the keyring, `Last-Event-ID`, and token media and editor file operations are deferred to M2a (21.2). |
+**Blockers: rulings by the coordinator, applied as written.**
 
-**Counts for round 3:** 5 of 5 Blockers fixed; 20 of 20 Majors fixed, 0 deferred; 9 of 9 Nits
-fixed or accepted. The two remaining unknowns are spike items with written fallbacks, not open
-decisions: the exact `config.toml` field for the JWT secret, and the SDK version that ships the
-web-standard transport.
+| Id | Ruling | Where applied |
+| --- | --- | --- |
+| Blocker 1 | One reservation per job, holding several spend entries keyed by call; it never expires while the job is queued or running; resume, requeue and the in-stage kie balance check reuse the job's reservation; the worker settles subprocess calls through `ops.settle_spend` by entry id; expiry applies only to orphaned reservations (job finished or deleted) and never releases settled spend. | 11.5 (model, functions, call keys, free calls, close rule, orphans only), 15.1 (`reservations`, `spend_entries`), 21.2 (ledger integration test in the done-when) |
+| Blocker 2 | The wrappers set and clear both claim forms (`request.jwt.claims` and `request.jwt.claim.sub`, plus `claim.role`) in the same transaction; a database test shows a preset `request.jwt.claim.sub` cannot act on another user's rows. | 6.3.4 steps 4-5 (and `auth.uid() = actor` asserted), 6.3.7 claim-injection test |
+| Blocker 3 | The cap defaults move into a migration, not seed data; `reserve_job` fails closed when no cap row matches; a database test with an empty `spend_caps`. | 11.5 (defaults table, fail closed, test), 15.1 (`spend_ledger` seeds) |
+| Blocker 4 | The signing key lives outside the checkout under the secrets folder, readable only by the owner account (and `apps/auth`'s own keys only by the owner and `mdf-auth`); nothing under the repo holds key material; a check fails when `signing_keys.json` or any jwks file is inside the working tree. | 5.1 (accounts and ACLs), 5.3 items 1-2 (rendered stack folders, `ops/check-no-keys.ts`) |
+| Blocker 5 | `apps/auth` runs as its own Windows account `mdf-auth`, in the owner-action list next to `mdf-web`; `ops.oauth_upsert` issues a token only for a grant that matches a stored consent row (client, uid, scopes, flow nonce), with a database test. | 5.1, 6.4 (storage rules), 22, 17 |
+| Blocker 6 | The email template and `emailRedirectTo` come from per-environment config (`SITE_URL`), with local, e2e, CI and production values listed. | 5.3 item 1 (table), 5.4 (template `{{ .RedirectTo }}`, per-request redirect) |
+| Blocker 7 | The consent is bound to the flow by a random nonce in an `HttpOnly`, `SameSite=Lax` cookie set when the flow starts; resume requires the same cookie; the nonce is single use. | 6.4 (flow binding), 15.1 (`oauth_consents.flow_nonce_hash`, `used_at`), 19 (second-browser and reuse tests) |
+| Blocker 8 | Spike 2 lists every login role in the Supabase image; the mandatory change rotates all of them (`postgres`, `supabase_admin` and the other login roles); the exit probe tests every login role with the default password. | 5.3 item 3, 21.2 step 0 and done-when |
 
-### 28.1 Round 2 findings
+**Majors** (31 fixed, 1 partly, 3 moved to M2a):
 
 | Id | Disposition |
 | --- | --- |
-| R2-B1 | Partly closed by revision 3 (round 3); closed in revision 4 by round-3 Blockers 1, 2, 4 and Major 1 (28.0). Revision 3 text: resolved in 6.3: exact revokes (jobs insert grant and policy, versions grants, every public function), deny-by-default EXECUTE, `mdf_ops` and schema `ops`, reservation inside the wrapper transaction, worker refusal without a reservation and the paid-call module (11.5), cookie-only admin-only publishing until M4, exit tests. |
-| R2-B2 | Residue found by round 3 (Major 8), closed in revision 4 (28.0). Revision 3 text: resolved in 3 (corrected) and 6.2: `admin_allowlist.role` default `customer`, trigger change, backfill with the owner check, database test (21.2). |
+| 1 | Fixed in 6.3.2: the global `alter default privileges ... revoke execute on functions from public`; comment corrected. |
+| 2 | Fixed in 6.3.3: column privileges, schema USAGE in every non-system schema, `storage.objects` policies, `pg_auth_members`. |
+| 3 | Fixed in 6.3.2: `service_role` keeps its grants and `acl-allowlist.json` lists them. |
+| 4 | Fixed in 6.3.2: `playlist_membership(uuid[])`; no policy calls a `public` function, so only the six read RPCs are re-granted. |
+| 5 | Partly: session recency (65 minutes), production timebox and inactivity timeout, `getClaims()`, `remote_mcp` and token `remote` enforced in the database, spike 2 confirms the `auth.sessions` read. Remains: no step-up code for admin operations in M1 (my call; the residual risk is written in 17). |
+| 6 | Fixed in 11.5: fallback per `(provider, unit, period)`. |
+| 7 | Fixed in 11.5: exact-then-`''` price lookup, `MDF05` when missing, the `draft_lyrics` estimate with Jev and the strong writer, call keys instead of claims by model, `KIE_CREDITS` reused, pinned test prices. |
+| 8 | Fixed in 11.5 and 15.1: each reservation stores the exact counter rows and windows it charged. |
+| 9 | Fixed in 11.5: the right submit-state table per stage, synchronous `mark_ambiguous`, cancel by the same close rule. |
+| 10 | Moved to M2a: the web-side tools are not metered in M1 (7.4), so their reserve and settle path goes with them; Next's keys get a provider-side limit. |
+| 11 | Fixed in 6.4 and 6.6: every token gets its cap row at creation; a token without one is refused. |
+| 12 | Fixed in 6.3.4: the `jobs_stamp_ctx` trigger stamps inserted and re-queued rows; test tokens are refused on real versions. |
+| 13 | Fixed in 6.2: tokens and consent are admin-only in M1, with an exit test. |
+| 14 | Fixed in 6.2: `create` may reserve bounded incidental Groq transcription, counted against the caps. |
+| 15 | Fixed in 5.4: `ops/add-user.ts` creates allowlisted users; inviting from Settings is M2a. |
+| 16 | Fixed in 15.1: a column-level grant on `agent_tokens` (no view), `using (true)` policies for `price_book` and `app_flags`; `provider_operations` gets no grant. |
+| 17 | Fixed in 6.4 and 15.1: payloads stored without `jti`; the spike confirms the adapter. |
+| 18 | Fixed in 6.3.5: `owned % required` and related messages map to `not_found`; the error test follows the call graph from `pg_proc`; `JobStatus` carries the redacted error text instead of a code. |
+| 19 | Fixed in 6.3.1: role creation guarded by an existence check. |
+| 20 | Fixed in 7.3: every read field has its source column and transform; unsourced fields (duration, engine, error code) dropped. |
+| 21 | Moved to M2a: token uploads (and the `upload_intents` table, ingestion and their limits). |
+| 22 | Fixed in 5.2 and 7.3: path, input, output, scope and key for every token operation; `/api/v1` PAT only, `/api/mcp` PAT or OAuth, no cookies. |
+| 23 | Fixed in 6.3.4 and 7.2: the key is deleted on failure in the same transaction; `request_hash` defined; the database requires a key from token actors. |
+| 24 | Fixed in 7.1: `@modelcontextprotocol/server` 2.4.0, per-request instances, default 4 MiB body (no uploads in M1). |
+| 25 | Fixed in 6.4: issuer, discovery paths served by `apps/auth`, default opaque tokens without a prefix, interaction URL and resume route, `proxy: true`. |
+| 26 | Fixed in 11.5: `MELLODIFAI_ENV_ONLY` set after `childEnvironment`, `KIE_ENV` refused, corrected call map, complete `PAID_SECRET_NAMES`, key reads moved into `providers/`; whether `workspace_pipeline.sh` pays is a builder decision with a default. |
+| 27 | Moved to M2a with the web-side tools' token exposure. |
+| 28 | Fixed in 6.4 and 20: `remote_mcp` checked in the database; the remote kill is the Cloudflare dashboard (README); enablement order fixed. |
+| 29 | Fixed in 5.1: the dev server binds loopback; containers on the PC count as local by design, stated. |
+| 30 | Fixed in 6.4 and 17: registration only in an admin pairing window, registration time shown, a new risk row. |
+| 31 | Fixed in 19: CI flags and ports, `playwright.config.ts` and `support.ts` in the Modify list, `app.fake_stack` so e2e jobs never meet caps. |
+| 32 | Fixed in 7.1 and 21.2: test imports, workspace and tsconfig wiring, `@mellodifai/ops` with `tsx`, CLI bundle and pack, the missing files; the credits page overlap disappears with Settings > Costi moving to M2a. |
+| 33 | Fixed in 21.2 and 20: a green step order (additive, worker, actions, tests, lockdown), the `m1-floor` tag, services stopped before migrating, a smoke write in the health check, a documented restore. |
+| 34 | Fixed in 14.4 and 6.9: one SQL body per task with its grant, stale-claim takeover, DST rule; a child's refused reservation fails the parent with `cap_exceeded`. |
+| 35 | Fixed in 6.4 and 6.6: Settings > Agenti contents and the consent-info shape; Settings > Costi moved to M2a. |
+
+**Nits:** fixed: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 23, 24 (in the
+sections named by each finding's scope); moved to M2a: 17 (large uploads), 19 (upload reuse), 21
+(worker watchdog, with notifications).
+
+### 28.1 Round 3 findings, corrected after round 4
+
+Revision 4 marked every round-3 finding fixed. Round 4 showed these were only partly closed; their
+corrected state:
+
+| Id | Corrected disposition |
+| --- | --- |
+| Blocker 1 | Partly closed in revision 4 (the legacy `claim.sub` path stayed open); closed in revision 5 by round-4 Blocker 2. |
+| Blocker 2 | Partly closed in revision 4 (the per-schema PUBLIC revoke is a no-op; the ACL test missed column grants); closed in revision 5 by round-4 Majors 1 and 2. |
+| Blocker 3 | Closed in schema only in revision 4 (defaults were seed-only and `reserve_spend` failed open); closed in revision 5 by round-4 Blocker 3. |
+| Blocker 4 | Not closed in revision 4 (the per-call claim model could not run the stages; expiry erased spend); replaced in revision 5 by round-4 Blocker 1's model. |
+| Blocker 5 | Mechanism closed in revision 4, shapes and contracts open; closed in revision 5 by round-4 Majors 20 and 22, with token uploads moved to M2a (round-4 Major 21). |
+| Major 5 | Revision 4's fix created round-4 Blocker 1; superseded by it. |
+| Major 10 | The failure path was missing in revision 4; closed by round-4 Major 23. |
+| Major 19 | Held only at database level in revision 4; closed by round-4 Blocker 5 (`mdf-auth` account, consent-matched `oauth_upsert`). |
+| Major 20 | The password change covered only `postgres` in revision 4; closed by round-4 Blocker 8. |
+| Nit 7 | "Customers hold no tokens" was contradicted by consent in revision 4; closed by round-4 Major 13. |
+| All other round-3 items | As fixed in revision 4, except where round 4 replaced the text (the gates move, notifications, uploads and the keyring now belong to M2a). |
+
+### 28.2 Round 2 findings
+
+| Id | Disposition |
+| --- | --- |
+| R2-B1 | Partly closed by revision 3 (round 3); closed in revision 4 by round-3 Blockers 1, 2, 4 and Major 1 (28.1). Revision 3 text: resolved in 6.3: exact revokes (jobs insert grant and policy, versions grants, every public function), deny-by-default EXECUTE, `mdf_ops` and schema `ops`, reservation inside the wrapper transaction, worker refusal without a reservation and the paid-call module (11.5), cookie-only admin-only publishing until M4, exit tests. |
+| R2-B2 | Residue found by round 3 (Major 8), closed in revision 4 (28.1). Revision 3 text: resolved in 3 (corrected) and 6.2: `admin_allowlist.role` default `customer`, trigger change, backfill with the owner check, database test (21.2). |
 | R2-B3 | Resolved in 10.1 and 13.3-13.7: every gate, threshold, judge prompt and router or cap constant moved to denylisted `packages/gates/**` and `config/gates/**`, so step 1 is a pure path check; deterministic canaries must still be rejected; revert signals scored by the frozen evaluator. |
 | R2-B4 | Resolved in 13.1-13.2: sandbox on an `--internal` network with no socket and no credentials, scorer without candidate code, merger on the host with the only push right, supervisor-started gate stack, probe that aborts the night, firewall rule (5.2), Postgres password spike (5.3). |
 | R2-B5 | Resolved in 11.3 and 6.8: route 2 runs only in the `mdf-img` container with an output folder, read-only sandbox, egress allowlist, prompts from enums and `Safe` fields, single-image acceptance, injection test. |
@@ -2689,7 +2727,7 @@ web-standard transport.
 | Nit 32 | Partly resolved: glossary path for the brief and the "Formatta con AI" gloss added; remains: the one-line fix in `task-24-brief.md:18` itself, not made here because this revision may change only this file. |
 | Nit 33 | Resolved: the M1 contents checklist (21.2). |
 
-### 28.2 Round 1 findings
+### 28.3 Round 1 findings
 
 | Id | Disposition after revision 3 |
 | --- | --- |
