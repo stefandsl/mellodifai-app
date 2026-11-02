@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   ANALYSIS_RATE,
   analyseSong,
+  normalizeVisualizerParams,
   stockBackground,
   uploadPathOf,
   VISUALIZER_FPS,
@@ -27,7 +28,6 @@ import { posterOf, upload } from "./utils.js";
 // Local and free: no kie credits, no GPU model, only Chrome drawing frames.
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 export const VISUALIZER_PACKAGE = join(REPO, "packages", "visualizer");
-const BRAND = join(REPO, "apps", "web", "public", "brand");
 // The bucket holds 1 GB in all: the delivered video is kept under this size.
 export const DELIVERY_LIMIT = 45 * 1024 * 1024;
 
@@ -67,6 +67,9 @@ async function wanted(
     throw new Error("Il video da creare non esiste più");
   const parsed = VisualizerParamsSchema.safeParse(render.visualizer_params);
   if (!parsed.success) throw new Error("Parametri del video non validi");
+  // Read like the studio reads saved settings: a row saved before the logos drops the old
+  // default artist and website lines nobody typed.
+  const params = normalizeVisualizerParams(render.visualizer_params);
   const takeId =
     typeof payload.take_id === "string"
       ? payload.take_id
@@ -75,15 +78,7 @@ async function wanted(
     (item) => item.id === takeId,
   );
   if (!take) throw new Error("La versione scelta non esiste più");
-  return { render, take, params: parsed.data };
-}
-
-async function exists(file: string): Promise<boolean> {
-  try {
-    return (await stat(file)).isFile();
-  } catch {
-    return false;
-  }
+  return { render, take, params };
 }
 
 async function fetchStored(
@@ -274,19 +269,19 @@ export const visualizer: StageHandler = async (context) => {
             : null,
         ) ?? coverName;
     }
-    const marks = {
-      trumpet: null as string | null,
-      gramophone: null as string | null,
-    };
-    if (params.preset === "classico") {
-      for (const [key, file] of [
-        ["trumpet", "mellodifai-trumpet.png"],
-        ["gramophone", "mellodifai-logo.png"],
-      ] as const)
-        if (await exists(join(BRAND, file))) {
-          await copyFile(join(BRAND, file), join(pub, `${key}.png`));
-          marks[key] = `${key}.png`;
-        }
+    // The user's logos, fetched like the centre upload. A logo whose file is gone is left out,
+    // not a failed render; only the user's own uploads are read.
+    const owner = render.owner_id ?? context.job.owner_id;
+    const logos: (string | null)[] = [];
+    for (const [i, logo] of params.logos.entries()) {
+      const path = uploadPathOf(logo.assetUrl);
+      logos.push(
+        owner && path?.startsWith(`${owner}/`)
+          ? local(
+              await fetchStored(context, path, pub, `logo-${i + 1}`, "uploads"),
+            )
+          : null,
+      );
     }
     const props = join(dir, "props.json");
     await writeFile(
@@ -300,7 +295,7 @@ export const visualizer: StageHandler = async (context) => {
         analysis: "analysis.bin",
         background,
         center,
-        ...marks,
+        logos,
       }),
     );
 

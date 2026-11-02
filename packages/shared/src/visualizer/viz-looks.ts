@@ -25,10 +25,12 @@ import {
   songLines,
   spacedText,
   spacedWidth,
+  stackDown,
   typeScale,
   unitOf,
   type VisualizerScene,
 } from "./viz-kit.js";
+import { type Box, overlayCorner } from "./viz-logos.js";
 import type {
   ParticleShape,
   VisualizerParams,
@@ -837,20 +839,22 @@ function lens(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   // Title block.
   const lines = songLines(scene);
   const ts = typeScale(scene);
-  textLine(ctx, scene, lines.title, w / 2, textY, ts.title, {
+  const byline = [lines.artist, lines.album].filter(Boolean).join("  ·  ");
+  const [titleY, bylineY] = stackDown(textY - ts.title / 2, [
+    { text: lines.title, size: ts.title },
+    { text: byline, size: ts.artist, gap: ts.artist * 0.25 },
+  ]).centres as [number, number];
+  textLine(ctx, scene, lines.title, w / 2, titleY, ts.title, {
     weight: 600,
     align: "center",
     maxWidth: w * 0.86,
   });
-  textLine(
-    ctx,
-    scene,
-    [lines.artist, lines.album].filter(Boolean).join("  ·  "),
-    w / 2,
-    textY + ts.title * 0.5 + ts.artist * 0.75,
-    ts.artist,
-    { weight: 400, align: "center", tracking: 0.2, maxWidth: w * 0.86 },
-  );
+  textLine(ctx, scene, byline, w / 2, bylineY, ts.artist, {
+    weight: 400,
+    align: "center",
+    tracking: 0.2,
+    maxWidth: w * 0.86,
+  });
 
   // The play button, with the cover inside when there is one.
   const at = lookCenter(scene.params, w, h);
@@ -949,26 +953,22 @@ function pills(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const lines = songLines(scene);
   const ty = tall ? h * 0.39 : at.cy + at.r + 0.1 * s;
   const ts = typeScale(scene);
-  textLine(ctx, scene, lines.title, at.cx, ty, ts.title, {
+  const [titleY, artistY] = stackDown(ty - ts.title / 2, [
+    { text: lines.title, size: ts.title },
+    { text: lines.artist, size: ts.artist, gap: ts.artist * 0.2 },
+  ]).centres as [number, number];
+  textLine(ctx, scene, lines.title, at.cx, titleY, ts.title, {
     weight: 600,
     align: "center",
     maxWidth: tall ? w * 0.86 : w * 0.42,
   });
-  textLine(
-    ctx,
-    scene,
-    lines.artist,
-    at.cx,
-    ty + ts.title * 0.5 + ts.artist * 0.7,
-    ts.artist,
-    {
-      weight: 400,
-      align: "center",
-      tracking: 0.25,
-      color: "rgba(255,255,255,0.8)",
-      maxWidth: tall ? w * 0.86 : w * 0.42,
-    },
-  );
+  textLine(ctx, scene, lines.artist, at.cx, artistY, ts.artist, {
+    weight: 400,
+    align: "center",
+    tracking: 0.25,
+    color: "rgba(255,255,255,0.8)",
+    maxWidth: tall ? w * 0.86 : w * 0.42,
+  });
 }
 
 // ---- P7 Bordi Pixel: dotted equalizers on the top and bottom edges, a playing-card cover ------
@@ -1128,9 +1128,14 @@ function edgebars(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const maxWidth = tall ? w * 0.86 : w * 0.38;
   const ty = tall ? h * 0.74 : h * 0.4;
   const ts = typeScale(scene);
-  const titleY = ty + ts.artist / 2 + ts.title / 2 + 14 * u;
-  const albumY = titleY + ts.title / 2 + ts.caption / 2 + 10 * u;
-  textLine(ctx, scene, lines.artist, tx, ty, ts.artist, {
+  const clockPx = ts.artist * 1.3;
+  const stack = stackDown(ty - ts.artist / 2, [
+    { text: lines.artist, size: ts.artist },
+    { text: lines.title, size: ts.title, gap: 14 * u },
+    { text: lines.album, size: ts.caption, gap: 10 * u },
+  ]);
+  const [artistY, titleY, albumY] = stack.centres as [number, number, number];
+  textLine(ctx, scene, lines.artist, tx, artistY, ts.artist, {
     weight: 600,
     align,
     tracking: 0.12,
@@ -1146,15 +1151,10 @@ function edgebars(ctx: Canvas2D, scene: VisualizerScene, level: number) {
     align,
     maxWidth,
   });
-  textLine(
-    ctx,
-    scene,
-    clock(scene.time),
-    tx,
-    albumY + ts.caption / 2 + 30 * u,
-    ts.artist * 1.3,
-    { weight: 500, align },
-  );
+  textLine(ctx, scene, clock(scene.time), tx, stack.end + 30 * u, clockPx, {
+    weight: 500,
+    align,
+  });
 }
 
 // A rounded rectangle added to the current path.
@@ -1287,35 +1287,33 @@ function coverframe(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
   ctx.stroke();
   ctx.restore();
   const ts = typeScale(scene);
-  const titleY = top + ts.artist / 2 + ts.title / 2 + 12 * u;
-  const albumY = titleY + ts.title / 2 + ts.caption / 2 + 10 * u;
-  textLine(ctx, scene, lines.artist, tx, top, ts.artist, {
+  const song = lines.title ? `SONG: ${lines.title}` : "";
+  const album = lines.album ? `ALBUM: ${lines.album}` : "";
+  const stack = stackDown(top - ts.artist / 2, [
+    { text: lines.artist, size: ts.artist },
+    { text: song, size: ts.title, gap: 12 * u },
+    { text: album, size: ts.caption, gap: 10 * u },
+  ]);
+  const [artistY, titleY, albumY] = stack.centres as [number, number, number];
+  textLine(ctx, scene, lines.artist, tx, artistY, ts.artist, {
     weight: 600,
     align,
     tracking: 0.1,
     maxWidth,
   });
-  textLine(
-    ctx,
-    scene,
-    lines.title ? `SONG: ${lines.title}` : "",
-    tx,
-    titleY,
-    ts.title,
-    { weight: 600, align, maxWidth },
-  );
-  textLine(
-    ctx,
-    scene,
-    lines.album ? `ALBUM: ${lines.album}` : "",
-    tx,
-    albumY,
-    ts.caption,
-    { weight: 400, align, maxWidth },
-  );
+  textLine(ctx, scene, song, tx, titleY, ts.title, {
+    weight: 600,
+    align,
+    maxWidth,
+  });
+  textLine(ctx, scene, album, tx, albumY, ts.caption, {
+    weight: 400,
+    align,
+    maxWidth,
+  });
   const barW = tall ? w * 0.6 : w * 0.26;
   const bx = tall ? (w - barW) / 2 - 40 * u : tx + 34 * u;
-  const by = albumY + ts.caption / 2 + 56 * u;
+  const by = stack.end + 56 * u;
   ctx.save();
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(bx - 32 * u, by - 12 * u, 6 * u, 24 * u);
@@ -1424,9 +1422,22 @@ function playercard(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const textX = tall ? w / 2 : colX;
   const textTop = tall ? h * 0.6 : h * 0.3;
   const ts = typeScale(scene);
-  const titleY = textTop + ts.artist / 2 + ts.title / 2 + 12 * u;
-  const albumY = titleY + ts.title / 2 + ts.caption / 2 + 10 * u;
-  textLine(ctx, scene, lines.artist, textX, textTop, ts.artist, {
+  // The column sits on the card: its last line ends where the album line ends with all three
+  // lines shown, so a missing line closes up the gap towards the card, not above it.
+  const column = [
+    { text: lines.artist, size: ts.artist },
+    { text: lines.title, size: ts.title, gap: 12 * u },
+    { text: lines.album, size: ts.caption, gap: 10 * u },
+  ];
+  const bottom =
+    textTop + ts.artist / 2 + 12 * u + ts.title + 10 * u + ts.caption;
+  const shift = bottom - stackDown(0, column).end;
+  const [artistY, titleY, albumY] = stackDown(shift, column).centres as [
+    number,
+    number,
+    number,
+  ];
+  textLine(ctx, scene, lines.artist, textX, artistY, ts.artist, {
     weight: 500,
     align,
     tracking: 0.2,
@@ -2008,7 +2019,10 @@ function editorial(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
     },
   );
   const title = titleLines(ctx, scene, lines.title, maxWidth, s * 0.15);
-  let ty = artistY + 30 * u + title.px * 0.62;
+  // Without an artist line the title starts where the artist line would.
+  let ty = lines.artist
+    ? artistY + 30 * u + title.px * 0.62
+    : artistY - typeScale(scene).artist / 2 + title.px * 0.5;
   for (const line of title.lines) {
     const tx = x + (1 - enter) * -18 * u;
     // A faint filled echo behind the outline.
@@ -2276,31 +2290,61 @@ function shaped(ctx: Canvas2D, scene: VisualizerScene, level: number) {
 
 // ---- P13 Badge Rotanti: two text rings turning in the corners, over any preset ---------------
 
+// What the badges read: their own text, else the song title and the artist. Empty when there is
+// none of them, and then no badge is drawn.
+function badgeText(scene: VisualizerScene): string {
+  const lines = songLines(scene);
+  return (
+    scene.params.badges.text.trim() ||
+    [lines.title, lines.artist].filter(Boolean).join(" · ")
+  ).toUpperCase();
+}
+
+// Where the two badges turn: opposite corners (top left, bottom right), through the overlay
+// corner rule, so in 9:16 both sit on top, clear of the buttons and captions a Short shows along
+// the bottom and the right edge. `reach` is the outer edge of the dot ring at its largest pulse.
+export function badgeSlots(
+  scene: VisualizerScene,
+): { cx: number; cy: number; dir: number; reach: number }[] {
+  if (!scene.params.badges.enabled || !badgeText(scene)) return [];
+  const { w, h, s, u } = sizes(scene);
+  const R = s * 0.075;
+  const margin = s * 0.05 + R * 1.45;
+  const at = (corner: "top-left" | "bottom-right") => {
+    const c = overlayCorner(corner, { width: w, height: h });
+    return {
+      cx: c.endsWith("left") ? margin : w - margin,
+      cy: c.startsWith("top") ? margin : h - margin,
+    };
+  };
+  const reach = R * 1.05 * 1.35 + 2.5 * u;
+  return [
+    { ...at("top-left"), dir: 1, reach },
+    { ...at("bottom-right"), dir: -1, reach },
+  ];
+}
+
+// The boxes the badges cover, for what must keep clear of them (the logos).
+export function badgeBoxes(scene: VisualizerScene): Box[] {
+  return badgeSlots(scene).map((b) => ({
+    left: b.cx - b.reach,
+    top: b.cy - b.reach,
+    right: b.cx + b.reach,
+    bottom: b.cy + b.reach,
+  }));
+}
+
 export function drawBadges(
   ctx: Canvas2D,
   scene: VisualizerScene,
   level: number,
 ): void {
-  const { params } = scene;
-  if (!params.badges.enabled) return;
-  const { w, h, s, u, P, S } = sizes(scene);
-  const lines = songLines(scene);
-  const text = (
-    params.badges.text.trim() ||
-    [lines.title, lines.artist].filter(Boolean).join(" · ") ||
-    "MELLODIFAI"
-  ).toUpperCase();
+  const slots = badgeSlots(scene);
+  if (!slots.length) return;
+  const { s, u, P, S } = sizes(scene);
+  const text = badgeText(scene);
   const R = s * 0.075;
-  const margin = s * 0.05 + R * 1.45;
   const pulse = 1 + 0.05 * kickOf(level);
-  // Opposite corners in 16:9; both on top in 9:16, clear of the buttons and captions a Short
-  // shows along the bottom and the right edge.
-  const slots = [
-    { cx: margin, cy: margin, dir: 1 },
-    h > w
-      ? { cx: w - margin, cy: margin, dir: -1 }
-      : { cx: w - margin, cy: h - margin, dir: -1 },
-  ];
   const px = 19 * u;
   ctx.save();
   ctx.font = font(scene, px, 600);

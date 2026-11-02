@@ -95,10 +95,13 @@ async function previewFrame(
     c.height = h;
     return c;
   });
-  const [background, center, trumpet, gramophone] = await Promise.all(
-    [files.background, files.center, files.trumpet, files.gramophone].map(
-      (src, i) => picture(src as string, i === 1),
+  const [background, center] = await Promise.all(
+    [files.background, files.center].map((src, i) =>
+      picture(src as string, i === 1),
     ),
+  );
+  const logos = await Promise.all(
+    (JSON.parse(files.logos ?? "[]") as string[]).map((src) => picture(src)),
   );
   draw(canvas.getContext("2d") as CanvasRenderingContext2D, {
     params: normalizeVisualizerParams(job.params),
@@ -114,8 +117,7 @@ async function previewFrame(
     images: {
       background: background ?? null,
       center: center ?? null,
-      trumpet: trumpet ?? null,
-      gramophone: gramophone ?? null,
+      logos,
     },
   });
   return canvas.toDataURL("image/png");
