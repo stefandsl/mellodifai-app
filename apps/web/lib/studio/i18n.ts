@@ -1066,7 +1066,6 @@ const it = {
   "remake.openSong": "Vai alla canzone",
   "assist.write": "Scrivi con AI",
   "assist.regenerate": "Rigenera",
-  "assist.regenerateSection": "Rigenera sezione",
   "assist.improve": "Migliora",
   "assist.writeTip":
     "L'AI scrive un testo dal titolo, dalla descrizione e dagli stili",
@@ -2161,7 +2160,6 @@ const en: Record<StudioKey, string> = {
   "remake.openSong": "Open the song",
   "assist.write": "Write with AI",
   "assist.regenerate": "Regenerate",
-  "assist.regenerateSection": "Regenerate section",
   "assist.improve": "Improve",
   "assist.writeTip":
     "The AI writes lyrics from the title, the description and the styles",

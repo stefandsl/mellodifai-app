@@ -110,7 +110,7 @@ describe("LyricsAi", () => {
     mock.state = done("[Verse 1]\nuno\ndue\n\n[Chorus]\nsei\nsette");
     bar(TEXT.indexOf("quattro"));
     await userEvent.click(
-      screen.getByRole("button", { name: "Rigenera sezione [Chorus]" }),
+      screen.getByRole("button", { name: "Rigenera [Chorus]" }),
     );
     expect(mock.request).toHaveBeenCalledWith(
       expect.objectContaining({

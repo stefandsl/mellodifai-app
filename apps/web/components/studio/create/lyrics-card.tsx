@@ -249,18 +249,14 @@ export function LyricsCard() {
               ))}
             </div>
           ) : null}
-          {lyrics.trim() || aiBusy ? null : (
-            <p className="mt-1 text-xs text-[var(--fg-subtle)]">
-              {st(lang, "create.aiLyrics")}
-            </p>
-          )}
-          <div className="mt-2 flex min-h-7 items-end justify-between gap-2">
+          <div className="mt-1 flex h-6 items-center justify-between gap-2">
+            <span className="text-xs text-[var(--fg-subtle)]">
+              {lyrics.trim() || aiBusy ? "" : st(lang, "create.aiLyrics")}
+            </span>
+            <Counter value={lyrics.length} max={LIMITS.lyrics} />
+          </div>
+          <div className="mt-1.5">
             <LyricsAi caret={caret} onBusy={setAiBusy} />
-            <Counter
-              value={lyrics.length}
-              max={LIMITS.lyrics}
-              className="shrink-0 pb-1"
-            />
           </div>
         </div>
       </PanelCard>

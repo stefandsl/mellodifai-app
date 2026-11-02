@@ -219,7 +219,7 @@ export function LyricsAi({
     );
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 flex-1">
       {briefOpen ? (
         // Not a <form>: the lyrics box sits inside the create panel's form.
         <div className="mb-2 space-y-2 rounded-xl bg-[var(--surface-2)] p-2.5">
@@ -304,7 +304,7 @@ export function LyricsAi({
           >
             <RefreshCw className="size-3.5" />
             {section
-              ? `${st(lang, "assist.regenerateSection")} [${section.label}]`
+              ? `${st(lang, "assist.regenerate")} [${section.label}]`
               : st(lang, "assist.regenerate")}
           </button>
         </Tip>
