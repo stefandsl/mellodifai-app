@@ -269,3 +269,13 @@ The guarded integration suite dumps, resets, imports and downloads a real test
 object, with backups retained under E:/mellodifai/tmp. Production cutover and
 restore were not executed. Task 33 owner authorization, ACLs, credentials and
 service-account prerequisites remain open; no owner action was fabricated.
+
+M1 Task 13 adds `/api/health` and `lib/remote.ts`. Remote requests return only
+`{ web: "ok" }`, bypass auth middleware, and do not query the database. Local
+detail uses the existing cookie-authenticated reads, so metrics reflect RLS
+visibility and anonymous requests may report `db: "error"` with HTTP 503.
+Per preflight ruling 9, no service-role key was added to Next. `schema` is
+explicitly null until Task 14 supplies applied migration metadata and the ops
+write/read probe through narrowly granted `ops.health()` as `mdf_web`.
+`pnpm --filter @mellodifai/web build` records `git describe --tags` in
+`apps/web/.next/mdf-version`; absent metadata falls back to `dev`.
