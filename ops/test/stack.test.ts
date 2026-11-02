@@ -1,20 +1,43 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { stackDir } from "../lib/envs.js";
+import { runtimePath, SUPABASE_CLI_VERSION, stackDir } from "../lib/envs.js";
 import { readStackPasswords } from "../lib/roles.js";
+import { realRunner } from "../lib/run.js";
 import { planStackCommand, runStackCommand, writeTestEnv } from "../stack.js";
 
-let root: string;
+const fixtureBase = runtimePath(
+  process.env.RUNNER_TEMP ??
+    join(process.env.MELLODIFAI_ROOT ?? "E:/mellodifai", "tmp"),
+);
+let root = "";
+it("creates fixtures under the configured external temporary directory", () => {
+  expect(dirname(root)).toBe(fixtureBase);
+});
+it("runs the pinned installed CLI without depending on the npm installation layout", async () => {
+  const require = createRequire(import.meta.url);
+  for (const command of ["migrate", "reset", "db reset"]) {
+    const plan = planStackCommand(command, "e2e", {})[0];
+    if (!plan?.[0] || !plan[1]) throw new Error("Missing CLI command");
+    expect(plan[1]).toMatch(/supabase[\\/]dist[\\/]supabase\.js$/);
+    expect(require("supabase/package.json").version).toBe(SUPABASE_CLI_VERSION);
+    const result = await realRunner(plan[0], [plan[1], "--version"]);
+    expect(result.code).toBe(0);
+    expect(result.stdout.trim()).toBe(SUPABASE_CLI_VERSION);
+  }
+}, 30_000);
 beforeEach(() => {
-  mkdirSync("E:/mellodifai/tmp", { recursive: true });
-  root = mkdtempSync("E:/mellodifai/tmp/stack-test-");
+  root = "";
+  const tmp = runtimePath(fixtureBase);
+  mkdirSync(tmp, { recursive: true });
+  root = mkdtempSync(join(tmp, "stack-test-"));
   vi.stubEnv("MELLODIFAI_ROOT", root);
   vi.stubEnv("RUNNER_TEMP", join(root, "runner"));
 });
 afterEach(() => {
   vi.unstubAllEnvs();
-  rmSync(root, { recursive: true, force: true });
+  if (root) rmSync(root, { recursive: true, force: true });
 });
 
 it("refuses reset, db reset and stop --no-backup on project mellodifai (Major 17)", () => {

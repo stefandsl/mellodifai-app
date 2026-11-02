@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { renderCompose } from "../lib/compose.js";
-import { ENV_TABLE, stackDir } from "../lib/envs.js";
+import { ENV_TABLE, runtimePath, stackDir } from "../lib/envs.js";
 import { renderConfig } from "../lib/render.js";
 import { loadStackSecrets } from "../lib/stack-secrets.js";
 
@@ -17,15 +17,24 @@ const base = readFileSync(
   fileURLToPath(new URL("../../supabase/config.toml", import.meta.url)),
   "utf8",
 );
-let root: string;
+const fixtureBase = runtimePath(
+  process.env.RUNNER_TEMP ??
+    join(process.env.MELLODIFAI_ROOT ?? "E:/mellodifai", "tmp"),
+);
+let root = "";
+it("creates fixtures under the configured external temporary directory", () => {
+  expect(dirname(root)).toBe(fixtureBase);
+});
 beforeEach(() => {
-  mkdirSync("E:/mellodifai/tmp", { recursive: true });
-  root = mkdtempSync("E:/mellodifai/tmp/compose-test-");
+  root = "";
+  const tmp = runtimePath(fixtureBase);
+  mkdirSync(tmp, { recursive: true });
+  root = mkdtempSync(join(tmp, "compose-test-"));
   vi.stubEnv("MELLODIFAI_ROOT", root);
 });
 afterEach(() => {
   vi.unstubAllEnvs();
-  rmSync(root, { recursive: true, force: true });
+  if (root) rmSync(root, { recursive: true, force: true });
 });
 
 it("signs API keys with the configured ES256 key and supplies verifier keys to every API consumer", async () => {

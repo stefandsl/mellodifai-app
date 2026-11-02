@@ -1,14 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { composeEnvironment, prepareCompose } from "./lib/compose.js";
-import {
-  ENV_TABLE,
-  runtimePath,
-  type StackEnv,
-  SUPABASE_CLI_VERSION,
-  stackDir,
-} from "./lib/envs.js";
+import { ENV_TABLE, runtimePath, type StackEnv, stackDir } from "./lib/envs.js";
 import { provisionTestLogins } from "./lib/logins.js";
 import { databaseUrl, ownerConnection } from "./lib/pg.js";
 import { writePrivate } from "./lib/private-file.js";
@@ -78,9 +73,7 @@ export function planStackCommand(
   if (["migrate", "reset", "db reset"].includes(cmd)) {
     const cli = [
       process.execPath,
-      join(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js"),
-      "--yes",
-      `supabase@${SUPABASE_CLI_VERSION}`,
+      createRequire(import.meta.url).resolve("supabase/dist/supabase.js"),
     ];
     return [
       [
