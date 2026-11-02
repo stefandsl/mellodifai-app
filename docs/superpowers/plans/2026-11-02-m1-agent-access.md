@@ -1078,6 +1078,71 @@ The sole Important review finding is resolved. Completion status:
 DONE_WITH_CONCERNS only for the previously recorded pending live connector
 verification; the repository e2e gate is no longer blocked.
 
+### Spike 2: database stack (Task 2, 2026-11-02, runtime experiments pending)
+
+**Owner prerequisite discovered:** the active `desktop-linux` Docker context
+stores its data in the physical file
+`C:/Users/Asus/AppData/Local/Docker/wsl/disk/docker_data.vhdx` (34,165,751,808
+bytes at inspection). Neither the file nor its Docker/wsl/disk parent folders
+is a reparse point. Docker reports `/var/lib/docker` inside that VM. C: had
+319.05 GB free initially, so the 20 GB stop threshold is not the issue; the
+standing prohibition on databases, caches, logs and test data on C: is.
+An E: CLI workdir would not relocate Docker volumes or container logs.
+
+No spike container was started, no database password was changed, and no live
+or e2e database was queried. Moving Docker's disk requires an owner maintenance
+window because this daemon also hosts the live stack. Do not stop or migrate
+that daemon as part of this spike. The owner must provide a Docker data root
+on E:/G: (or another compliant isolated daemon) before the runtime experiments.
+
+**Prepared outside the checkout:** `E:/mellodifai/spikes/stack/supabase/config.toml`
+is a rendered copy with `project_id = "mellodifai_spike"`. API/database/Studio/
+mail/analytics use 46621/46622/46623/46624/46627; shadow uses 46626, inspector
+46628, and the disabled pooler 46629. Optional commented SMTP/POP listeners
+remain disabled; do not enable POP on 46626 alongside the shadow database.
+`seed.sql` was copied. No signing key or password was generated. A static
+assertion passed: eight unique explicit port settings, all in 46621-46629.
+This is configuration inspection, not proof that the CLI accepts or starts it.
+
+**Requirements and unresolved decisions:**
+
+- Step 1: rendering done; start, login-role enumeration, service credential
+  inventory and external `signing_keys_path`/`--workdir` behavior untested.
+  The Supabase executable is also absent from this session's PowerShell and
+  Git Bash PATH; provision a pinned CLI on E: before resuming.
+- Step 2: rotation, service re-templating, backup-preserving stop/start and the
+  working re-apply procedure remain untested. Preflight ruling 22 binds:
+  every command, including both restart commands, needs
+  `--workdir E:/mellodifai/spikes/stack`.
+- Step 3: disabled-service ports, both `auth.sessions` column types, definer
+  access, changed project IDs and shared project IDs remain untested. The
+  current repo config uses `[local_smtp]`, while the brief asks for
+  `[inbucket]`; test the latter explicitly with the pinned CLI and record
+  whether it is accepted, rejected or translated. Do not silently substitute.
+- Step 4: no bridge-container default-password probe was run. No role is
+  claimed to pass the exit probe, including the later `mdf_web`/`mdf_auth` roles.
+- Step 5: CLI versus compose is **undecided**. No compose-equivalent procedure
+  is represented as verified. If the CLI experiment triggers the fallback,
+  record the pinned compose revision and all six required equivalents before
+  Tasks 5-12 rely on this spike. This partial result does not clear that gate.
+- Step 6: no spike containers or volumes were created, so destructive cleanup
+  was unnecessary and was not run. After the future experiment, clean up only
+  the verified spike project with `supabase stop --workdir
+  E:/mellodifai/spikes/stack --no-backup`.
+
+**Evidence:** runtime files and gate logs are under
+`E:/mellodifai/spikes/stack/evidence/`. The full report is
+`.superpowers/sdd/2026-11-02-m1-agent-access/task-2-report.md` (gitignored).
+Database and e2e gates are pending the same disk prerequisite, not passing.
+The E: tracked-source test copy passed frozen-lockfile installation, lint,
+root typecheck, web typecheck and `pnpm test` (1,284 passed, 2 existing skips).
+The first unit run failed because PATH selected Miniconda's FFmpeg without
+`libmp3lame`; selecting the already-installed Chocolatey FFmpeg in the rerun's
+process PATH resolved it without a code change. Both logs are retained.
+There is no RED/GREEN database evidence and no verified database-stack result
+yet. Status is DONE_WITH_CONCERNS under the owner's instruction for open owner
+actions; the outstanding experiments must be resumed before dependent work.
+
 ## Deploy log
 
 (Filled by Tasks 33 and 47.)
