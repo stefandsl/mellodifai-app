@@ -173,6 +173,12 @@ keeps Next caches and generated files off C: even when `pnpm e2e` is invoked in
 the C: worktree. Runtime copies are retained for diagnosis; the dedicated pnpm
 store is under the runtime root's `cache/pnpm` directory.
 
+Worker workspaces, fake media and subprocess temporary files now use
+`RUNNER_TEMP` in CI or `MELLODIFAI_ROOT` locally (default `E:/mellodifai`).
+Fonts default to `<runtime root>/fonts`; `MELLODIFAI_FONTS` can select another
+font source. The existing local fonts were copied to `E:/mellodifai/fonts`
+without modifying the legacy source. Fake workers do not need fonts.
+
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
 `cloudflared` login; SMTP sender; codex login in the image container; an evaluation

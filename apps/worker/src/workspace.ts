@@ -1,6 +1,7 @@
 import { cp, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Lang } from "@mellodifai/shared";
+import { workerRuntimeRoot } from "./runtime.js";
 
 export type Workspace = {
   root: string;
@@ -12,8 +13,9 @@ export type Workspace = {
 
 export class WorkspaceFactory {
   constructor(
-    private readonly projectsRoot = "E:\\mellodifai\\projects",
-    private readonly fontsSource = "C:\\Users\\Asus\\Documents\\suno-remake\\motion\\public\\fonts",
+    private readonly projectsRoot = join(workerRuntimeRoot(), "projects"),
+    private readonly fontsSource = process.env.MELLODIFAI_FONTS ??
+      join(workerRuntimeRoot(), "fonts"),
   ) {}
   async forVersion(projectId: string, lang: Lang): Promise<Workspace> {
     const root = join(this.projectsRoot, projectId, lang);

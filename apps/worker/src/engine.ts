@@ -2,6 +2,7 @@ import { spawn as nodeSpawn, type SpawnOptions } from "node:child_process";
 import { rename, rm } from "node:fs/promises";
 import { join, parse, win32 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { workerTempDir } from "./runtime.js";
 import { childEnvironment, type Secrets } from "./secrets.js";
 
 type Child = {
@@ -150,8 +151,9 @@ export class Engine {
           }),
         ),
         PYTHONIOENCODING: "utf-8",
-        TMP: "E:\\mellodifai\\tmp",
-        TEMP: "E:\\mellodifai\\tmp",
+        TMP: workerTempDir(),
+        TEMP: workerTempDir(),
+        TMPDIR: workerTempDir(),
       },
     });
     let logs = Promise.resolve();

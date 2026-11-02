@@ -13,6 +13,7 @@ import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
 import { WorkerLoop } from "./loop.js";
+import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
 import { stages } from "./stages/index.js";
@@ -108,7 +109,7 @@ async function main() {
   const secrets = await loadSecrets();
   startupSecrets = secrets;
   const report = (line: string) => console.error(secrets.redact(line));
-  await mkdir("E:\\mellodifai\\tmp", { recursive: true });
+  await mkdir(workerTempDir(), { recursive: true });
   const url = secrets.values.SUPABASE_URL;
   const key = secrets.values.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key)
@@ -128,11 +129,11 @@ async function main() {
       : startBalanceRefresh(() =>
           refreshBalance({
             engine: engine.withWorkspace(
-              "E:\\mellodifai",
+              workerRuntimeRoot(),
               async (line) => report(line),
               balanceAbort.signal,
             ),
-            ws: { root: "E:\\mellodifai" },
+            ws: { root: workerRuntimeRoot() },
             db,
             secrets,
             signal: balanceAbort.signal,

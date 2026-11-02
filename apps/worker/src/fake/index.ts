@@ -8,6 +8,7 @@ import {
   type Stage,
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
+import { workerTempDir } from "../runtime.js";
 import { key, upload, writePack } from "../stages/utils.js";
 
 export const fakePack: LyricPack = {
@@ -33,7 +34,7 @@ export const fakePack: LyricPack = {
 // Generated once per registry, in a temporary directory outside the repository.
 export async function createFakeMedia(
   context: StageContext,
-  tempRoot = "E:\\mellodifai\\tmp",
+  tempRoot = workerTempDir(),
 ) {
   await mkdir(tempRoot, { recursive: true });
   const root = await mkdtemp(join(tempRoot, "fake-media-"));

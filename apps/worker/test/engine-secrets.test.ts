@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { expect, it, vi } from "vitest";
 import { Engine, type Spawn } from "../src/engine.js";
+import { workerTempDir } from "../src/runtime.js";
 import { loadSecrets } from "../src/secrets.js";
 
 it("parses exported quoted CRLF values and redacts only file values and the service key", async () => {
@@ -49,8 +50,9 @@ it.each(["python", "python.exe", "py", "C:\\Python\\python.exe"])(
       shell: false,
       env: {
         ENGINE_WORKSPACE: "workspace",
-        TMP: "E:\\mellodifai\\tmp",
-        TEMP: "E:\\mellodifai\\tmp",
+        TMP: workerTempDir(),
+        TEMP: workerTempDir(),
+        TMPDIR: workerTempDir(),
         PYTHONIOENCODING: "utf-8",
       },
     });
