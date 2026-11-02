@@ -11,3 +11,6 @@ coverage/
 dist/
 *.tsbuildinfo
 packages/*/src/**/*.js
+
+# agent worktrees (each is a full checkout with its own biome.json)
+.claude/worktrees/
