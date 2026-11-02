@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  acceptBlockers,
   type Blueprint,
   BlueprintSchema,
   keepsTiming,
   ORIGINALITY_THRESHOLDS,
   OriginalityThresholdsSchema,
   RemakeAnalysisSchema,
+  type RemakeLyrics,
   RemakeLyricsSchema,
+  remakeLyricsText,
+  youtubeVideoId,
 } from "../index.js";
 
 function shot(id: string, sectionId: string, startS: number, endS: number) {
@@ -150,9 +154,74 @@ describe("originality thresholds", () => {
     expect(
       OriginalityThresholdsSchema.safeParse({
         ...ORIGINALITY_THRESHOLDS,
-        sectionMeaning: 0.4,
+        sectionMeaningRatio: 0.6,
       }).success,
     ).toBe(false);
+    expect(
+      OriginalityThresholdsSchema.safeParse({
+        ...ORIGINALITY_THRESHOLDS,
+        sectionMeaningFloor: 0.9,
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe("remake workflow helpers (task 27)", () => {
+  it.each([
+    ["https://www.youtube.com/watch?v=49rDdMbXd_w&t=3", "49rDdMbXd_w"],
+    ["youtube.com/watch?v=49rDdMbXd_w", "49rDdMbXd_w"],
+    ["https://m.youtube.com/watch?v=49rDdMbXd_w", "49rDdMbXd_w"],
+    ["https://music.youtube.com/watch?v=49rDdMbXd_w", "49rDdMbXd_w"],
+    ["https://youtu.be/49rDdMbXd_w?si=abc", "49rDdMbXd_w"],
+    ["https://www.youtube.com/shorts/49rDdMbXd_w", "49rDdMbXd_w"],
+    [" 49rDdMbXd_w ", "49rDdMbXd_w"],
+    ["https://example.com/watch?v=49rDdMbXd_w", null],
+    ["https://www.youtube.com/watch?v=short", null],
+    ["https://www.youtube.com/playlist?list=PL123", null],
+    ["not a link", null],
+  ])("youtubeVideoId(%s)", (input, id) => {
+    expect(youtubeVideoId(input)).toBe(id);
+  });
+
+  it("composes the lyrics text and blocks only on the originality gate", () => {
+    const line = (index: number, text: string, flagged = false) => ({
+      index,
+      source: "src",
+      text,
+      start: index,
+      end: index + 1,
+      target: { min: 5, max: 5, ending: "stressed" as const },
+      syllables: { min: 9, max: 9 },
+      ending: "stressed" as const,
+      fits: false,
+      originality: {
+        jaccard4: 0,
+        rougeL: 0,
+        semantic: null,
+        closestSource: null,
+        against: null,
+        flagged,
+        reasons: [],
+      },
+    });
+    const lyrics = {
+      sections: [
+        { id: "intro-1", kind: "intro", label: "Intro", lines: [] },
+        {
+          id: "verse-1",
+          kind: "verse",
+          label: "Verse 1",
+          lines: [line(0, " uno "), line(1, "due", true)],
+        },
+      ],
+      originality: { phrase: { ok: false, longestRun: 3, detail: "x" } },
+    } as unknown as RemakeLyrics;
+    expect(remakeLyricsText(lyrics)).toBe("[Intro]\n\n[Verse 1]\nuno\ndue");
+    // A misfit line is advice; a flagged line and a reused phrase block.
+    expect(acceptBlockers(lyrics)).toEqual([
+      { kind: "line", index: 1 },
+      { kind: "phrase", detail: "x" },
+    ]);
   });
 });
 

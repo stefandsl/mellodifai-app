@@ -307,18 +307,44 @@ export const RemakeJuryRoundSchema = z.object({
 export type RemakeJuryRound = z.infer<typeof RemakeJuryRoundSchema>;
 
 // Binding starting values of design 10.3; calibration may only tighten them.
+// Section meaning (task 27 calibration): the source lyrics themselves score only 0.35 to 0.62
+// against their own meaning map with LaBSE, so a fixed 0.55 was out of reach for most sections.
+// A new section now passes at sectionMeaningRatio of its source section's own score, and never
+// below sectionMeaningFloor.
 export const ORIGINALITY_THRESHOLDS = {
   lexical: 0.35,
   semantic: 0.8,
   phraseWords: 3,
-  sectionMeaning: 0.55,
+  sectionMeaningRatio: 0.85,
+  sectionMeaningFloor: 0.3,
 } as const;
+
+export function sectionMeaningRequired(
+  sourceCosine: number | null,
+  thresholds: Pick<
+    OriginalityThresholds,
+    "sectionMeaningRatio" | "sectionMeaningFloor"
+  > = ORIGINALITY_THRESHOLDS,
+): number {
+  const relative =
+    sourceCosine === null ? 0 : sourceCosine * thresholds.sectionMeaningRatio;
+  return (
+    Math.round(Math.max(thresholds.sectionMeaningFloor, relative) * 1000) / 1000
+  );
+}
 
 export const OriginalityThresholdsSchema = z.object({
   lexical: unit.max(ORIGINALITY_THRESHOLDS.lexical),
   semantic: unit.max(ORIGINALITY_THRESHOLDS.semantic),
   phraseWords: z.number().int().min(1).max(ORIGINALITY_THRESHOLDS.phraseWords),
-  sectionMeaning: unit.min(ORIGINALITY_THRESHOLDS.sectionMeaning),
+  // Files written before the calibration carry sectionMeaning (0.55) instead; they read
+  // with the calibrated defaults.
+  sectionMeaningRatio: unit
+    .min(ORIGINALITY_THRESHOLDS.sectionMeaningRatio)
+    .default(ORIGINALITY_THRESHOLDS.sectionMeaningRatio),
+  sectionMeaningFloor: unit
+    .min(ORIGINALITY_THRESHOLDS.sectionMeaningFloor)
+    .default(ORIGINALITY_THRESHOLDS.sectionMeaningFloor),
 });
 export type OriginalityThresholds = z.infer<typeof OriginalityThresholdsSchema>;
 
@@ -344,6 +370,8 @@ export const RewrittenLineSchema = z.object({
   ending: EndingSchema,
   fits: z.boolean(),
   originality: LineOriginalitySchema,
+  // The person changed the line in the review; the gates were run again on it, the jury was not.
+  edited: z.boolean().optional(),
 });
 export type RewrittenLine = z.infer<typeof RewrittenLineSchema>;
 
@@ -362,6 +390,9 @@ export const RemakeLyricsSchema = z.object({
     }),
   ),
   lyricsText: z.string(),
+  // The literal translation of each source line (only for the originality gate), kept so a
+  // section rewrite or an edit check does not pay for it again; null for the same language.
+  literalTranslation: z.array(z.string()).nullable().optional(),
   originality: z.object({
     thresholds: OriginalityThresholdsSchema,
     embedder: z.string(),
@@ -373,8 +404,8 @@ export const RemakeLyricsSchema = z.object({
       longestRun: z.number().int().nonnegative(),
       detail: z.string(),
     }),
-    // "enforce" (design 10.3) blocks the pass on a section under 0.55; "report" only
-    // records it, pending the owner's calibration decision (see the task 24 report).
+    // "enforce" (design 10.3) blocks the pass on a section under its required score;
+    // "report" only records it.
     meaningGate: z.enum(["enforce", "report"]),
     sections: z.array(
       z.object({
@@ -382,6 +413,8 @@ export const RemakeLyricsSchema = z.object({
         meaningCosine: unit.nullable(),
         // The source section against its own meaning map: the reachable baseline.
         sourceCosine: unit.nullable(),
+        // What this section had to reach (sectionMeaningRequired); absent in older files.
+        required: unit.optional(),
         ok: z.boolean(),
       }),
     ),

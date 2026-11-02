@@ -117,6 +117,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@mellodifai/remake':
+        specifier: workspace:^
+        version: link:../../packages/remake
       '@mellodifai/shared':
         specifier: workspace:^
         version: link:../../packages/shared

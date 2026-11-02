@@ -1,3 +1,7 @@
+import {
+  OriginalityThresholdsSchema,
+  sectionMeaningRequired,
+} from "@mellodifai/shared";
 import { describe, expect, it } from "vitest";
 import {
   checkPhrases,
@@ -60,12 +64,13 @@ describe("lexical measures", () => {
 });
 
 describe("scoreLines (design 10.3 binding values)", () => {
-  it("uses 0.35 lexical and 0.80 semantic", () => {
+  it("uses 0.35 lexical and 0.80 semantic, and the calibrated section meaning rule", () => {
     expect(DEFAULT_THRESHOLDS).toEqual({
       lexical: 0.35,
       semantic: 0.8,
       phraseWords: 3,
-      sectionMeaning: 0.55,
+      sectionMeaningRatio: 0.85,
+      sectionMeaningFloor: 0.3,
     });
   });
 
@@ -157,7 +162,7 @@ describe("checkPhrases", () => {
 });
 
 describe("checkSections", () => {
-  it("needs cosine 0.55 against the meaning map", async () => {
+  it("needs 0.85 of the source section's own score against the meaning map", async () => {
     const result = await checkSections({
       sections: [
         {
@@ -187,6 +192,62 @@ describe("checkSections", () => {
     expect(result[2]?.meaningCosine).toBeNull();
     // The source baseline: the old verse matches its meaning, the old chorus barely.
     expect(result[0]?.sourceCosine).toBeCloseTo(1);
-    expect(result[1]?.sourceCosine).toBeLessThan(0.55);
+    expect(result[0]?.required).toBeCloseTo(0.85);
+    expect(result[1]?.sourceCosine).toBeCloseTo(0.447, 2);
+    expect(result[1]?.required).toBeCloseTo(0.38, 2);
+  });
+
+  // The T24 song: the source scored 0.35 to 0.62 against its own map, so the old fixed 0.55
+  // failed sections whose new lyrics were as faithful as the source.
+  it("passes a section as faithful as a weak source and fails one far below it", async () => {
+    const meaning = [1, 0, 0];
+    const at = (c: number) => [c, Math.sqrt(1 - c * c), 0];
+    const result = await checkSections({
+      sections: [
+        { sectionId: "a", text: "new a", source: "old a", meaning: "m" },
+        { sectionId: "b", text: "new b", source: "old b", meaning: "m" },
+        { sectionId: "c", text: "new c", source: "old c", meaning: "m" },
+      ],
+      embed: fakeEmbed({
+        m: meaning,
+        "old a": at(0.44),
+        "new a": at(0.4),
+        "old b": at(0.62),
+        "new b": at(0.45),
+        "old c": at(0.2),
+        "new c": at(0.31),
+      }),
+    });
+    expect(result.map((r) => [r.sectionId, r.required, r.ok])).toEqual([
+      ["a", 0.374, true],
+      ["b", 0.527, false],
+      // A source under the floor: the floor (0.30) is what counts.
+      ["c", 0.3, true],
+    ]);
+  });
+
+  it("can only be tightened, never loosened below the calibrated rule", () => {
+    expect(
+      OriginalityThresholdsSchema.safeParse({
+        ...DEFAULT_THRESHOLDS,
+        sectionMeaningRatio: 0.7,
+      }).success,
+    ).toBe(false);
+    expect(
+      OriginalityThresholdsSchema.safeParse({
+        ...DEFAULT_THRESHOLDS,
+        sectionMeaningFloor: 0.2,
+      }).success,
+    ).toBe(false);
+    // A file written before the calibration reads with the calibrated rule.
+    expect(
+      OriginalityThresholdsSchema.parse({
+        lexical: 0.35,
+        semantic: 0.8,
+        phraseWords: 3,
+        sectionMeaning: 0.55,
+      }),
+    ).toEqual(DEFAULT_THRESHOLDS);
+    expect(sectionMeaningRequired(null)).toBe(0.3);
   });
 });

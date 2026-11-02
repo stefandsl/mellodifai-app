@@ -9,7 +9,7 @@ import { analyse } from "./analyse.js";
 import { LabseEmbedder } from "./embed.js";
 import { loadEnv } from "./env.js";
 import { ingest, parseVideoId } from "./ingest.js";
-import { createClient, DEFAULT_MODELS, Ledger } from "./openrouter.js";
+import { costLine, createClient, Ledger, modelsFromEnv } from "./openrouter.js";
 import { remakesRoot } from "./paths.js";
 import { rewrite } from "./rewrite.js";
 
@@ -79,6 +79,7 @@ export async function main(argv: string[]): Promise<number> {
   const env = await loadEnv();
   const log = (line: string) => console.log(env.redact(line));
   const ledger = new Ledger();
+  const models = modelsFromEnv(env.get);
   const client = createClient({
     key: env.require("OPENROUTER_API_KEY"),
     ledger,
@@ -108,10 +109,12 @@ export async function main(argv: string[]): Promise<number> {
       env,
       client,
       log,
+      models,
       stems: args.stems,
       keepMedia: args.keepMedia,
       force: args.force,
     });
+    log(`analysis cost: ${costLine(analysis.cost)}`);
   }
 
   let embedderName: string;
@@ -127,9 +130,9 @@ export async function main(argv: string[]): Promise<number> {
     embed = labse.embed;
     close = () => labse.close();
   } else {
-    embedderName = `OpenRouter ${DEFAULT_MODELS.embedding} (fallback, not the design's LaBSE)`;
+    embedderName = `OpenRouter ${models.embedding} (fallback, not the design's LaBSE)`;
     embed = (texts) =>
-      client.embed(texts, DEFAULT_MODELS.embedding, "originality:embeddings");
+      client.embed(texts, models.embedding, "originality:embeddings");
   }
   try {
     const lyrics = await rewrite(
@@ -138,6 +141,7 @@ export async function main(argv: string[]): Promise<number> {
         lang: args.lang,
         country: args.country,
         writer: args.writer,
+        models,
         maxRounds: args.rounds,
         meaningGate: args.meaningGate,
         log,
@@ -180,7 +184,7 @@ export async function main(argv: string[]): Promise<number> {
         `New title: ${lyrics.title} (${lyrics.lang}${lyrics.country ? `, ${lyrics.country}` : ""})`,
         `Jury: ${lyrics.jury.passed ? "PASSED" : "NOT PASSED"} after ${lyrics.jury.rounds.length} round(s), stopped: ${lyrics.jury.stoppedBecause}; scores ${JSON.stringify(last?.scores ?? {})}`,
         `Originality: ${lyrics.originality.flaggedLines} flagged lines, max lexical ${lyrics.originality.maxLexical}, max semantic ${lyrics.originality.maxSemantic}, phrase ${lyrics.originality.phrase.ok ? "ok" : lyrics.originality.phrase.detail}`,
-        `Section meaning (${lyrics.originality.meaningGate}; new/source vs map, need 0.55): ${lyrics.originality.sections.map((s) => `${s.sectionId} ${s.meaningCosine ?? "-"}/${s.sourceCosine ?? "-"}`).join(", ")}`,
+        `Section meaning (${lyrics.originality.meaningGate}; new/source/required vs map): ${lyrics.originality.sections.map((s) => `${s.sectionId} ${s.meaningCosine ?? "-"}/${s.sourceCosine ?? "-"}/${s.required ?? "-"}`).join(", ")}`,
         `Cost: analysis ${analysisUsd.toFixed(4)} + lyrics ${lyrics.cost.usd.toFixed(4)} = ${total.toFixed(4)} USD${total > COST_TARGET_USD ? ` (over the ${COST_TARGET_USD} USD target)` : ""}`,
         "",
         `analysis:  ${analysisPath}`,

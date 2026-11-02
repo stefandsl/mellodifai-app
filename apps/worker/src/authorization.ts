@@ -1,6 +1,28 @@
-import { stageAllowed } from "@mellodifai/shared";
+import { SONGLESS_STAGES, stageAllowed } from "@mellodifai/shared";
 import type { Db, Job, Project, Version } from "./db.js";
 export class AuthorizationDenied extends Error {}
+
+// A job without a song (lyrics_assist) must name a request of its own owner and nothing else.
+// Returns false when the request is gone (deleted with its owner).
+export async function authorizeSongless(db: Db, job: Job): Promise<boolean> {
+  if (!job.owner_id) throw new AuthorizationDenied("Job ownership mismatch");
+  if (!SONGLESS_STAGES.includes(job.stage))
+    throw new AuthorizationDenied(`Stage ${job.stage} needs a song`);
+  const payload = job.payload ?? {};
+  const keys = Object.keys(payload);
+  const requestId = payload.request_id;
+  if (
+    keys.length !== 1 ||
+    typeof requestId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f-]{27}$/iu.test(requestId)
+  )
+    throw new AuthorizationDenied("Invalid payload id");
+  const request = await db.getLyricRequest(requestId);
+  if (!request) return false;
+  if (request.owner_id !== job.owner_id)
+    throw new AuthorizationDenied("Unauthorized payload id");
+  return true;
+}
 
 export async function authorizeStage(
   db: Db,

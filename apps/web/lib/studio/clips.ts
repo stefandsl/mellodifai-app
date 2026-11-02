@@ -280,6 +280,8 @@ function sourceAudio(source: SongSource | null): string | null {
 
 // The pipeline is working on the song: a card shows a spinner instead of its artwork.
 const GENERATING: VersionStatus[] = [
+  // A remake while it downloads, analyses and rewrites (and while it is reviewed in Create).
+  "analysing",
   "drafting",
   "song_queued",
   "producing",

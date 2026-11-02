@@ -8,13 +8,18 @@ export {
 } from "./align.js";
 export { type AnalyseOptions, analyse } from "./analyse.js";
 export { LabseEmbedder } from "./embed.js";
-export { type Env, loadEnv } from "./env.js";
+export { type Env, envFromValues, loadEnv } from "./env.js";
+export { checkMetadata, classifyYtDlp, RemakeError } from "./errors.js";
 export { type IngestOptions, ingest, parseVideoId } from "./ingest.js";
 export {
   type Client,
+  costByStep,
+  costLine,
   createClient,
   DEFAULT_MODELS,
   Ledger,
+  type Models,
+  modelsFromEnv,
   RedactionError,
 } from "./openrouter.js";
 export {
@@ -24,7 +29,14 @@ export {
   scoreLines,
 } from "./originality.js";
 export { remakesRoot, runtimeRoot } from "./paths.js";
-export { type RewriteOptions, rewrite } from "./rewrite.js";
+export {
+  checkLyrics,
+  REDACTED_INPUT,
+  type RewriteDeps,
+  type RewriteOptions,
+  rewrite,
+  rewriteSection,
+} from "./rewrite.js";
 export { buildShots, classifyVocal } from "./shots.js";
 export { deriveStyleTags, sanitizeTags } from "./style.js";
 export { countSyllables, fitLine, lineEnding } from "./syllables.js";

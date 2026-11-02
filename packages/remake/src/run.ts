@@ -7,16 +7,43 @@ export type RunResult = { code: number; stdout: string; stderr: string };
 export type Run = (
   command: string,
   args: string[],
-  options?: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number },
+  options?: {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    timeoutMs?: number;
+    // Cancelling the job stops the child (yt-dlp, ffmpeg, Demucs) instead of leaving it running.
+    signal?: AbortSignal;
+  },
 ) => Promise<RunResult>;
+
+// Every call of `runner` gets `signal`, so a whole stage stops on one abort.
+export function withSignal(runner: Run, signal?: AbortSignal): Run {
+  if (!signal) return runner;
+  return (command, args, options = {}) =>
+    runner(command, args, {
+      ...options,
+      signal: options.signal
+        ? AbortSignal.any([options.signal, signal])
+        : signal,
+    });
+}
 
 export const run: Run = (command, args, options = {}) =>
   new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(new Error(`${command} cancelled`));
+      return;
+    }
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: { ...process.env, PYTHONIOENCODING: "utf-8", ...options.env },
       windowsHide: true,
     });
+    const abort = () => child.kill();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    child.on("close", () =>
+      options.signal?.removeEventListener("abort", abort),
+    );
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d: Buffer) => {

@@ -1,0 +1,203 @@
+// @vitest-environment node
+import { remakeLyricsText } from "@mellodifai/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import FIXTURE from "../../../../packages/remake/test/fixtures/remake-lyrics.it.json";
+
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(
+    async (
+      _name: string,
+      _args: Record<string, unknown>,
+    ): Promise<{ data: unknown; error: { message: string } | null }> => ({
+      data: "r1",
+      error: null,
+    }),
+  ),
+  lyrics: null as unknown,
+}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/auth", () => ({
+  actionProfile: async () => ({
+    supabase: {
+      rpc: mocks.rpc,
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: async () => ({
+              data: { lyrics: mocks.lyrics },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    },
+    user: { id: "owner" },
+  }),
+}));
+
+import {
+  acceptRemake,
+  editRemake,
+  regenerateRemakeSection,
+  startRemake,
+} from "./remake";
+
+const ID = "11111111-1111-4111-8111-111111111111";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.lyrics = structuredClone(FIXTURE);
+  mocks.rpc.mockImplementation(async () => ({ data: "r1", error: null }));
+});
+
+describe("startRemake", () => {
+  it("refuses a link that is not a YouTube video before the database", async () => {
+    for (const url of ["https://vimeo.com/1", "watch?v=short", "ciao"])
+      expect(await startRemake({ url, lang: "it" })).toEqual({
+        ok: false,
+        error: "invalidUrl",
+      });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(
+      await startRemake({ url: "https://youtu.be/49rDdMbXd_w", lang: "xx" }),
+    ).toEqual({ ok: false, error: "invalidUrl" });
+  });
+
+  it("sends the video id, the language and the country", async () => {
+    expect(
+      await startRemake({
+        url: "youtube.com/watch?v=49rDdMbXd_w",
+        lang: "en",
+        country: "GB",
+      }),
+    ).toEqual({ ok: true, id: "r1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("remake_start", {
+      p_url: "https://youtube.com/watch?v=49rDdMbXd_w",
+      p_video_id: "49rDdMbXd_w",
+      p_lang: "en",
+      p_country: "GB",
+    });
+    await startRemake({ url: "49rDdMbXd_w", lang: "it" });
+    expect(mocks.rpc.mock.calls[1]?.[1]).toMatchObject({
+      p_url: "https://www.youtube.com/watch?v=49rDdMbXd_w",
+    });
+  });
+
+  it("turns database refusals into codes the panel can explain", async () => {
+    for (const [message, error] of [
+      ["a remake is already running", "busy"],
+      ["daily remake limit reached", "limit"],
+      ["invalid youtube link", "invalidUrl"],
+      ["boom", "failed"],
+    ] as const) {
+      mocks.rpc.mockResolvedValueOnce({ data: null, error: { message } });
+      expect(
+        await startRemake({ url: "https://youtu.be/49rDdMbXd_w", lang: "it" }),
+      ).toEqual({ ok: false, error });
+    }
+  });
+});
+
+describe("review actions", () => {
+  it("edits with the revision the person saw and reports a conflict", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: 4, error: null });
+    expect(
+      await editRemake({
+        remakeId: ID,
+        revision: 3,
+        lines: [{ index: 8, text: "  il mondo corre " }],
+      }),
+    ).toEqual({ ok: true, revision: 4 });
+    expect(mocks.rpc).toHaveBeenCalledWith("remake_edit", {
+      p_remake: ID,
+      p_revision: 3,
+      p_lines: [{ index: 8, text: "il mondo corre" }],
+      p_title: null,
+    });
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "conflict: the lyrics changed meanwhile" },
+    });
+    expect(
+      await editRemake({
+        remakeId: ID,
+        revision: 2,
+        lines: [{ index: 8, text: "x" }],
+      }),
+    ).toEqual({ ok: false, error: "conflict" });
+    expect(
+      await editRemake({
+        remakeId: ID,
+        revision: 2,
+        lines: [{ index: 8, text: "two\nlines" }],
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("regenerates a section", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "wait for the running step" },
+    });
+    expect(
+      await regenerateRemakeSection({
+        remakeId: ID,
+        revision: 3,
+        section: "chorus-1",
+      }),
+    ).toEqual({ ok: false, error: "wait" });
+  });
+
+  it("accepts with the exact reviewed text and never a source audio", async () => {
+    expect(
+      await acceptRemake({
+        remakeId: ID,
+        revision: 3,
+        title: "Mille volti",
+        style: "rock, 79 bpm",
+        vocalGender: "f",
+        settings: {
+          engine: "kie",
+          model: "V6",
+          bpm: 79,
+          keyscale: "D minor",
+          source: {
+            mode: "cover",
+            takeId: "22222222-2222-4222-8222-222222222222",
+            title: "t",
+          },
+        },
+      }),
+    ).toEqual({ ok: true, id: "r1" });
+    const [name, args] = mocks.rpc.mock.calls[0] ?? [];
+    expect(name).toBe("remake_accept");
+    expect(args).toMatchObject({
+      p_remake: ID,
+      p_revision: 3,
+      p_vocal_gender: "f",
+      p_pack: {
+        title: "Mille volti",
+        style: "rock, 79 bpm",
+        lyrics: remakeLyricsText(FIXTURE as never),
+        settings: { model: "V6", vocalGender: "f", duration: null },
+      },
+      p_settings: { engine: "kie", bpm: 79, title: "Mille volti" },
+    });
+    expect(args?.p_settings).not.toHaveProperty("source");
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "originality gate not passed" },
+    });
+    expect(
+      await acceptRemake({
+        remakeId: ID,
+        revision: 3,
+        title: "Mille volti",
+        style: "rock",
+        vocalGender: null,
+        settings: { engine: "kie", model: "V6" },
+      }),
+    ).toEqual({ ok: false, error: "gate" });
+  });
+});

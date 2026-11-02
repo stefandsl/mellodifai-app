@@ -4,12 +4,13 @@
 //   semantic: LaBSE cosine above 0.80 against a translated source line fails the line.
 // The new title and hook share no run of 3 or more words with the source title or hook
 // (or their translation). Meaning fidelity is checked per section instead: each new
-// section reaches cosine 0.55 against its meaning map, so a section can mean the same
-// thing while each line is new.
+// section reaches 0.85 of the cosine its own source section scores against the meaning map
+// (never less than 0.30), so a section can mean the same thing while each line is new.
 import {
   type LineOriginality,
   ORIGINALITY_THRESHOLDS,
   type OriginalityThresholds,
+  sectionMeaningRequired,
 } from "@mellodifai/shared";
 import { words } from "./syllables.js";
 
@@ -219,11 +220,12 @@ export type SectionMeaning = {
   sectionId: string;
   meaningCosine: number | null;
   sourceCosine: number | null;
+  required?: number;
   ok: boolean;
 };
 
-// Each new section against its meaning map (>= 0.55). The source section's own score is
-// measured too: it is the baseline that tells whether the gate is reachable at all.
+// Each new section against its meaning map. The source section's own score is measured too:
+// it is the baseline the requirement is relative to (sectionMeaningRequired).
 export async function checkSections(input: {
   sections: {
     sectionId: string;
@@ -234,7 +236,7 @@ export async function checkSections(input: {
   embed: Embed;
   thresholds?: Thresholds;
 }): Promise<SectionMeaning[]> {
-  const min = (input.thresholds ?? DEFAULT_THRESHOLDS).sectionMeaning;
+  const thresholds = input.thresholds ?? DEFAULT_THRESHOLDS;
   const usable = input.sections.filter(
     (s) => s.text.trim() && s.meaning.trim(),
   );
@@ -260,11 +262,13 @@ export async function checkSections(input: {
     const src = s.source
       ? r3(Math.max(0, cosine(vectors[2 * n + k] ?? [], meaning)))
       : null;
+    const required = sectionMeaningRequired(src, thresholds);
     return {
       sectionId: s.sectionId,
       meaningCosine: c,
       sourceCosine: src,
-      ok: c >= min,
+      required,
+      ok: c >= required,
     };
   });
 }

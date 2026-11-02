@@ -37,7 +37,7 @@ import {
 } from "./openrouter.js";
 import { longestSharedRun } from "./originality.js";
 import { ENGINE_ROOT, PYTHON, STEMS_PYTHON } from "./paths.js";
-import { run as defaultRun, type Run, runChecked } from "./run.js";
+import { run as defaultRun, type Run, runChecked, withSignal } from "./run.js";
 import {
   buildShots,
   classifyVocal,
@@ -53,6 +53,7 @@ export const BLUEPRINT_BUDGET_USD = 0.01;
 
 export type AnalyseOptions = {
   env: Env;
+  signal?: AbortSignal;
   client: Client;
   run?: Run;
   log?: (line: string) => void;
@@ -277,7 +278,7 @@ export async function analyse(
   dir: string,
   options: AnalyseOptions,
 ): Promise<RemakeAnalysis> {
-  const runner = options.run ?? defaultRun;
+  const runner = withSignal(options.run ?? defaultRun, options.signal);
   const log = options.log ?? (() => {});
   const models: Models = { ...DEFAULT_MODELS, ...options.models };
   const client = options.client;
