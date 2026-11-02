@@ -978,6 +978,92 @@ Preconditions: Majors 12, 13 (Tasks 15, 42) and 26 (Task 35) are done. Owner act
 
 (Filled by Tasks 1, 2, 3 and 21.)
 
+### Spike 1: oidc-provider wiring (Task 1, 2026-11-02)
+
+**Decision:** keep `oidc-provider`; (a)-(d) pass, so the section 6.4 fallback to
+`@node-oauth/oauth2-server` is not needed. Tested Node 22.13.0 with pinned
+`oidc-provider@9.13.3` and `tough-cookie@6.0.0`. Disposable source, lockfile and
+evidence are in `E:/mellodifai/spikes/oidc/`, intentionally not committed.
+Run `node --test E:/mellodifai/spikes/oidc/spike.test.mjs`. The harness opens only
+an ephemeral loopback listener and closes it after the test. No Supabase, paid
+provider or remote connector calls occur in this experiment.
+
+**Wiring for Task 42:** issuer comes from `MDF_AUTH_ISSUER`; the harness supplies
+its loopback origin plus `/oauth`. Mount `provider.callback()` at `/oauth`, strip
+that mount prefix from `req.url`, retain `req.originalUrl`, and set
+`provider.proxy = true`. Resource is `new URL(issuer).origin + "/api/mcp"`, not
+the Next server's origin. Enable registration and resource indicators; disable
+development interactions. Use `responseTypes: ["code"]` and
+`pkce: { required: () => true }` (this version advertises only S256). Discovery
+advertises only authorization-code and refresh grants. "Code grant only" means
+code is the sole initial grant, with refresh enabled as required by section 6.4.
+Implicit and client-credentials attempts are refused.
+
+- Keep provider-level scopes to `openid` and `offline_access`; declare
+  `read create spend` on the MCP resource server. Defining MCP scopes as OIDC
+  scopes too caused an extra consent interaction in the first implementation.
+- `getResourceServerInfo` rejects every other resource and returns
+  `{ scope: "read create spend", audience: resource, accessTokenFormat: "opaque",
+  accessTokenTTL: 3600 }`. Set TTLs: AccessToken 3600, AuthorizationCode 600,
+  RefreshToken 2592000, Interaction 900 seconds. Use
+  `rotateRefreshToken: () => true` and issue refresh tokens when the client
+  allows `refresh_token`, including for the tested resource-only `read` flow.
+- **Explicit resource guard required:** throwing from `defaultResource` rejects
+  a missing resource at authorization, but the library still infers the resource
+  on a refresh without one. A negative test observed HTTP 200, expected 400.
+  The spike adds a bounded, form-urlencoded token-request pre-parser requiring
+  exactly one resource equal to the MCP URI before the library consumes a code
+  or refresh token. It passes the original body through `req.body`. Missing and
+  foreign resources then return 400 without consuming the refresh token. The
+  library warns that upstream body parsing is not recommended; Task 42 must
+  preserve this check and test parser integration, size limits and duplicate
+  parameters. Do not rely solely on `defaultResource` or `useGrantedResource`.
+
+**Verified observations:**
+
+| Requirement | Result |
+| --- | --- |
+| (a) Interaction cookie reaches resume | `interactions.url` returns `/oauth/interaction/<uid>`. `_interaction` has Path `/oauth/interaction/<uid>` (more specific than `/oauth`), and the cookie jar sends it to `/oauth/interaction/<uid>/resume`. `interactionDetails` and `interactionFinished` both succeed. The library's separate resume redirect then returns the authorization code. |
+| (b) Save before URL | The URL callback asserts the hashed Interaction row already exists. The custom interaction handler updates that existing row with the nonce hash before redirecting to `/consent`. This proves the ordering needed by `oauth_flow_nonce_set`; no SQL implementation is claimed. |
+| (c) Token binding | Captured AuthorizationCode, AccessToken and RefreshToken payloads all have the same `grantId` and contain neither `uid` nor the interaction uid as a value. Lifetimes are exactly 600, 3600 and 2592000 seconds. AccessToken audience equals the canonical MCP resource. Session identifiers, when present, must not be interpreted as interaction identifiers. |
+| (d) Hashed adapter | Per-model Map keys are `sha256(id)` hex; stored payloads omit `jti`. `find(id)` hashes its argument and reconstructs `{ ...payload, jti: id }` only in the returned object. The library does not reconstruct it itself. Removing this reconstruction makes the flow fail. Code exchange, opaque-token lookup, unknown-token refusal, refresh rotation and old-refresh rejection pass with reconstruction restored. |
+| (f) Two browser flows | A shared cookie jar retains the separate interaction-path cookies but replaces the single root-path `mdf_flow`. The first flow's nonce no longer matches (403); the second resumes (303). This is recorded behavior, not a multi-flow redesign. |
+
+**(e) Connector callbacks, including pre-flight ruling 30:** documentation verified
+on 2026-11-02. No tunnel capture was attempted: `docs/HANDOFF.md` still lists
+Cloudflare nameservers and `cloudflared` login as owner prerequisites.
+
+| Connector | Verified URI and Task 42 allowlist instruction |
+| --- | --- |
+| Claude hosted surfaces | `https://claude.ai/api/mcp/auth_callback`, explicitly documented for web, Desktop, mobile and Cowork. Use this exact URI, not an inferred alternate hostname. [Official callback documentation](https://claude.com/docs/connectors/building/authentication#callback-urls). |
+| ChatGPT, issuer-identification mode | `https://chatgpt.com/connector_platform_oauth_redirect`. Official docs specify this stable URI for servers meeting RFC 9207 issuer identification, and legacy connections. The spike verifies `authorization_response_iss_parameter_supported: true` and an exact matching `iss` on the successful code response and tested authorization error redirects. [Official redirect documentation](https://developers.openai.com/plugins/build/auth#redirect-url). |
+| ChatGPT, callback-ID-specific mode | Official docs specify the form `https://chatgpt.com/connector/oauth/{callback_id}` when issuer-identification requirements are not met. This is a template, not a verified concrete URI and not an allowlist wildcard. The owner must copy the exact URI from the connection management page if that mode is selected. No callback ID was invented. |
+
+Task 42 must retain issuer identification and confirm the actual ChatGPT
+management-page callback before enabling a connection. A real connector/tunnel
+round trip remains pending owner setup. Documentation fallback satisfies this
+spike's callback research, but does not prove a live connection.
+
+**Test evidence:** initial RED was `ERR_MODULE_NOT_FOUND` before implementation.
+Behavioral RED without read-time `jti` reconstruction: 3 pass, 4 fail (including
+the parent test). Missing-refresh-resource RED: HTTP 200 versus expected 400.
+Final focused GREEN: 8 tests passed, 0 failed (7 checks plus their parent), in
+`green.log`. Other logs: `red.log`, `iteration-1.log`,
+`red-without-jti-reconstruction.log`, `red-missing-refresh-resource.log`.
+These are HTTP and cookie-jar checks, not a Playwright/browser or production
+TLS test. Production pairing, SQL consent/grant binding, persistent adapter
+indexes, key provisioning and discovery aliases remain Tasks 15/42/45 work.
+
+Repository gates ran from a disposable copy under the spike directory so caches
+and outputs stayed off C:. Frozen offline install, lint, both repository and web
+typechecks, unit tests (1284 passed, 2 skipped) and e2e-stack database tests
+(124 passed) succeeded. `pnpm e2e` refused to start because port 3210 was already
+occupied by a pre-existing Node process; it was not stopped or reused. The full
+report and RED/GREEN evidence index are in
+`.superpowers/sdd/2026-11-02-m1-agent-access/task-1-report.md` (gitignored).
+Completion status: DONE_WITH_CONCERNS for the blocked e2e gate and pending live
+connector verification.
+
 ## Deploy log
 
 (Filled by Tasks 33 and 47.)
