@@ -10,9 +10,11 @@ import {
   IngestManifestSchema,
   MAX_SCENE_FRAMES,
   type Transcript,
+  youtubeVideoId,
 } from "@mellodifai/shared";
 import { parseVtt, type TimedWord, wordsToLines } from "./align.js";
 import type { Env } from "./env.js";
+import { checkMetadata, classifyYtDlp, RemakeError } from "./errors.js";
 import { ENGINE_ROOT, PYTHON, remakesRoot } from "./paths.js";
 import { run as defaultRun, type Run, runChecked } from "./run.js";
 import { capFrames, SHEET } from "./shots.js";
@@ -35,17 +37,9 @@ const FONT = "C\\:/Windows/Fonts/consola.ttf";
 
 const slash = (path: string) => path.replaceAll("\\", "/");
 
+// The shared parser (the studio validates links with the same function).
 export function parseVideoId(url: string): string | null {
-  const patterns = [
-    /[?&]v=([\w-]{11})/u,
-    /youtu\.be\/([\w-]{11})/u,
-    /youtube\.com\/(?:shorts|embed|live|v)\/([\w-]{11})/u,
-  ];
-  for (const p of patterns) {
-    const m = p.exec(url);
-    if (m?.[1]) return m[1];
-  }
-  return /^[\w-]{11}$/u.test(url) ? url : null;
+  return youtubeVideoId(url);
 }
 
 type Info = {
@@ -57,6 +51,10 @@ type Info = {
   creator?: string;
   track?: string;
   duration?: number;
+  age_limit?: number;
+  availability?: string | null;
+  is_live?: boolean;
+  live_status?: string | null;
   license?: string;
   language?: string;
   tags?: string[];
@@ -155,17 +153,27 @@ export async function ingest(
   const infoPath = join(dir, "source.info.json");
   if (fresh(infoPath)) {
     log("ingest: metadata");
-    await ytdlp(
-      [
-        "--skip-download",
-        "--write-info-json",
-        "-o",
-        join(dir, "source.%(ext)s"),
-      ],
-      "yt-dlp metadata",
-    );
+    try {
+      await ytdlp(
+        [
+          "--skip-download",
+          "--write-info-json",
+          "-o",
+          join(dir, "source.%(ext)s"),
+        ],
+        "yt-dlp metadata",
+      );
+    } catch (error) {
+      // A private, age-gated or removed video: a reason the person can act on.
+      const message = error instanceof Error ? error.message : String(error);
+      const code = classifyYtDlp(message);
+      if (code) throw new RemakeError(code, message);
+      throw error;
+    }
   }
   const info = JSON.parse(await readFile(infoPath, "utf8")) as Info;
+  // Before any media is downloaded: private, age-restricted, live or too long.
+  checkMetadata(info);
   const language =
     (options.sourceLang ?? info.language ?? "en").split("-")[0] ?? "en";
 

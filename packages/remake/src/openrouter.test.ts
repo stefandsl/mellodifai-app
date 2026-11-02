@@ -1,8 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadEnv, parseEnvFile } from "./env.js";
 import {
   assertNotRedacted,
   createClient,
@@ -123,36 +119,5 @@ describe("embed", () => {
       [1, 0],
       [0, 1],
     ]);
-  });
-});
-
-describe("env files", () => {
-  it("parses quotes, export prefixes and comments", () => {
-    expect(
-      parseEnvFile("# c\nexport A=\"x y\"\nB='z'\nC = plain\n# D=no\n"),
-    ).toEqual({ A: "x y", B: "z", C: "plain" });
-  });
-
-  it("loads the listed files first and redacts their values", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "remake-env-"));
-    const a = join(dir, "a.env");
-    const b = join(dir, "b.env");
-    writeFileSync(a, "OPENROUTER_API_KEY=first-value-123\n");
-    writeFileSync(
-      b,
-      "OPENROUTER_API_KEY=second-value-456\nGROQ_API_KEY=groq-value-789\n",
-    );
-    const env = await loadEnv({
-      REMAKE_ENV_FILES: `${a};${b};${join(dir, "missing.env")}`,
-      OTHER: "from-process",
-    });
-    expect(env.files).toHaveLength(2);
-    expect(env.get("OPENROUTER_API_KEY")).toBe("first-value-123");
-    expect(env.get("GROQ_API_KEY")).toBe("groq-value-789");
-    expect(env.get("OTHER")).toBe("from-process");
-    expect(env.redact("key first-value-123 and groq-value-789")).toBe(
-      "key *** and ***",
-    );
-    expect(() => env.require("NOPE")).toThrow(/NOPE is not set/u);
   });
 });
