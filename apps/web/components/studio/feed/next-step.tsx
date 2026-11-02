@@ -442,6 +442,14 @@ export function NextStep({ clip }: { clip: Clip }) {
       </>
     );
   if (clip.status === "audio_ready") return <MakeVideoButton clip={clip} />;
+  // A remake is reviewed in the create panel, where it was started.
+  if (clip.status === "analysing")
+    return (
+      <Link href="/create" className={PRIMARY}>
+        {st(lang, "next.openRemake")}
+        <ArrowRight className="size-3.5" />
+      </Link>
+    );
   const link =
     clip.status === "takes_review"
       ? st(lang, "next.pickTake")
@@ -471,6 +479,7 @@ export function NextStep({ clip }: { clip: Clip }) {
 
 export function hasNextStep(clip: Clip): boolean {
   return [
+    "analysing",
     "lyrics_review",
     "takes_review",
     "audio_ready",

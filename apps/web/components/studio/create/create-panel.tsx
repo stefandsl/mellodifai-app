@@ -49,6 +49,7 @@ import { LyricsCard } from "./lyrics-card";
 import { ModelSelect } from "./model-select";
 import { MoreOptionsCard } from "./more-options-card";
 import { MusicCard } from "./music-card";
+import { RemakeCard } from "./remake-card";
 import { PROMPT_EXAMPLES, RotatingPlaceholder } from "./rotating-placeholder";
 import { StylesCard } from "./styles-card";
 import { useEngineChoice } from "./use-engine";
@@ -340,6 +341,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-4 scrollbar-thin">
+        <RemakeCard />
         {form.mode === "simple" ? (
           <>
             <SimplePrompt />

@@ -108,6 +108,7 @@ beforeEach(() => {
       music: true,
       more: true,
       audio: true,
+      remake: true,
     },
   });
 });
