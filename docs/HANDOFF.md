@@ -34,7 +34,7 @@ Gemini) drive the app through a CLI and MCP on the owner's own subscriptions.
   less than 20 GB free, stop and report. Never delete files you did not create.
 - Playwright / e2e only on the e2e stack (Next on 3210, Supabase API 45621). Never on the
   live stack (Supabase API 54321).
-- Never factory-reset Docker. Migrations are additive only, each with database tests.
+- The Supabase CLI is `npx supabase` (cached v3.0.0). Never factory-reset Docker. Migrations are additive only, each with database tests.
 - No em dash characters anywhere (use "-"). Plain commit messages, no co-author lines.
 - Do not commit `apps/web/AGENTS.md`. Do not change the owner's account settings.
 - Every new relative `.js` import inside `packages/shared/src` needs a matching
@@ -126,7 +126,9 @@ milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66
 
 ## 6. Waiting on the owner
 
-OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
+Docker Desktop disk image moved from C: to G: (Settings > Resources > Advanced > Disk image
+location; stop the stacks first; until then the dev, e2e and spike stacks keep running in
+the existing daemon); OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
 `cloudflared` login; SMTP sender; codex login in the image container; an evaluation
 OpenRouter key with a cap; kie credit price in USD; kie Midjourney access; Gemini, Blotato
