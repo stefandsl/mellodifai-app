@@ -131,10 +131,11 @@ Desktop > Settings > Resources > Advanced > Disk image location is an owner
 maintenance action. The accepted M1 progress ruling permits the existing
 daemon for dev/e2e/spike work in the meantime; workdirs and evidence stay on E:.
 
-M1 Task 5 is blocked at its required Spike 2 runtime prerequisite: CLI 3.0.0
-image pulls from ECR and Docker Hub did not complete for the isolated spike.
-No spike services started and the CLI-versus-compose decision remains open.
-See the plan's Spike 2 retry record before implementing the renderer.
+M1 Task 5 completed its Spike 2 runtime prerequisite with pinned local images.
+The decision is the pinned self-hosting compose fallback: the CLI did not safely
+restart the full stack after database password rotation. See the plan's Spike 2
+record for the verified source revision, image pins, service adaptations and
+required Task 6 equivalents. CLI 3.0.0 rejects inbucket; use local_smtp in TOML.
 
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and

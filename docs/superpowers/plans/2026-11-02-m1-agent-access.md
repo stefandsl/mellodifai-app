@@ -1078,7 +1078,93 @@ The sole Important review finding is resolved. Completion status:
 DONE_WITH_CONCERNS only for the previously recorded pending live connector
 verification; the repository e2e gate is no longer blocked.
 
-### Spike 2: database stack (Task 2, 2026-11-02, runtime experiments pending)
+### Spike 2: database stack (Task 2, 2026-11-02, runtime experiments completed)
+
+**Pinned-image retry and decision (Task 5): use the compose fallback.**
+CLI 3.0.0 starts the isolated `mellodifai_spike` on 46621-46629 with the
+locally available image versions in the progress ruling. Supported `.temp`
+files are `postgres-version`, `storage-version`, `rest-version`,
+`gotrue-version`, `realtime-version`, `pgmeta-version`, `studio-version`,
+`edge-runtime-version` and `logflare-version`. Kong 2.8.1, Mailpit v1.31.3
+and Vector 0.58.0-alpine are CLI 3.0.0 defaults, not configurable pin files.
+Verified against CLI source tag v3.0.0, commit
+`c4ffa9cd6686077bbf7fa43d032e426c925f2671`. Renderer consumers must pin the
+CLI as well as write the supported files. No image pull was needed for the
+correctly pinned startup. An alias-workdir experiment initially copied pins
+one directory too deep and attempted downloads; it was stopped and retried
+with pins at the correct level.
+
+The CLI accepts an absolute external signing-key path. Auth requires a UTF-8
+JWK array with `key_ops: ["sign", "verify"]`; a key without key_ops gave
+`Failed to load configuration: no signing key found`. Auth was healthy after
+correcting the key. `[inbucket]` is rejected with `Use [local_smtp] instead`.
+The TOML renderer must use `local_smtp` for the design's mail catcher, including
+the production disabled setting; retaining the brief's spelling is not runnable.
+Vector could not reach Docker's host logging endpoint on port 2375. The first
+CLI experiment excluded Vector, and the production-shaped experiment disabled
+analytics, Studio and local_smtp. All three corresponding host ports were closed.
+
+Login roles observed: `authenticator`, `pgbouncer`, `postgres`, `supabase_admin`,
+`supabase_auth_admin`, `supabase_etl_admin`, `supabase_functions_admin`,
+`supabase_read_only_user`, `supabase_replication_admin`, `supabase_storage_admin`.
+Rotated all ten and re-created the service containers with updated credentials.
+Auth and Storage consume database URLs, REST uses PGRST_DB_URI, Realtime and
+Analytics use DB_PASSWORD with DB_USER/DB_USERNAME, Meta uses PG_META_DB_PASSWORD,
+Studio uses POSTGRES_PASSWORD and Functions uses SUPABASE_DB_URL. Every default
+password probe from a separate postgres:17-alpine container was refused.
+`auth.sessions.created_at` is timestamptz; `refreshed_at` is timestamp without
+time zone. A postgres-owned security-definer function successfully read sessions.
+
+Backup-preserving CLI stop/start retained rotated database passwords but did
+not bring the full stack back. Startup's database connection still failed with
+password authentication errors. Testing a db.password environment reference and
+a direct throwaway password did not establish a safe full-stack restart.
+`--ignore-health-check` can exit 0 with only the database running, so exit status
+alone must never count as readiness. This triggers the required compose fallback.
+
+**Verified compose baseline:** Supabase self-hosting source commit
+`3dd097c78804b672e5f2c1fb954ede0bbf727620`, docker/docker-compose.yml, with the
+progress ruling's images substituted. This older baseline retains Kong 2.8.1;
+newer upstream compose uses a different gateway. Project `mellodifai_spike_compose`
+used unique container/network/volume names and only API 46621 and DB 46622.
+Disabled Studio, analytics/vector, mail catcher, pooler and image transformations
+(no imgproxy image is available). Added METRICS_JWT_SECRET for the pinned Realtime.
+Postgres data and Storage files were bound under E:/mellodifai/spikes/compose.
+Auth, Storage, Realtime, Meta, Kong and DB were healthy; REST and Functions ran
+without Docker healthchecks. All eight survived compose stop/up with `--pull never`.
+All ten login roles accepted their rotated passwords before and after restart;
+default passwords were refused. Active services use the compose shared random
+POSTGRES_PASSWORD; other login roles received independent random passwords.
+Tasks 6/8 must enumerate every login role, rotate any unused roles as well,
+and test positive connections in addition to default-password refusal.
+
+Compose equivalents required by section 5.3:
+
+| CLI feature | Compose equivalent |
+| --- | --- |
+| gen signing-key | Generate an ES256 private JWK array outside the checkout, with kid, alg, use and key_ops; the verified Auth container consumed it as GOTRUE_JWT_KEYS. Never print it. |
+| status -o json | Read API/DB endpoints from ENV_TABLE and keys from the external secret store; build the same private status/env-file contract. Docker compose ps supplies container state, not keys. |
+| signing_keys_path | Read that external file only at startup and supply GOTRUE_JWT_KEYS through the private service environment. Keep JWT_SECRET external too. |
+| email template content_path | Serve the linked template on an internal-only HTTP endpoint and set GOTRUE_MAILER_TEMPLATES_MAGIC_LINK to its URL. Template serving is a Task 6 implementation requirement; no external SMTP was used in this spike. |
+| auth.sessions | GOTRUE_SESSIONS_TIMEBOX=168h and GOTRUE_SESSIONS_INACTIVITY_TIMEOUT=24h; the verified Auth container accepted both. |
+| restore stop/start | docker compose -p <project> -f <external compose> stop, then up -d --pull never; preserve DB and storage mounts. Re-apply stored role passwords and run probes before writers or tunnel start. |
+
+The TOML renderer remains the environment contract and CLI migration-tool input;
+Task 6 must translate it into the pinned compose services rather than call bare
+CLI start for hardened stacks. Compose must explicitly pin every service image,
+including the three services without CLI version-file overrides. A future
+upgrade of the self-hosting baseline or images requires another compatibility test.
+
+Project-ID experiment: starting a second workdir with `mellodifai_spike` reused
+the existing containers. Changing to `mellodifai_spike_renamed` attempted a distinct
+DB container and failed because 46622 was already allocated. A new project ID
+does not move the old project's data or release its ports. Both CLI projects were
+stopped with explicit workdirs and --no-backup after checking their IDs; compose
+was stopped and removed without deleting its bind-mounted evidence/data.
+Live and e2e projects were not altered by the spike. Evidence and private scratch
+scripts are under E:/mellodifai/spikes/stack and E:/mellodifai/spikes/compose.
+
+The historical blocked attempts below are superseded by this completed retry.
 
 **Task 5 prerequisite retry (2026-11-02): still blocked before startup.**
 The accepted progress ruling permits the existing Docker Desktop daemon for
