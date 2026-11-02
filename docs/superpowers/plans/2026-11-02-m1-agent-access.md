@@ -1055,27 +1055,28 @@ TLS test. Production pairing, SQL consent/grant binding, persistent adapter
 indexes, key provisioning and discovery aliases remain Tasks 15/42/45 work.
 
 Repository gates ran from a disposable copy under the spike directory so caches
-and outputs stayed off C:. Frozen offline install, lint, both repository and web
-typechecks, unit tests (1284 passed, 2 skipped) and e2e-stack database tests
-(124 passed) succeeded. `pnpm e2e` refused to start because port 3210 was already
-occupied by a pre-existing Node process; it was not stopped or reused. The full
-report and RED/GREEN evidence index are in
-`.superpowers/sdd/2026-11-02-m1-agent-access/task-1-report.md` (gitignored).
-Initial implementation status: DONE_WITH_CONCERNS. Review R1 requires a passing
-e2e result before acceptance, so Task 1 acceptance is BLOCKED. The follow-up
-confirmed that port 3210 belongs to PID 83308, a Next server launched from
-`E:/mellodifai/wt/local-launcher`, outside this task's permitted worktree scope.
-The owner must free port 3210 or explicitly authorize stopping that process;
-then run the prepared `E:/mellodifai/spikes/oidc/run-review-r1-e2e.ps1` and record
-the result. The R1 focused spike rerun passed all 8 tests. No passing e2e result
-is claimed. Live connector verification remains pending separately.
+and outputs stayed off C:. Frozen offline install passed. Review R3's final gate
+run passed lint, repository and web typechecks, unit tests (1285 passed, 1
+skipped), e2e-stack database tests (124 passed) and all 3 e2e tests. The focused
+spike rerun also passed all 8 tests.
 
-Review R2 reconfirmed the same sole Important finding. The prepared runner was
-attempted again and refused the still-occupied port before starting e2e. Process
-metadata confirmed PID 83308 still belongs to the excluded `local-launcher`
-worktree. The requested owner exception remains unanswered. The R2 focused
-rerun passed 8 tests; acceptance remains BLOCKED until the owner action and a
-passing e2e run. Repeating review alone does not resolve this prerequisite.
+**Review R3 resolution:** R1/R2 were blocked by a pre-existing server on port
+3210. The subsequent progress ruling records that the stale server was stopped
+and the owner uses port 3000. The first actual e2e run then found a stale
+`getByText("Offline")` assertion. The current sidebar instead exposes an offline
+status link. `apps/web/e2e/offline.spec.ts` now checks that link by accessible
+name starting with `PC di render offline`, independent of its credit-balance
+suffix. The test still creates a project without a worker and checks that the
+lyrics job stays queued. No behavior, timeout or skip was changed.
+
+The full e2e RED run had 2 passed and 1 failed; the corrected full suite passed
+all 3. Final evidence is under `E:/mellodifai/spikes/oidc/` in
+`review-r3-e2e-red.log`, `review-r3-gate-e2e.log` and the other
+`review-r3-gate-*.log` files. The full report and RED/GREEN evidence index are in
+`.superpowers/sdd/2026-11-02-m1-agent-access/task-1-report.md` (gitignored).
+The sole Important review finding is resolved. Completion status:
+DONE_WITH_CONCERNS only for the previously recorded pending live connector
+verification; the repository e2e gate is no longer blocked.
 
 ## Deploy log
 
