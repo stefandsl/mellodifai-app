@@ -9,6 +9,7 @@ import { Engine, type Spawn } from "../src/engine.js";
 import { createFakeStages, fakePack } from "../src/fake/index.js";
 import { type StageContext, WorkerLoop } from "../src/loop.js";
 import { startBalanceRefresh } from "../src/main.js";
+import { workerTempDir } from "../src/runtime.js";
 import { childEnvironment, loadSecrets } from "../src/secrets.js";
 import { refreshBalance } from "../src/stages/generate-song.js";
 import { stages } from "../src/stages/index.js";
@@ -1328,8 +1329,9 @@ describe("stage safety and behavior", () => {
     expect(env?.PATH ?? env?.Path).toBeTruthy();
     expect(env).toMatchObject({
       ENGINE_WORKSPACE: ctx.ws.root,
-      TMP: "E:\\mellodifai\\tmp",
-      TEMP: "E:\\mellodifai\\tmp",
+      TMP: workerTempDir(),
+      TEMP: workerTempDir(),
+      TMPDIR: workerTempDir(),
       PYTHONIOENCODING: "utf-8",
     });
   });
@@ -1891,8 +1893,9 @@ describe("exact stage subprocess contracts", () => {
       expect(call.env).toMatchObject({
         ENGINE_WORKSPACE: ctx.ws.root,
         PYTHONIOENCODING: "utf-8",
-        TMP: "E:\\mellodifai\\tmp",
-        TEMP: "E:\\mellodifai\\tmp",
+        TMP: workerTempDir(),
+        TEMP: workerTempDir(),
+        TMPDIR: workerTempDir(),
       });
       expect(JSON.stringify(call.args)).not.toContain("test-only-key");
       expect(JSON.stringify(call.env)).not.toContain("test-only-key");
