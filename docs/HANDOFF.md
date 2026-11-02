@@ -152,7 +152,16 @@ and verify database and authenticated API readiness. The empty `ops` namespace
 is bootstrapped for PostgREST; Task 14 still installs all objects and fake_stack.
 Task 9 will create mdf_web/mdf_auth; Task 6 reports them absent until then.
 See `ops/compose/README.md` for secret files and the production Task 8 contract.
-Production SMTP, rotation/probes, cutover and owner hardening remain pending.
+Production SMTP, cutover and owner hardening remain pending.
+Task 8 now provides `rotateDbPasswords`, `reapplyDbPasswords` and the container
+`probe`. Production activation remains gated by the owner and the roles migration.
+Rotation persists every login credential in the owner-only external
+`secrets/supabase/db-passwords.json`, re-templates Compose with the shared active
+service password, and writes the app URLs under `<runtime root>/deploy/apps`.
+Tasks 10/11 must call reapply and require a successful probe before the tunnel
+starts. Probe failures name only roles/ports; e2e deliberately fails its open
+Studio/mail/analytics checks. The integration suite verifies Studio is detected
+on 45623. Account-identity verification remains Task 35.
 The later progress ruling reserves 3210 for the owner's launcher: start the e2e
 stack with `E2E_PORT=3219`, then run browser tests with that same variable.
 Task 7 adds `pnpm test:integration`, guarded by both `TEST_DB_URL` and
