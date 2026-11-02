@@ -8,15 +8,14 @@ import { Visualizer, type VisualizerProps } from "./Visualizer";
 
 const defaults: VisualizerProps = {
   params: normalizeVisualizerParams(null),
-  title: "MellodifAI",
+  title: "",
   duration: 10,
   frames: 10 * VISUALIZER_FPS,
   audio: null,
   analysis: null,
   background: null,
   center: null,
-  trumpet: null,
-  gramophone: null,
+  logos: [],
 };
 
 // One composition; the worker passes the song's props, which set its size and length.

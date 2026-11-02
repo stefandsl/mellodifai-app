@@ -176,8 +176,7 @@ describe("visualizer stage", () => {
       analysis: "analysis.bin",
       background: { file: "background.jpg", kind: "image" },
       center: "cover.jpg",
-      trumpet: "trumpet.png",
-      gramophone: "gramophone.png",
+      logos: [],
     });
     // Casuale reads the stock picture of the seed from the uploads bucket.
     expect(storage.download.mock.calls).toEqual(
@@ -232,7 +231,7 @@ describe("visualizer stage", () => {
     expect(props).toMatchObject({
       background: { file: "background.mp4", kind: "video", frames: 135 },
       center: "center.png",
-      trumpet: null,
+      logos: [],
     });
     expect(storage.download.mock.calls.map((c) => [c[0], c[2]])).toEqual(
       expect.arrayContaining([
@@ -243,6 +242,83 @@ describe("visualizer stage", () => {
     expect(storage.upload.mock.calls[0]?.[0]).toBe(
       "previews/owner/project/it/visualizer-9x16.mp4",
     );
+  });
+
+  it("fetches the logos like the centre upload, leaving out a missing one", async () => {
+    const params = defaultVisualizerParams();
+    const mine = (n: number) =>
+      `/media/uploads/owner/0b4f9c1e-${n}${n}${n}${n}-4b7a-9c2e-123456789abc.png`;
+    params.logos = [
+      { assetUrl: mine(3), position: "top-left", size: 12, opacity: 100 },
+      { assetUrl: mine(4), position: "bottom-right", size: 20, opacity: 60 },
+    ];
+    const { ctx, calls, storage } = await setup(params);
+    storage.download.mockImplementation(async (path: string, file: string) => {
+      if (path.includes("4444")) throw new Error("Object not found");
+      await writeFile(file, "downloaded");
+    });
+    expect(await stages.visualizer?.(ctx)).toEqual({});
+    const props = calls.find((c) => c.cmd === process.execPath)?.props as {
+      logos: unknown;
+      params: VisualizerParams;
+    };
+    expect(props.logos).toEqual(["logo-1.png", null]);
+    expect(props.params.logos).toEqual(params.logos);
+    expect(storage.download.mock.calls.map((c) => [c[0], c[2]])).toEqual(
+      expect.arrayContaining([
+        ["owner/0b4f9c1e-3333-4b7a-9c2e-123456789abc.png", "uploads"],
+        ["owner/0b4f9c1e-4444-4b7a-9c2e-123456789abc.png", "uploads"],
+      ]),
+    );
+  });
+
+  it("never reads another user's file as a logo", async () => {
+    const params = defaultVisualizerParams();
+    params.logos = [
+      {
+        assetUrl:
+          "/media/uploads/stranger/0b4f9c1e-5555-4b7a-9c2e-123456789abc.png",
+        position: "top-left",
+        size: 12,
+        opacity: 100,
+      },
+    ];
+    const { ctx, calls, storage } = await setup(params);
+    await stages.visualizer?.(ctx);
+    expect(calls.find((c) => c.cmd === process.execPath)?.props).toMatchObject({
+      logos: [null],
+    });
+    expect(
+      storage.download.mock.calls.some((c) =>
+        String(c[0]).startsWith("stranger/"),
+      ),
+    ).toBe(false);
+  });
+
+  it("drops the old default artist and website of a render saved before the logos", async () => {
+    const { logos: _logos, ...old } = {
+      ...defaultVisualizerParams(),
+      preset: "classico" as const,
+      classico: {
+        artist: "AIMELODIA",
+        website: "STEFANDSL.COM",
+        album: "Lampioni",
+        gramophone: "red",
+        cards: true,
+      },
+    };
+    const { ctx, calls } = await setup(old as unknown as VisualizerParams);
+    await stages.visualizer?.(ctx);
+    const props = calls.find((c) => c.cmd === process.execPath)?.props as {
+      params: VisualizerParams;
+    };
+    expect(props.params.classico).toEqual({
+      artist: "",
+      website: "",
+      album: "Lampioni",
+      cards: true,
+    });
+    expect(props.params.logos).toEqual([]);
   });
 
   it("falls back to the cover for Immagine without an upload, and to no picture without a cover", async () => {

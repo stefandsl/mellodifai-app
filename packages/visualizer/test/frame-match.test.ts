@@ -10,7 +10,6 @@ import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deflateSync } from "node:zlib";
 import {
   ANALYSIS_RATE,
   analyseSong,
@@ -23,6 +22,12 @@ import { renderStill, selectComposition } from "@remotion/renderer";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withSharedSources } from "../webpack-override";
+import {
+  testBackground,
+  testCenter,
+  testCenterWide,
+  testLogo,
+} from "./fixtures";
 import { SIGNAL_SECONDS, testSignal } from "./signal";
 
 // Item G's snapshot test: frame N of each preset rendered by the Remotion composition (what the
@@ -33,7 +38,6 @@ import { SIGNAL_SECONDS, testSignal } from "./signal";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = resolve(here, "..");
-const brand = resolve(pkg, "../../apps/web/public/brand");
 const require = createRequire(join(pkg, "package.json"));
 const { chromium } =
   require("@playwright/test") as typeof import("@playwright/test");
@@ -48,55 +52,6 @@ let origin: string;
 let serveUrl: string;
 let browser: Awaited<ReturnType<typeof chromium.launch>>;
 let page: Awaited<ReturnType<typeof browser.newPage>>;
-
-// A small RGB PNG from a pixel function: the 16:9 centre picture, with its subject off to the
-// left, that the cover fit and the subject crop are checked with.
-function png(
-  width: number,
-  height: number,
-  at: (x: number, y: number) => [number, number, number],
-): Buffer {
-  const raw = Buffer.alloc((width * 3 + 1) * height);
-  for (let y = 0; y < height; y++) {
-    raw[y * (width * 3 + 1)] = 0;
-    for (let x = 0; x < width; x++) {
-      const [r, g, b] = at(x, y);
-      const o = y * (width * 3 + 1) + 1 + x * 3;
-      raw[o] = r;
-      raw[o + 1] = g;
-      raw[o + 2] = b;
-    }
-  }
-  const crcTable = Array.from({ length: 256 }, (_, n) => {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    return c >>> 0;
-  });
-  const crc = (buf: Buffer) => {
-    let c = 0xffffffff;
-    for (const byte of buf)
-      c = (crcTable[(c ^ byte) & 255] as number) ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  };
-  const chunk = (type: string, body: Buffer) => {
-    const head = Buffer.alloc(4);
-    head.writeUInt32BE(body.length);
-    const tail = Buffer.alloc(4);
-    tail.writeUInt32BE(crc(Buffer.concat([Buffer.from(type), body])));
-    return Buffer.concat([head, Buffer.from(type), body, tail]);
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 2;
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    chunk("IHDR", ihdr),
-    chunk("IDAT", deflateSync(raw)),
-    chunk("IEND", Buffer.alloc(0)),
-  ]);
-}
 
 function wav(samples: Float32Array, rate: number): Buffer {
   const data = Buffer.alloc(samples.length * 2);
@@ -132,27 +87,11 @@ beforeAll(async () => {
     join(pub, "analysis.bin"),
     analyseSong(samples, ANALYSIS_RATE, 30, SIGNAL_SECONDS * 30),
   );
-  await copyFile(
-    join(brand, "mellodifai-trumpet.png"),
-    join(pub, "trumpet.png"),
-  );
-  await copyFile(
-    join(brand, "mellodifai-logo.png"),
-    join(pub, "gramophone.png"),
-  );
-  await copyFile(join(brand, "mellodifai-logo.png"), join(pub, "center.png"));
-  await writeFile(
-    join(pub, "center169.png"),
-    png(640, 360, (x, y) => {
-      const inBlock = x > 90 && x < 250 && y > 80 && y < 280;
-      const stripe = (x + y) % 40 < 4;
-      return inBlock ? [240, 40, 50] : stripe ? [40, 90, 110] : [14, 14, 22];
-    }),
-  );
-  await copyFile(
-    join(brand, "mellodifai-trumpet.png"),
-    join(pub, "background.png"),
-  );
+  // Neutral pictures drawn for the test (fixtures.ts), never the app's own artwork.
+  await writeFile(join(pub, "background.png"), testBackground());
+  await writeFile(join(pub, "center.png"), testCenter());
+  await writeFile(join(pub, "center169.png"), testCenterWide());
+  await writeFile(join(pub, "logo.png"), testLogo());
 
   serveUrl = await bundle({
     entryPoint: join(pkg, "src", "index.ts"),
@@ -233,6 +172,7 @@ async function compareFrame(
   previewParams: VisualizerParams = params,
   centerFile = "center.png",
 ) {
+  const logos = params.logos.map(() => "logo.png");
   const props = {
     params,
     title: "Astri lounge",
@@ -242,8 +182,7 @@ async function compareFrame(
     analysis: "analysis.bin",
     background: { file: "background.png", kind: "image" as const },
     center: centerFile,
-    trumpet: "trumpet.png",
-    gramophone: "gramophone.png",
+    logos,
   };
   const composition = await selectComposition({
     serveUrl,
@@ -285,8 +224,7 @@ async function compareFrame(
       {
         background: `${pub}/background.png`,
         center: `${pub}/${centerFile}`,
-        trumpet: `${pub}/trumpet.png`,
-        gramophone: `${pub}/gramophone.png`,
+        logos: JSON.stringify(logos.map((file) => `${pub}/${file}`)),
         fonts: JSON.stringify(fonts()),
       },
     ] as const,
@@ -424,6 +362,50 @@ describe("preview and render draw the same frame", () => {
   for (const [name, params] of polished)
     it(name, async () => {
       const diff = await compareFrame(params, params, "center169.png");
+      expect(diff.mean).toBeLessThan(4);
+      expect(diff.far).toBeLessThan(0.02);
+    });
+
+  // Task 28: the user's logos, one corner each, in both aspects, over presets with text near
+  // the corners (Classico's cards, the player looks, the centred titles).
+  const logo = (
+    preset: VisualizerParams["preset"],
+    aspect: "16:9" | "9:16",
+    position: VisualizerParams["logos"][number]["position"],
+    size = 12,
+    opacity = 100,
+  ): VisualizerParams => ({
+    ...base,
+    preset,
+    aspect,
+    classico: { ...base.classico, artist: "Lucia", album: "Lampioni" },
+    logos: [{ assetUrl: "/media/uploads/u/logo.png", position, size, opacity }],
+  });
+  const withLogos: [string, VisualizerParams][] = [
+    ["classico logo top left 16:9", logo("classico", "16:9", "top-left")],
+    [
+      "playercard logo top right 16:9",
+      logo("playercard", "16:9", "top-right", 20),
+    ],
+    [
+      "dotline logo bottom left 16:9",
+      logo("dotline", "16:9", "bottom-left", 30),
+    ],
+    [
+      "circle logo bottom right at 60% 16:9",
+      logo("circle", "16:9", "bottom-right", 12, 60),
+    ],
+    ["classico logo top right 9:16", logo("classico", "9:16", "top-right", 20)],
+    ["playercard logo top left 9:16", logo("playercard", "9:16", "top-left")],
+    [
+      "dotline logo bottom left 9:16",
+      logo("dotline", "9:16", "bottom-left", 30),
+    ],
+    ["circle logo bottom right 9:16", logo("circle", "9:16", "bottom-right")],
+  ];
+  for (const [name, params] of withLogos)
+    it(name, async () => {
+      const diff = await compareFrame(params);
       expect(diff.mean).toBeLessThan(4);
       expect(diff.far).toBeLessThan(0.02);
     });
