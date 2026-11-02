@@ -30,6 +30,7 @@ export type DictKey =
   | "app.name"
   | "nav.library"
   | "nav.newProject"
+  | "status.analysing"
   | "status.drafting"
   | "status.lyrics_review"
   | "status.song_queued"
@@ -139,6 +140,10 @@ export type DictKey =
   | "stage.visualizer"
   | "stage.replace_section"
   | "stage.import_audio"
+  | "stage.remake_ingest"
+  | "stage.remake_analyse"
+  | "stage.remake_rewrite"
+  | "stage.lyrics_assist"
   | "job.queued"
   | "job.running"
   | "job.done"
@@ -226,6 +231,10 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.visualizer": "Video visualizer",
     "stage.replace_section": "Riscrittura di una parte",
     "stage.import_audio": "Importazione dell'audio",
+    "stage.remake_ingest": "Rifai da YouTube: download",
+    "stage.remake_analyse": "Rifai da YouTube: analisi",
+    "stage.remake_rewrite": "Rifai da YouTube: testo nuovo",
+    "stage.lyrics_assist": "Testo con AI",
     "job.queued": "In coda",
     "job.running": "In corso",
     "job.done": "Completato",
@@ -234,6 +243,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "app.name": "mellodifai",
     "nav.library": "Libreria",
     "nav.newProject": "Nuovo progetto",
+    "status.analysing": "Rifai da YouTube",
     "status.drafting": "Bozza testi",
     "status.lyrics_review": "Revisione testi",
     "status.song_queued": "Canzone in coda",
@@ -376,6 +386,10 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.visualizer": "Visualizer video",
     "stage.replace_section": "Rewrite of a part",
     "stage.import_audio": "Audio import",
+    "stage.remake_ingest": "Remake from YouTube: download",
+    "stage.remake_analyse": "Remake from YouTube: analysis",
+    "stage.remake_rewrite": "Remake from YouTube: new lyrics",
+    "stage.lyrics_assist": "AI lyrics",
     "job.queued": "Queued",
     "job.running": "Running",
     "job.done": "Done",
@@ -384,6 +398,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "app.name": "mellodifai",
     "nav.library": "Library",
     "nav.newProject": "New project",
+    "status.analysing": "Remake from YouTube",
     "status.drafting": "Drafting lyrics",
     "status.lyrics_review": "Lyrics review",
     "status.song_queued": "Song queued",

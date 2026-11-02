@@ -10,6 +10,7 @@ import {
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { workerTempDir } from "../runtime.js";
 import { key, upload, writePack } from "../stages/utils.js";
+import { createFakeRemakeStages } from "./remake.js";
 
 export const fakePack: LyricPack = {
   title: "A little brighter",
@@ -437,4 +438,7 @@ export function createFakeStages(
     };
   return registry;
 }
-export const fakeStages = createFakeStages();
+export const fakeStages: StageRegistry = {
+  ...createFakeStages(),
+  ...createFakeRemakeStages(),
+};

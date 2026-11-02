@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createClient, RedactionError } from "./openrouter.js";
+import { createClient, DEFAULT_MODELS, RedactionError } from "./openrouter.js";
 import type { Embed } from "./originality.js";
-import { rewrite, songTitle } from "./rewrite.js";
+import {
+  checkLyrics,
+  reviewUser,
+  rewrite,
+  rewriteSection,
+  songTitle,
+} from "./rewrite.js";
 import {
   analysisFixture,
   chatReply,
@@ -66,10 +72,41 @@ type Script = {
   redactJudge?: boolean;
   redactDevil?: (n: number) => boolean;
   cost?: number;
+  // The final pass's reply: new text per line index (default: the lines unchanged).
+  finisher?: (asked: string) => { index: number; text: string }[];
+  // Judges that score "original" by the overlap between the block they are told to score and
+  // the source song, like a model that takes whatever it reads as lyrics for the new lyrics.
+  literalJudges?: boolean;
 };
 
+function grams4(text: string): Set<string> {
+  const s = ` ${text.toLowerCase().replace(/[^\p{L}\s]/gu, "")} `;
+  const out = new Set<string>();
+  for (let i = 0; i + 4 <= s.length; i++) out.add(s.slice(i, i + 4));
+  return out;
+}
+// 1 when no line of the judged text shares wording with a source line, lower the more it does.
+function literalScore(judged: string): number {
+  let worst = 0;
+  for (const line of judged.split("\n"))
+    for (const source of SOURCE) {
+      const a = grams4(line);
+      const b = grams4(source);
+      let shared = 0;
+      for (const g of a) if (b.has(g)) shared++;
+      const union = a.size + b.size - shared;
+      worst = Math.max(worst, union ? shared / union : 0);
+    }
+  return Math.round((1 - Math.min(1, worst * 1.6)) * 100) / 100;
+}
+function newLyricsBlock(user: string): string {
+  const start = user.indexOf("=== NEW LYRICS (score these) ===");
+  const end = user.indexOf("=== END OF NEW LYRICS ===");
+  return start >= 0 && end > start ? user.slice(start, end) : user;
+}
+
 function scripted(script: Script = {}) {
-  const counts = { writer: 0, judge: 0, devil: 0, fixer: 0 };
+  const counts = { writer: 0, judge: 0, devil: 0, fixer: 0, finisher: 0 };
   const round = () => counts.devil + 1;
   const { fetchFn, calls } = fakeFetch((call) => {
     const r = role(call);
@@ -77,15 +114,20 @@ function scripted(script: Script = {}) {
     if (script.judgesDown && (r === "jev" || r === "judge of remake lyrics"))
       return { status: 500, text: "down" };
     switch (r) {
-      case "jev":
+      case "jev": {
+        const scores = { ...(script.jury?.(round()) ?? PASS) };
+        if (script.literalJudges) {
+          const state = call.body.state as Record<string, string>;
+          scores.original = literalScore(
+            state.new_lyrics ?? state.lyrics_review ?? JSON.stringify(state),
+          );
+        }
         return {
           answers: Object.fromEntries(
-            Object.entries(script.jury?.(round()) ?? PASS).map(([k, v]) => [
-              k,
-              { noul: v },
-            ]),
+            Object.entries(scores).map(([k, v]) => [k, { noul: v }]),
           ),
         };
+      }
       case "literal translator":
         return chatReply({ lines: LITERAL }, cost);
       case "lyric writer for a remake": {
@@ -113,8 +155,30 @@ function scripted(script: Script = {}) {
         );
         return chatReply({ title: null, lines: fixed }, cost);
       }
+      case "lyric finisher": {
+        counts.finisher++;
+        const asked = String(
+          (call.body.messages as { content: string }[])[1]?.content ?? "",
+        );
+        return chatReply(
+          { title: null, lines: script.finisher?.(asked) ?? [] },
+          cost,
+        );
+      }
       case "judge of remake lyrics":
         counts.judge++;
+        if (script.literalJudges) {
+          const user = String(
+            (call.body.messages as { content: string }[])[1]?.content ?? "",
+          );
+          return chatReply(
+            {
+              scores: { ...PASS, original: literalScore(newLyricsBlock(user)) },
+              issues: [],
+            },
+            cost,
+          );
+        }
         if (script.redactJudge)
           return chatReply(
             { scores: PASS, issues: ["line 1 mentions [PERSON_NAME]"] },
@@ -450,5 +514,212 @@ describe("rewrite", () => {
     await expect(
       rewrite(a, { lang: "it" }, deps(scripted().client)),
     ).rejects.toThrow(/no sung lines/u);
+  });
+});
+
+describe("model routing and cost (task 27)", () => {
+  it("drafts and fixes with the cheap model, the strong one only polishes and argues", async () => {
+    const { client, calls } = scripted();
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    const models = (r: string) =>
+      new Set(calls.filter((c) => role(c) === r).map((c) => c.body.model));
+    expect(models("lyric writer for a remake")).toEqual(
+      new Set([DEFAULT_MODELS.draft]),
+    );
+    expect(models("lyric line fixer")).toEqual(new Set([DEFAULT_MODELS.fixer]));
+    expect(models("lyric finisher")).toEqual(new Set([DEFAULT_MODELS.final]));
+    expect(models("devil's advocate")).toEqual(new Set([DEFAULT_MODELS.devil]));
+    expect(DEFAULT_MODELS.draft).toMatch(/haiku/u);
+    expect(DEFAULT_MODELS.final).toMatch(/sonnet/u);
+    // No call ever goes to the most expensive model.
+    expect(calls.some((c) => String(c.body.model).includes("opus"))).toBe(
+      false,
+    );
+    expect(result.cost.calls.map((c) => c.step)).toContain("final-pass");
+  });
+
+  it("shows the cheap writer each line's literal translation as the wording to avoid", async () => {
+    const { client, calls } = scripted();
+    await rewrite(analysisFixture(), { lang: "it" }, deps(client));
+    const writer = calls.find((c) => role(c) === "lyric writer for a remake");
+    const [system, user] = (
+      writer?.body.messages as { content: string }[] | undefined
+    )?.map((m) => m.content) ?? ["", ""];
+    expect(user).toContain(
+      `literal translation, never use its words: "${LITERAL[0]}"`,
+    );
+    expect(system).toMatch(/must not come back as its translation repeated/u);
+  });
+
+  it("takes model ids from the options", async () => {
+    const { client, calls } = scripted();
+    await rewrite(
+      analysisFixture(),
+      { lang: "it", models: { draft: "x/cheap", final: "x/strong" } },
+      deps(client),
+    );
+    expect(
+      calls.filter((c) => role(c) === "lyric writer for a remake")[0]?.body
+        .model,
+    ).toBe("x/cheap");
+    expect(
+      calls.filter((c) => role(c) === "lyric finisher")[0]?.body.model,
+    ).toBe("x/strong");
+  });
+
+  it("keeps the final pass's improvements and reverts a line it made fail a gate", async () => {
+    const { client, counts } = scripted({
+      draft: () => GOOD,
+      finisher: () => [
+        { index: 0, text: LITERAL[0] ?? "" },
+        { index: 1, text: "la luce resta qui per me" },
+      ],
+    });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    expect(counts.finisher).toBe(1);
+    expect(result.sections.flatMap((s) => s.lines).map((l) => l.text)).toEqual([
+      GOOD[0],
+      "la luce resta qui per me",
+    ]);
+    expect(result.originality.flaggedLines).toBe(0);
+  });
+});
+
+describe("judges read the source only as a reference (task 27)", () => {
+  const states = (texts: string[]) =>
+    analysisFixture().lines.map((line, i) => ({
+      line,
+      sectionId: line.sectionId,
+      text: texts[i] ?? "",
+    }));
+
+  it("puts no source line inside the block the judges score", () => {
+    const user = reviewUser(
+      states(GOOD),
+      analysisFixture(),
+      { lang: "it" },
+      "Tram",
+    );
+    const block = newLyricsBlock(user);
+    for (const source of SOURCE)
+      expect(block.toLowerCase()).not.toContain(source.toLowerCase());
+    expect(user).toMatch(
+      /REFERENCE: ORIGINAL SONG, NOT PART OF THE NEW LYRICS/u,
+    );
+    expect(user.toLowerCase()).toContain(SOURCE[0]?.toLowerCase());
+    // The same judge marks a draft that copies the source.
+    const copied = reviewUser(
+      states(SOURCE),
+      analysisFixture(),
+      { lang: "en" },
+      "x",
+    );
+    expect(literalScore(newLyricsBlock(copied))).toBeLessThan(0.3);
+  });
+
+  it("scores a clearly original draft high on originality, Jev included", async () => {
+    const { client, calls } = scripted({
+      draft: () => GOOD,
+      literalJudges: true,
+    });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    const round = result.jury.rounds[0];
+    const jev = round?.verdicts.find((v) => v.model.includes("jev"));
+    expect(jev?.scores?.original).toBeGreaterThanOrEqual(0.9);
+    expect(round?.scores.original).toBeGreaterThanOrEqual(0.9);
+    expect(result.jury.passed).toBe(true);
+    const state = calls.find((c) => role(c) === "jev")?.body.state as Record<
+      string,
+      string
+    >;
+    expect(Object.keys(state)).toEqual([
+      "task",
+      "new_lyrics",
+      "meaning_map",
+      "reference_original_song_do_not_score",
+    ]);
+    expect(state.new_lyrics?.toLowerCase()).not.toContain(
+      SOURCE[1]?.toLowerCase(),
+    );
+  });
+});
+
+describe("rewriteSection and checkLyrics (task 27 review)", () => {
+  async function first() {
+    const { client } = scripted({ draft: () => GOOD });
+    return rewrite(analysisFixture(), { lang: "it" }, deps(client));
+  }
+
+  it("writes one section again, keeps the others and adds one jury round", async () => {
+    const lyrics = await first();
+    const { client, calls, counts } = scripted({
+      draft: () => [GOOD[0] ?? "", "la luce resta su di me"],
+    });
+    const next = await rewriteSection(
+      analysisFixture(),
+      lyrics,
+      "chorus-1",
+      { lang: "it" },
+      deps(client),
+    );
+    const writer = calls.find((c) => role(c) === "lyric writer for a remake");
+    expect(
+      String(
+        (writer?.body.messages as { content: string }[] | undefined)?.[1]
+          ?.content,
+      ),
+    ).toMatch(/Write new lines for section chorus-1 only/u);
+    // The literal translation was kept from the first run: not paid again.
+    expect(calls.some((c) => role(c) === "literal translator")).toBe(false);
+    expect(counts.devil).toBe(1);
+    expect(next.sections.find((s) => s.id === "verse-1")?.lines[0]?.text).toBe(
+      GOOD[0],
+    );
+    expect(next.jury.rounds).toHaveLength(lyrics.jury.rounds.length + 1);
+    expect(next.cost.usd).toBeGreaterThan(lyrics.cost.usd);
+    expect(next.cost.calls.map((c) => c.step)).toContain("write-section");
+  });
+
+  it("runs the gates again on edited lines, never the jury", async () => {
+    const lyrics = await first();
+    const { client, calls } = scripted();
+    const copied = await checkLyrics(
+      analysisFixture(),
+      lyrics,
+      { lines: [{ index: 0, text: LITERAL[0] ?? "" }] },
+      { lang: "it" },
+      deps(client),
+    );
+    expect(calls).toHaveLength(0);
+    const line = copied.sections.flatMap((s) => s.lines)[0];
+    expect(line).toMatchObject({ text: LITERAL[0], edited: true });
+    expect(line?.originality.flagged).toBe(true);
+    expect(copied.originality.flaggedLines).toBe(1);
+    expect(copied.jury.rounds).toEqual(lyrics.jury.rounds);
+    const fixed = await checkLyrics(
+      analysisFixture(),
+      copied,
+      {
+        lines: [{ index: 0, text: "giro la notte su un tram che va" }],
+        title: "Notte in tram",
+      },
+      { lang: "it" },
+      deps(client),
+    );
+    expect(fixed.originality.flaggedLines).toBe(0);
+    expect(fixed.title).toBe("Notte in tram");
+    expect(fixed.sections.flatMap((s) => s.lines)[0]?.edited).toBe(true);
   });
 });

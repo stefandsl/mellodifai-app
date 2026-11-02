@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mellodifai/remake": "workspace:^",
     "@mellodifai/shared": "workspace:^",
     "@supabase/supabase-js": "^2.118.0",
     "zod": "^4.6.7"

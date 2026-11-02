@@ -133,8 +133,17 @@ async function open(c = clip()) {
 }
 const field = (name: string) => screen.getByLabelText(name, { exact: true });
 async function setField(name: string, text: string) {
-  await userEvent.clear(field(name));
-  await userEvent.type(field(name), `${text}{Enter}`);
+  // Flush the controlled draft before Enter reads it, then flush the formatting
+  // effect before another field's blur handler or an assertion uses the value.
+  await act(async () => {
+    await userEvent.clear(field(name));
+  });
+  await act(async () => {
+    await userEvent.type(field(name), text);
+  });
+  await act(async () => {
+    await userEvent.keyboard("{Enter}");
+  });
 }
 
 describe("audio editor", () => {

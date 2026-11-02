@@ -7,19 +7,80 @@ import type { RemakeCost } from "@mellodifai/shared";
 const BASE = "https://openrouter.ai/api";
 export const JEV = "typesafe/jev-1.14";
 
-// Model ids mirror the worker's lyric pipeline (lyric-jury.ts); all are configurable.
+// Model routing (task 27 cost rule: analysis plus one rewrite round under 0.05 USD): the cheap
+// model writes drafts and targeted line fixes; the strong model only writes the final pass and
+// argues as the devil's advocate (design 10.2). Every id is configurable (modelsFromEnv).
 export const DEFAULT_MODELS = {
-  writerStrong: "anthropic/claude-opus-5.5",
-  writerFast: "anthropic/claude-sonnet-5.5",
+  draft: "anthropic/claude-haiku-5.5",
+  fixer: "anthropic/claude-haiku-5.5",
+  final: "anthropic/claude-sonnet-5.5",
   analyst: "anthropic/claude-haiku-5.5",
   vision: "google/gemini-3.8-flash",
   judges: [JEV, "anthropic/claude-haiku-5.5", "google/gemini-3.8-flash"],
-  // Design 10.2: the devil's advocate is Claude Sonnet 5.5.
   devil: "anthropic/claude-sonnet-5.5",
   // Fallback only (--embedder openrouter); the gate uses local LaBSE (design 10.3).
   embedding: "baai/bge-m3",
 };
 export type Models = typeof DEFAULT_MODELS;
+
+// REMAKE_MODEL_DRAFT, _FIX, _FINAL, _ANALYST, _VISION, _DEVIL, _EMBEDDING and REMAKE_JUDGES
+// (comma list) override the defaults; unset names keep them.
+export function modelsFromEnv(
+  get: (name: string) => string | undefined,
+): Models {
+  const pick = (name: string, fallback: string) =>
+    get(name)?.trim() || fallback;
+  const judges = get("REMAKE_JUDGES")
+    ?.split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  return {
+    draft: pick("REMAKE_MODEL_DRAFT", DEFAULT_MODELS.draft),
+    fixer: pick("REMAKE_MODEL_FIX", DEFAULT_MODELS.fixer),
+    final: pick("REMAKE_MODEL_FINAL", DEFAULT_MODELS.final),
+    analyst: pick("REMAKE_MODEL_ANALYST", DEFAULT_MODELS.analyst),
+    vision: pick("REMAKE_MODEL_VISION", DEFAULT_MODELS.vision),
+    judges: judges?.length ? judges : DEFAULT_MODELS.judges,
+    devil: pick("REMAKE_MODEL_DEVIL", DEFAULT_MODELS.devil),
+    embedding: pick("REMAKE_MODEL_EMBEDDING", DEFAULT_MODELS.embedding),
+  };
+}
+
+export type Reasoning =
+  | { effort: "low" | "medium" | "high" }
+  | { enabled: false };
+
+// Hidden reasoning is billed as output and counts against max_tokens. Haiku 5.5 ignores the
+// effort and spent every token of a 3000 or 4000 token budget thinking (task 27 probe, 02/11:
+// finish "length", empty reply, 0.0018 USD each), so the cheap model runs with reasoning off;
+// the others keep a low effort.
+const REASONING_OFF = [/claude-haiku/iu];
+export function defaultReasoning(model: string): Reasoning {
+  return REASONING_OFF.some((pattern) => pattern.test(model))
+    ? { enabled: false }
+    : { effort: "low" };
+}
+
+// USD per step group (write, fix-lines, final-pass, jury, devil, ...), for the logs.
+export function costByStep(cost: RemakeCost): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const call of cost.calls) {
+    const group = call.step.startsWith("jury:devil")
+      ? "devil"
+      : call.step.startsWith("jury:")
+        ? "jury"
+        : call.step;
+    out[group] = Math.round(((out[group] ?? 0) + call.usd) * 1e6) / 1e6;
+  }
+  return out;
+}
+
+export function costLine(cost: RemakeCost): string {
+  const parts = Object.entries(costByStep(cost))
+    .sort((a, b) => b[1] - a[1])
+    .map(([step, usd]) => `${step} ${usd.toFixed(4)}`);
+  return `${cost.usd.toFixed(4)} USD (${parts.join(", ") || "no calls"})`;
+}
 
 // USD per million tokens, used only when a reply carries no `usage.cost`.
 const PRICES: Record<string, [number, number]> = {
@@ -90,7 +151,7 @@ export type ChatRequest = {
   maxTokens?: number;
   temperature?: number;
   // Reasoning cannot be disabled on these models; low effort keeps the hidden, output-billed tokens small.
-  reasoning?: { effort: "low" | "medium" | "high" };
+  reasoning?: Reasoning;
 };
 
 export type Client = {
@@ -130,6 +191,8 @@ export function createClient(options: {
   ledger?: Ledger;
   timeoutMs?: number;
   retries?: number;
+  // A cancelled job stops its requests (and their retries).
+  signal?: AbortSignal;
 }): Client {
   const fetchFn = options.fetchFn ?? globalThis.fetch;
   const ledger = options.ledger ?? new Ledger();
@@ -151,7 +214,12 @@ export function createClient(options: {
             "X-Title": "mellodifai remake",
           },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(options.timeoutMs ?? timeoutMs),
+          signal: options.signal
+            ? AbortSignal.any([
+                options.signal,
+                AbortSignal.timeout(options.timeoutMs ?? timeoutMs),
+              ])
+            : AbortSignal.timeout(options.timeoutMs ?? timeoutMs),
         });
         if (response.ok) return await response.json();
         const detail = (await response.text().catch(() => "")).slice(0, 300);
@@ -161,6 +229,7 @@ export function createClient(options: {
         if (response.status !== 429 && response.status < 500) break;
       } catch (error) {
         lastError = error;
+        if (options.signal?.aborted) break;
       }
       if (attempt < retries)
         await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
@@ -204,7 +273,7 @@ export function createClient(options: {
         temperature: request.temperature ?? 0.7,
         // These endpoints always reason, and hidden reasoning counts against max_tokens
         // (seen live: Sonnet 5.5 spent all 3000 tokens thinking and returned nothing).
-        reasoning: request.reasoning ?? { effort: "low" },
+        reasoning: request.reasoning ?? defaultReasoning(request.model),
         usage: { include: true },
       },
       90_000,

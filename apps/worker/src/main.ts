@@ -12,11 +12,12 @@ import {
 import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
+import { fakeSongless } from "./fake/lyrics-assist.js";
 import { WorkerLoop } from "./loop.js";
 import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
-import { stages } from "./stages/index.js";
+import { songlessStages, stages } from "./stages/index.js";
 import { SupabaseStorage } from "./storage.js";
 import { WorkspaceFactory } from "./workspace.js";
 
@@ -159,6 +160,7 @@ async function main() {
     db,
     workerId,
     stages: process.env.WORKER_FAKE === "1" ? fakeStages : stages,
+    songless: process.env.WORKER_FAKE === "1" ? fakeSongless : songlessStages,
     workspace: new WorkspaceFactory(),
     engine,
     storage: new SupabaseStorage(createClient(url, key)),

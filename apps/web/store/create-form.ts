@@ -24,7 +24,14 @@ export type VideoMode =
   | "slideshow"
   | "footage";
 export type Aspect = "9:16" | "1:1" | "16:9";
-export type CardId = "lyrics" | "styles" | "video" | "music" | "more" | "audio";
+export type CardId =
+  | "lyrics"
+  | "styles"
+  | "video"
+  | "music"
+  | "more"
+  | "audio"
+  | "remake";
 
 // The audio a new song starts from (T12): an upload of the owner's or a take of one of the
 // owner's songs, used as a cover, a reference or to extend.
@@ -132,6 +139,7 @@ export function initialForm(lang: Lang = "it"): CreateFormState {
       music: true,
       more: false,
       audio: true,
+      remake: true,
     },
     audio: null,
     audioMode: "cover",
