@@ -63,19 +63,24 @@ Merged into `build/studio-ui` and pushed:
   gramophone marks) and user logos (up to 2, corners, size, opacity) in every preset.
   Report `E:/mellodifai/reports/task-28-report.md`, frames `E:/mellodifai/reports/task-28-shots/`.
   Its migration is `supabase/migrations/20261102000025_visualizer_logos.sql`; it is applied to
-  the e2e database only (by psql). The live stack still needs it (`supabase migration up`
-  on the live stack is an owner-visible step: do it when the owner is around or note it).
+  the live stack (applied 2026-11-02) and the e2e database (by psql, not in its history).
+- T27 "Rifai da YouTube" panel in the create panel and the AI lyric buttons ("Scrivi con AI",
+  "Rigenera", "Migliora"). Report `E:/mellodifai/reports/task-27-report.md`. Migration
+  `20261102000026_remakes.sql` applied to the live stack. Real rewrites stay blocked until the
+  owner turns off the OpenRouter privacy filter (or sets `LYRICS_OPENROUTER_KEY` to a key
+  without it). The worker now depends on `@mellodifai/remake`: `pnpm install` before starting it.
+  Open follow-up: `apps/web/components/studio/editor/audio-editor.test.tsx` ("trims with the
+  fields and the handles") fails under heavy machine load; make it deterministic.
 - Agentic studio design revision 6 and the M1 plan.
 
 In progress:
 
 | Work | Branch / worktree | Brief | What is left |
 | --- | --- | --- | --- |
-| T27 "Rifai da YouTube" panel + AI lyric buttons | `build/task-27-remake-ui`, `.claude/worktrees/agent-ab7634b26f5114742` | `docs/egm/v2-local-engines/task-27-brief.md` (untracked file in the main checkout) | Check its commits and `E:/mellodifai/reports/task-27-report.md` (if it exists). Finish missing requirements, run the gates, merge into `build/studio-ui` (expect an i18n conflict with T28: keep both blocks), renumber any new migration to the next free number, push. |
 | M1 agent access (47 tasks) | `build/m1-agent-access`, `.claude/worktrees/m1-agent-access` | `docs/superpowers/plans/2026-11-02-m1-agent-access.md` | Run the Codex driver (section 4). |
 
 Leftover worktrees to clean up when their branches are merged: `agent-aeb276f7c9d48b97b`
-(T28, merged), `agent-ab7634b26f5114742` (T27, after merge). Remove with
+(T28, merged), `agent-ab7634b26f5114742` (T27, merged). Remove with
 `git worktree remove --force <path>` then `git worktree prune`; if Windows says "Directory not
 empty", `rm -rf <path>` then `git worktree prune`.
 
@@ -101,8 +106,8 @@ bash scripts/codex-sdd/run.sh 14 20      # a range
   rotation, tunnel). The driver skips them and records "owner gate". Do them only when the
   owner says go.
 - Rulings already made (follow them):
-  - Migration numbers: `20261102000025` is taken by T28. Every M1 migration takes the next
-    free number when its task runs (the plan's 025-033 become 026-034 or later); keep the
+  - Migration numbers: `20261102000025` (T28) and `20261102000026` (T27) are taken. Before its first migration, M1 merges `build/studio-ui`; every M1 migration takes the next
+    free number when its task runs (the plan's 025-033 become 027-035 or later); keep the
     plan's file names after the number. T27 may take numbers too: always check
     `ls supabase/migrations` first.
   - Production-touching steps wait for the owner (above).
