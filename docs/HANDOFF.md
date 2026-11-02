@@ -165,6 +165,14 @@ alongside `CI=true`. CI renders and starts its own pinned Compose stack and
 masks test.env values before exporting them. The implementation branch now
 triggers CI on push. Keep `NEXT_PUBLIC_SITE_URL` until Task 37 migrates its users.
 
+Playwright starts Next through `ops/e2e-server.ts`. Each run copies source into
+`MELLODIFAI_ROOT/e2e-servers/web-*` (CI: `RUNNER_TEMP/e2e-servers/web-*`), installs
+the frozen dependencies there without lifecycle scripts, and launches Next there.
+Local env files, dependency directories and generated files are excluded. This
+keeps Next caches and generated files off C: even when `pnpm e2e` is invoked in
+the C: worktree. Runtime copies are retained for diagnosis; the dedicated pnpm
+store is under the runtime root's `cache/pnpm` directory.
+
 OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
 and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
 `cloudflared` login; SMTP sender; codex login in the image container; an evaluation

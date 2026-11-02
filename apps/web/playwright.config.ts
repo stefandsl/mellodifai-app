@@ -26,9 +26,9 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `pnpm --filter @mellodifai/web exec next dev -H 127.0.0.1 -p ${port}`,
+    command: `pnpm --workspace-root ops e2e-server.ts ${port}`,
     url: base,
-    timeout: 120_000,
+    timeout: 240_000,
     reuseExistingServer: false,
     env: {
       ...process.env,

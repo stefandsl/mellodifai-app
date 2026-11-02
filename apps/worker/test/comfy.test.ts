@@ -55,11 +55,11 @@ describe("engine availability from files", () => {
   const engines = {
     yue2: {
       ...LOCAL_ENGINES.yue2,
-      files: [{ path: "checkpoints\\yue2.safetensors", bytes: 5 }],
+      files: [{ path: join("checkpoints", "yue2.safetensors"), bytes: 5 }],
     },
     "ace-step": {
       ...LOCAL_ENGINES["ace-step"],
-      files: [{ path: "checkpoints\\ace.safetensors", bytes: 3 }],
+      files: [{ path: join("checkpoints", "ace.safetensors"), bytes: 3 }],
     },
   };
   it("reports an engine installed only when every model file has its exact size", async () => {

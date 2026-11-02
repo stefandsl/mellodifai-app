@@ -41,8 +41,7 @@ const pkg = resolve(here, "..");
 const require = createRequire(join(pkg, "package.json"));
 const { chromium } =
   require("@playwright/test") as typeof import("@playwright/test");
-const SHELL =
-  "C:\\Users\\Asus\\Documents\\suno-remake\\motion\\node_modules\\.remotion\\chrome-headless-shell\\win64\\chrome-headless-shell-win64\\chrome-headless-shell.exe";
+const SHELL = chromium.executablePath();
 const FRAME = 75;
 const SCALE = 0.5;
 
@@ -77,8 +76,12 @@ function wav(samples: Float32Array, rate: number): Buffer {
 }
 
 beforeAll(async () => {
-  await mkdir("E:/mellodifai/render-tmp", { recursive: true });
-  dir = resolve(await mkdtemp("E:/mellodifai/render-tmp/frame-match-"));
+  const runtime = join(
+    process.env.RUNNER_TEMP ?? process.env.MELLODIFAI_ROOT ?? "E:/mellodifai",
+    "render-tmp",
+  );
+  await mkdir(runtime, { recursive: true });
+  dir = resolve(await mkdtemp(join(runtime, "frame-match-")));
   const pub = join(dir, "public");
   await mkdir(pub, { recursive: true });
   const samples = testSignal();
@@ -147,7 +150,8 @@ beforeAll(async () => {
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const address = server.address();
   origin = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`;
-  browser = await chromium.launch();
+  // Compare both paths with the same browser binary and headless implementation.
+  browser = await chromium.launch({ executablePath: SHELL });
   page = await browser.newPage();
   await page.goto(`${origin}/harness.html`);
 });
