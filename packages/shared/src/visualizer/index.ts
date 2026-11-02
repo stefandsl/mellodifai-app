@@ -14,6 +14,17 @@ export {
   withFocus,
 } from "./viz-kit.js";
 export {
+  type Box,
+  LOGO_GAP,
+  logoLayout,
+  overlaps,
+  overlayCorner,
+  type PlacedLogo,
+  textProbe,
+} from "./viz-logos.js";
+export {
+  badgeBoxes,
+  badgeSlots,
   CONTOUR_CONTRAST,
   contourInk,
   isLook,

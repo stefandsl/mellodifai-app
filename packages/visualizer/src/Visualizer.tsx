@@ -41,16 +41,15 @@ export type VisualizerProps = {
   // A video background loops every `frames` frames.
   background: { file: string; kind: "image" | "video"; frames?: number } | null;
   center: string | null;
-  trumpet: string | null;
-  gramophone: string | null;
+  // The user's logos, one per entry of params.logos; null for one whose file is missing.
+  logos?: (string | null)[];
 };
 
 type Loaded = {
   analysis: Uint8Array | null;
   background: Picture | null;
   center: Picture | null;
-  trumpet: Picture | null;
-  gramophone: Picture | null;
+  logos: (Picture | null)[];
 };
 
 function scratchCanvas(width: number, height: number) {
@@ -78,50 +77,50 @@ async function picture(
   return subject ? withFocus(pic, scratchCanvas) : pic;
 }
 
+// A logo that cannot be read is left out of the frames, not a failed render.
+function logoPicture(file: string | null): Promise<Picture | null> {
+  return picture(file).catch(() => null);
+}
+
 // Everything the frames need, loaded once before the first frame is taken.
 function useLoaded(props: VisualizerProps): Loaded | null {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [handle] = useState(() => delayRender("Visualizer assets"));
-  const {
-    analysis: analysisFile,
-    background: bg,
-    center,
-    trumpet,
-    gramophone,
-  } = props;
+  const { analysis: analysisFile, background: bg, center } = props;
   const bgImage = bg?.kind === "image" ? bg.file : null;
+  // One string, so a new props object with the same logos does not load them again.
+  const logoFiles = JSON.stringify(props.logos ?? []);
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [analysis, background, centerPic, trumpetPic, gramophonePic] =
-        await Promise.all([
-          analysisFile
-            ? fetch(staticFile(analysisFile))
-                .then((r) => r.arrayBuffer())
-                .then((b) => new Uint8Array(b))
-            : null,
-          picture(bgImage),
-          picture(center, true),
-          picture(trumpet),
-          picture(gramophone),
-          ...[300, 500, 600].map((weight) =>
-            document.fonts.load(`${weight} 40px "${VISUALIZER_FONT}"`, "AБ"),
-          ),
-        ]);
+      const [analysis, background, centerPic, logos] = await Promise.all([
+        analysisFile
+          ? fetch(staticFile(analysisFile))
+              .then((r) => r.arrayBuffer())
+              .then((b) => new Uint8Array(b))
+          : null,
+        picture(bgImage),
+        picture(center, true),
+        Promise.all(
+          (JSON.parse(logoFiles) as (string | null)[]).map(logoPicture),
+        ),
+        ...[300, 500, 600].map((weight) =>
+          document.fonts.load(`${weight} 40px "${VISUALIZER_FONT}"`, "AБ"),
+        ),
+      ]);
       if (!alive) return;
       setLoaded({
         analysis,
         background,
         center: centerPic,
-        trumpet: trumpetPic,
-        gramophone: gramophonePic,
+        logos,
       });
       continueRender(handle);
     })().catch((error) => cancelRender(error));
     return () => {
       alive = false;
     };
-  }, [analysisFile, bgImage, center, trumpet, gramophone, handle]);
+  }, [analysisFile, bgImage, center, logoFiles, handle]);
   return loaded;
 }
 
@@ -169,8 +168,7 @@ export function Visualizer(props: VisualizerProps) {
             ? videoFrame.current
             : loaded.background,
         center: loaded.center,
-        trumpet: loaded.trumpet,
-        gramophone: loaded.gramophone,
+        logos: loaded.logos,
       },
     });
   }, [loaded, frame, draw, params, width, height, fps, props]);

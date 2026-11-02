@@ -6,7 +6,14 @@ import {
   normalizeVisualizerParams,
   VISUALIZER_PRESETS,
 } from "@mellodifai/shared";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -339,6 +346,65 @@ describe("Video Studio", () => {
     });
   });
 
+  it("adds up to two logos, moves, resizes, fades and removes them", async () => {
+    const dialog = studio();
+    await userEvent.click(within(dialog).getByRole("tab", { name: "Stile" }));
+    expect(params().logos).toEqual([]);
+    expect(within(dialog).getByText(/Fino a 2 loghi/u)).toBeInTheDocument();
+    const input = () =>
+      within(dialog).getByTestId("upload-logo") as HTMLInputElement;
+    expect(input().accept).toBe("image/jpeg,image/png,image/webp");
+    await userEvent.upload(
+      input(),
+      new File(["x"], "logo.png", { type: "image/png" }),
+    );
+    const url = "/media/uploads/u1/11111111-2222-4333-8444-555555555555.png";
+    await waitFor(() =>
+      expect(params().logos).toEqual([
+        { assetUrl: url, position: "top-right", size: 12, opacity: 100 },
+      ]),
+    );
+    const first = within(dialog).getByRole("group", { name: "Logo 1" });
+    expect(within(first).getByRole("img", { name: "Logo 1" })).toHaveAttribute(
+      "src",
+      url,
+    );
+    await userEvent.click(
+      within(first).getByRole("radio", { name: "In basso a sinistra" }),
+    );
+    expect(params().logos[0]?.position).toBe("bottom-left");
+    const size = within(first).getByRole("slider", { name: "Dimensione" });
+    expect(size).toHaveAttribute("min", "4");
+    expect(size).toHaveAttribute("max", "30");
+    fireEvent.change(size, { target: { value: "24" } });
+    expect(params().logos[0]?.size).toBe(24);
+    fireEvent.change(within(first).getByRole("slider", { name: "Opacità" }), {
+      target: { value: "55" },
+    });
+    expect(params().logos[0]?.opacity).toBe(55);
+    // A second logo takes the first free corner; then the button goes.
+    await userEvent.upload(
+      input(),
+      new File(["x"], "logo2.png", { type: "image/png" }),
+    );
+    await waitFor(() => expect(params().logos).toHaveLength(2));
+    expect(params().logos[1]?.position).toBe("top-right");
+    expect(within(dialog).queryByTestId("upload-logo")).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: /Aggiungi logo/u }),
+    ).toBeNull();
+    // In 9:16 a bottom corner says where it goes.
+    useVideoStudio.getState().update((p) => ({ ...p, aspect: "9:16" }));
+    expect(
+      await within(dialog).findByText(/salgono in alto/u),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Togli il logo 1" }),
+    );
+    expect(params().logos.map((l) => l.position)).toEqual(["top-right"]);
+    expect(within(dialog).getByTestId("upload-logo")).toBeInTheDocument();
+  });
+
   it("uploads a background picture, and refuses files over the limit or of another type", async () => {
     const dialog = studio();
     await userEvent.click(within(dialog).getByRole("tab", { name: "Stile" }));
@@ -413,8 +479,8 @@ describe("Video Studio", () => {
     const album = await within(dialog).findByRole("textbox", { name: "Album" });
     await userEvent.type(album, "Italian rap");
     expect(params().classico.album).toBe("Italian rap");
-    await userEvent.click(within(dialog).getByRole("radio", { name: "Nero" }));
-    expect(params().classico.gramophone).toBe("black");
+    // No gramophone colour any more: Classico draws no built-in marks.
+    expect(within(dialog).queryByText("Grammofono")).toBeNull();
     await userEvent.click(
       within(dialog).getByRole("switch", { name: /Schede/u }),
     );

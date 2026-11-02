@@ -134,6 +134,18 @@ export const VIDEO_TYPES = ["video/mp4", "video/webm"] as const;
 export const MAX_TEXT_LAYERS = 6;
 export const TEXT_SIZE = { min: 12, max: 200, default: 64 } as const;
 
+// The owner's own logos, uploaded in the Stile tab: up to two, each in a corner of the frame.
+// Size is a share of the frame's short side (the logo's longer side), opacity a percentage.
+export const MAX_LOGOS = 2;
+export const LOGO_POSITIONS = [
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+] as const;
+export type LogoPosition = (typeof LOGO_POSITIONS)[number];
+export const LOGO_SIZE = { min: 4, max: 30, default: 12 } as const;
+
 const hexInput = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/u)
@@ -155,6 +167,31 @@ export const TextLayerSchema = z.object({
   color: hexInput,
 });
 export type TextLayer = z.infer<typeof TextLayerSchema>;
+
+export const LogoSchema = z.object({
+  assetUrl,
+  position: z.enum(LOGO_POSITIONS),
+  size: z.number().int().min(LOGO_SIZE.min).max(LOGO_SIZE.max),
+  opacity: percent,
+});
+export type VisualizerLogo = z.infer<typeof LogoSchema>;
+
+export function newLogo(
+  assetUrl: string,
+  taken: readonly VisualizerLogo[] = [],
+): VisualizerLogo {
+  // The first corner no other logo uses, top right first (the usual place of a channel mark).
+  const order: LogoPosition[] = [
+    "top-right",
+    "top-left",
+    "bottom-right",
+    "bottom-left",
+  ];
+  const position =
+    order.find((p) => !taken.some((logo) => logo.position === p)) ??
+    "top-right";
+  return { assetUrl, position, size: LOGO_SIZE.default, opacity: 100 };
+}
 
 export const EffectSchema = z.object({
   id: z.enum(VISUALIZER_EFFECTS),
@@ -226,18 +263,20 @@ export const VisualizerParamsSchema = z.object({
       (list) => new Set(list.map((effect) => effect.id)).size === list.length,
       "duplicate effect",
     ),
-  // The channel template's own lines (MellodifAI Classico); other presets ignore them.
+  // The Testo tab's lines: artist and album (the player-style presets show them too) and the
+  // website line of MellodifAI Classico. Empty by default: no preset shows a name nobody typed.
   classico: z.object({
     artist: z.string().max(40),
     website: z.string().max(40),
     album: z.string().max(40),
-    gramophone: z.enum(["red", "black"]),
     // Intro "ARTIST / PRESENTS", the subscribe callout at 1:30 and the end card.
     cards: z.boolean(),
   }),
   // Added with the catalogue looks: rows saved before them read the defaults.
   look: LookSchema.default(defaultLook),
   badges: BadgesSchema.default(defaultBadges),
+  // Added with the owner's logos (Task 28): rows saved before them have none.
+  logos: z.array(LogoSchema).max(MAX_LOGOS).default([]),
 });
 export type VisualizerParams = z.infer<typeof VisualizerParamsSchema>;
 
@@ -260,17 +299,20 @@ export function defaultVisualizerParams(): VisualizerParams {
     centerImage: { mode: "cover", assetUrl: null, fit: "cover" },
     textLayers: [],
     effects: defaultEffects(),
-    classico: {
-      artist: "AIMELODIA",
-      website: "STEFANDSL.COM",
-      album: "",
-      gramophone: "red",
-      cards: true,
-    },
+    classico: { artist: "", website: "", album: "", cards: true },
     look: defaultLook(),
     badges: defaultBadges(),
+    logos: [],
   };
 }
+
+// The artist and website lines every saved set carried before Task 28, when they were the
+// defaults. A set saved before the logos (no `logos` field) that still holds them exactly was
+// never typed by the user, so it reads as empty; anything else is kept.
+export const LEGACY_DEFAULT_LINES = {
+  artist: "AIMELODIA",
+  website: "STEFANDSL.COM",
+} as const;
 
 function pick<T>(schema: z.ZodType<T>, value: unknown, fallback: T): T {
   const parsed = schema.safeParse(value);
@@ -311,6 +353,46 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
   const bgShape = shape.background.shape;
   const centerShape = shape.centerImage.shape;
   const classicoShape = shape.classico.shape;
+  // Saved before the logos: the old default artist and website lines were never typed.
+  const legacy = !(
+    input &&
+    typeof input === "object" &&
+    "logos" in (input as Record<string, unknown>)
+  );
+  const line = (key: "artist" | "website") => {
+    const value = pick(
+      classicoShape[key],
+      field(classico, key),
+      d.classico[key],
+    );
+    return legacy && value === LEGACY_DEFAULT_LINES[key] ? "" : value;
+  };
+  const savedLogos = field(input, "logos");
+  const logos = (Array.isArray(savedLogos) ? savedLogos : [])
+    .flatMap((item): VisualizerLogo[] => {
+      // Field by field: a logo without a readable file goes, a broken corner, size or opacity
+      // falls back to its default.
+      const url = LogoSchema.shape.assetUrl.safeParse(field(item, "assetUrl"));
+      if (!url.success) return [];
+      const base = newLogo(url.data);
+      return [
+        {
+          assetUrl: url.data,
+          position: pick(
+            LogoSchema.shape.position,
+            field(item, "position"),
+            base.position,
+          ),
+          size: pick(LogoSchema.shape.size, field(item, "size"), base.size),
+          opacity: pick(
+            LogoSchema.shape.opacity,
+            field(item, "opacity"),
+            base.opacity,
+          ),
+        },
+      ];
+    })
+    .slice(0, MAX_LOGOS);
   return {
     preset: pick(shape.preset, field(input, "preset"), d.preset),
     aspect: pick(shape.aspect, field(input, "aspect"), d.aspect),
@@ -345,25 +427,12 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
     textLayers: layers,
     effects,
     classico: {
-      artist: pick(
-        classicoShape.artist,
-        field(classico, "artist"),
-        d.classico.artist,
-      ),
-      website: pick(
-        classicoShape.website,
-        field(classico, "website"),
-        d.classico.website,
-      ),
+      artist: line("artist"),
+      website: line("website"),
       album: pick(
         classicoShape.album,
         field(classico, "album"),
         d.classico.album,
-      ),
-      gramophone: pick(
-        classicoShape.gramophone,
-        field(classico, "gramophone"),
-        d.classico.gramophone,
       ),
       cards: pick(
         classicoShape.cards,
@@ -404,6 +473,7 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
       ),
       text: pick(BadgesSchema.shape.text, field(badges, "text"), d.badges.text),
     },
+    logos,
   };
 }
 

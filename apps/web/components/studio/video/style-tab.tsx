@@ -6,10 +6,28 @@ import {
   COLOR_PRESETS,
   type CoverFit,
   colorPresetOf,
+  LOGO_POSITIONS,
+  LOGO_SIZE,
+  type LogoPosition,
+  MAX_LOGOS,
+  newLogo,
   rerollSeed,
+  type VisualizerLogo,
 } from "@mellodifai/shared";
 import { cn } from "cn";
-import { Loader2, RotateCcw, Shuffle, Upload, X } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowDownRight,
+  ArrowUpLeft,
+  ArrowUpRight,
+  ImagePlus,
+  Loader2,
+  RotateCcw,
+  Shuffle,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -54,10 +72,14 @@ function UploadButton({
   kind,
   label,
   onUploaded,
+  testId,
+  icon,
 }: {
   kind: UploadKind;
   label: string;
   onUploaded: (url: string) => void;
+  testId?: string;
+  icon?: React.ReactNode;
 }) {
   const lang = useLocale();
   const input = useRef<HTMLInputElement>(null);
@@ -70,14 +92,14 @@ function UploadButton({
         onClick={() => input.current?.click()}
         className={SMALL_BUTTON}
       >
-        {busy ? <Loader2 className="animate-spin" /> : <Upload />}
+        {busy ? <Loader2 className="animate-spin" /> : (icon ?? <Upload />)}
         {busy ? st(lang, "vs.uploading") : label}
       </button>
       <input
         ref={input}
         type="file"
         hidden
-        data-testid={`upload-${kind}`}
+        data-testid={testId ?? `upload-${kind}`}
         accept={
           kind === "image"
             ? "image/jpeg,image/png,image/webp"
@@ -151,6 +173,137 @@ function ColorField({
         />
       </div>
     </div>
+  );
+}
+
+const CORNER_ICON: Record<LogoPosition, React.ReactNode> = {
+  "top-left": <ArrowUpLeft />,
+  "top-right": <ArrowUpRight />,
+  "bottom-left": <ArrowDownLeft />,
+  "bottom-right": <ArrowDownRight />,
+};
+
+// The user's own logos (up to MAX_LOGOS): each with its thumbnail, its corner, size and
+// opacity. The frame draws them in every preset and moves them along their side when a corner
+// is taken (packages/shared viz-logos.ts).
+function LogosSection() {
+  const lang = useLocale();
+  const logos = useVideoStudio((s) => s.params.logos);
+  const tall = useVideoStudio((s) => s.params.aspect === "9:16");
+  const update = useVideoStudio((s) => s.update);
+  const change = (i: number, patch: Partial<VisualizerLogo>) =>
+    update((p) => ({
+      ...p,
+      logos: p.logos.map((logo, k) => (k === i ? { ...logo, ...patch } : logo)),
+    }));
+  return (
+    <Section
+      title={st(lang, "vs.logos")}
+      action={
+        logos.length < MAX_LOGOS ? (
+          <UploadButton
+            kind="image"
+            testId="upload-logo"
+            icon={<ImagePlus />}
+            label={st(lang, "vs.addLogo")}
+            onUploaded={(url) =>
+              update((p) => ({
+                ...p,
+                logos: [...p.logos, newLogo(url, p.logos)].slice(0, MAX_LOGOS),
+              }))
+            }
+          />
+        ) : null
+      }
+    >
+      {logos.length === 0 ? (
+        <p className="text-xs leading-5 text-[var(--fg-muted)]">
+          {st(lang, "vs.logosHint")}
+        </p>
+      ) : null}
+      {logos.map((logo, i) => {
+        const name = stf(lang, "vs.logoN", { n: String(i + 1) });
+        return (
+          <fieldset
+            // biome-ignore lint/suspicious/noArrayIndexKey: a logo is its place in the list.
+            key={i}
+            aria-label={name}
+            className="min-w-0 space-y-3 rounded-2xl bg-[var(--surface-2)] p-3"
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className="flex h-11 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-[var(--hairline)]"
+                style={{
+                  background:
+                    "repeating-conic-gradient(#7c7c86 0 25%, #a4a4ad 0 50%) 50% / 10px 10px",
+                }}
+              >
+                {/* biome-ignore lint/performance/noImgElement: a stored upload behind the /media redirect. */}
+                <img
+                  src={logo.assetUrl}
+                  alt={name}
+                  className="max-h-full max-w-full object-contain p-1"
+                />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+                {name}
+              </span>
+              <button
+                type="button"
+                aria-label={stf(lang, "vs.removeLogo", { n: String(i + 1) })}
+                title={stf(lang, "vs.removeLogo", { n: String(i + 1) })}
+                onClick={() =>
+                  update((p) => ({
+                    ...p,
+                    logos: p.logos.filter((_, k) => k !== i),
+                  }))
+                }
+                className={cn(SMALL_BUTTON, "w-7 justify-center px-0")}
+              >
+                <Trash2 />
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[13px]">{st(lang, "vs.logoCorner")}</span>
+              <Segmented<LogoPosition>
+                label={`${name}: ${st(lang, "vs.logoCorner")}`}
+                value={logo.position}
+                size="sm"
+                onChange={(position) => position && change(i, { position })}
+                options={LOGO_POSITIONS.map((position) => ({
+                  value: position,
+                  icon: CORNER_ICON[position],
+                  label: (
+                    <span className="sr-only">
+                      {st(lang, `vs.corner.${position}`)}
+                    </span>
+                  ),
+                }))}
+              />
+            </div>
+            <EditableSlider
+              label={st(lang, "vs.logoSize")}
+              value={logo.size}
+              min={LOGO_SIZE.min}
+              max={LOGO_SIZE.max}
+              display={`${logo.size}%`}
+              onChange={(size) => change(i, { size })}
+            />
+            <EditableSlider
+              label={st(lang, "vs.logoOpacity")}
+              value={logo.opacity}
+              display={`${logo.opacity}%`}
+              onChange={(opacity) => change(i, { opacity })}
+            />
+          </fieldset>
+        );
+      })}
+      {tall && logos.some((logo) => logo.position.startsWith("bottom")) ? (
+        <p className="text-xs leading-5 text-[var(--fg-muted)]">
+          {st(lang, "vs.logosShorts")}
+        </p>
+      ) : null}
+    </Section>
   );
 }
 
@@ -414,6 +567,8 @@ export function StyleTab() {
           </p>
         ) : null}
       </Section>
+
+      <LogosSection />
     </div>
   );
 }

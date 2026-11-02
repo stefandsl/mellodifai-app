@@ -31,13 +31,8 @@ const params = (over: Record<string, unknown> = {}) => ({
   centerImage: { mode: "cover", assetUrl: null },
   textLayers: [],
   effects: [],
-  classico: {
-    artist: "AIMELODIA",
-    website: "STEFANDSL.COM",
-    album: "",
-    gramophone: "red",
-    cards: true,
-  },
+  classico: { artist: "", website: "", album: "", cards: true },
+  logos: [],
   ...over,
 });
 
@@ -389,6 +384,50 @@ describe("request_visualizer", () => {
     });
     expect(withVideo.error).toBeNull();
     await park(withVideo.data as string);
+  });
+
+  it("checks the logos like the centre picture: own pictures only, two at most", async () => {
+    const s = await song();
+    const image = await upload(client, owner, "png", "image/png");
+    expect(image.error).toBeNull();
+    const logo = (assetUrl: string) => ({
+      assetUrl,
+      position: "top-right",
+      size: 12,
+      opacity: 100,
+    });
+    const mine = `/media/uploads/${image.path}`;
+    const ok = await client.rpc("request_visualizer", {
+      p_version: s.id,
+      p_params: params({ logos: [logo(mine), logo(mine)] }),
+    });
+    expect(ok.error).toBeNull();
+    await park(ok.data as string);
+    const theirs = await upload(other, stranger, "png", "image/png");
+    expect(theirs.error).toBeNull();
+    const video = await upload(client, owner, "mp4", "video/mp4");
+    for (const url of [
+      `/media/uploads/${theirs.path}`,
+      `/media/uploads/${owner}/${randomUUID()}.png`,
+      `/media/uploads/${video.path}`,
+      `/media/uploads/stock/visualizer/bg-01.jpg`,
+    ]) {
+      const r = await client.rpc("request_visualizer", {
+        p_version: s.id,
+        p_params: params({ logos: [logo(url)] }),
+      });
+      expect(r.error?.message, url).toContain("invalid visualizer asset");
+    }
+    const missing = await client.rpc("request_visualizer", {
+      p_version: s.id,
+      p_params: params({ logos: [{ position: "top-left" }] }),
+    });
+    expect(missing.error?.message).toContain("invalid visualizer asset");
+    const three = await client.rpc("request_visualizer", {
+      p_version: s.id,
+      p_params: params({ logos: [logo(mine), logo(mine), logo(mine)] }),
+    });
+    expect(three.error?.message).toContain("invalid visualizer params");
   });
 });
 

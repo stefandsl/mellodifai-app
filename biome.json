@@ -7,7 +7,12 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!apps/web/components/ui", "!apps/web/public"]
+    "includes": [
+      "**",
+      "!apps/web/components/ui",
+      "!apps/web/public",
+      "!**/*.md"
+    ]
   },
   "formatter": {
     "enabled": true,
