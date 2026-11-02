@@ -6,6 +6,7 @@ Read these first, in this order:
 3. The design sections the brief points to, in @SPEC@ (revision 6). The design is the binding authority; where the brief and the design disagree, follow the design and say so in your report.
 4. Rulings from the pre-flight scan in @PREFLIGHT@ (its last section) and any "Ruling:" lines in @LEDGER@ that mention your task or the files you touch.
 5. docs/HANDOFF.md for the project rules (disk, keys, credits, stacks).
+6. C:/Users/Asus/.claude/skills/ponytail/SKILL.md and follow it at level "full": the smallest complete change, no unrequested abstractions, a short report.
 
 Then:
 - Implement exactly what the brief specifies, test first where the brief gives tests (write the failing test, see it fail, implement, see it pass).
