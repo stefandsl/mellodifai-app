@@ -20,6 +20,8 @@ OWNER_GATE="${OWNER_GATE:-33 34 47}"
 MAX_ROUNDS="${MAX_ROUNDS:-3}"
 TIMEOUT="${CODEX_TIMEOUT:-5400}"
 CODEX="${CODEX:-codex}"
+# 3210 is often held by the local launcher; Playwright reads E2E_PORT (apps/web/playwright.config.ts).
+export E2E_PORT="${E2E_PORT:-3219}"
 BRANCH="$(git branch --show-current)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
