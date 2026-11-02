@@ -1,9 +1,11 @@
 # MellodifAI Agentic Studio - master design
 
-- **Date:** 2026-11-01, revised 2026-11-02. **Revision:** 5. It answers four goldfish reviews
+- **Date:** 2026-11-01, revised 2026-11-02. **Revision:** 6. It answers five goldfish reviews
   (`docs/egm/agentic-studio/goldfish_review_report.md`, `goldfish_review_round2.md`,
-  `goldfish_review_round3_m1.md`, `goldfish_review_round4_m1.md`); section 28 gives the
-  disposition of every finding and the coordinator's rulings on round 4.
+  `goldfish_review_round3_m1.md`, `goldfish_review_round4_m1.md`,
+  `goldfish_review_round5_m1.md`); section 28 gives the disposition of every finding and the
+  coordinator's rulings on rounds 4 and 5. Round 5 was the last review: what it left is either a
+  revision-6 edit here or a task in `docs/superpowers/plans/2026-11-02-m1-agent-access.md`.
 - **Status:** M1 is ready to plan from 21.2, its single checklist, which points to sections 5, 6,
   7, 11.5, 14.4, 15.1, 19 and 20. Revision 5 made M1 smaller: what agent access does not need
   moved to M2a or W1 (21.2). M2-M6 have their contracts here; each needs its file list written
@@ -272,8 +274,8 @@ where stated:
 
 ### 5.1 One production topology (AC1)
 
-Production is the owner's PC, with these services. Every service runs from the repo checkout
-`C:\Users\Asus\Documents\mellodifai` unless noted; the checkout holds no key material (5.3).
+Production is the owner's PC, with these services. Every service runs from the deploy clone
+`<runtime root>/deploy` (revision 6; below) unless noted; no checkout holds key material (5.3).
 
 | Service | Listens on | Windows account | Can read |
 | --- | --- | --- | --- |
@@ -288,6 +290,18 @@ Production is the owner's PC, with these services. Every service runs from the r
   rights): `apps/web/.env.local` readable by the owner and `mdf-web` only;
   `apps/auth/.env.local` and `<runtime root>/secrets/auth/` by the owner and `mdf-auth` only;
   `apps/worker/.env.local` and every other folder under `<runtime root>/secrets/` by the owner only.
+- **Deploy checkout and runtime root (revision 6, round-5 Major 1).** Production services run from
+  a dedicated clone, `<runtime root>/deploy`, detached at the deployed tag; the owner's development
+  checkout is never used by production. `ops/services.ts acl` removes inheritance on
+  `<runtime root>` (owner and SYSTEM only). `ops/services.ts install` grants `mdf-web` and
+  `mdf-auth` read and execute on the deploy clone and the Node install, write only on
+  `apps/web/.next/cache`, and grants the `cloudflared` service account its own folder. An `icacls`
+  probe, run as each service account, fails the install if either account can read any secret,
+  any file under `<runtime root>/stacks` or `<runtime root>/backups`, or write any path the worker
+  executes from (the deploy clone, `ComfyUI_windows_portable`, `tmp`, worktrees).
+- **Port ownership (revision 6, round-5 Major 26).** `ops/services.ts` checks the owning account of
+  each listening port (3000, 3010, 3080) at start and every 60 seconds, and stops `cloudflared` on a
+  mismatch.
 - Fallback if the owner does not create `mdf-web` and `mdf-auth`: every service runs as the
   owner's account. That voids every ACL claim above, and section 17 records that a compromise of
   Next or `apps/auth` is then a compromise of the PC.
@@ -339,6 +353,11 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
   Firewall rule (owner action) blocking LAN access to 3000, 3001, 3010, 3080, 4007, 8188 and
   54321-54329 is defence in depth against the LAN only; against containers the controls are the
   rotated database passwords and the probe (5.3).
+- **Unauthenticated Supabase services are off in production (revision 6, round-5 Major 2).** The
+  prod render sets `[studio]`, `[inbucket]` and `[analytics]` to `enabled = false`; the probe
+  asserts that 54323, 54324 and 54327 refuse connections from a container and from `mdf-web`.
+  Until SMTP is set up, the owner-run `ops/sign-in-link.ts <email>` prints a local sign-in link
+  (service key, `auth.admin.generateLink`) as the no-SMTP fallback.
 
 ### 5.3 Supabase hardening (M1, before any route goes live)
 
@@ -353,13 +372,24 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
 
    | Value | dev | e2e | CI | prod |
    | --- | --- | --- | --- | --- |
-   | `SITE_URL` (`auth.site_url`, and Next's server-only `SITE_URL`) | `http://127.0.0.1:3000` | `http://127.0.0.1:3210` | `http://127.0.0.1:3210` | `https://app.mellodifai.com` |
-   | `additional_redirect_urls` | `http://127.0.0.1:3000/**`, `http://localhost:3000/**` | `http://127.0.0.1:3210/**` | `http://127.0.0.1:3210/**` | `https://app.mellodifai.com/**`, `http://127.0.0.1:3000/**`, `http://localhost:3000/**` |
-   | API port (and neighbours) | 54321 | 45621 | 54321 | 54321 |
-   | SMTP | mail catcher | mail catcher (45624) | mail catcher (54324) | the owner's SMTP sender (owner action) |
+   | `project_id` (revision 6, round-5 Major 17) | `mellodifai_dev` | `mellodifai_e2e` | `mellodifai_ci` | `mellodifai` (today's live stack, unchanged) |
+   | `SITE_URL` (`auth.site_url`, and Next's server-only `SITE_URL`) | `http://127.0.0.1:3001` (revision 6, round-5 Major 18) | `http://127.0.0.1:3210` | `http://127.0.0.1:3210` | `https://app.mellodifai.com` |
+   | `additional_redirect_urls` | `http://127.0.0.1:3001/**`, `http://localhost:3001/**` | `http://127.0.0.1:3210/**`, `http://127.0.0.1:3212/**` | `http://127.0.0.1:3210/**`, `http://127.0.0.1:3212/**` | `https://app.mellodifai.com/**`, `http://127.0.0.1:3000/**`, `http://localhost:3000/**` |
+   | OAuth issuer (`apps/auth`, revision 6, round-5 Major 16) | not run (OAuth is tested on the e2e topology) | `http://127.0.0.1:3212/oauth` | `http://127.0.0.1:3212/oauth` | `https://app.mellodifai.com/oauth` |
+   | Port block: API, db, Studio, mail catcher, analytics (revision 6) | 55321, 55322, 55323, 55324, 55327 | 45621, 45622, 45623, 45624, 45627 | 54321, 54322, 54323, 54324, 54327 | 54321, 54322, Studio off, mail catcher off, analytics off |
+   | SMTP | mail catcher | mail catcher (45624) | mail catcher (54324) | the owner's SMTP sender (owner action); `email_sent = 30` per hour |
    | `signing_keys_path` | throwaway key in the stack folder | throwaway key in the stack folder | throwaway key in `$RUNNER_TEMP` | `<runtime root>/secrets/supabase/signing_keys.json` |
+   | `jwt_secret` | default | default | default | `env(MDF_SUPABASE_JWT_SECRET)`, read from `<runtime root>/secrets/supabase/` at start; never written into the stack folder (revision 6, round-5 Major 1) |
    | `[auth.sessions]` | default | default | default | `timebox = "168h"`, `inactivity_timeout = "24h"` |
-   | `app.fake_stack` database setting | off | on | on | off (the deploy refuses to run if on) |
+   | `public.stack_settings.fake_stack` (revision 6, replaces the `app.fake_stack` database setting; round-5 Major 3) | off | on | on | off (the deploy refuses to run if on) |
+
+   **Revision 6 (round-5 Major 17).** `ops/stack.ts` refuses `reset`, `db reset` and
+   `stop --no-backup` on the project id `mellodifai`; the only path that may reset the production
+   database is `ops/restore.ts` (20). Moving today's live stack under `--workdir
+   <runtime root>/stacks/prod` is a one-time cutover, `ops/cutover.ts`: data backup, stop, render
+   with the same `project_id`, start with `--workdir`, compare the row count of every `public`,
+   `auth` and `storage` table with the counts taken before the stop, and refuse to continue on any
+   difference.
 
 2. **Signing key outside the checkout (ruling 4).** `ops/rotate-supabase-keys.ts` generates an
    ES256 key with `supabase gen signing-key --algorithm ES256` directly into
@@ -369,7 +399,8 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
    `apps/worker/.env.local` (`SUPABASE_SERVICE_ROLE_KEY`) and `apps/web/.env.local`
    (`NEXT_PUBLIC_SUPABASE_ANON_KEY`). `ops/check-no-keys.ts` (run in CI, by `ops/deploy.ts` and by a
    pre-commit hook) fails when a file named `signing_keys*.json` or `*jwks*.json`, or a JSON file
-   holding a private JWK (`"d":`), exists anywhere in the working tree, tracked or not. Exit test: a
+   holding a private JWK (`"d":`), exists anywhere in the working tree, tracked or not; from
+   revision 6 it also scans `<runtime root>/stacks/` (round-5 Major 1). Exit test: a
    `service_role` JWT signed with the public demo secret is refused by the local gateway.
 3. **Every database login password rotated (ruling 8).** Spike 2 lists every login role in the
    pinned Supabase Postgres image (`select rolname from pg_roles where rolcanlogin`; expected at
@@ -385,6 +416,13 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
    container on Docker's default bridge network, a login to `host.docker.internal:54322` as every
    listed role with the default password `postgres` must fail; so must `mdf_web` and `mdf_auth`
    without their passwords. M1 does not exit until it does.
+   **Revision 6 (round-5 Major 20).** The CLI recreates its service containers with built-in
+   credentials on every `supabase start`, so `ops/services.ts start` (and `ops/deploy.ts`) re-apply
+   the stored passwords and run the probe on every start, and refuse to start `cloudflared` when the
+   probe fails. If spike 2 takes the compose fallback, its write-up gives the compose equivalent of
+   `supabase gen signing-key`, `status -o json`, `signing_keys_path`, the email template's
+   `content_path`, `[auth.sessions]` and the restore's stop and start before step 1 of the plan
+   starts.
 4. `[auth] enable_signup = false` stays (`config.toml:177`).
 5. Postiz gets `DISABLE_REGISTRATION=true` in M4.
 
@@ -392,14 +430,19 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
 
 - `components/login-form.tsx` calls the server action `sendSignInLink(email, next)` (wrapped by
   `remoteAction`). It validates `next` (below), builds `emailRedirectTo` per request with
-  `lib/redirect-url.ts` (the local origin `http://127.0.0.1:3000` for a local request, `SITE_URL`
-  for a remote one, then `/auth/confirm?next=<encoded next>`), and runs `signInWithOtp` with
+  `lib/redirect-url.ts` (revision 6, round-5 Major 18: the request's own origin for a local
+  request, accepted only when it matches that environment's `additional_redirect_urls` (5.3) and
+  refused otherwise; `SITE_URL` for a remote one; then `/auth/confirm?next=<encoded next>`), and
+  runs `signInWithOtp` with
   `shouldCreateUser: false` on the server. It answers the same way whether or not the email is
   allowlisted, and limits 5 calls per 15 minutes per email.
 - **Email template** `supabase/templates/magic_link.html` (Create; named in the rendered config as
   `[auth.email.template.magic_link] content_path`): its link is
   `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`, so the link always returns to the
-  origin the request came from (ruling 6).
+  origin the request came from (ruling 6). **Revision 6 (round-5 Major 15):** the email also
+  carries the 6-digit `{{ .Token }}`, and `/login` accepts that code (`verifyOtp`, type `email`), so
+  an owner whose mail app opens links in another browser signs in inside the browser that started
+  the OAuth flow; the README states that the link only works in the starting browser.
 - `app/auth/confirm/route.ts` (Modify) accepts `token_hash` plus `type` (`verifyOtp`) or `code`
   (`exchangeCodeForSession`), then redirects to the validated `next`.
 - **`next` rule:** a relative path. Remote requests accept only `/consent?uid=<id>`; local
@@ -588,6 +631,18 @@ returns `{"ok": true, "data": ...}` or `{"ok": false, "code": ..., "message": ..
    runs) and writes an `error` audit row. **On success** it writes an `ok` audit row. Then it
    clears the three claim settings and `mdf.job_ctx`.
 
+**Revision 6 (round-5 Major 3): caller-settable settings are never trusted.** Every `ops` function,
+reads included, starts by resetting `mdf.job_ids`, `mdf.job_ctx` and the three claim settings
+locally, and carries `set timezone = 'UTC'`, so session recency is compared in UTC whatever the
+caller's `TimeZone`. Read functions filter only by the actor id resolved in step 1 and never call a
+helper that reads `auth.uid()`. The fake-stack switch is the row `public.stack_settings.fake_stack`,
+writable only by `postgres` (15.1); a transaction-local `mdf.force_caps = 'on'` may turn real caps
+on for one transaction (the database tests use it) but nothing can turn them off.
+
+**Revision 6 (round-5 Major 21): `jobs_stamp_ctx` on context-free updates.** When `mdf.job_ctx` is
+unset (the worker's PostgREST requeues), the trigger does nothing. When it is set, it never flips
+`fake_providers` from true to false and never sets `token_id` to null.
+
 `request_hash` is the SHA-256 of the canonical JSON (keys sorted, no whitespace) of
 `{"op": <operation>, "input": <validated input>}`.
 
@@ -607,7 +662,20 @@ returns `{"ok": true, "data": ...}` or `{"ok": false, "code": ..., "message": ..
 | `rate_limited` | 429 | rate limit (`retry_after`) |
 | `internal` | 500 | anything unmapped |
 
-`ops.map_error(sqlstate, message)`, rules in order (first match wins):
+**`MDF` SQLSTATEs (revision 6, round-5 Major 11).** `ops.map_error` checks the SQLSTATE before any
+message rule, so rule 7 below runs first:
+
+| SQLSTATE | Condition | Public code | `details.reason` |
+| --- | --- | --- | --- |
+| `MDF01` | idempotency key missing for a token actor | `validation` | `idempotency_key_required` |
+| `MDF02` | a cap refused a reservation or an extension | `cap_exceeded` | `cap` (plus scope, provider, unit, period) |
+| `MDF03` | claim mismatch (`auth.uid()` differs from the actor) or `oauth_upsert` refusal | `unauthorized` | `claim` or `consent` |
+| `MDF04` | test rule (test token on a real version, or the reverse) | `forbidden_scope` | `test_rule` |
+| `MDF05` | price missing | `internal` | `price_missing` |
+| `MDF06` | no cap row (fail closed, 11.5), including a token without its token cap row | `cap_exceeded` | `no_cap` |
+| `MDF07` | spend entry beyond what the reservation charged and the extension was refused (11.5) | `cap_exceeded` | `entry_beyond_reservation` |
+| `MDF08`-`MDF12` | reserved; any use needs a row here first | - | - |
+
 1. `authentication required`, `profile required` -> `unauthorized`.
 2. `admin required`, `local engines are admin only` -> `forbidden_scope`.
 3. `owned % required`, `% not found`, `render missing`, `source take required`,
@@ -634,8 +702,12 @@ text of the functions reached, and fails if one maps to `internal`.
 
 - `mdf_web`, cookie operations (every server action, one wrapper each): the M1 rows of 7.3 plus
   `ops.style_format_check` and `ops.transcribe_check` (rate and role checks for the two web-side
-  tools, 11.5), `ops.take_save_edit`, `ops.song_import`, `ops.song_source_set`, the playlist,
-  reaction, rename, trash, restore and play wrappers, the section-edit wrappers.
+  tools, 6.7), `ops.take_save_edit`, `ops.song_import`, `ops.song_source_set`, the playlist,
+  reaction, rename, trash, restore and play wrappers, the section-edit wrappers, and (revision 6,
+  round-5 Major 24) `ops.audio_keep` (the `keep_audio` action; it may enqueue `timing`, which
+  reserves Groq by the 11.5 rule), `ops.take_choose` (the `choose_take` action, next to the
+  section-edit wrappers). The older `create_project` action is routed to
+  `ops.admin_project_create`.
 - `mdf_web`, token operations: exactly the rows of 7.3 whose MCP tool is not "none".
 - `mdf_web`, admin (cookie, admin, local): `ops.admin_token_create`, `ops.admin_token_revoke`,
   `ops.admin_tokens_list`, `ops.admin_flag_set`, `ops.admin_pairing_open`,
@@ -681,24 +753,38 @@ Windows account `mdf-auth` (ruling 5) on `127.0.0.1:3010`. Wiring (confirmed in 
   resource indicators required and limited to `https://app.mellodifai.com/api/mcp`, opaque access
   tokens (the library's default random format; 1 h) and rotating refresh tokens (30 days); no
   custom token prefix;
-- `interactions.url` returns `/consent?uid=<uid>`; the resume route is `apps/auth`'s own handler at
-  `/oauth/interaction/:uid/resume`, which calls `provider.interactionFinished`; the library's
-  interaction cookies are scoped to path `/oauth`;
+- the issuer is per environment (5.3 table, revision 6), read from `MDF_AUTH_ISSUER`;
+- **revision 6 (round-5 Major 13):** `interactions.url` returns `/oauth/interaction/<uid>`, served
+  by `apps/auth`, so the library's interaction cookie is scoped under `/oauth` and reaches the
+  resume route. That handler sets `mdf_flow`, stores `sha256(nonce)` through
+  `ops.oauth_flow_nonce_set(uid, nonce_hash)` (the interaction row already exists, because the
+  library saves it before computing the URL), and redirects to `/consent?uid=<uid>`. The resume
+  route is `apps/auth`'s own handler at `/oauth/interaction/:uid/resume`, which calls
+  `provider.interactionFinished`. Spike 1 confirms the cookie reaches the resume route;
 - keys: ID-token signing keys in `<runtime root>/secrets/auth/jwks.json` (generated by
   `ops/rotate-auth-keys.ts`, readable by the owner and `mdf-auth` only); cookie keys
   `MDF_AUTH_COOKIE_KEYS` and `MDF_AUTH_DATABASE_URL` in `apps/auth/.env.local`.
 
 **Pairing window (registration only on purpose).** Dynamic registration is accepted only while a
 pairing window is open: the admin clicks "Collega un agente" ("Connect an agent") in Settings >
-Agenti on the PC, which calls `ops.admin_pairing_open()` and opens a 10-minute window; `apps/auth`
-checks it with `ops.oauth_registration_open()` before accepting a registration. The edge proxy
+Agenti on the PC, which calls `ops.admin_pairing_open(p_ctx)` and opens a 10-minute window;
+`apps/auth` claims it with `ops.oauth_registration_claim(...)` (revision 6, below) before accepting
+a registration. The edge proxy
 also limits registrations to 10 per hour per `cf-connecting-ip`. Redirect URIs must be on
 `apps/auth/redirect-allowlist.json` (the claude.ai and ChatGPT connector callbacks recorded by the
 spike, and `http://127.0.0.1:<port>/...` or `http://localhost:<port>/...` for local clients).
+**Revision 6 (round-5 Major 27):** `apps/auth` calls `ops.oauth_registration_claim(client_id,
+client_name, redirect_uris)` instead of a read-only check; it accepts the registration only while
+the window is open and closes the window in the same statement, so the first successful
+registration ends it. Settings > Agenti shows that client (name, redirect host, time) next to the
+pairing button for the admin to confirm. A client whose redirect URIs are all loopback may get a
+consent only from a local request (`ops.oauth_consent` refuses it with `forbidden_scope` when
+`remote` is true).
 
 **Flow binding (ruling 7).** When `apps/auth` starts an interaction it sets a cookie `mdf_flow`
 (random 256-bit nonce, `HttpOnly`, `Secure` on the public host, `SameSite=Lax`, path `/`, 15
-minutes) and stores `sha256(nonce)` on the interaction through `ops.oauth_upsert`. The consent page
+minutes) and stores `sha256(nonce)` on the interaction through `ops.oauth_flow_nonce_set` (revision
+6; see the wiring above). The consent page
 and the resume both require that cookie:
 1. `/consent?uid=...` requires the Supabase session (via `/login?next=/consent?uid=...`) and the
    `mdf_flow` cookie; it calls `ops.oauth_consent_info(p_ctx, uid, nonce)`, which returns
@@ -711,7 +797,10 @@ and the resume both require that cookie:
    `ops.oauth_consent(p_ctx, uid, nonce, scopes, test_mode)`. It refuses non-admin owners and
    writes, in one transaction, the consent row (`oauth_consents`: uid, user, client id, scopes,
    test mode, nonce hash, `used_at` null), the `agent_tokens` row (kind `oauth`, `remote = true`,
-   `expires_at` 90 days) and its `spend_caps` token row (1 USD per day).
+   `expires_at` 90 days) and its `spend_caps` token row (1 USD per day). **Revision 6 (round-5
+   Major 14):** in the same transaction it first revokes every live or unbound OAuth row of the
+   same owner and client (expired or abandoned ones included) and deletes their `oauth_store`
+   rows, so `agent_tokens_one_grant` never blocks a reconnect.
 3. `/oauth/interaction/:uid/resume` requires the same `mdf_flow` cookie; `apps/auth` calls
    `ops.oauth_interaction_result(uid, nonce)`, which returns the decision only if the nonce hash
    matches and `used_at` is null, and sets `used_at` (single use). `apps/auth` then creates its
@@ -723,18 +812,22 @@ refuses.
 
 **Storage and what `mdf_auth` may do (ruling 5).** `mdf_auth` may call only:
 `ops.oauth_find(model, id_hash)`, `ops.oauth_find_by_uid(uid)`, `ops.oauth_upsert(model, id_hash,
-payload, grant_id, uid, expires_at, flow_nonce_hash)`, `ops.oauth_consume(model, id_hash)`,
+payload, grant_id, uid, expires_at)`, `ops.oauth_consume(model, id_hash)`,
 `ops.oauth_destroy(model, id_hash)`, `ops.oauth_revoke_by_grant(grant_id)`,
-`ops.oauth_registration_open()`, `ops.oauth_interaction_result(uid, nonce)`,
+`ops.oauth_registration_claim(client_id, client_name, redirect_uris)`,
+`ops.oauth_flow_nonce_set(uid, nonce_hash)`, `ops.oauth_interaction_result(uid, nonce)`,
 `ops.oauth_bind_grant(uid, grant_id)`. Rules inside them:
 - ids are stored as SHA-256 hashes, and the payload is stored without `jti` (which equals the
   opaque token value); the spike confirms the adapter works with the hash as its lookup key;
-- `ops.oauth_upsert` for `AuthorizationCode`, `AccessToken` and `RefreshToken` accepts the row only
-  when the grant matches a stored, used consent row with the same client id, uid, nonce hash and
-  scopes (a subset), the grant row is live and not revoked, and `expires_at` is at most the
-  configured lifetime (1 h, 30 days, 10 minutes for codes); otherwise it raises `MDF03`. A
-  compromised `apps/auth` can therefore issue tokens only for consents a user actually gave in the
-  browser that started the flow.
+- **revision 6 (round-5 Major 12):** uid and nonce are checked only where they exist, on
+  `Interaction` rows (`oauth_flow_nonce_set`, `oauth_interaction_result`). For
+  `AuthorizationCode`, `AccessToken` and `RefreshToken`, `ops.oauth_upsert` accepts the row only
+  when its `grant_id` joins to an `agent_tokens` row (bound once by `oauth_bind_grant`) whose
+  `oauth_consents` row has `used_at` set, with the same client id, the payload's scopes a subset
+  of the consent's, the grant row live and not revoked, and `expires_at` at most the configured
+  lifetime (1 h, 30 days, 10 minutes for codes); otherwise it raises `MDF03`. A compromised
+  `apps/auth` can therefore mint tokens only for live grants that came from a used consent, up to
+  each grant's scopes and its token cap.
 
 **Resource server.** `/api/mcp` serves Protected Resource Metadata at
 `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp`, and
@@ -783,7 +876,7 @@ format:** `mdf_pat_` plus 32 random bytes in base62. Next generates it
 4 characters) to `ops.admin_token_create`, and shows the full token once. A PAT is local-only
 unless created with "remote" ticked, which requires an expiry (default 90 days). Every token gets
 its `spend_caps` row when it is created (`ops.admin_token_create`, `ops.oauth_consent`), and a
-token actor without a token cap row is refused (`MDF03`).
+token actor without a token cap row is refused (`MDF06`, revision 6, round-5 Major 11).
 
 **Settings > Agenti** (`app/(app)/settings/agents/page.tsx`, admin only, local only): a table of
 tokens (name, kind, hint, scopes, remote, test, expires, last used, revoked) from
@@ -800,6 +893,11 @@ remaining pairing time. Every action returns the normal `ActionResult` and refre
 - In the edge proxy, per `cf-connecting-ip`: `/oauth/*` 60 per minute, registrations 10 per hour,
   `/login` posts 5 per 15 minutes, `/api/*` 120 per minute.
 - The per-email sign-in limit lives in `sendSignInLink` (5.4).
+- **Web-side tools (revision 6, round-5 Major 23).** `ops.style_format_check(p_ctx)` and
+  `ops.transcribe_check(p_ctx)` count calls per user in `public.web_tool_usage` (Europe/Rome day):
+  customers get 20 style formats and 10 transcriptions per day; admins are bound only by the
+  per-minute rates above; a refusal returns `rate_limited` with `retry_after` set to the seconds
+  until the next Rome midnight.
 
 ### 6.8 Untrusted content (prompt injection boundary)
 
@@ -832,8 +930,9 @@ a model derives from them (the blueprint and the meaning map). Rules:
 - The worker uses `fakeStages` when the process has `WORKER_FAKE=1` (the existing variable,
   `main.ts:126,150,160`, `workspace.ts:36`; e2e and the gate set it) or the job has
   `fake_providers = true`.
-- On a stack whose database has `app.fake_stack = on` (e2e, CI; 5.3), `ops.reserve_job` creates no
-  reservation, so e2e jobs never meet caps.
+- On a stack whose `public.stack_settings.fake_stack` is on (e2e, CI; 5.3; revision 6),
+  `ops.reserve_job` creates no reservation, so e2e jobs never meet caps, unless the transaction set
+  `mdf.force_caps = 'on'` (the ledger database tests, 6.3.4).
 - `purge_test_runs` trashes test versions after 7 days (14.4).
 
 ## 7. Operations layer, HTTP API, CLI and MCP
@@ -1496,7 +1595,9 @@ empties `spend_caps` and expects every paid wrapper to return `cap_exceeded` wit
 ```sql
 ops.reserve_job(p_job uuid) returns uuid                 -- called by the wrappers and worker_enqueue
   -- 1. estimate = ops.job_spend_rule(p_job): setof (provider, model, items); empty for fake jobs,
-  --    on an app.fake_stack database, and for free stages -> no reservation, return null;
+  --    on a stack_settings.fake_stack database unless mdf.force_caps is on (revision 6), and for
+  --    free stages -> no reservation, return null; idempotent per job (an open reservation of the
+  --    same job is returned, not duplicated);
   -- 2. price every item (lookup above); collect matching cap rows (fail closed above);
   -- 3. insert the needed spend_counters rows in sorted order (scope, key, provider, unit, period,
   --    window_start) with "on conflict do nothing", then select them "for update" in the same
@@ -1510,11 +1611,16 @@ ops.extend_reservation(p_reservation uuid, p_provider text, p_model text, p_item
 ops.spend_entry_open(p_reservation uuid, p_call_key text, p_provider text, p_model text,
                      p_items_est jsonb) returns uuid
   -- before a paid call; idempotent on (reservation, call_key): a re-run gets the same entry id.
+  -- Revision 6 (round-5 Major 8): refuses with MDF07 when the provider's open plus settled
+  -- estimates would exceed what the reservation charged for that provider; the caller then calls
+  -- extend_reservation (which may refuse with MDF02) and opens again.
 ops.settle_spend(p_entry uuid, p_items jsonb, p_usd numeric default null) returns void
-  -- after the call; actual items, priced (or the provider-reported USD, bounded to between 0 and
-  -- 3 times the entry's estimate); a second settle of the same entry is a no-op. If the
-  -- reservation's settled total for that provider now exceeds what it charged, the excess is
-  -- charged to the same counters (no refusal: the money is spent).
+  -- after the call; actual items, priced (or the provider-reported USD). Revision 6 (round-5
+  -- Major 8): records the actual amount with no clamp, rejects only a negative amount, and sets
+  -- spend_entries.over_estimate when the actual exceeds 3 times the estimate (costs_get lists
+  -- those). A second settle of the same entry is a no-op. If the reservation's settled total for
+  -- that provider now exceeds what it charged, the excess is charged to the same counters (no
+  -- refusal: the money is spent).
 ops.mark_ambiguous(p_reservation uuid) returns void        -- worker, synchronously (below)
 ops.close_reservation(p_reservation uuid) returns void     -- internal; the close rule below
 ops.expire_reservations() returns integer                  -- scheduler task (14.4)
@@ -1526,8 +1632,8 @@ ops.job_spend_rule(p_job uuid) returns setof record        -- internal
 | Stage | Reserves | Nothing when |
 | --- | --- | --- |
 | `draft_lyrics` | OpenRouter: the `draft_lyrics` estimate | - |
-| `generate_song` | kie: generate, cover or extend credits (by the version's source); Groq: two takes | engine local (ACE-Step, YuE2): Groq only; `versions.kie_task_id` set (resume): Groq only |
-| `replace_section` | kie: replace credits | engine local; `section_edits.kie_task_id` set (resume) |
+| `generate_song` | kie: generate, cover or extend credits (by the version's source); Groq: two takes | engine local (ACE-Step, YuE2): Groq only; resume (revision 6, round-5 Major 5: `versions.kie_task_id is not null and versions.kie_generation = versions.generation_count`; a task id left over from an earlier generation is not a resume): Groq only |
+| `replace_section` | kie: replace credits | engine local; resume (`section_edits.kie_task_id` set on the edit row the job names) |
 | `import_audio`, `timing` | Groq: one take | - |
 | other stages | - | always |
 
@@ -1536,7 +1642,18 @@ operation:
 - Paid calls (each gets `spend_entry_open` before and `settle_spend` after): kie `generate`,
   `cover`, `extend`, `replace` submits (call key `kie:<op>:<attempt>`; settled at submit
   acceptance, right after the worker writes `kie_task_id`); every OpenRouter chat or decision call
-  (`openrouter:<role>:<round>:<n>`); every Groq transcription (`groq:<take id>`).
+  (`openrouter:<role>:<round>:<n>:a<attempt>`); every Groq transcription
+  (`groq:<take id>:a<attempt>`). **Revision 6 (round-5 Major 7):** `<attempt>` is `jobs.attempts`
+  (already incremented by `claim_job`), so a requeue, `retryLater` or crash restart opens new
+  entries; every attempt after the first calls `extend_reservation` for that stage's estimate
+  before its first paid call, so a crash loop meets the caps. The kie submit key stays per attempt
+  as before, and the never-resend rule (2.2) is unchanged.
+- **Existing guards stay (revision 6, round-5 Major 25).** `kie/guard.ts` (refuses `.test` owners
+  unless `ALLOW_TEST_KIE=1`) and `LYRICS_DAILY_CAP` in `draft-lyrics.ts` remain as extra layers
+  next to the ledger.
+- **A refused extension in `draft_lyrics` (revision 6, round-5 Major 10):** the stage keeps the
+  best draft so far, stores the jury result with `incomplete: true`, and finishes the job (it does
+  not fail it).
 - Free calls (they carry the key and no entry; listed in `FREE_KEY_CALLS` in
   `apps/worker/src/providers/paid.ts`): kie `credit` (balance), `job` and `record-info` (status),
   `wait`, `lyrics-ts`, `upload`, download of results; the worker's periodic balance refresh in
@@ -1570,7 +1687,11 @@ operation:
    happened) at its estimate;
 2. for a kie stage whose submit state (`versions.kie_submit_state` for `generate_song`,
    `section_edits.kie_submit_state` for `replace_section`) is `submitted` with a task id but no
-   submit entry, writes the submit entry at the estimate;
+   submit entry, writes the submit entry at the estimate. **Revision 6 (round-5 Major 6):** steps 2
+   and 3 apply only to a reservation that reserved the kie submit (`reservations.kie_submit_reserved`)
+   and only while the version's `kie_generation` still equals the reservation's `kie_generation`
+   (for `replace_section`, while the edit row is the reservation's `section_edit_id`); a Groq-only
+   job, a resume job or a cancelled job that never submitted gets no kie entry;
 3. if that submit state is `submitting` (outcome unknown), sets the reservation `ambiguous` and
    stops: its charges stay counted until `ops.admin_resolve_kie_submission` records the outcome
    (charged: a submit entry at the estimate; not charged: none) and closes it;
@@ -1581,9 +1702,14 @@ The worker calls `ops.mark_ambiguous` itself, before failing a kie stage whose s
 closes its reservation by the same rule. Queued jobs of trashed songs keep their reservations
 (restore resumes them); `purge_test_runs` cancels the jobs of the test versions it trashes.
 
+**Normal close (revision 6, round-5 Major 9).** An `after update of status` trigger on `jobs`
+(`jobs_close_reservation`) calls `ops.close_reservation` when the status becomes `done`, `failed`
+or `cancelled`. `close_reservation` locks the reservation row and does nothing unless it is still
+`open`, so the trigger, `job_cancel` and the expiry task never close twice.
+
 **Orphans only (ruling 1).** `ops.expire_reservations` (every 5 minutes) closes reservations that
-are still `open` and whose job is terminal or gone. It never touches the reservation of a `queued`
-or `running` job.
+are still `open` and whose job is terminal or gone (crashes, deleted jobs). It never touches the
+reservation of a `queued` or `running` job.
 
 **Web-side tools.** `formatStyle` and `/api/transcribe` are not metered by the ledger in M1 (7.4);
 they move into it in M2a, with their token tools.
@@ -1599,12 +1725,21 @@ job.
 **Tests.** A worker integration test (`apps/worker/test/ledger-integration.test.ts`) runs the real
 `generate_song`, `replace_section` and `draft_lyrics` stage code against fake kie, OpenRouter and
 Groq HTTP servers (base URLs from env: `KIE_API_BASE`, `OPENROUTER_BASE_URL`, `GROQ_BASE_URL`, an
-M1 change in the worker and the engine scripts) on the e2e stack with `app.fake_stack` off for that
-test: a normal run, a crash after the kie submit and before the settle, a requeue, a `retryLater`, a
-resume after `resolve_kie_submission`, and a cancel. After each, the counters must equal the
-settled spend (plus open entries at estimate), and every reservation must be `closed` or
-`ambiguous` as expected. Plus the database tests: empty caps (fail closed), 20 parallel
-reservations on a fresh window, a missing price, the per-dimension fallback.
+M1 change in the worker and the engine scripts) on the e2e stack: a normal run, a crash after the
+kie submit and before the settle, a requeue, a `retryLater`, a resume after
+`resolve_kie_submission`, and a cancel. After each, the counters must equal the settled spend
+(plus open entries at estimate), every reservation must be `closed` or `ambiguous` as expected, and
+(revision 6, round-5 Major 7) the spend entries must equal the calls the fake servers observed.
+Plus the database tests: empty caps (fail closed), 20 parallel reservations on a fresh window, a
+missing price, the per-dimension fallback.
+
+**Revision 6 (round-5 Majors 4 and 25): how the ledger tests run.** The database ledger tests set
+`mdf.force_caps = 'on'` inside their own transactions (6.3.4), so they run on the shared fake
+stack. The integration test has its own vitest config and script (`pnpm test:ledger`), outside the
+worker's `pnpm test`; it needs the engine repo, so it is a local Windows gate on the owner's PC
+(listed in the done-when), not a CI job. It reads the engine path from `MELLODIFAI_ENGINE_ROOT`
+(25), sets `ALLOW_TEST_KIE=1` with `KIE_API_BASE` pointed at the fake server, and the engine-repo
+change lands first with its commit recorded in the plan.
 
 ### 11.6 Per-video budget (standard tier, AC7)
 
@@ -2008,8 +2143,24 @@ create table public.oauth_consents (
 );                                                                      -- no grants
 
 create table public.oauth_pairing (
-  id boolean primary key default true check (id), open_until timestamptz
+  id boolean primary key default true check (id), open_until timestamptz,
+  -- revision 6 (round-5 Major 27): the client that claimed the window, shown in Settings > Agenti
+  client_id text, client_name text, redirect_host text, registered_at timestamptz,
+  loopback_only boolean
 );                                                                      -- no grants; one row
+
+-- revision 6 (round-5 Major 3): the fake-stack switch, writable only by postgres
+create table public.stack_settings (
+  id boolean primary key default true check (id), fake_stack boolean not null default false
+);                                                                      -- no grants; one row
+
+-- revision 6 (round-5 Major 23): per-user daily counts of the web-side tools
+create table public.web_tool_usage (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  tool text not null check (tool in ('style_format','transcribe')),
+  day date not null, used integer not null default 0,
+  primary key (user_id, tool, day)
+);                                                                      -- no grants
 
 create table public.idempotency_keys (
   actor_key text not null, key text not null check (length(key) between 8 and 100),
@@ -2095,6 +2246,9 @@ create table public.reservations (
   estimate jsonb not null,                        -- [{provider, model, items, usd}]
   charges jsonb not null default '[]',            -- [{scope,key,provider,unit,period,window_start,amount}]
   state text not null default 'open' check (state in ('open','ambiguous','closed')),
+  -- revision 6 (round-5 Major 6): what the close rule's kie steps may act on
+  kie_submit_reserved boolean not null default false,
+  kie_generation integer, section_edit_id uuid,
   created_at timestamptz not null default now(), closed_at timestamptz
 );
 create index on public.reservations (state) where state <> 'closed';
@@ -2107,6 +2261,7 @@ create table public.spend_entries (
   items_est jsonb not null, usd_est numeric(10,4) not null,
   items jsonb, usd numeric(10,4),
   state text not null default 'open' check (state in ('open','settled')),
+  over_estimate boolean not null default false,   -- revision 6 (round-5 Major 8): actual > 3x estimate
   created_at timestamptz not null default now(), settled_at timestamptz,
   unique (reservation_id, call_key)
 );
@@ -2119,7 +2274,8 @@ alter table public.jobs
   add column priority smallint not null default 0,
   add column fake_providers boolean not null default false;
 -- triggers on jobs: jobs_stamp_ctx (before insert or update, 6.3.4), jobs_set_resource_class
--- (before insert, from the stage map), jobs_mark_reservation_gone (before delete: sets job_gone on its reservation)
+-- (before insert, from the stage map), jobs_mark_reservation_gone (before delete: sets job_gone on its reservation),
+-- jobs_close_reservation (after update of status, revision 6, 11.5)
 
 -- migration ops_lockdown: the revokes of 6.3.2 (last; 21.2)
 ```
@@ -2168,7 +2324,8 @@ alter table public.jobs
 | Private services exposed by the tunnel | tunnel | medium / critical | Edge-proxy path allowlist, catch-all 404, firewall rule (5.2) | M1 |
 | OAuth token used against Supabase | OAuth | eliminated by design | Opaque tokens from `apps/auth` (6.4) | M1 |
 | Compromised Next process | web | low / high | Runs as `mdf-web`. It holds `MDF_WEB_DATABASE_URL`, its own OpenRouter and Groq keys (7.4) and the cookies of active users. Through `mdf_web` it can call only the `ops` functions of 6.3.6, so every write passes scope, cap, reservation, audit, test and claim checks (6.3.4); it can act for a cookie user only with a session id refreshed in the last 65 minutes, and it can claim `remote = false`, so with an active admin session it can perform admin operations: that is the residual risk, bounded by the session recency and the production session timebox. It cannot read the worker's secrets, the Supabase signing key or `apps/auth`'s keys (5.1, 5.3). If the owner keeps every service under his own account (5.1 fallback), a compromise of Next is a compromise of the PC. | M1 |
-| Compromised `apps/auth` | auth | low / medium | Runs as `mdf-auth` (ruling 5). It holds `MDF_AUTH_DATABASE_URL` and its ID-token keys; `mdf_auth` can call only the `ops.oauth_*` functions, and `ops.oauth_upsert` issues codes and tokens only for grants that match a used consent row (client, uid, nonce, scopes) given in the browser that started the flow (6.4). It cannot act for users or read Next's env file. | M1 |
+| Compromised `apps/auth` | auth | low / medium | Runs as `mdf-auth` (ruling 5). It holds `MDF_AUTH_DATABASE_URL` and its ID-token keys; `mdf_auth` can call only the `ops.oauth_*` functions, and `ops.oauth_upsert` issues codes and tokens only for grants bound to a used consent row (client, scopes as a subset, grant live) given in the browser that started the flow (6.4). Revision 6 (round-5 Major 12): a compromised `apps/auth` can mint tokens for every live grant, up to that grant's scopes and its token cap; it cannot create a grant without a consent, read Next's env file or act outside those grants. | M1 |
+| A local process takes over a service's loopback port (revision 6, round-5 Major 26) | 3000, 3010, 3080 | low / high | `ops/services.ts` checks the owning account of each port at start and every 60 seconds and stops `cloudflared` on a mismatch (5.1). Residual: between two checks a process that wins a port during a restart can see tunnel traffic (tokens, consent cookies) for up to 60 seconds. | M1 |
 | Consent phishing with an attacker's client | OAuth | low / high | Registration only inside the admin's 10-minute pairing window, flow-bound `mdf_flow` cookie, registration time shown at consent (6.4) | M1 |
 | Overspend under concurrency | ledger | medium / high | One capped reservation per job, counters locked in a fixed order, fail closed without caps, on-demand reservations for jobs created by other paths, the `engine.run` rule (11.5) | M1 |
 | Agent-authored code execution | renders | eliminated by design | Data-only timeline (9.2), file validation (9.4) | M2b |
@@ -2226,20 +2383,28 @@ All with zero kie spend.
   test, the error-map test, the ledger tests of 11.5, the `oauth_upsert` and nonce tests (6.4), the
   role rules (a new allowlisted user is a customer; `set-owner.ts` leaves one admin). They connect
   with the `postgres` npm client (a root dev dependency) through `TEST_DB_URL` and `TEST_MDF_WEB_URL`,
-  set by `ops/stack.ts` for e2e and CI. The ten existing files that call `public` RPCs as
-  `authenticated` are rewritten to call `ops` wrappers through a helper `opsCall(session, fn, args)`;
-  `queue.test.ts` keeps its service-role worker calls unchanged.
+  set by `ops/stack.ts` for e2e and CI. Every existing `supabase/tests` file that fails after the
+  lockdown (revision 6, round-5 Major 22: nine files call `public` RPCs as `authenticated`, and
+  `rls.test.ts` also builds fixtures with direct inserts) is rewritten to call `ops` wrappers
+  through a helper `opsCall(session, fn, args)`; `rls.test.ts` builds its fixtures with the service
+  role and expects `42501` on direct writes; `queue.test.ts` keeps its service-role worker calls
+  unchanged.
 - **OAuth end to end** against the local stack: pairing window closed (registration refused) and
   open, an allowlisted and a refused redirect URI, PKCE, consent with only `read` ticked, a consent
   attempt from a second browser without `mdf_flow` (refused), a reused nonce (refused), token, tool
-  call, revocation.
+  call, revocation. **Topology (revision 6, round-5 Major 16):** Playwright starts three
+  `webServer` entries on the e2e stack: Next on 3210, `apps/auth` on 3211 (issuer
+  `http://127.0.0.1:3212/oauth`) and the edge proxy on 3212, which routes `/oauth/*` and the
+  discovery paths to 3211 and everything else to 3210; the OAuth tests run through the proxy origin
+  3212, and `apps/auth/redirect-allowlist.json` allows the test client's loopback redirect.
+  `ci.yml` starts the same.
 - **Tunnel smoke test:** allowed routes answer, denied routes return 404, a cookie on `/api/v1`
   is ignored (401), nothing of Supabase answers.
 - **Probes** (5.3): every database login role with the default password fails from a container.
 
 **CI and e2e.**
 - `ops/stack.ts render --env ci` and `--env e2e` produce the configs of 5.3 (throwaway signing key
-  outside the checkout, `app.fake_stack = on`, mail catcher, local `SITE_URL`), start the stack with
+  outside the checkout, `stack_settings.fake_stack` on, mail catcher, local `SITE_URL`), start the stack with
   `--workdir`, set the `mdf_web` and `mdf_auth` passwords to test values, and print the env lines
   the tests need.
 - `.github/workflows/ci.yml` (Modify): runs `ops/check-no-keys.ts`; renders and starts the CI stack
@@ -2262,7 +2427,12 @@ All with zero kie spend.
 | `loop_merge` | the merger | 7 dry-run nights (13.8) | kill switch file or Settings toggle |
 | `premium` | premium tier | M7 acceptance | flag off |
 
-**Deploy** (`ops/deploy.ts`):
+**Deploy** (`ops/deploy.ts`). **Revision 6 (round-5 Blocker 1):** `deploy.ts` runs from a pinned
+copy of the invoking checkout's `ops` package (copied to `<runtime root>/ops-pinned/<timestamp>`
+before step 1), never from the tree it checks out; it acts on the deploy clone
+`<runtime root>/deploy` (5.1), and it skips the `apps/auth` build and start when the target has no
+`apps/auth`. Production stays on its pre-M1 commit until the `m1-floor` tag exists; until then
+`deploy.ts` refuses every target.
 1. stop `cloudflared`, Next, `apps/auth` and the worker (so no old process enqueues or calls a
    provider during the migration);
 2. data backup: `supabase db dump --data-only --schema public,auth,storage --db-url ... -f
@@ -2270,8 +2440,8 @@ All with zero kie spend.
    was taken on);
 3. `git fetch` and check out the target (a tag `m1-*` or later, or `main` after AC13);
 4. `ops/check-no-keys.ts`; frozen-lockfile install;
-5. `supabase migration up --workdir <runtime root>/stacks/prod --db-url ...` (5.3), then
-   `ops/set-owner.ts`;
+5. `supabase migration up --workdir <runtime root>/stacks/prod --db-url ...` (5.3), then the
+   stored role passwords are re-applied (5.3 item 3), then `ops/set-owner.ts`;
 6. build Next and `apps/auth`;
 7. start the services in order; health check: local `/api/health` must report `ops: "ok"` (which
    includes the smoke write of 5.6) and the expected `schema`.
@@ -2281,10 +2451,13 @@ All with zero kie spend.
 - `--to <tag>` refuses a tag older than the **migration floor**: the tag `m1-floor`, placed on the
   commit that lands `ops_lockdown` together with the moved server actions and rewritten tests
   (21.2 step 5), the first commit where the app and the revokes agree.
-- **Restore** (manual, owner; written in the README): stop every service; check out the tag in the
-  backup's file name; `supabase stop --workdir ... --no-backup` and `supabase start --workdir ...`
-  (a fresh database with that tag's migrations); `psql --db-url ... -f <backup>.sql`;
-  `ops/rotate-db-passwords.ts`; `ops/deploy.ts --to <that tag> --skip-migrations`.
+- **Restore** (revision 6, round-5 Major 19; `ops/restore.ts <backup>`, run by the owner, written
+  in the README): stop every service; take a safety backup of the current data; check out the tag in
+  the backup's file name in the deploy clone; reset only the database with `supabase db reset
+  --workdir <runtime root>/stacks/prod --no-seed` at that tag (the storage volume, which holds the
+  audio and renders, is kept); `psql --db-url ... -f <backup>.sql`; re-apply the stored role
+  passwords; `ops/deploy.ts --to <that tag> --skip-migrations`. `supabase stop --no-backup` is
+  never used on the prod project (5.3).
 
 ## 21. Milestones
 
@@ -2329,23 +2502,36 @@ to W1: `/media` streaming and the browser Supabase URL.
       `postgres`-owned definer function can read `auth.sessions`; the container probe;
    3. `@modelcontextprotocol/server` 2.4.0 `WebStandardStreamableHTTPServerTransport` in stateless
       JSON mode in a Next 16.4 route handler - fallback `mcp-handler`.
-1. **Additive database** (migrations `ops_roles`, `ops_layer`, `spend_ledger`): roles, schema,
-   tables, seeds, every `ops` function and trigger; no existing grant is revoked, so the app and
-   the existing tests keep working.
+1. **Ops tooling first, then the additive database** (revision 6, round-5 Blocker 1: the order
+   changed, not what gets built). Before any commit creates a `nologin` role or revokes anything:
+   - the ops tooling: the `@mellodifai/ops` package, `ops/check-no-keys.ts` with the pre-commit
+     hook, `ops/stack.ts` (render for every environment, start, migrate and the e2e/CI/dev half that
+     provisions the `mdf_web` and `mdf_auth` login passwords after every start or migration and
+     writes the env lines), `ops/rotate-db-passwords.ts` with the container probe,
+     `ops/set-owner.ts`, `ops/add-user.ts`, `ops/sign-in-link.ts`, the start, stop and `acl` parts
+     of `ops/services.ts`, `ops/deploy.ts`, `ops/restore.ts`, `ops/cutover.ts`, `/api/health`, and
+     the CI and Playwright wiring (the stack render, the env lines, the `test:db` guard, the
+     `seed.sql` admin row);
+   - then the migrations `ops_roles`, `ops_layer` and `spend_ledger` (several files are allowed):
+     roles, schema, tables, seeds, every `ops` function and trigger, the `ops` field of
+     `/api/health`. No existing grant is revoked, so the app and the existing tests keep working,
+     and the role passwords are set on every stack the moment the roles exist.
+   Production stays on its pre-M1 commit: `ops/deploy.ts` refuses every target until `m1-floor`
+   exists.
 2. **Worker ledger:** `providers/paid.ts`, `providers/kie-client.ts`, the `engine.run` rule,
    `MELLODIFAI_ENV_ONLY` and the engine-repo change, on-demand reservations, `worker_enqueue`,
    per-job fakes, the scheduler and its M1 tasks, the ledger integration test.
 3. **Server actions onto the wrappers:** every `"use server"` export calls `lib/ops/*` through
    `runAction` or `remoteAction`; `getClaims()` for the session; i18n keys.
-4. **Tests onto the wrappers:** the ten `supabase/tests` files rewritten with `opsCall`; the new
-   database tests except the lockdown ones.
+4. **Tests onto the wrappers:** every `supabase/tests` file that calls `public` RPCs as
+   `authenticated` rewritten with `opsCall`; the new database tests except the lockdown ones.
 5. **Lockdown** (migration `ops_lockdown`, the ACL test and `acl-allowlist.json`, the 6.3.7
-   refusal tests) in one commit; tag `m1-floor`. Production may first deploy here.
-6. **Topology:** `ops/stack.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-db-passwords.ts`,
-   `ops/check-no-keys.ts`, `ops/set-owner.ts`, `ops/add-user.ts`, `ops/deploy.ts`,
-   `ops/services.ts`, `ops/edge-proxy.ts`, the `cloudflared` template, server-side sign-in and the
-   email template, `/api/health`, the proxy matcher, loopback binding, README, keepalive removal,
-   CI changes.
+   refusal tests, the `rls.test.ts` rewrite) in one commit; tag `m1-floor`. That commit contains
+   the step-1 tooling, so production may first deploy here: the one-time cutover (5.3), then
+   `ops/deploy.ts --to m1-floor`.
+6. **Topology:** `ops/rotate-supabase-keys.ts`, the `install` part of `ops/services.ts` (accounts,
+   ACLs, port-owner check), `ops/edge-proxy.ts`, the `cloudflared` template, server-side sign-in
+   and the email template, the proxy matcher, loopback binding, README, keepalive removal.
 7. **Agents:** `/api/v1`, `/api/mcp`, `apps/auth`, `/consent`, Settings > Agenti, `packages/cli`
    with the stdio bridge and the skill.
 8. **Remote enablement:** the owner's DNS and tunnel actions, the tunnel smoke test, `remote_mcp`
@@ -2356,7 +2542,7 @@ to W1: `/media` streaming and the browser Supabase URL.
 | Area | Files |
 | --- | --- |
 | workspace | M `pnpm-workspace.yaml` (add `ops`, `apps/auth`), root `tsconfig.json` (references for `ops`, `apps/auth`, `packages/cli`), root `package.json` (`test:db` guard, `postgres` dev dependency), `.github/workflows/ci.yml`, `README.md`; D `.github/workflows/keepalive.yml` |
-| ops (package `@mellodifai/ops`, run with `tsx`) | C `ops/package.json`, `ops/stack.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-db-passwords.ts`, `ops/rotate-auth-keys.ts`, `ops/check-no-keys.ts`, `ops/set-owner.ts`, `ops/add-user.ts`, `ops/deploy.ts`, `ops/services.ts`, `ops/edge-proxy.ts`, `ops/cloudflared/config.template.yml` |
+| ops (package `@mellodifai/ops`, run with `tsx`) | C `ops/package.json`, `ops/stack.ts`, `ops/rotate-supabase-keys.ts`, `ops/rotate-db-passwords.ts`, `ops/rotate-auth-keys.ts`, `ops/check-no-keys.ts`, `ops/set-owner.ts`, `ops/add-user.ts`, `ops/deploy.ts`, `ops/services.ts`, `ops/edge-proxy.ts`, `ops/cloudflared/config.template.yml`; revision 6: `ops/restore.ts`, `ops/cutover.ts`, `ops/sign-in-link.ts`, `ops/probe.ts`, `.githooks/pre-commit` |
 | database | C migrations `ops_roles`, `ops_layer`, `spend_ledger`, `ops_lockdown`; `supabase/templates/magic_link.html`; `supabase/tests/ops_acl.test.ts`, `ops_errors.test.ts`, `ops_ledger.test.ts`, `ops_oauth.test.ts`, `ops_lockdown.test.ts`, `acl-allowlist.json`, `helpers/ops-call.ts`; M `supabase/config.toml` (template section, no production values), `supabase/seed.sql`, the ten existing `supabase/tests/*.test.ts` files that call `public` RPCs as `authenticated` |
 | web, create | `apps/web/lib/ops/**` (including `tokens.ts`), `apps/web/lib/mcp/**`, `apps/web/lib/db/ops-client.ts`, `apps/web/app/api/v1/**`, `apps/web/app/api/mcp/route.ts`, `apps/web/app/api/health/route.ts`, `apps/web/app/.well-known/oauth-protected-resource/**`, `apps/web/app/consent/**`, `apps/web/app/(app)/settings/agents/**` |
 | web, modify | every `"use server"` module (`apps/web/app/actions/**`, `apps/web/app/**/actions*.ts`), `apps/web/lib/run-action.ts`, `apps/web/lib/action-result.ts`, `apps/web/lib/auth.ts`, `apps/web/lib/supabase/server.ts`, `apps/web/proxy.ts`, `apps/web/app/auth/confirm/route.ts`, `apps/web/app/(auth)/login/page.tsx`, `apps/web/lib/redirect-url.ts`, `apps/web/components/login-form.tsx`, `apps/web/app/actions/format-style.ts`, `apps/web/app/api/transcribe/route.ts`, `apps/web/lib/openrouter-key.ts`, `apps/web/lib/rate-limit.ts`, `apps/web/app/(app)/settings/page.tsx` and the settings navigation, `apps/web/next.config.*`, `apps/web/package.json` (`-H 127.0.0.1` on `dev` and `start`), `apps/web/playwright.config.ts`, `apps/web/e2e/global-setup.ts`, `apps/web/e2e/support.ts`, `apps/web/e2e/local-env.ts` |
@@ -2373,7 +2559,8 @@ to W1: `/media` streaming and the browser Supabase URL.
 - Claude Code over stdio and claude.ai over remote MCP each complete `song_create`, `job_status`
   and `lyrics_approve` with a `test_mode` token on the real instance; their jobs run on fakes and
   create no reservation;
-- the ledger integration test and the ledger database tests pass (counters equal settled spend
+- the ledger integration test (`pnpm test:ledger`, a local Windows gate, revision 6) and the
+  ledger database tests pass (counters equal settled spend
   after normal, crash, requeue, retry-later, resume and cancel runs; empty caps refuse; 20 parallel
   reservations on a fresh window stay within the cap);
 - the claim-injection test, the other 6.3.7 exit tests, the ACL test and the error-map test pass;
@@ -2564,12 +2751,55 @@ style, source of the Classico preset).
 
 ## 28. Review resolution
 
-Four goldfish rounds reviewed this document; round 5 is the last, and anything it leaves becomes
-plan tasks. Revisions 2 to 4 each overclaimed: round 2 found 13 of 17 round-1 Blockers only partly
+Five goldfish rounds reviewed this document; round 5 was the last, and what it left became either
+a revision-6 edit (28.00) or a plan task. Revisions 2 to 4 each overclaimed: round 2 found 13 of 17 round-1 Blockers only partly
 resolved, round 4 found round-3 Blockers 2-5 and five other round-3 items only partly closed, and
 every round found new Blockers in text the previous revision had added. Revision 5 therefore
 **shrinks M1** (everything agent access does not need moved to M2a or W1, listed in 21.2) and
 applies the coordinator's rulings on round 4's Blockers as written. "Partly" names what remains.
+
+### 28.00 Revision 6 changelog (round 5, final; `docs/egm/agentic-studio/goldfish_review_round5_m1.md`)
+
+Round 5 found 1 Blocker, 27 Majors and 33 Nits and was the last review: nothing goes back for
+another round. Revision 6 changes:
+
+- **Blocker 1 (coordinator's ruling, applied as written).** The ops tooling (`ops/deploy.ts`,
+  `ops/check-no-keys.ts`, `ops/set-owner.ts`, `/api/health`, the CI wiring and the provisioning of
+  the `mdf_web` and `mdf_auth` login passwords) moves into step 1 of 21.2, before any commit
+  creates a `nologin` role or locks anything down. `m1-floor` stays on the lockdown commit (step 5),
+  which now contains that tooling, so "`ops/deploy.ts --to m1-floor` succeeds" holds there. Steps
+  3 and 4 stay green on their own. Only the order changed. To make the floor deployable, step 1
+  also carries what that first deploy needs: the prod stack render with its `project_id` and port
+  block, the cutover, the restore and the start, stop and `acl` parts of `ops/services.ts`; and
+  `deploy.ts` runs from a pinned copy of the current `ops` package on a dedicated deploy clone,
+  skipping `apps/auth` when the target has none (20).
+- **Design decisions from the Majors** (each marked "revision 6" where it lives): deploy clone,
+  runtime-root ACLs and the `icacls` probe (5.1, Major 1); Studio, mail catcher and analytics off
+  in production, sign-in-link fallback (5.2, Major 2); `stack_settings.fake_stack`,
+  `mdf.force_caps`, the reset of settings and UTC in every `ops` function (6.3.4, 5.3, 6.9,
+  Major 3); the ledger test arrangement and `pnpm test:ledger` as a local gate (11.5, Major 4); the
+  resume predicate (11.5, Major 5); reservations remember the kie submit and generation (11.5, 15.1,
+  Major 6); attempt numbers in call keys and an extension per extra attempt (11.5, Major 7); the
+  entry bound and an unclamped settle (11.5, 15.1, Major 8); the close trigger (11.5, 15.1,
+  Major 9); a refused extension in `draft_lyrics` finishes with an incomplete jury (11.5,
+  Major 10); the `MDF` table (6.3.5, 6.6, Major 11); `oauth_upsert` matched through the grant
+  (6.4, 17, Major 12); the interaction URL served by `apps/auth` and `oauth_flow_nonce_set` (6.4,
+  Major 13); reconnecting revokes the old grant (6.4, Major 14); the 6-digit code at `/login` (5.4,
+  Major 15); per-environment issuer and the three-server OAuth e2e topology (5.3, 19, Major 16);
+  per-environment `project_id` and port blocks, the cutover and the reset refusal (5.3, Major 17);
+  the request-origin redirect and dev on 3001 (5.3, 5.4, Major 18); restore by database reset
+  (20, Major 19); passwords and the probe on every start (5.3, Major 20); the trigger on
+  context-free updates (6.3.4, Major 21); the test rewrite wording (19, 21.2, Major 22); daily
+  limits for the web-side tools (6.7, 15.1, Major 23); the three missing wrappers (6.3.6, Major 24);
+  the existing guards kept (11.5, Major 25); the port-owner check and its residual risk (5.1, 17,
+  Major 26); the pairing window closed by the first registration and loopback clients consenting
+  only locally (6.4, 15.1, Major 27).
+- **Settled rulings of revisions 1-5 were not reopened.**
+- **Nits:** none changes the design; each is applied inside a plan task or listed under "Parked
+  nits" in the plan.
+
+**Where each round-5 finding is built:** the table "Major to task" at the end of
+`docs/superpowers/plans/2026-11-02-m1-agent-access.md`.
 
 ### 28.0 Round 4 findings (`docs/egm/agentic-studio/goldfish_review_round4_m1.md`)
 
