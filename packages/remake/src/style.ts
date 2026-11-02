@@ -1,7 +1,7 @@
 // Style tags for the music generator, derived from the analysis. They describe sound,
 // never who made it: artist, uploader and title words are filtered out, and so is any
 // comparison ("like X", "in the style of X").
-import type { Analysis, MusicAnalysis } from "./schemas.js";
+import type { MusicAnalysis, RemakeAnalysis } from "@mellodifai/shared";
 
 const COMPARISON =
   /\b(?:like|style of|inspired by|sounds? like|in the vein of|a la|à la|vibes? of)\b/iu;
@@ -37,15 +37,14 @@ export function sanitizeTags(
 const VOCAL_TAGS: Record<MusicAnalysis["vocal"]["type"], string | null> = {
   male: "male vocals",
   female: "female vocals",
-  mixed: "male and female vocals",
-  rap: "rap vocals",
+  duet: "male and female vocals",
+  choir: "choir vocals",
   none: "instrumental",
-  unknown: null,
 };
 
 export function deriveStyleTags(
   music: MusicAnalysis,
-  overall: Analysis["overall"],
+  overall: RemakeAnalysis["overall"],
   protectedNames: string[],
 ): string[] {
   const choruses = music.sections.filter((s) => s.kind === "chorus");
@@ -64,7 +63,9 @@ export function deriveStyleTags(
     music.timeSignature.beatsPerBar === 4
       ? null
       : `${music.timeSignature.beatsPerBar}/4 time`,
-    VOCAL_TAGS[music.vocal.type],
+    music.vocal.delivery === "rap"
+      ? "rap vocals"
+      : VOCAL_TAGS[music.vocal.type],
     ...music.instrumentation.inferred.slice(0, 3),
     lift ? "big chorus lift" : null,
   ].filter((t): t is string => Boolean(t));

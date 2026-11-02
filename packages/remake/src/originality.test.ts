@@ -1,165 +1,177 @@
 import { describe, expect, it } from "vitest";
 import {
-  charTrigramDice,
-  checkOriginality,
+  checkPhrases,
+  checkSections,
   cosine,
   DEFAULT_THRESHOLDS,
-  isExempt,
+  type Embed,
+  jaccard4,
   longestSharedRun,
-  scoreLexical,
+  rougeL,
+  scoreLines,
 } from "./originality.js";
 
 const source = [
   "I walk alone through the empty streets",
   "Hold on to the light tonight",
-  "Oh oh oh",
+];
+const translation = [
+  "Cammino da solo per le strade vuote",
+  "Tieniti alla luce stanotte",
 ];
 
+// Orthogonal one-hot vectors unless a test pins a vector for a text.
+function fakeEmbed(pinned: Record<string, number[]> = {}): Embed {
+  const dims = new Map<string, number>();
+  return async (texts) =>
+    texts.map((t) => {
+      if (pinned[t]) return pinned[t];
+      if (!dims.has(t)) dims.set(t, dims.size + 3);
+      const v = new Array(64).fill(0);
+      v[(dims.get(t) ?? 0) % 64] = 1;
+      return v;
+    });
+}
+
 describe("lexical measures", () => {
-  it("trigram dice is 1 for identical text and folds accents and case", () => {
-    expect(charTrigramDice("Città vuota", "citta VUOTA")).toBe(1);
+  it("4-gram Jaccard is 1 for the same text after folding accents and case", () => {
+    expect(jaccard4("Città vuota", "citta VUOTA")).toBe(1);
+    expect(jaccard4("the empty streets", "una barca nel mare")).toBe(0);
   });
 
-  it("trigram dice is low for unrelated text", () => {
+  it("ROUGE-L is the word LCS F1", () => {
+    expect(rougeL("a b c d", "a b c d")).toBe(1);
+    // LCS "walk alone" (2) over 4 and 7 words.
     expect(
-      charTrigramDice("the empty streets", "una barca nel mare"),
-    ).toBeLessThan(0.15);
+      rougeL("we walk alone tonight", "I walk alone through the empty streets"),
+    ).toBeCloseTo((2 * (2 / 4) * (2 / 7)) / (2 / 4 + 2 / 7));
   });
 
   it("finds the longest shared run of words", () => {
     expect(
-      longestSharedRun(
-        "and i walk alone through the night",
-        "I walk alone through the empty streets",
-      ),
+      longestSharedRun("and i walk alone through the night", source[0] ?? ""),
     ).toBe(5);
   });
 
-  it("scores containment of content words", () => {
-    const s = scoreLexical(
-      "streets empty, I walk alone",
-      "I walk alone through the empty streets",
-      "en",
-    );
-    expect(s.lexical).toBeGreaterThanOrEqual(0.6);
-  });
-});
-
-describe("isExempt", () => {
-  it("exempts vocables and very short lines", () => {
-    expect(isExempt("Oh oh oh", "en")).toBe(true);
-    expect(isExempt("yeah", "en")).toBe(true);
-    expect(isExempt("na na na, hey", "it")).toBe(true);
-    expect(isExempt("I walk alone", "en")).toBe(false);
-  });
-});
-
-describe("cosine", () => {
-  it("is 1 for parallel vectors and 0 for orthogonal ones", () => {
+  it("cosine handles zero vectors", () => {
     expect(cosine([1, 2], [2, 4])).toBeCloseTo(1);
-    expect(cosine([1, 0], [0, 1])).toBeCloseTo(0);
     expect(cosine([0, 0], [1, 1])).toBe(0);
   });
 });
 
-describe("checkOriginality", () => {
-  it("flags a copied line and a line sharing a long run, passes a new one", async () => {
-    const report = await checkOriginality({
-      lines: [
-        "I walk alone through the empty streets",
-        "we walk alone through the empty town",
-        "a paper boat drifts down the gutter",
-        "oh oh oh",
-      ],
-      sourceLines: source,
-      lang: "en",
-      sourceLang: "en",
+describe("scoreLines (design 10.3 binding values)", () => {
+  it("uses 0.35 lexical and 0.80 semantic", () => {
+    expect(DEFAULT_THRESHOLDS).toEqual({
+      lexical: 0.35,
+      semantic: 0.8,
+      phraseWords: 3,
+      sectionMeaning: 0.55,
     });
-    expect(report.lines.map((l) => l.flagged)).toEqual([
-      true,
-      true,
-      false,
-      false,
-    ]);
-    expect(report.lines[0]?.lexical).toBe(1);
-    expect(report.lines[0]?.closestSource).toBe(0);
-    expect(report.lines[1]?.sharedRun).toBeGreaterThanOrEqual(4);
-    expect(report.lines[3]?.exempt).toBe(true);
-    expect(report.flaggedLines).toBe(2);
-    expect(report.semanticAvailable).toBe(false);
   });
 
-  it("flags a line that is the literal translation when the language changes", async () => {
-    const report = await checkOriginality({
+  it("fails a literal translation and a copied line, passes a new one", async () => {
+    const report = await scoreLines({
       lines: [
         "Cammino da solo per le strade vuote",
-        "Una barca di carta nel fosso",
+        "Hold on to the light tonight",
+        "una barca di carta nel fosso",
       ],
-      sourceLines: source.slice(0, 2),
-      translationLines: [
-        "Cammino da solo per le strade vuote",
-        "Resisti alla luce stanotte",
+      sourceLines: source,
+      translationLines: translation,
+      embed: fakeEmbed(),
+    });
+    expect(report.lines.map((l) => l.flagged)).toEqual([true, true, false]);
+    expect(report.lines[0]).toMatchObject({
+      against: "translation",
+      closestSource: 0,
+    });
+    expect(report.lines[1]).toMatchObject({
+      against: "source",
+      closestSource: 1,
+    });
+    expect(report.lines[0]?.reasons.join(" ")).toContain("Jaccard");
+    expect(report.flaggedLines).toBe(2);
+  });
+
+  it("fails a line whose meaning sits too close to a translated source line", async () => {
+    const report = await scoreLines({
+      lines: [
+        "Stringi forte questa luce fino al mattino",
+        "una barca di carta nel fosso",
       ],
-      lang: "it",
-      sourceLang: "en",
+      sourceLines: source,
+      translationLines: translation,
+      embed: fakeEmbed({
+        "Stringi forte questa luce fino al mattino": [0, 1, 0.3],
+        "Tieniti alla luce stanotte": [0, 1, 0.2],
+      }),
     });
     expect(report.lines[0]).toMatchObject({
       flagged: true,
       against: "translation",
+      closestSource: 1,
     });
+    expect(report.lines[0]?.semantic).toBeGreaterThan(0.8);
     expect(report.lines[1]?.flagged).toBe(false);
   });
 
-  it("flags a line too close in meaning through embeddings", async () => {
-    // Fake embeddings: the first new line points the same way as source line 1.
-    const vectors: Record<string, number[]> = {
-      "Tieniti stretto a questa luce stanotte": [0.1, 1, 0],
-      "Una barca di carta nel fosso": [0, 0, 1],
-      [source[0] ?? ""]: [1, 0, 0],
-      [source[1] ?? ""]: [0.12, 1, 0],
-    };
-    const report = await checkOriginality({
-      lines: [
-        "Tieniti stretto a questa luce stanotte",
-        "Una barca di carta nel fosso",
-      ],
-      sourceLines: source.slice(0, 2),
-      lang: "it",
-      sourceLang: "en",
-      embed: async (texts) => texts.map((t) => vectors[t] ?? [0, 0, 0]),
-    });
-    expect(report.semanticAvailable).toBe(true);
-    expect(report.lines[0]).toMatchObject({ flagged: true, closestSource: 1 });
-    expect(report.lines[0]?.semantic).toBeGreaterThan(
-      DEFAULT_THRESHOLDS.semantic,
-    );
-    expect(report.lines[1]?.flagged).toBe(false);
-    expect(report.maxSemantic).toBeGreaterThan(0.9);
-  });
-
-  it("keeps the lexical check when embeddings fail", async () => {
-    const report = await checkOriginality({
-      lines: ["Hold on to the light tonight"],
+  it("compares with the source itself when the language does not change", async () => {
+    const report = await scoreLines({
+      lines: ["a paper boat drifts down the gutter"],
       sourceLines: source,
-      lang: "en",
-      sourceLang: "en",
-      embed: async () => {
-        throw new Error("down");
-      },
-    });
-    expect(report.semanticAvailable).toBe(false);
-    expect(report.semanticError).toContain("down");
-    expect(report.lines[0]?.flagged).toBe(true);
-  });
-
-  it("honours custom thresholds", async () => {
-    const report = await checkOriginality({
-      lines: ["we walk alone through the empty town"],
-      sourceLines: source,
-      lang: "en",
-      sourceLang: "en",
-      thresholds: { lexical: 0.99, semantic: 0.99, sharedRun: 9 },
+      translationLines: null,
+      embed: fakeEmbed(),
     });
     expect(report.lines[0]?.flagged).toBe(false);
+  });
+
+  it("accepts tighter thresholds", async () => {
+    const report = await scoreLines({
+      lines: ["the night is long"],
+      sourceLines: source,
+      translationLines: null,
+      embed: fakeEmbed(),
+      thresholds: { ...DEFAULT_THRESHOLDS, lexical: 0.1 },
+    });
+    expect(report.lines[0]?.flagged).toBe(true);
+  });
+});
+
+describe("checkPhrases", () => {
+  it("fails a title or hook that reuses 3 words in a row", () => {
+    expect(
+      checkPhrases({
+        title: "Alone in the crowd",
+        hookLines: [],
+        sourceTexts: ["Alone", "alone in the crowd tonight"],
+      }),
+    ).toMatchObject({ ok: false, longestRun: 4 });
+    expect(
+      checkPhrases({
+        title: "Luci di vetro",
+        hookLines: ["nessuno mi sente"],
+        sourceTexts: ["Alone"],
+      }).ok,
+    ).toBe(true);
+  });
+});
+
+describe("checkSections", () => {
+  it("needs cosine 0.55 against the meaning map", async () => {
+    const result = await checkSections({
+      sections: [
+        { sectionId: "v", text: "new verse", meaning: "loneliness at night" },
+        { sectionId: "c", text: "new chorus", meaning: "hope" },
+        { sectionId: "i", text: "", meaning: "" },
+      ],
+      embed: fakeEmbed({
+        "new verse": [1, 1, 0],
+        "loneliness at night": [1, 0.8, 0],
+        "new chorus": [1, 0, 0],
+        hope: [0, 1, 0],
+      }),
+    });
+    expect(result.map((r) => r.ok)).toEqual([true, false, true]);
+    expect(result[2]?.meaningCosine).toBeNull();
   });
 });

@@ -142,6 +142,9 @@ importers:
 
   packages/remake:
     dependencies:
+      '@mellodifai/shared':
+        specifier: workspace:^
+        version: link:../shared
       tsx:
         specifier: ^4.23.15
         version: 4.23.15

@@ -3,19 +3,20 @@
 // transcript (captions, else Whisper through Groq), scene-cut frames and 1 fps contact
 // sheets (the /watch skill method). Every step is cached in the output folder.
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parseVtt, type TimedWord, wordsToLines } from "./align.js";
-import type { Env } from "./env.js";
-import { run as defaultRun, type Run, runChecked } from "./run.js";
 import {
   type IngestManifest,
   IngestManifestSchema,
+  MAX_SCENE_FRAMES,
   type Transcript,
-} from "./schemas.js";
+} from "@mellodifai/shared";
+import { parseVtt, type TimedWord, wordsToLines } from "./align.js";
+import type { Env } from "./env.js";
+import { ENGINE_ROOT, PYTHON, remakesRoot } from "./paths.js";
+import { run as defaultRun, type Run, runChecked } from "./run.js";
+import { capFrames, SHEET } from "./shots.js";
 
-export const DEFAULT_OUT_ROOT = "E:/mellodifai/remakes";
-export const ENGINE_ROOT = "C:/Users/Asus/Documents/suno-remake";
 // suno-remake tools/whisper_words.py supports these Whisper language codes.
 const WHISPER_LANGS = new Set([
   "it",
@@ -31,7 +32,6 @@ const WHISPER_LANGS = new Set([
   "fr",
 ]);
 const FONT = "C\\:/Windows/Fonts/consola.ttf";
-const SHEET = { cols: 5, rows: 4 };
 
 const slash = (path: string) => path.replaceAll("\\", "/");
 
@@ -126,7 +126,7 @@ export async function ingest(
   const videoId = parseVideoId(url);
   if (!videoId) throw new Error(`not a YouTube video link: ${url}`);
   const canonical = `https://www.youtube.com/watch?v=${videoId}`;
-  const dir = join(options.outRoot ?? DEFAULT_OUT_ROOT, videoId).replaceAll(
+  const dir = join(options.outRoot ?? remakesRoot(), videoId).replaceAll(
     "\\",
     "/",
   );
@@ -235,7 +235,7 @@ export async function ingest(
         throw new Error("no captions and GROQ_API_KEY is not set for Whisper");
       await runChecked(
         runner,
-        options.python ?? "python",
+        options.python ?? PYTHON,
         [
           "-I",
           join(options.engineRoot ?? ENGINE_ROOT, "tools", "whisper_words.py"),
@@ -255,6 +255,7 @@ export async function ingest(
     transcript = { source: "whisper", language, lines: wordsToLines(words) };
   }
 
+  let cutTimes: number[] = [];
   const sceneCuts: IngestManifest["frames"]["sceneCuts"] = [];
   const contactSheets: IngestManifest["frames"]["contactSheets"] = [];
   const duration = Number(info.duration ?? 0);
@@ -284,17 +285,16 @@ export async function ingest(
       const times = parseShowinfo(result.stderr);
       await writeFile(cutsPath, JSON.stringify(times));
     }
-    const times = JSON.parse(await readFile(cutsPath, "utf8")) as number[];
-    times.forEach((t, i) => {
-      sceneCuts.push({
-        t,
-        file: join(
-          dir,
-          "frames",
-          `scene_${String(i + 1).padStart(4, "0")}.jpg`,
-        ).replaceAll("\\", "/"),
-      });
-    });
+    cutTimes = JSON.parse(await readFile(cutsPath, "utf8")) as number[];
+    // Every cut time is kept for the shot timing; at most 48 frames stay on disk.
+    const kept = new Set(capFrames(cutTimes, MAX_SCENE_FRAMES));
+    for (const [i, t] of cutTimes.entries()) {
+      const file = slash(
+        join(dir, "frames", `scene_${String(i + 1).padStart(4, "0")}.jpg`),
+      );
+      if (kept.has(t)) sceneCuts.push({ t, file });
+      else await rm(file, { force: true });
+    }
     const firstSheet = join(dir, "sheets", "sheet_001.jpg");
     if (fresh(firstSheet)) {
       log("ingest: 1 fps contact sheets");
@@ -350,7 +350,7 @@ export async function ingest(
       captions: captions ? slash(captions) : null,
     },
     transcript,
-    frames: { sceneCuts, contactSheets },
+    frames: { cutTimes, sceneCuts, contactSheets },
     createdAt: new Date().toISOString(),
   });
   await writeFile(

@@ -99,10 +99,19 @@ describe("fitLine", () => {
     expect(fit.delta).toBe(-4);
   });
 
-  it("lets a feminine ending share the last note of a masculine one", () => {
-    // 10 syllables ending unstressed sing like 9 on a stressed final note.
-    const fit = fitLine(target, { min: 10, max: 10, ending: "unstressed" });
-    expect(fit).toEqual({ fits: true, endingMatch: false, delta: 1 });
+  it("holds plus or minus one strictly and only reports the ending (design 8.4 R3)", () => {
+    expect(fitLine(target, { min: 10, max: 10, ending: "unstressed" })).toEqual(
+      {
+        fits: false,
+        endingMatch: false,
+        delta: 2,
+      },
+    );
+    expect(fitLine(target, { min: 7, max: 7, ending: "unstressed" })).toEqual({
+      fits: true,
+      endingMatch: false,
+      delta: -1,
+    });
   });
 
   it("treats unknown endings as matching", () => {

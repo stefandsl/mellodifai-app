@@ -1,12 +1,11 @@
 // Timed lyric lines (from captions or Whisper words) and song sections (from audio
 // boundaries, beats and lyric repetition), aligned so no section boundary cuts a line.
-import { charTrigramDice } from "./originality.js";
 import type {
   AnalysedLine,
-  Section,
+  RemakeSection,
   SectionKind,
   TimedLine,
-} from "./schemas.js";
+} from "@mellodifai/shared";
 import { countSyllables, lineEnding } from "./syllables.js";
 
 const ENTITIES: Record<string, string> = {
@@ -114,6 +113,30 @@ export function wordsToLines(
   return lines;
 }
 
+function trigrams(text: string): string[] {
+  const s = ` ${norm(text).replace(/\s+/gu, " ")} `;
+  const out: string[] = [];
+  for (let i = 0; i + 3 <= s.length; i++) out.push(s.slice(i, i + 3));
+  return out;
+}
+
+export function charTrigramDice(a: string, b: string): number {
+  const ga = trigrams(a);
+  const gb = trigrams(b);
+  if (ga.length === 0 || gb.length === 0) return 0;
+  const counts = new Map<string, number>();
+  for (const g of gb) counts.set(g, (counts.get(g) ?? 0) + 1);
+  let shared = 0;
+  for (const g of ga) {
+    const n = counts.get(g) ?? 0;
+    if (n > 0) {
+      shared++;
+      counts.set(g, n - 1);
+    }
+  }
+  return (2 * shared) / (ga.length + gb.length);
+}
+
 // Lines sung again at least 4 s later (the chorus and hook material).
 export function findRepeatedLines(lines: TimedLine[]): Set<number> {
   const repeated = new Set<number>();
@@ -158,7 +181,7 @@ export function buildSections(input: {
   lines: TimedLine[];
   downbeats: number[];
   energy: { t: number; v: number }[];
-}): Section[] {
+}): RemakeSection[] {
   const duration = input.durationS;
   const lines = [...input.lines].sort((a, b) => a.start - b.start);
   const audioEdges = [...input.boundaries]
@@ -271,7 +294,7 @@ export function buildSections(input: {
           ? "intro"
           : i > lastLyric
             ? "outro"
-            : "instrumental";
+            : "other";
     else if (
       s.lines.filter((l) => repeated.has(l)).length * 2 >=
       s.lines.length
@@ -312,7 +335,7 @@ export function buildSections(input: {
       previous?.kind === "verse" &&
       s.end - s.start < 12
     )
-      s.kind = "pre-chorus";
+      s.kind = "pre";
     else s.kind = "verse";
   });
   // A chorus that the audio split late takes back its first repeated lines.
@@ -339,7 +362,7 @@ export function buildSections(input: {
     if (
       previous &&
       previous.kind === s.kind &&
-      (s.kind === "instrumental" ||
+      (s.kind === "other" ||
         s.kind === "intro" ||
         s.kind === "outro" ||
         (short(previous) && short(s)))
@@ -357,11 +380,11 @@ export function buildSections(input: {
   const NAMES: Record<SectionKind, string> = {
     intro: "Intro",
     verse: "Verse",
-    "pre-chorus": "Pre-Chorus",
+    pre: "Pre-Chorus",
     chorus: "Chorus",
-    "post-chorus": "Post-Chorus",
+    hook: "Hook",
     bridge: "Bridge",
-    instrumental: "Instrumental",
+    other: "Instrumental",
     outro: "Outro",
   };
   return merged.map((s) => {
@@ -371,7 +394,7 @@ export function buildSections(input: {
     const numbered =
       kind === "verse" ||
       kind === "chorus" ||
-      kind === "pre-chorus" ||
+      kind === "pre" ||
       (totals.get(kind) ?? 0) > 1;
     return {
       id: `${kind}-${n}`,
@@ -387,7 +410,7 @@ export function buildSections(input: {
 
 export function analyseLines(
   lines: TimedLine[],
-  sections: Section[],
+  sections: RemakeSection[],
   beats: number[],
   lang: string,
 ): AnalysedLine[] {

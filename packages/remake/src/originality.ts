@@ -1,52 +1,22 @@
-// Originality check of rewritten lyrics, line by line, against the source lyrics and
-// (when the language changes) against a literal translation of them.
-// Lexical: character trigram Dice, content-word containment and the longest run of
-// shared words. Semantic: cosine of multilingual embeddings. A line above any
-// threshold is flagged and gets rewritten.
-import type { LineOriginality } from "./schemas.js";
-import { baseLang, words } from "./syllables.js";
+// Originality gate of rewritten lyrics (master design 10.3, binding values).
+// Per new line, against each source line and its literal translation:
+//   lexical: character 4-gram Jaccard and ROUGE-L, either above 0.35 fails the line;
+//   semantic: LaBSE cosine above 0.80 against a translated source line fails the line.
+// The new title and hook share no run of 3 or more words with the source title or hook
+// (or their translation). Meaning fidelity is checked per section instead: each new
+// section reaches cosine 0.55 against its meaning map, so a section can mean the same
+// thing while each line is new.
+import {
+  type LineOriginality,
+  ORIGINALITY_THRESHOLDS,
+  type OriginalityThresholds,
+} from "@mellodifai/shared";
+import { words } from "./syllables.js";
 
-export type Thresholds = {
-  lexical: number;
-  semantic: number;
-  sharedRun: number;
-};
-// Calibrated on the live run recorded in the task 24 report: a faithful re-expression of
-// a line's idea scores 0.6-0.8 on bge-m3, a literal translation 0.9 or more.
-export const DEFAULT_THRESHOLDS: Thresholds = {
-  lexical: 0.6,
-  semantic: 0.88,
-  sharedRun: 4,
-};
+export type Thresholds = OriginalityThresholds;
+export const DEFAULT_THRESHOLDS: Thresholds = { ...ORIGINALITY_THRESHOLDS };
 
-const STOPWORDS: Record<string, string[]> = {
-  en: "a an the and or but i you he she it we they me my your our his her its their to of in on at by for with from into through up down out over is am are was were be been do does did have has had will would can could just so no not this that these those as if then there here oh".split(
-    " ",
-  ),
-  it: "il lo la i gli le un uno una e ed o ma di a da in con su per tra fra che chi non mi ti si ci vi ne io tu lui lei noi voi loro mio mia tuo tua suo sua è sono sei siamo ho hai ha del della dei delle al alla ai nel nella sul come se poi qui là più".split(
-    " ",
-  ),
-  es: "el la los las un una y o pero de a en con por para que no me te se nos mi tu su es son soy eres del al lo como si yo".split(
-    " ",
-  ),
-  pt: "o a os as um uma e ou mas de em com por para que não me te se nos meu minha teu tua seu sua é são sou do da dos das no na eu".split(
-    " ",
-  ),
-  fr: "le la les un une et ou mais de à en avec pour par que qui ne pas je tu il elle nous vous ils me te se mon ma mes ton ta son sa est suis es du des au aux".split(
-    " ",
-  ),
-  de: "der die das ein eine und oder aber von zu in mit für auf an ich du er sie es wir ihr mich dich mein dein ist bin bist nicht den dem des im am".split(
-    " ",
-  ),
-  ro: "și sau dar de la în cu pe pentru că nu eu tu el ea noi voi ei mă te se meu mea tău ta e este sunt un o al ale".split(
-    " ",
-  ),
-};
-const VOCABLES = new Set(
-  "oh ooh ah eh uh yeah yeh hey ho na la da woah whoa wo mm mmm hmm ay ai oi ye uoh".split(
-    " ",
-  ),
-);
+export type Embed = (texts: string[]) => Promise<number[][]>;
 
 function fold(text: string): string {
   return text.normalize("NFKD").replace(/\p{M}/gu, "");
@@ -54,39 +24,47 @@ function fold(text: string): string {
 function tokens(text: string): string[] {
   return words(fold(text));
 }
-function contentTokens(text: string, lang: string): string[] {
-  const stop = new Set(
-    (STOPWORDS[baseLang(lang)] ?? STOPWORDS.en ?? []).map((w) => fold(w)),
-  );
-  return tokens(text).filter((t) => !stop.has(t) && !VOCABLES.has(t));
-}
 
-export function isExempt(line: string, lang: string): boolean {
-  return contentTokens(line, lang).length < 2;
-}
-
-function trigrams(text: string): string[] {
+function grams(text: string, n: number): Set<string> {
   const s = ` ${tokens(text).join(" ")} `;
-  const grams: string[] = [];
-  for (let i = 0; i + 3 <= s.length; i++) grams.push(s.slice(i, i + 3));
-  return grams;
+  const out = new Set<string>();
+  for (let i = 0; i + n <= s.length; i++) out.add(s.slice(i, i + n));
+  return out;
 }
 
-export function charTrigramDice(a: string, b: string): number {
-  const ga = trigrams(a);
-  const gb = trigrams(b);
-  if (ga.length === 0 || gb.length === 0) return 0;
-  const counts = new Map<string, number>();
-  for (const g of gb) counts.set(g, (counts.get(g) ?? 0) + 1);
+export function jaccard4(a: string, b: string): number {
+  const ga = grams(a, 4);
+  const gb = grams(b, 4);
+  if (ga.size === 0 || gb.size === 0) return 0;
   let shared = 0;
-  for (const g of ga) {
-    const n = counts.get(g) ?? 0;
-    if (n > 0) {
-      shared++;
-      counts.set(g, n - 1);
+  for (const g of ga) if (gb.has(g)) shared++;
+  return shared / (ga.size + gb.size - shared);
+}
+
+function lcs(a: string[], b: string[]): number {
+  const row = new Array<number>(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = 0;
+    for (let j = 1; j <= b.length; j++) {
+      const above = row[j] ?? 0;
+      row[j] =
+        a[i - 1] === b[j - 1] ? diagonal + 1 : Math.max(above, row[j - 1] ?? 0);
+      diagonal = above;
     }
   }
-  return (2 * shared) / (ga.length + gb.length);
+  return row[b.length] ?? 0;
+}
+
+// ROUGE-L F1 on words.
+export function rougeL(a: string, b: string): number {
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (ta.length === 0 || tb.length === 0) return 0;
+  const l = lcs(ta, tb);
+  if (l === 0) return 0;
+  const p = l / ta.length;
+  const r = l / tb.length;
+  return (2 * p * r) / (p + r);
 }
 
 export function longestSharedRun(a: string, b: string): number {
@@ -106,25 +84,6 @@ export function longestSharedRun(a: string, b: string): number {
   return best;
 }
 
-export function scoreLexical(
-  line: string,
-  other: string,
-  lang: string,
-): { lexical: number; sharedRun: number } {
-  const a = new Set(contentTokens(line, lang));
-  const b = new Set(contentTokens(other, lang));
-  const smaller = Math.min(a.size, b.size);
-  const shared = [...a].filter((t) => b.has(t)).length;
-  // Containment of one or two words says little; it counts from three content words.
-  const containment = smaller >= 3 ? shared / smaller : 0;
-  return {
-    lexical:
-      Math.round(Math.max(charTrigramDice(line, other), containment) * 1000) /
-      1000,
-    sharedRun: longestSharedRun(line, other),
-  };
-}
-
 export function cosine(a: number[], b: number[]): number {
   let dot = 0;
   let na = 0;
@@ -137,33 +96,25 @@ export function cosine(a: number[], b: number[]): number {
   return na > 0 && nb > 0 ? dot / Math.sqrt(na * nb) : 0;
 }
 
-export type Embed = (texts: string[]) => Promise<number[][]>;
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
-export type OriginalityReport = {
+export type LineReport = {
   lines: LineOriginality[];
   flaggedLines: number;
   maxLexical: number;
   maxSemantic: number;
-  semanticAvailable: boolean;
-  semanticError?: string;
-  thresholds: Thresholds;
 };
 
-export async function checkOriginality(input: {
+export async function scoreLines(input: {
   lines: string[];
   sourceLines: string[];
-  translationLines?: string[] | null;
-  lang: string;
-  sourceLang: string;
+  // Literal translation of each source line; null when the language does not change.
+  translationLines: string[] | null;
+  embed: Embed;
   thresholds?: Thresholds;
-  embed?: Embed;
-}): Promise<OriginalityReport> {
-  const thresholds = input.thresholds ?? DEFAULT_THRESHOLDS;
-  const references: {
-    text: string;
-    index: number;
-    kind: "source" | "translation";
-  }[] = [
+}): Promise<LineReport> {
+  const t = input.thresholds ?? DEFAULT_THRESHOLDS;
+  const refs = [
     ...input.sourceLines.map((text, index) => ({
       text,
       index,
@@ -175,81 +126,118 @@ export async function checkOriginality(input: {
       kind: "translation" as const,
     })),
   ];
-
-  let vectors: number[][] | null = null;
-  let semanticError: string | undefined;
-  if (input.embed && input.lines.length > 0 && references.length > 0) {
-    try {
-      const all = await input.embed([
-        ...input.lines,
-        ...references.map((r) => r.text),
-      ]);
-      if (all.length !== input.lines.length + references.length)
-        throw new Error("embedding count mismatch");
-      vectors = all;
-    } catch (error) {
-      semanticError = error instanceof Error ? error.message : String(error);
-    }
-  }
-
+  // Semantic reference: the translated source line (the source itself when the language stays).
+  const semanticRefs = input.translationLines ?? input.sourceLines;
+  const vectors = await input.embed([...input.lines, ...semanticRefs]);
+  if (vectors.length !== input.lines.length + semanticRefs.length)
+    throw new Error("embedding count mismatch");
   const lines = input.lines.map((line, i): LineOriginality => {
-    const exempt = isExempt(line, input.lang);
-    let lexical = 0;
-    let sharedRun = 0;
-    let semantic: number | null = vectors ? 0 : null;
+    let jac = 0;
+    let rouge = 0;
     let best = -1;
     let closestSource: number | null = null;
     let against: "source" | "translation" | null = null;
-    references.forEach((ref, r) => {
-      // Compare source-language text with the source's stopwords, new text with the target's.
-      const lang = ref.kind === "source" ? input.sourceLang : input.lang;
-      const lex = scoreLexical(line, ref.text, lang);
-      const sem =
-        vectors?.[i] && vectors[input.lines.length + r]
-          ? Math.max(
-              0,
-              cosine(vectors[i] ?? [], vectors[input.lines.length + r] ?? []),
-            )
-          : 0;
-      lexical = Math.max(lexical, lex.lexical);
-      sharedRun = Math.max(sharedRun, lex.sharedRun);
-      if (semantic !== null)
-        semantic = Math.max(semantic, Math.round(sem * 1000) / 1000);
-      const score = Math.max(
-        lex.lexical,
-        sem,
-        lex.sharedRun >= thresholds.sharedRun ? 1 : 0,
-      );
-      if (score > best) {
-        best = score;
+    for (const ref of refs) {
+      const j = jaccard4(line, ref.text);
+      const r = rougeL(line, ref.text);
+      jac = Math.max(jac, j);
+      rouge = Math.max(rouge, r);
+      if (Math.max(j, r) > best) {
+        best = Math.max(j, r);
         closestSource = ref.index;
         against = ref.kind;
       }
+    }
+    let semantic = 0;
+    let semanticAt = -1;
+    semanticRefs.forEach((_, k) => {
+      const c = Math.max(
+        0,
+        cosine(vectors[i] ?? [], vectors[input.lines.length + k] ?? []),
+      );
+      if (c > semantic) {
+        semantic = c;
+        semanticAt = k;
+      }
     });
-    const flagged =
-      !exempt &&
-      (lexical >= thresholds.lexical ||
-        sharedRun >= thresholds.sharedRun ||
-        (semantic ?? 0) >= thresholds.semantic);
+    const reasons: string[] = [];
+    if (jac > t.lexical)
+      reasons.push(`4-gram Jaccard ${r3(jac)} > ${t.lexical}`);
+    if (rouge > t.lexical) reasons.push(`ROUGE-L ${r3(rouge)} > ${t.lexical}`);
+    if (semantic > t.semantic) {
+      reasons.push(`semantic ${r3(semantic)} > ${t.semantic}`);
+      if (semantic > best) {
+        closestSource = semanticAt;
+        against = input.translationLines ? "translation" : "source";
+      }
+    }
     return {
-      lexical,
-      semantic,
-      sharedRun,
+      jaccard4: r3(jac),
+      rougeL: r3(rouge),
+      semantic: r3(semantic),
       closestSource,
       against,
-      flagged,
-      exempt,
+      flagged: reasons.length > 0,
+      reasons,
     };
   });
-
-  const scored = lines.filter((l) => !l.exempt);
   return {
     lines,
     flaggedLines: lines.filter((l) => l.flagged).length,
-    maxLexical: Math.max(0, ...scored.map((l) => l.lexical)),
-    maxSemantic: Math.max(0, ...scored.map((l) => l.semantic ?? 0)),
-    semanticAvailable: vectors !== null,
-    ...(semanticError ? { semanticError } : {}),
-    thresholds,
+    maxLexical: Math.max(
+      0,
+      ...lines.map((l) => Math.max(l.jaccard4, l.rougeL)),
+    ),
+    maxSemantic: Math.max(0, ...lines.map((l) => l.semantic ?? 0)),
   };
+}
+
+export function checkPhrases(input: {
+  title: string;
+  hookLines: string[];
+  sourceTexts: string[];
+  thresholds?: Thresholds;
+}): { ok: boolean; longestRun: number; detail: string } {
+  const limit = (input.thresholds ?? DEFAULT_THRESHOLDS).phraseWords;
+  let longestRun = 0;
+  let detail = "";
+  for (const mine of [input.title, ...input.hookLines])
+    for (const theirs of input.sourceTexts) {
+      const run = longestSharedRun(mine, theirs);
+      if (run > longestRun) {
+        longestRun = run;
+        detail =
+          run >= limit
+            ? `"${mine}" shares ${run} words in a row with "${theirs}"`
+            : "";
+      }
+    }
+  return { ok: longestRun < limit, longestRun, detail };
+}
+
+export async function checkSections(input: {
+  sections: { sectionId: string; text: string; meaning: string }[];
+  embed: Embed;
+  thresholds?: Thresholds;
+}): Promise<
+  { sectionId: string; meaningCosine: number | null; ok: boolean }[]
+> {
+  const min = (input.thresholds ?? DEFAULT_THRESHOLDS).sectionMeaning;
+  const usable = input.sections.filter(
+    (s) => s.text.trim() && s.meaning.trim(),
+  );
+  const vectors = usable.length
+    ? await input.embed([
+        ...usable.map((s) => s.text),
+        ...usable.map((s) => s.meaning),
+      ])
+    : [];
+  return input.sections.map((s) => {
+    const k = usable.indexOf(s);
+    if (k < 0) return { sectionId: s.sectionId, meaningCosine: null, ok: true };
+    const c = r3(
+      Math.max(0, cosine(vectors[k] ?? [], vectors[usable.length + k] ?? [])),
+    );
+    return { sectionId: s.sectionId, meaningCosine: c, ok: c >= min };
+  });
 }

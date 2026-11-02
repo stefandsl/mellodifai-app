@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createClient, RedactionError } from "./openrouter.js";
+import type { Embed } from "./originality.js";
 import { rewrite } from "./rewrite.js";
 import {
   analysisFixture,
@@ -8,6 +9,10 @@ import {
   fakeFetch,
 } from "./test-fixtures.js";
 
+const SOURCE = [
+  "I walk alone through the empty streets",
+  "Hold on to the light tonight",
+];
 const LITERAL = [
   "Cammino da solo per le strade vuote",
   "Tieniti alla luce stanotte",
@@ -17,67 +22,73 @@ const GOOD = [
   "la luce resta qui con me",
 ];
 const PASS = {
-  singability: 0.9,
-  meaning: 0.85,
-  originality: 0.9,
-  safety: 0.95,
+  language: 0.9,
+  singable: 0.9,
+  chorus: 0.85,
+  original: 0.9,
+  meaning_fidelity: 0.85,
+  timing_fit: 0.9,
+  youtube_safety: 0.95,
 };
-const FAIL = { ...PASS, singability: 0.4 };
+const FAIL = { ...PASS, singable: 0.4 };
+
+// Source and translation lines get orthogonal vectors; new lyrics and meaning maps share
+// one direction, so sections match their meaning and no line matches a source line.
+function fakeEmbed(): Embed {
+  const refs = new Map<string, number>();
+  return async (texts) =>
+    texts.map((t) => {
+      const v = new Array(64).fill(0);
+      if ([...SOURCE, ...LITERAL].includes(t)) {
+        if (!refs.has(t)) refs.set(t, refs.size + 1);
+        v[refs.get(t) ?? 1] = 1;
+      } else v[0] = 1;
+      return v;
+    });
+}
 
 function role(call: FakeCall): string {
   const messages = call.body.messages as { content: string }[] | undefined;
-  if (call.url.endsWith("/v1/embeddings")) return "embed";
   if (call.url.endsWith("/alpha/decisions")) return "jev";
   return (
     /ROLE: ([a-z' ]+)/u.exec(messages?.[0]?.content ?? "")?.[1]?.trim() ?? "?"
   );
 }
 
-// One-hot vectors: every distinct text is orthogonal to every other one.
-function embeddings(call: FakeCall, dims: Map<string, number>) {
-  const input = call.body.input as string[];
-  return {
-    data: input.map((text, index) => {
-      if (!dims.has(text)) dims.set(text, dims.size);
-      const v = new Array(64).fill(0);
-      v[(dims.get(text) ?? 0) % 64] = 1;
-      return { index, embedding: v };
-    }),
-    usage: { prompt_tokens: 10, cost: 0.000001 },
-  };
-}
-
 type Script = {
   draft?: (n: number) => string[];
   jury?: (round: number) => typeof PASS;
-  blockers?: (round: number) => string[];
+  issues?: (round: number) => unknown[];
+  objections?: (round: number) => unknown[];
   writerText?: string;
+  judgesDown?: boolean;
   cost?: number;
 };
 
 function scripted(script: Script = {}) {
-  const dims = new Map<string, number>();
-  const counts = { lyric: 0, jury: 0, devil: 0, fixer: 0 };
+  const counts = { writer: 0, judge: 0, devil: 0, fixer: 0 };
+  const round = () => counts.devil + 1;
   const { fetchFn, calls } = fakeFetch((call) => {
     const r = role(call);
     const cost = script.cost ?? 0.001;
+    if (script.judgesDown && (r === "jev" || r === "judge of remake lyrics"))
+      return { status: 500, text: "down" };
     switch (r) {
-      case "embed":
-        return embeddings(call, dims);
       case "jev":
         return {
           answers: Object.fromEntries(
-            Object.entries(script.jury?.(counts.devil + 1) ?? PASS).map(
-              ([k, v]) => [k, { noul: v }],
-            ),
+            Object.entries(script.jury?.(round()) ?? PASS).map(([k, v]) => [
+              k,
+              { noul: v },
+            ]),
           ),
         };
       case "literal translator":
         return chatReply({ lines: LITERAL }, cost);
       case "lyric writer for a remake": {
-        counts.lyric++;
+        counts.writer++;
         if (script.writerText) return chatReply(script.writerText, cost);
-        const lines = script.draft?.(counts.lyric) ?? [LITERAL[0], GOOD[1]];
+        const lines = script.draft?.(counts.writer) ?? [LITERAL[0], GOOD[1]];
         return chatReply(
           {
             title: "Tram di notte",
@@ -89,15 +100,22 @@ function scripted(script: Script = {}) {
           cost,
         );
       }
-      case "lyric line fixer":
+      case "lyric line fixer": {
         counts.fixer++;
-        return chatReply({ lines: [{ index: 0, text: GOOD[0] }] }, cost);
+        const asked = String(
+          (call.body.messages as { content: string }[])[1]?.content ?? "",
+        );
+        const fixed = GOOD.flatMap((text, index) =>
+          asked.includes(`\n${index}. "`) ? [{ index, text }] : [],
+        );
+        return chatReply({ title: null, lines: fixed }, cost);
+      }
       case "judge of remake lyrics":
-        counts.jury++;
+        counts.judge++;
         return chatReply(
           {
-            scores: script.jury?.(counts.devil + 1) ?? PASS,
-            issues: ["line 1 is a bit flat"],
+            scores: script.jury?.(round()) ?? PASS,
+            issues: script.issues?.(round()) ?? [],
           },
           cost,
         );
@@ -105,8 +123,14 @@ function scripted(script: Script = {}) {
         counts.devil++;
         return chatReply(
           {
-            blockers: script.blockers?.(counts.devil) ?? [],
-            objections: ["the title is plain"],
+            objections: script.objections?.(counts.devil) ?? [
+              {
+                category: "other",
+                severity: "note",
+                line: null,
+                text: "the title is plain",
+              },
+            ],
           },
           cost,
         );
@@ -121,28 +145,41 @@ function scripted(script: Script = {}) {
   };
 }
 
+const deps = (client: ReturnType<typeof scripted>["client"]) => ({
+  client,
+  embed: fakeEmbed(),
+  embedder: "fake",
+});
+
 describe("rewrite", () => {
   it("fixes a literally translated line, passes the jury and logs the cost", async () => {
     const { client, counts } = scripted();
-    const result = await rewrite(analysisFixture(), { lang: "it" }, { client });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
     expect(counts.fixer).toBe(1);
     expect(result.jury).toMatchObject({
       passed: true,
       stoppedBecause: "passed",
     });
     expect(result.jury.rounds).toHaveLength(1);
-    expect(result.jury.rounds[0]?.devil.objections).toEqual([
+    expect(result.jury.rounds[0]?.devil.objections[0]?.text).toBe(
       "the title is plain",
-    ]);
-    expect(result.originality.flaggedLines).toBe(0);
-    expect(result.originality.semanticAvailable).toBe(true);
+    );
+    expect(result.originality).toMatchObject({
+      flaggedLines: 0,
+      embedder: "fake",
+      phrase: { ok: true },
+    });
+    expect(result.originality.sections.every((s) => s.ok)).toBe(true);
     const lines = result.sections.flatMap((s) => s.lines);
     expect(lines.map((l) => l.text)).toEqual(GOOD);
     expect(lines.every((l) => l.fits)).toBe(true);
     expect(result.lyricsText).toBe(
       "[Intro]\n\n[Verse 1]\ngiro la notte su un tram che non va\n\n[Chorus 1]\nla luce resta qui con me",
     );
-    expect(result.title).toBe("Tram di notte");
     expect(result.cost.usd).toBeGreaterThan(0);
     expect(result.cost.calls.map((c) => c.step)).toEqual(
       expect.arrayContaining([
@@ -150,43 +187,93 @@ describe("rewrite", () => {
         "write",
         "fix-lines",
         "jury:devil",
-        "originality:embeddings",
       ]),
     );
     expect(result.styleTags).not.toContain("night song");
   });
 
-  it("revises the whole draft when the jury fails, then passes", async () => {
+  it("rewrites only the lines the jury names, keeping the others", async () => {
+    const { client, counts } = scripted({
+      draft: () => ["giro tutta la notte su un tram", GOOD[1] ?? ""],
+      jury: (r) => (r === 1 ? FAIL : PASS),
+      issues: (r) => (r === 1 ? [{ line: 0, problem: "line 0 limps" }] : []),
+    });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    expect(counts.writer).toBe(1);
+    expect(result.jury.rounds.map((r) => r.passed)).toEqual([false, true]);
+    expect(result.jury.rounds[0]?.failing).toEqual(["singable"]);
+    expect(result.sections.flatMap((s) => s.lines).map((l) => l.text)).toEqual(
+      GOOD,
+    );
+  });
+
+  it("revises the whole draft when the jury's notes name no line", async () => {
     const { client, counts } = scripted({
       draft: () => GOOD,
-      jury: (round) => (round === 1 ? FAIL : PASS),
+      jury: (r) => (r === 1 ? FAIL : PASS),
+      issues: (r) => (r === 1 ? ["it feels flat"] : []),
     });
-    const result = await rewrite(analysisFixture(), { lang: "it" }, { client });
-    expect(counts.lyric).toBe(2);
-    expect(result.jury.rounds.map((r) => r.passed)).toEqual([false, true]);
-    expect(result.jury.rounds[0]?.failing).toEqual(["singability"]);
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    expect(counts.writer).toBe(2);
     expect(result.jury.stoppedBecause).toBe("passed");
   });
 
-  it("does not pass while the devil's advocate has a blocker", async () => {
+  it("does not pass while the devil's advocate has a blocking must_fix", async () => {
     const { client } = scripted({
       draft: () => GOOD,
-      blockers: (round) => (round === 1 ? ['"tram" is a brand'] : []),
+      objections: (n) =>
+        n === 1
+          ? [
+              {
+                category: "safety",
+                severity: "must_fix",
+                line: 1,
+                text: "names a brand",
+              },
+              {
+                category: "meaning",
+                severity: "must_fix",
+                line: null,
+                text: "weak",
+              },
+            ]
+          : [],
     });
-    const result = await rewrite(analysisFixture(), { lang: "it" }, { client });
-    expect(result.jury.rounds.map((r) => r.passed)).toEqual([false, true]);
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    expect(result.jury.rounds.map((r) => [r.passed, r.devil.blocking])).toEqual(
+      [
+        [false, 1],
+        [true, 0],
+      ],
+    );
   });
 
   it("stops at the round cap", async () => {
-    const { client } = scripted({ draft: () => GOOD, jury: () => FAIL });
+    const { client } = scripted({
+      draft: () => GOOD,
+      jury: () => FAIL,
+      issues: () => [{ line: 1, problem: "flat" }],
+    });
     const result = await rewrite(
       analysisFixture(),
       { lang: "it", maxRounds: 2 },
-      { client },
+      deps(client),
     );
     expect(result.jury).toMatchObject({
       passed: false,
-      stoppedBecause: "round-cap",
+      stoppedBecause: "round_cap",
     });
     expect(result.jury.rounds).toHaveLength(2);
   });
@@ -195,15 +282,29 @@ describe("rewrite", () => {
     const { client } = scripted({
       draft: () => GOOD,
       jury: () => FAIL,
+      issues: () => [{ line: 1, problem: "flat" }],
       cost: 0.02,
     });
     const result = await rewrite(
       analysisFixture(),
       { lang: "it", maxRounds: 5, costCapUsd: 0.1 },
-      { client },
+      deps(client),
     );
-    expect(result.jury.stoppedBecause).toBe("cost-cap");
-    expect(result.jury.rounds.length).toBeLessThan(5);
+    expect(result.jury.stoppedBecause).toBe("cost_cap");
+  });
+
+  it("is fail-closed when no judge answers", async () => {
+    const { client } = scripted({ draft: () => GOOD, judgesDown: true });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    expect(result.jury).toMatchObject({
+      passed: false,
+      stoppedBecause: "jury_unavailable",
+    });
+    expect(result.jury.rounds[0]?.available).toBe(false);
   });
 
   it("fails loudly when the privacy filter corrupted the writer's reply", async () => {
@@ -217,7 +318,7 @@ describe("rewrite", () => {
       }),
     });
     await expect(
-      rewrite(analysisFixture(), { lang: "it" }, { client }),
+      rewrite(analysisFixture(), { lang: "it" }, deps(client)),
     ).rejects.toBeInstanceOf(RedactionError);
   });
 
@@ -225,19 +326,27 @@ describe("rewrite", () => {
     const { client, counts } = scripted({
       draft: (n) => (n === 1 ? [GOOD[0] ?? ""] : GOOD),
     });
-    const result = await rewrite(analysisFixture(), { lang: "it" }, { client });
-    expect(counts.lyric).toBe(2);
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "it" },
+      deps(client),
+    );
+    expect(counts.writer).toBe(2);
     expect(result.jury.passed).toBe(true);
   });
 
   it("skips the literal translation when the language does not change", async () => {
     const { client, calls } = scripted({
       draft: () => [
-        "a paper boat drifts down the gutter",
+        "a paper boat drifts on a rainy road",
         "keep the lamp lit for me",
       ],
     });
-    const result = await rewrite(analysisFixture(), { lang: "en" }, { client });
+    const result = await rewrite(
+      analysisFixture(),
+      { lang: "en" },
+      deps(client),
+    );
     expect(calls.some((c) => role(c) === "literal translator")).toBe(false);
     expect(result.originality.flaggedLines).toBe(0);
   });
@@ -246,7 +355,7 @@ describe("rewrite", () => {
     const a = analysisFixture();
     a.lines = [];
     await expect(
-      rewrite(a, { lang: "it" }, { client: scripted().client }),
+      rewrite(a, { lang: "it" }, deps(scripted().client)),
     ).rejects.toThrow(/no sung lines/u);
   });
 });

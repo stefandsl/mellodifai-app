@@ -251,7 +251,7 @@ describe("buildSections", () => {
       "chorus",
       "verse",
       "chorus",
-      "instrumental",
+      "other",
       "bridge",
       "chorus",
     ]);

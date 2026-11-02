@@ -1,5 +1,9 @@
 // Small hand-made fixtures shared by the unit tests (no network, no media).
-import type { Analysis, Blueprint } from "./schemas.js";
+import type {
+  Blueprint,
+  BlueprintShot,
+  RemakeAnalysis,
+} from "@mellodifai/shared";
 
 export type FakeCall = { url: string; body: Record<string, unknown> };
 
@@ -50,73 +54,94 @@ export function must<T>(value: T | undefined | null): T {
   return value;
 }
 
-export function blueprintFixture(): Blueprint {
+function shot(
+  id: string,
+  sectionId: string,
+  startS: number,
+  endS: number,
+): BlueprintShot {
   return {
-    schemaVersion: 1,
-    sourceVideoId: "abc123def45",
-    aspect: "16:9",
-    durationS: 30,
-    palette: [
-      { hex: "#101820", role: "background" },
-      { hex: "#f2aa4c", role: "accent" },
-    ],
-    typography: [
-      { role: "lyric", style: "condensed sans", case: "upper", weight: "bold" },
-    ],
+    id,
+    sectionId,
+    startS,
+    endS,
+    offsetInSection: 0,
+    layout: "full_bleed",
+    typographyRoles: [],
+    palette: ["#101820"],
     motion: {
-      cutsPerMinute: 12,
-      cutStyle: "hard cuts on downbeats",
-      zooms: "slow push-in",
-      kineticText: "word-by-word pop",
-      visualizer: "none",
-      transitions: ["cut"],
+      camera: "static",
+      cutOnBeat: true,
+      kineticText: "none",
+      visualizer: null,
     },
-    shots: [
-      {
-        id: "s1",
-        start: 0,
-        end: 8,
-        sectionId: "intro",
-        onBeat: true,
-        layout: "full-frame",
-        description: "city at night",
-        motion: "slow pan",
-        transitionIn: "fade",
-        textOverlay: null,
-      },
-      {
-        id: "s2",
-        start: 8,
-        end: 18,
-        sectionId: "verse-1",
-        onBeat: true,
-        layout: "centered subject",
-        description: "singer walking",
-        motion: "handheld",
-        transitionIn: "cut",
-        textOverlay: null,
-      },
-      {
-        id: "s3",
-        start: 18,
-        end: 30,
-        sectionId: "chorus-1",
-        onBeat: true,
-        layout: "split screen",
-        description: "crowd dancing",
-        motion: "fast cuts",
-        transitionIn: "cut",
-        textOverlay: "hook words",
-      },
-    ],
-    notes: "",
+    transition: "cut",
+    overlays: [],
+    imageNeed: "background",
   };
 }
 
-export function analysisFixture(): Analysis {
+export function blueprintFixture(): Blueprint {
+  return {
+    schemaVersion: 1,
+    source: {
+      videoId: "abc123def45",
+      url: "https://www.youtube.com/watch?v=abc123def45",
+      durationS: 30,
+      analysedAt: "2026-11-01T00:00:00.000Z",
+    },
+    music: {
+      bpm: 120,
+      key: "A minor",
+      timeSig: "4/4",
+      sections: [
+        {
+          id: "intro-1",
+          label: "intro",
+          startS: 0,
+          endS: 8,
+          energy: 0.2,
+          bars: 4,
+        },
+        {
+          id: "verse-1",
+          label: "verse",
+          startS: 8,
+          endS: 18,
+          energy: 0.5,
+          bars: 5,
+        },
+        {
+          id: "chorus-1",
+          label: "chorus",
+          startS: 18,
+          endS: 30,
+          energy: 0.9,
+          bars: 6,
+        },
+      ],
+      downbeatsS: [0, 2],
+      vocal: "female",
+      instrumentation: ["synth pads"],
+    },
+    shots: [
+      shot("s1", "intro-1", 0, 8),
+      shot("s2", "verse-1", 8, 18),
+      shot("s3", "chorus-1", 18, 30),
+    ],
+    global: {
+      palette: ["#101820", "#f2aa4c"],
+      aspect: "16:9",
+      typeScale: { basePx: 48, ratio: 1.25 },
+    },
+  };
+}
+
+export function analysisFixture(): RemakeAnalysis {
   return {
     schemaVersion: 1,
     videoId: "abc123def45",
+    url: "https://www.youtube.com/watch?v=abc123def45",
     title: "Night Song",
     protectedNames: ["Some Artist", "Night Song"],
     sourceLanguage: "en",
@@ -130,7 +155,7 @@ export function analysisFixture(): Analysis {
       downbeats: [0, 2],
       sections: [
         {
-          id: "intro",
+          id: "intro-1",
           kind: "intro",
           label: "Intro",
           start: 0,
@@ -159,6 +184,7 @@ export function analysisFixture(): Analysis {
       ],
       vocal: {
         type: "female",
+        delivery: "sung",
         medianF0Hz: 280,
         voicedShare: 0.6,
         pitchStability: 0.7,
@@ -214,5 +240,6 @@ export function analysisFixture(): Analysis {
     blueprint: blueprintFixture(),
     styleTags: ["synth pop", "120 bpm"],
     cost: { usd: 0, calls: [] },
+    sourceMediaDeleted: false,
   };
 }

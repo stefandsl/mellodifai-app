@@ -2,7 +2,7 @@
 // A count is a range: `min` merges every vowel across a word boundary (synalepha, as
 // singers do in Italian, Spanish, Portuguese and Romanian) and every ambiguous vowel
 // pair; `max` splits them. The range is what a melody line can carry.
-import type { Ending } from "./schemas.js";
+import type { Ending } from "@mellodifai/shared";
 
 export type Syllables = { min: number; max: number };
 
@@ -235,31 +235,22 @@ export function lineEnding(line: string, lang: string): Ending {
 
 export type Fit = { fits: boolean; endingMatch: boolean; delta: number };
 
-// A candidate fits when its syllable range lands within tolerance of the target's.
-// An unstressed final syllable can share the last note of a stressed target ending.
+// Design 8.4 R3: the new line's count must be within plus or minus 1 of the source
+// line's (ranges overlap within 1). Stress is left to the jury; the ending is reported.
+export const SYLLABLE_TOLERANCE = 1;
 export function fitLine(
   target: Syllables & { ending: Ending },
   candidate: Syllables & { ending: Ending },
 ): Fit {
   const known = target.ending !== "unknown" && candidate.ending !== "unknown";
   const endingMatch = !known || target.ending === candidate.ending;
-  const shift =
-    known && target.ending === "stressed" && candidate.ending === "unstressed"
-      ? 1
-      : 0;
-  const cMin = candidate.min - shift;
-  const cMax = candidate.max - shift;
   const delta =
-    cMin > target.max
-      ? cMin - target.max
-      : cMax < target.min
-        ? cMax - target.min
+    candidate.min > target.max
+      ? candidate.min - target.max
+      : candidate.max < target.min
+        ? candidate.max - target.min
         : 0;
-  const tolerance = Math.max(
-    1,
-    Math.round(0.12 * ((target.min + target.max) / 2)),
-  );
-  return { fits: Math.abs(delta) <= tolerance, endingMatch, delta };
+  return { fits: Math.abs(delta) <= SYLLABLE_TOLERANCE, endingMatch, delta };
 }
 
 export function singingRate(s: Syllables, start: number, end: number): number {

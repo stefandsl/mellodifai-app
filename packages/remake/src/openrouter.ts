@@ -2,7 +2,7 @@
 // The filter can replace ordinary words with tags such as [PERSON_NAME] before a model
 // sees them (seen live 2026-11-01, see apps/worker/src/stages/lyric-jury.ts); lyrics
 // written from a corrupted source would be wrong, so any tag in a reply is fatal.
-import type { Cost } from "./schemas.js";
+import type { RemakeCost } from "@mellodifai/shared";
 
 const BASE = "https://openrouter.ai/api";
 export const JEV = "typesafe/jev-1.14";
@@ -14,7 +14,9 @@ export const DEFAULT_MODELS = {
   analyst: "anthropic/claude-haiku-5.5",
   vision: "google/gemini-3.8-flash",
   judges: [JEV, "anthropic/claude-haiku-5.5", "google/gemini-3.8-flash"],
-  devil: "google/gemini-3.8-flash",
+  // Design 10.2: the devil's advocate is Claude Sonnet 5.5.
+  devil: "anthropic/claude-sonnet-5.5",
+  // Fallback only (--embedder openrouter); the gate uses local LaBSE (design 10.3).
   embedding: "baai/bge-m3",
 };
 export type Models = typeof DEFAULT_MODELS;
@@ -53,8 +55,8 @@ export function assertNotRedacted(text: string, step: string): void {
 }
 
 export class Ledger {
-  readonly calls: Cost["calls"] = [];
-  add(call: Cost["calls"][number]): void {
+  readonly calls: RemakeCost["calls"] = [];
+  add(call: RemakeCost["calls"][number]): void {
     this.calls.push(call);
   }
   get usd(): number {
@@ -62,14 +64,14 @@ export class Ledger {
       Math.round(this.calls.reduce((sum, c) => sum + c.usd, 0) * 1e6) / 1e6
     );
   }
-  since(mark: number): Cost {
+  since(mark: number): RemakeCost {
     const calls = this.calls.slice(mark);
     return {
       usd: Math.round(calls.reduce((sum, c) => sum + c.usd, 0) * 1e6) / 1e6,
       calls,
     };
   }
-  toJSON(): Cost {
+  toJSON(): RemakeCost {
     return { usd: this.usd, calls: this.calls };
   }
 }
