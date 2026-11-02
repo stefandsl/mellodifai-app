@@ -1070,6 +1070,13 @@ then run the prepared `E:/mellodifai/spikes/oidc/run-review-r1-e2e.ps1` and reco
 the result. The R1 focused spike rerun passed all 8 tests. No passing e2e result
 is claimed. Live connector verification remains pending separately.
 
+Review R2 reconfirmed the same sole Important finding. The prepared runner was
+attempted again and refused the still-occupied port before starting e2e. Process
+metadata confirmed PID 83308 still belongs to the excluded `local-launcher`
+worktree. The requested owner exception remains unanswered. The R2 focused
+rerun passed 8 tests; acceptance remains BLOCKED until the owner action and a
+passing e2e run. Repeating review alone does not resolve this prerequisite.
+
 ## Deploy log
 
 (Filled by Tasks 33 and 47.)
