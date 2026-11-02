@@ -1,4 +1,11 @@
-import type { JobStatus, Lang, Stage, VersionStatus } from "@mellodifai/shared";
+import type {
+  JobStatus,
+  Lang,
+  RemakeErrorCode,
+  RemakeStage,
+  Stage,
+  VersionStatus,
+} from "@mellodifai/shared";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { EngineAvailability } from "./comfy/availability.js";
 
@@ -7,7 +14,8 @@ export type Job = {
   payload?: Record<string, unknown>;
   not_before?: string | null;
   id: string;
-  version_id: string;
+  // null only for the songless lyrics_assist jobs (migration 20261102000025).
+  version_id: string | null;
   stage: Stage;
   status: JobStatus;
   idempotency_key: string;
@@ -46,6 +54,35 @@ export type Project = {
   brief?: string | null;
   style?: string | null;
   song_settings?: unknown;
+  source?: Record<string, unknown> | null;
+};
+export type Remake = {
+  id: string;
+  owner_id: string;
+  project_id: string;
+  version_id: string;
+  url: string;
+  video_id: string;
+  lang: Lang;
+  country: string | null;
+  stage: RemakeStage;
+  error_code: RemakeErrorCode | null;
+  error: string | null;
+  source: Record<string, unknown> | null;
+  analysis: unknown;
+  lyrics: unknown;
+  pending: { lines?: { index: number; text: string }[]; title?: string } | null;
+  revision: number;
+  cost: Record<string, number>;
+};
+export type LyricRequest = {
+  id: string;
+  owner_id: string;
+  mode: string;
+  lang: Lang;
+  input: unknown;
+  result: unknown;
+  error_code: string | null;
 };
 export type WorkerUpdate = {
   id: string;
@@ -162,6 +199,7 @@ export interface Db {
     versionId: string,
     stage: Stage,
     idempotencyKey: string,
+    payload?: Record<string, unknown>,
   ): Promise<void>;
   requeue(
     jobId: string,
@@ -207,6 +245,17 @@ export interface Db {
     workerId: string,
     payload: Record<string, unknown>,
   ): Promise<void>;
+  patchProject(id: string, patch: Partial<Project>): Promise<void>;
+  getRemakeByVersion(versionId: string): Promise<Remake | null>;
+  // Writes the patch; with ifRevision, only while the row still has that revision (the person's
+  // edits bump it), and returns whether it wrote.
+  patchRemake(
+    id: string,
+    patch: Partial<Remake>,
+    ifRevision?: number,
+  ): Promise<boolean>;
+  getLyricRequest(id: string): Promise<LyricRequest | null>;
+  patchLyricRequest(id: string, patch: Partial<LyricRequest>): Promise<void>;
 }
 
 function requireData<T>(data: T | null, error: { message: string } | null): T {
@@ -345,6 +394,7 @@ export class SupabaseDb implements Db {
     versionId: string,
     stage: Stage,
     idempotencyKey: string,
+    payload?: Record<string, unknown>,
   ): Promise<void> {
     const { error } = await this.client.from("jobs").upsert(
       {
@@ -352,6 +402,7 @@ export class SupabaseDb implements Db {
         version_id: versionId,
         stage,
         idempotency_key: idempotencyKey,
+        ...(payload ? { payload } : {}),
       },
       { onConflict: "idempotency_key", ignoreDuplicates: true },
     );
@@ -556,6 +607,52 @@ export class SupabaseDb implements Db {
       .eq("status", "running");
     if (error) throw new Error(error.message);
   }
+  async patchProject(id: string, patch: Partial<Project>): Promise<void> {
+    const { error } = await this.client
+      .from("projects")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+  async getRemakeByVersion(versionId: string): Promise<Remake | null> {
+    const { data, error } = await this.client
+      .from("remakes")
+      .select("*")
+      .eq("version_id", versionId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Remake | null;
+  }
+  async patchRemake(
+    id: string,
+    patch: Partial<Remake>,
+    ifRevision?: number,
+  ): Promise<boolean> {
+    let query = this.client.from("remakes").update(patch).eq("id", id);
+    if (ifRevision !== undefined) query = query.eq("revision", ifRevision);
+    const { data, error } = await query.select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+  async getLyricRequest(id: string): Promise<LyricRequest | null> {
+    const { data, error } = await this.client
+      .from("lyric_requests")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as LyricRequest | null;
+  }
+  async patchLyricRequest(
+    id: string,
+    patch: Partial<LyricRequest>,
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("lyric_requests")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
   async reserveUpload(render: Render, workerId: string) {
     const { data, error } = await this.client.rpc(
       "reserve_publication_upload",
@@ -594,6 +691,8 @@ export class InMemoryDb implements Db {
   public workers: WorkerUpdate[] = [];
   public profiles: { id: string; role: string; email?: string }[] = [];
   public sectionEdits: SectionEdit[] = [];
+  public remakes: Remake[] = [];
+  public lyricRequests: LyricRequest[] = [];
   constructor(
     public jobs: Job[] = [],
     public versions: Version[] = [],
@@ -677,9 +776,15 @@ export class InMemoryDb implements Db {
   async patchVersion(id: string, patch: Partial<Version>) {
     Object.assign(this.versions.find((item) => item.id === id) ?? {}, patch);
   }
-  async enqueue(versionId: string, stage: Stage, idempotencyKey: string) {
+  async enqueue(
+    versionId: string,
+    stage: Stage,
+    idempotencyKey: string,
+    payload?: Record<string, unknown>,
+  ) {
     if (this.jobs.some((job) => job.idempotency_key === idempotencyKey)) return;
     this.jobs.push({
+      ...(payload ? { payload } : {}),
       ...((await this.getVersion(versionId))?.owner_id
         ? { owner_id: (await this.getVersion(versionId))?.owner_id as string }
         : {}),
@@ -883,6 +988,28 @@ export class InMemoryDb implements Db {
         0,
         (worker.youtube_uploads_today ?? 0) - 1,
       );
+  }
+  async patchProject(id: string, patch: Partial<Project>) {
+    Object.assign(this.projects.find((item) => item.id === id) ?? {}, patch);
+  }
+  async getRemakeByVersion(versionId: string) {
+    return this.remakes.find((item) => item.version_id === versionId) ?? null;
+  }
+  async patchRemake(id: string, patch: Partial<Remake>, ifRevision?: number) {
+    const remake = this.remakes.find((item) => item.id === id);
+    if (!remake || (ifRevision !== undefined && remake.revision !== ifRevision))
+      return false;
+    Object.assign(remake, patch);
+    return true;
+  }
+  async getLyricRequest(id: string) {
+    return this.lyricRequests.find((item) => item.id === id) ?? null;
+  }
+  async patchLyricRequest(id: string, patch: Partial<LyricRequest>) {
+    Object.assign(
+      this.lyricRequests.find((item) => item.id === id) ?? {},
+      patch,
+    );
   }
   private findJob(id: string) {
     const job = this.jobs.find((item) => item.id === id);

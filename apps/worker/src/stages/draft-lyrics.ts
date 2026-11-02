@@ -15,6 +15,7 @@ import {
   type JuryReport,
   judge,
   looksRedacted,
+  lyricsBudget,
   PASS_SCORE,
   REDACTION_NOTE,
   type Route,
@@ -174,21 +175,7 @@ function worst(jury: JuryReport): number {
 
 export const draftLyrics: StageHandler = async (context) => {
   const secrets = context.secrets.values;
-  const cap = Number(secrets.LYRICS_DAILY_CAP ?? "50");
-  const stateFile =
-    secrets.LYRICS_STATE_FILE ?? "E:\\mellodifai\\state\\lyrics.json";
-  const {
-    mkdir,
-    readFile: stateRead,
-    writeFile,
-  } = await import("node:fs/promises");
-  const today = new Date().toISOString().slice(0, 10);
-  let state: { day?: string; count?: number } = {};
-  try {
-    state = JSON.parse(await stateRead(stateFile, "utf8")) as typeof state;
-  } catch {}
-  const count = state.day === today ? (state.count ?? 0) : 0;
-  if (count >= cap) throw new Error("daily lyrics cap reached");
+  const budget = await lyricsBudget(secrets);
   const template = await draftReference(context.version.lang);
   const displayMap = await referenceDisplayMap(context.version.lang);
   const referenceTitle = (
@@ -237,13 +224,8 @@ export const draftLyrics: StageHandler = async (context) => {
   }[] = [];
 
   for (let calls = 0; calls < MAX_WRITER_CALLS; calls += 1) {
-    if (count + calls >= cap) throw new Error("daily lyrics cap reached");
     // Reserve before making the request, including requests that fail in transit.
-    await mkdir(join(stateFile, ".."), { recursive: true });
-    await writeFile(
-      stateFile,
-      JSON.stringify({ day: today, count: count + calls + 1 }),
-    );
+    await budget.reserve();
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {

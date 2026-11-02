@@ -1,0 +1,1320 @@
+{
+  "schemaVersion": 1,
+  "lang": "it",
+  "country": null,
+  "title": "Mille volti",
+  "styleTags": [
+    "rock",
+    "alternative",
+    "defiant",
+    "lonely",
+    "79 bpm",
+    "d minor",
+    "female vocals",
+    "drums",
+    "prominent bass",
+    "electric guitar"
+  ],
+  "sections": [
+    {
+      "id": "intro-1",
+      "kind": "intro",
+      "label": "Intro",
+      "lines": []
+    },
+    {
+      "id": "verse-1",
+      "kind": "verse",
+      "label": "Verse 1",
+      "lines": [
+        {
+          "index": 0,
+          "source": "Leave us and take away the forces",
+          "text": "Lasciate stare le catene",
+          "start": 18.04,
+          "end": 23.64,
+          "target": {
+            "min": 8,
+            "max": 8,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 9,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.109,
+            "rougeL": 0.222,
+            "semantic": 0.413,
+            "closestSource": 3,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 1,
+          "source": "We're wrong in every trial",
+          "text": "Ci zittite a ogni passo",
+          "start": 24.04,
+          "end": 29.92,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 7,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.109,
+            "rougeL": 0.2,
+            "semantic": 0.677,
+            "closestSource": 1,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 2,
+          "source": "DON'T SHUT.",
+          "text": "Basta.",
+          "start": 30.04,
+          "end": 32.92,
+          "target": {
+            "min": 2,
+            "max": 2,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 2,
+            "max": 2
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0,
+            "rougeL": 0,
+            "semantic": 0.355,
+            "closestSource": 0,
+            "against": "source",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 3,
+          "source": "Don't shut our voices.",
+          "text": "Io canterò.",
+          "start": 33.04,
+          "end": 35.04,
+          "target": {
+            "min": 4,
+            "max": 4,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 4,
+            "max": 5
+          },
+          "ending": "stressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0,
+            "rougeL": 0,
+            "semantic": 0.394,
+            "closestSource": 0,
+            "against": "source",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 4,
+          "source": "Don't fake another smile",
+          "text": "Niente sorrisi finti",
+          "start": 36.04,
+          "end": 41.04,
+          "target": {
+            "min": 6,
+            "max": 6,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 7,
+            "max": 7
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.122,
+            "rougeL": 0,
+            "semantic": 0.754,
+            "closestSource": 4,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "chorus-1",
+      "kind": "chorus",
+      "label": "Chorus 1",
+      "lines": [
+        {
+          "index": 5,
+          "source": "Alone, alone, alone - in the crowd",
+          "text": "Mille volti, nessuno si volta",
+          "start": 42.04,
+          "end": 45.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.143,
+            "rougeL": 0.222,
+            "semantic": 0.463,
+            "closestSource": 17,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 6,
+          "source": "Alone, alone, alone - calling loud",
+          "text": "Chiamo forte ma il vento mi ruba",
+          "start": 45.24,
+          "end": 47.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.182,
+            "rougeL": 0.182,
+            "semantic": 0.454,
+            "closestSource": 6,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 7,
+          "source": "Alone, alone, alone - hear me now",
+          "text": "Alzo la voce sopra il rumore",
+          "start": 47.92,
+          "end": 50.44,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.05,
+            "rougeL": 0.167,
+            "semantic": 0.415,
+            "closestSource": 14,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 8,
+          "source": "no one hears me in the crowd.",
+          "text": "nessuno mi sente qui",
+          "start": 50.84,
+          "end": 53.84,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 7,
+            "max": 7
+          },
+          "ending": "stressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.556,
+            "rougeL": 0.75,
+            "semantic": 0.823,
+            "closestSource": 21,
+            "against": "translation",
+            "flagged": true,
+            "reasons": [
+              "4-gram Jaccard 0.556 > 0.35",
+              "ROUGE-L 0.75 > 0.35",
+              "semantic 0.823 > 0.8"
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "source": "Alone, alone, alone - in the crowd",
+          "text": "Mille volti, nessuno si volta",
+          "start": 54.04,
+          "end": 57.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.143,
+            "rougeL": 0.222,
+            "semantic": 0.463,
+            "closestSource": 17,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 10,
+          "source": "Alone, alone, alone - calling loud",
+          "text": "Chiamo forte ma il vento mi ruba",
+          "start": 57.44,
+          "end": 60.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.182,
+            "rougeL": 0.182,
+            "semantic": 0.454,
+            "closestSource": 6,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 11,
+          "source": "Alone, alone, alone - hear me now",
+          "text": "Alzo la voce sopra il rumore",
+          "start": 60.24,
+          "end": 63.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.05,
+            "rougeL": 0.167,
+            "semantic": 0.415,
+            "closestSource": 14,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 12,
+          "source": "no one hears me in the crowd.",
+          "text": "e la mia voce si perde",
+          "start": 63.24,
+          "end": 66.04,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 8,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.022,
+            "rougeL": 0.286,
+            "semantic": 0.543,
+            "closestSource": 26,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "verse-2",
+      "kind": "verse",
+      "label": "Verse 2",
+      "lines": [
+        {
+          "index": 13,
+          "source": "u",
+          "text": "Oh",
+          "start": 67.24,
+          "end": 70.52,
+          "target": {
+            "min": 1,
+            "max": 1,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 1,
+            "max": 1
+          },
+          "ending": "stressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0,
+            "rougeL": 0,
+            "semantic": 0.535,
+            "closestSource": 0,
+            "against": "source",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 14,
+          "source": "Touch the future on my screen,",
+          "text": "Tocco il domani su un vetro",
+          "start": 72.04,
+          "end": 78.04,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 8,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.057,
+            "rougeL": 0.182,
+            "semantic": 0.624,
+            "closestSource": 4,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 15,
+          "source": "Feels so close but it’s a dream....",
+          "text": "Sembra qui, poi svanisce",
+          "start": 78.92,
+          "end": 84.04,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 7,
+            "max": 7
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.104,
+            "rougeL": 0.182,
+            "semantic": 0.499,
+            "closestSource": 15,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 16,
+          "source": "Empty echoes all around,",
+          "text": "Voci vuote dappertutto",
+          "start": 84.04,
+          "end": 90.04,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "unknown"
+          },
+          "syllables": {
+            "min": 8,
+            "max": 8
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.158,
+            "rougeL": 0.25,
+            "semantic": 0.687,
+            "closestSource": 3,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 17,
+          "source": "NO ONE hears me sound....",
+          "text": "Tace ogni schermo",
+          "start": 90.24,
+          "end": 95.32,
+          "target": {
+            "min": 5,
+            "max": 5,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 5,
+            "max": 6
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.15,
+            "rougeL": 0.25,
+            "semantic": 0.461,
+            "closestSource": 1,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "chorus-2",
+      "kind": "chorus",
+      "label": "Chorus 2",
+      "lines": [
+        {
+          "index": 18,
+          "source": "Alone, alone, alone - in the crowd",
+          "text": "Mille volti, nessuno si volta",
+          "start": 96.04,
+          "end": 99.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.143,
+            "rougeL": 0.222,
+            "semantic": 0.463,
+            "closestSource": 17,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 19,
+          "source": "Alone, alone, alone - calling loud",
+          "text": "Chiamo forte ma il vento mi ruba",
+          "start": 99.24,
+          "end": 102.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.182,
+            "rougeL": 0.182,
+            "semantic": 0.454,
+            "closestSource": 6,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 20,
+          "source": "Alone, alone, alone - hear me now",
+          "text": "Alzo la voce sopra il rumore",
+          "start": 102.24,
+          "end": 105.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.05,
+            "rougeL": 0.167,
+            "semantic": 0.415,
+            "closestSource": 14,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 21,
+          "source": "no one hears me in the crowd",
+          "text": "e la mia voce si perde",
+          "start": 105.24,
+          "end": 108.04,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 8,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.022,
+            "rougeL": 0.286,
+            "semantic": 0.543,
+            "closestSource": 26,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 22,
+          "source": "Alone, alone, alone - in the crowd",
+          "text": "Mille volti, nessuno si volta",
+          "start": 108.24,
+          "end": 111.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.143,
+            "rougeL": 0.222,
+            "semantic": 0.463,
+            "closestSource": 17,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 23,
+          "source": "Alone, alone, alone - calling loud",
+          "text": "Chiamo forte ma il vento mi ruba",
+          "start": 111.24,
+          "end": 114.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.182,
+            "rougeL": 0.182,
+            "semantic": 0.454,
+            "closestSource": 6,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 24,
+          "source": "Alone, alone, alone - hear me now",
+          "text": "Alzo la voce sopra il rumore",
+          "start": 114.24,
+          "end": 117.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.05,
+            "rougeL": 0.167,
+            "semantic": 0.415,
+            "closestSource": 14,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 25,
+          "source": "no one hears me in the crowd",
+          "text": "ma io continuo a cantare",
+          "start": 117.24,
+          "end": 120.04,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 7,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.022,
+            "rougeL": 0.167,
+            "semantic": 0.533,
+            "closestSource": 15,
+            "against": "source",
+            "flagged": false,
+            "reasons": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "bridge-1",
+      "kind": "bridge",
+      "label": "Bridge",
+      "lines": [
+        {
+          "index": 26,
+          "source": "The edge is near, the night is deep,",
+          "text": "Siamo sul bordo della notte",
+          "start": 120.04,
+          "end": 123.04,
+          "target": {
+            "min": 8,
+            "max": 8,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 9,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.216,
+            "rougeL": 0.308,
+            "semantic": 0.578,
+            "closestSource": 26,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 27,
+          "source": "Yet through the chaos, our souls will keep.",
+          "text": "ma l'anima resta accesa",
+          "start": 123.24,
+          "end": 126.04,
+          "target": {
+            "min": 8,
+            "max": 8,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 8,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.028,
+            "rougeL": 0.182,
+            "semantic": 0.606,
+            "closestSource": 15,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 28,
+          "source": "The silence roars, the void surrounds,",
+          "text": "Grida il buio da ogni lato",
+          "start": 126.24,
+          "end": 129.04,
+          "target": {
+            "min": 8,
+            "max": 8,
+            "ending": "unknown"
+          },
+          "syllables": {
+            "min": 7,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.059,
+            "rougeL": 0.182,
+            "semantic": 0.454,
+            "closestSource": 1,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 29,
+          "source": "But in our hearts, the light resounds.",
+          "text": "ma dentro arde un fuoco",
+          "start": 129.24,
+          "end": 131.04,
+          "target": {
+            "min": 8,
+            "max": 8,
+            "ending": "unknown"
+          },
+          "syllables": {
+            "min": 6,
+            "max": 8
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.065,
+            "rougeL": 0.333,
+            "semantic": 0.652,
+            "closestSource": 15,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "chorus-3",
+      "kind": "chorus",
+      "label": "Chorus 3",
+      "lines": [
+        {
+          "index": 30,
+          "source": "Alone, alone, alone - in the crowd",
+          "text": "Mille volti, nessuno si volta",
+          "start": 131.44,
+          "end": 135.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.143,
+            "rougeL": 0.222,
+            "semantic": 0.463,
+            "closestSource": 17,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 31,
+          "source": "Alone, alone, alone - calling loud",
+          "text": "Chiamo forte ma il vento mi ruba",
+          "start": 135.24,
+          "end": 138.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.182,
+            "rougeL": 0.182,
+            "semantic": 0.454,
+            "closestSource": 6,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 32,
+          "source": "Alone, alone, alone - hear me now",
+          "text": "Alzo la voce sopra il rumore",
+          "start": 138.24,
+          "end": 141.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.05,
+            "rougeL": 0.167,
+            "semantic": 0.415,
+            "closestSource": 14,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 33,
+          "source": "no one hears me in the crowd",
+          "text": "e la mia voce si perde",
+          "start": 141.24,
+          "end": 144.04,
+          "target": {
+            "min": 7,
+            "max": 7,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 8,
+            "max": 9
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.022,
+            "rougeL": 0.286,
+            "semantic": 0.543,
+            "closestSource": 26,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 34,
+          "source": "Alone, alone, alone - in the crowd",
+          "text": "Mille volti, nessuno si volta",
+          "start": 144.24,
+          "end": 147.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 10
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.143,
+            "rougeL": 0.222,
+            "semantic": 0.463,
+            "closestSource": 17,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        },
+        {
+          "index": 35,
+          "source": "Alone, alone, alone - calling loud",
+          "text": "Chiamo forte ma il vento mi ruba",
+          "start": 147.24,
+          "end": 150.04,
+          "target": {
+            "min": 9,
+            "max": 9,
+            "ending": "stressed"
+          },
+          "syllables": {
+            "min": 10,
+            "max": 11
+          },
+          "ending": "unstressed",
+          "fits": true,
+          "originality": {
+            "jaccard4": 0.182,
+            "rougeL": 0.182,
+            "semantic": 0.454,
+            "closestSource": 6,
+            "against": "translation",
+            "flagged": false,
+            "reasons": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro-1",
+      "kind": "outro",
+      "label": "Outro",
+      "lines": []
+    }
+  ],
+  "lyricsText": "[Intro]\n\n[Verse 1]\nLasciate stare le catene\nCi zittite a ogni passo\nBasta.\nIo canterò.\nNiente sorrisi finti\n\n[Chorus 1]\nMille volti, nessuno si volta\nChiamo forte ma il vento mi ruba\nAlzo la voce sopra il rumore\nnessuno mi sente qui\nMille volti, nessuno si volta\nChiamo forte ma il vento mi ruba\nAlzo la voce sopra il rumore\ne la mia voce si perde\n\n[Verse 2]\nOh\nTocco il domani su un vetro\nSembra qui, poi svanisce\nVoci vuote dappertutto\nTace ogni schermo\n\n[Chorus 2]\nMille volti, nessuno si volta\nChiamo forte ma il vento mi ruba\nAlzo la voce sopra il rumore\ne la mia voce si perde\nMille volti, nessuno si volta\nChiamo forte ma il vento mi ruba\nAlzo la voce sopra il rumore\nma io continuo a cantare\n\n[Bridge]\nSiamo sul bordo della notte\nma l'anima resta accesa\nGrida il buio da ogni lato\nma dentro arde un fuoco\n\n[Chorus 3]\nMille volti, nessuno si volta\nChiamo forte ma il vento mi ruba\nAlzo la voce sopra il rumore\ne la mia voce si perde\nMille volti, nessuno si volta\nChiamo forte ma il vento mi ruba\n\n[Outro]",
+  "literalTranslation": [
+    "Lasciaci e porta via le forze",
+    "Abbiamo torto in ogni processo",
+    "NON CHIUDERE.",
+    "Non chiudere le nostre voci.",
+    "Non fingere un altro sorriso",
+    "Solo, solo, solo - nella folla",
+    "Solo, solo, solo - chiamando forte",
+    "Solo, solo, solo - ascoltami ora",
+    "nessuno mi sente nella folla.",
+    "Solo, solo, solo - nella folla",
+    "Solo, solo, solo - chiamando forte",
+    "Solo, solo, solo - ascoltami ora",
+    "nessuno mi sente nella folla.",
+    "u",
+    "Tocca il futuro sul mio schermo,",
+    "Sembra così vicino ma è un sogno....",
+    "Echi vuoti tutto intorno,",
+    "NESSUNO mi sente suonare....",
+    "Solo, solo, solo - nella folla",
+    "Solo, solo, solo - chiamando forte",
+    "Solo, solo, solo - ascoltami ora",
+    "nessuno mi sente nella folla",
+    "Solo, solo, solo - nella folla",
+    "Solo, solo, solo - chiamando forte",
+    "Solo, solo, solo - ascoltami ora",
+    "nessuno mi sente nella folla",
+    "Il bordo è vicino, la notte è profonda,",
+    "Eppure attraverso il caos, le nostre anime resisteranno.",
+    "Il silenzio ruggisce, il vuoto circonda,",
+    "Ma nei nostri cuori, la luce risuona.",
+    "Solo, solo, solo - nella folla",
+    "Solo, solo, solo - chiamando forte",
+    "Solo, solo, solo - ascoltami ora",
+    "nessuno mi sente nella folla",
+    "Solo, solo, solo - nella folla",
+    "Solo, solo, solo - chiamando forte"
+  ],
+  "originality": {
+    "thresholds": {
+      "lexical": 0.35,
+      "semantic": 0.8,
+      "phraseWords": 3,
+      "sectionMeaningRatio": 0.85,
+      "sectionMeaningFloor": 0.3
+    },
+    "embedder": "LaBSE (sentence-transformers/LaBSE, local CPU)",
+    "flaggedLines": 1,
+    "maxLexical": 0.75,
+    "maxSemantic": 0.823,
+    "phrase": {
+      "ok": false,
+      "longestRun": 3,
+      "detail": "\"nessuno mi sente qui\" shares 3 words in a row with \"nessuno mi sente nella folla.\""
+    },
+    "meaningGate": "enforce",
+    "sections": [
+      {
+        "sectionId": "verse-1",
+        "meaningCosine": 0.254,
+        "sourceCosine": 0.346,
+        "required": 0.3,
+        "ok": false
+      },
+      {
+        "sectionId": "chorus-1",
+        "meaningCosine": 0.525,
+        "sourceCosine": 0.605,
+        "required": 0.514,
+        "ok": true
+      },
+      {
+        "sectionId": "verse-2",
+        "meaningCosine": 0.337,
+        "sourceCosine": 0.422,
+        "required": 0.359,
+        "ok": false
+      },
+      {
+        "sectionId": "chorus-2",
+        "meaningCosine": 0.497,
+        "sourceCosine": 0.419,
+        "required": 0.356,
+        "ok": true
+      },
+      {
+        "sectionId": "bridge-1",
+        "meaningCosine": 0.506,
+        "sourceCosine": 0.615,
+        "required": 0.523,
+        "ok": false
+      },
+      {
+        "sectionId": "chorus-3",
+        "meaningCosine": 0.392,
+        "sourceCosine": 0.433,
+        "required": 0.368,
+        "ok": true
+      }
+    ]
+  },
+  "jury": {
+    "passed": false,
+    "rounds": [
+      {
+        "round": 1,
+        "available": true,
+        "scores": {
+          "language": 0.86,
+          "singable": 0.78,
+          "chorus": 0.81,
+          "original": 0.84,
+          "meaning_fidelity": 0.8,
+          "timing_fit": 0.74,
+          "youtube_safety": 0.95
+        },
+        "failing": [],
+        "issues": [
+          {
+            "line": 8,
+            "problem": "\"nessuno mi sente qui\" says the source line almost word for word: give the idea a new image."
+          },
+          {
+            "line": 26,
+            "problem": "\"Siamo sul bordo della notte\" is one syllable long for its slot; it still sings."
+          }
+        ],
+        "devil": {
+          "model": "anthropic/claude-sonnet-5.5",
+          "objections": [
+            {
+              "category": "originality",
+              "severity": "must_fix",
+              "line": 8,
+              "text": "\"nessuno mi sente qui\" is a close translation of \"no one hears me in the crowd\"."
+            },
+            {
+              "category": "singability",
+              "severity": "note",
+              "line": 27,
+              "text": "\"ma l'anima resta accesa\" needs a clear stress on \"accesa\" to land on the downbeat."
+            }
+          ],
+          "blocking": 1
+        },
+        "verdicts": [
+          {
+            "model": "typesafe/jev-1.14",
+            "ms": 4210,
+            "scores": {
+              "language": 0.88,
+              "singable": 0.8,
+              "chorus": 0.83,
+              "original": 0.86,
+              "meaning_fidelity": 0.82,
+              "timing_fit": 0.76,
+              "youtube_safety": 0.97
+            },
+            "issues": []
+          },
+          {
+            "model": "anthropic/claude-haiku-5.5",
+            "ms": 3180,
+            "scores": {
+              "language": 0.84,
+              "singable": 0.76,
+              "chorus": 0.79,
+              "original": 0.82,
+              "meaning_fidelity": 0.78,
+              "timing_fit": 0.72,
+              "youtube_safety": 0.93
+            },
+            "issues": []
+          },
+          {
+            "model": "google/gemini-3.8-flash",
+            "ms": 5120,
+            "scores": {
+              "language": 0.86,
+              "singable": 0.78,
+              "chorus": 0.81,
+              "original": 0.84,
+              "meaning_fidelity": 0.8,
+              "timing_fit": 0.74,
+              "youtube_safety": 0.95
+            },
+            "issues": []
+          }
+        ],
+        "gates": {
+          "flaggedLines": 1,
+          "misfitLines": 0,
+          "phraseOk": false,
+          "sectionsOk": false
+        },
+        "passed": false
+      }
+    ],
+    "stoppedBecause": "round_cap"
+  },
+  "cost": {
+    "usd": 0.0312,
+    "calls": [
+      {
+        "step": "translate-literal",
+        "model": "anthropic/claude-haiku-5.5",
+        "usd": 0.0008,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      },
+      {
+        "step": "write",
+        "model": "anthropic/claude-haiku-5.5",
+        "usd": 0.0016,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      },
+      {
+        "step": "fix-lines",
+        "model": "anthropic/claude-haiku-5.5",
+        "usd": 0.0006,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      },
+      {
+        "step": "final-pass",
+        "model": "anthropic/claude-sonnet-5.5",
+        "usd": 0.0094,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      },
+      {
+        "step": "jury:anthropic/claude-haiku-5.5",
+        "model": "anthropic/claude-haiku-5.5",
+        "usd": 0.0009,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      },
+      {
+        "step": "jury:google/gemini-3.8-flash",
+        "model": "google/gemini-3.8-flash",
+        "usd": 0.0061,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      },
+      {
+        "step": "jury:jev",
+        "model": "typesafe/jev-1.14",
+        "usd": 0.0021,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      },
+      {
+        "step": "jury:devil",
+        "model": "anthropic/claude-sonnet-5.5",
+        "usd": 0.0097,
+        "promptTokens": 1800,
+        "completionTokens": 600,
+        "estimated": false
+      }
+    ]
+  }
+}

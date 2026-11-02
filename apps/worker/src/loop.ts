@@ -1,9 +1,13 @@
 import {
-  isOnDemandStage,
+  keepsStatusOnFailure,
   type Stage,
   type VersionStatus,
 } from "@mellodifai/shared";
-import { AuthorizationDenied, authorizeStage } from "./authorization.js";
+import {
+  AuthorizationDenied,
+  authorizeSongless,
+  authorizeStage,
+} from "./authorization.js";
 import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
@@ -30,11 +34,24 @@ export type StageContext = {
 export type StageResult = {
   versionStatus?: VersionStatus;
   patch?: Partial<Version>;
-  enqueue?: { stage: Stage; idempotencyKey: string }[];
+  enqueue?: {
+    stage: Stage;
+    idempotencyKey: string;
+    payload?: Record<string, unknown>;
+  }[];
   retryLater?: { reason: string; notBefore: string };
 };
 export type StageHandler = (context: StageContext) => Promise<StageResult>;
 export type StageRegistry = Partial<Record<Stage, StageHandler>>;
+// A job that belongs to no song (lyrics_assist): no version, project or workspace.
+export type SonglessContext = Pick<
+  StageContext,
+  "job" | "db" | "secrets" | "signal" | "log" | "progress"
+>;
+export type SonglessHandler = (
+  context: SonglessContext,
+) => Promise<Pick<StageResult, "retryLater">>;
+export type SonglessRegistry = Partial<Record<Stage, SonglessHandler>>;
 export type WorkspaceProvider = {
   forVersion(projectId: string, lang: Version["lang"]): Promise<Workspace>;
 };
@@ -71,6 +88,7 @@ export class WorkerLoop {
       db: Db;
       workerId: string;
       stages: StageRegistry;
+      songless?: SonglessRegistry;
       workspace?: WorkspaceProvider;
       engine?: Engine;
       storage?: Storage;
@@ -230,8 +248,34 @@ export class WorkerLoop {
     });
     // A render may still be waiting for the mutex when cancellation arrives.
     void aborted.catch(() => {});
+    const progress = async (pct: number, message?: string) => {
+      signal.throwIfAborted();
+      try {
+        await db.appendEvent(
+          job,
+          this.redact(message ?? `Progress: ${pct}%`),
+          pct,
+        );
+      } catch (error) {
+        this.report(error);
+      }
+    };
+    const executeSongless = async (): Promise<StageResult> => {
+      const handler = this.options.songless?.[job.stage];
+      if (!handler)
+        throw new Error(
+          `No handler registered for songless stage ${job.stage}`,
+        );
+      if (!(await authorizeSongless(db, job)))
+        throw new MissingRecord(`Request of job ${job.id} not found`);
+      authorized = true;
+      const { secrets } = this.options;
+      if (!secrets) throw new Error("Worker dependencies are not configured");
+      return handler({ job, db, secrets, signal, log, progress });
+    };
     const execute = async (): Promise<StageResult> => {
       signal.throwIfAborted();
+      if (job.version_id === null) return executeSongless();
       const version = await db.getVersion(job.version_id);
       signal.throwIfAborted();
       if (!version)
@@ -263,18 +307,7 @@ export class WorkerLoop {
         db,
         signal,
         log,
-        progress: async (pct, message) => {
-          signal.throwIfAborted();
-          try {
-            await db.appendEvent(
-              job,
-              this.redact(message ?? `Progress: ${pct}%`),
-              pct,
-            );
-          } catch (error) {
-            this.report(error);
-          }
-        },
+        progress,
         ...(this.options.comfy ? { comfy: this.options.comfy } : {}),
       });
     };
@@ -313,13 +346,21 @@ export class WorkerLoop {
         return;
       }
       signal.throwIfAborted();
-      if (result.patch) await db.patchVersion(job.version_id, result.patch);
-      signal.throwIfAborted();
-      if (result.versionStatus)
-        await db.patchVersion(job.version_id, { status: result.versionStatus });
-      for (const next of result.enqueue ?? []) {
+      const versionId = job.version_id;
+      if (versionId) {
+        if (result.patch) await db.patchVersion(versionId, result.patch);
         signal.throwIfAborted();
-        await db.enqueue(job.version_id, next.stage, next.idempotencyKey);
+        if (result.versionStatus)
+          await db.patchVersion(versionId, { status: result.versionStatus });
+        for (const next of result.enqueue ?? []) {
+          signal.throwIfAborted();
+          await db.enqueue(
+            versionId,
+            next.stage,
+            next.idempotencyKey,
+            next.payload,
+          );
+        }
       }
       signal.throwIfAborted();
       await db.finishJob(job.id, result, workerId);
@@ -353,8 +394,9 @@ export class WorkerLoop {
           await log(this.redact(String(failure)));
         }
         try {
-          // An on-demand stage (stems) failing says nothing about the song itself.
-          if (versionExists && !isOnDemandStage(job.stage))
+          // An on-demand stage (stems) or a remake review step failing says nothing about
+          // the song itself.
+          if (versionExists && job.version_id && !keepsStatusOnFailure(job))
             await db.patchVersion(job.version_id, { status: "failed" });
         } catch (failure) {
           this.report(failure);

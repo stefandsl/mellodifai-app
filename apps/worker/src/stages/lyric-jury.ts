@@ -18,6 +18,34 @@ export const DEFAULT_JUDGES = [
 ];
 export const PASS_SCORE = 0.7;
 
+// The daily cap of writer calls (LYRICS_DAILY_CAP, default 50), shared by the song drafts and the
+// create panel's AI lyric buttons. Each call is reserved before it is made, also when it then
+// fails in transit.
+export async function lyricsBudget(
+  secrets: Readonly<Record<string, string | undefined>>,
+) {
+  const { mkdir, readFile, writeFile } = await import("node:fs/promises");
+  const { dirname } = await import("node:path");
+  const cap = Number(secrets.LYRICS_DAILY_CAP ?? "50");
+  const stateFile =
+    secrets.LYRICS_STATE_FILE ?? "E:\\mellodifai\\state\\lyrics.json";
+  const today = new Date().toISOString().slice(0, 10);
+  let state: { day?: string; count?: number } = {};
+  try {
+    state = JSON.parse(await readFile(stateFile, "utf8")) as typeof state;
+  } catch {}
+  let count = state.day === today ? (state.count ?? 0) : 0;
+  if (count >= cap) throw new Error("daily lyrics cap reached");
+  return {
+    async reserve() {
+      if (count >= cap) throw new Error("daily lyrics cap reached");
+      count += 1;
+      await mkdir(dirname(stateFile), { recursive: true });
+      await writeFile(stateFile, JSON.stringify({ day: today, count }));
+    },
+  };
+}
+
 // An OpenRouter privacy guardrail can replace words with tags like [PERSON_NAME] before a
 // model sees them (seen live 2026-11-01: "la macchinetta" became [PERSON_NAME]).
 export const REDACTION_NOTE =
