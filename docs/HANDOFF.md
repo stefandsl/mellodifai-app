@@ -45,6 +45,18 @@ Gemini) drive the app through a CLI and MCP on the owner's own subscriptions.
 
 Gates (all must be green before a merge or push of finished work):
 
+If the source checkout is on C:, run these gates from an isolated source copy
+under `E:/mellodifai/tmp`, excluding .git, .claude, .superpowers, node_modules,
+dist, .next, .env.local and existing build-info files. Install there with
+`--ignore-scripts` and an explicit
+`--store-dir E:/mellodifai/cache/pnpm`. Set TEMP/TMP/TMPDIR to
+`E:/mellodifai/tmp`, npm_config_cache to `E:/mellodifai/cache/npm`, and
+npm_config_store_dir to `E:/mellodifai/cache/pnpm`. This keeps TypeScript's
+project-reference build outputs and every package's default test cache off C:;
+setting TEMP alone does not redirect pnpm's store or tsbuildinfo. Do not change
+the owner's global package-manager settings. Preserve pre-existing caches;
+relocate only task-created files with a path/hash manifest.
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm lint
@@ -161,7 +173,9 @@ service password, and writes the app URLs under `<runtime root>/deploy/apps`.
 Tasks 10/11 must call reapply and require a successful probe before the tunnel
 starts. Probe failures name only roles/ports; e2e deliberately fails its open
 Studio/mail/analytics checks. The integration suite verifies Studio is detected
-on 45623. Account-identity verification remains Task 35.
+on 45623 from both the container and the invoking host account. Host checks
+cover IPv4 and IPv6 loopback and fail closed on timeouts or other errors.
+Account-identity verification remains Task 35.
 The later progress ruling reserves 3210 for the owner's launcher: start the e2e
 stack with `E2E_PORT=3219`, then run browser tests with that same variable.
 Task 7 adds `pnpm test:integration`, guarded by both `TEST_DB_URL` and

@@ -1,3 +1,4 @@
+import { createConnection } from "node:net";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
@@ -5,6 +6,25 @@ import { ENV_TABLE, type StackEnv } from "./lib/envs.js";
 import { databaseUrl } from "./lib/pg.js";
 import { type Runner, realRunner } from "./lib/run.js";
 import { inventoryDbLogins, readDbPasswords } from "./rotate-db-passwords.js";
+
+function hostPort(
+  port: number,
+  host: string,
+): Promise<"open" | "refused" | "refusal unverified"> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ port, host });
+    const finish = (result: "open" | "refused" | "refusal unverified") => {
+      socket.destroy();
+      resolve(result);
+    };
+    socket.once("connect", () => finish("open"));
+    socket.once("error", (error: NodeJS.ErrnoException) =>
+      finish(error.code === "ECONNREFUSED" ? "refused" : "refusal unverified"),
+    );
+    socket.once("timeout", () => finish("refusal unverified"));
+    socket.setTimeout(5000);
+  });
+}
 
 export async function probe(
   env: StackEnv,
@@ -111,6 +131,12 @@ export async function probe(
     }
   }
   for (const target of [port + 1, port + 2, port + 5]) {
+    // Runs as the invoking account; Task 35 establishes the mdf-web identity.
+    for (const address of ["127.0.0.1", "::1"]) {
+      const result = await hostPort(target, address);
+      if (result !== "refused")
+        failures.push(`${target}: host ${address} ${result}`);
+    }
     try {
       const result = await runner(
         "docker",

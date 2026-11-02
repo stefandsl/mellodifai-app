@@ -8,6 +8,7 @@ it("reports the e2e Studio port as open from a container", async () => {
   const result = await probe(env, realRunner);
   expect(result.ok).toBe(false);
   expect(result.failures).toContain(`${port}: open`);
+  expect(result.failures).toContain(`${port}: host 127.0.0.1 open`);
   expect(
     result.failures.filter((failure) => failure.startsWith("postgres:")),
   ).toEqual([]);

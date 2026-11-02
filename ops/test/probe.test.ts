@@ -1,6 +1,40 @@
-import { expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
+import { beforeEach, expect, it, vi } from "vitest";
 import { type Runner, recordingRunner } from "../lib/run.js";
 import { probe } from "../probe.js";
+
+const host = vi.hoisted(() => ({
+  port: 0,
+  address: "127.0.0.1",
+  result: "connect",
+}));
+vi.mock("node:net", () => ({
+  createConnection: vi.fn((options: { port: number; host: string }) => {
+    const socket = Object.assign(new EventEmitter(), {
+      destroy: vi.fn(),
+      setTimeout: vi.fn(),
+    });
+    queueMicrotask(() => {
+      if (options.port === host.port && options.host === host.address) {
+        if (host.result === "connect") socket.emit("connect");
+        else if (host.result === "timeout") socket.emit("timeout");
+        else
+          socket.emit(
+            "error",
+            Object.assign(new Error("private-network-detail"), {
+              code: "EACCES",
+            }),
+          );
+      } else socket.emit("error", { code: "ECONNREFUSED" });
+    });
+    return socket;
+  }),
+}));
+beforeEach(() => {
+  host.port = 0;
+  host.address = "127.0.0.1";
+  host.result = "connect";
+});
 
 vi.mock("../rotate-db-passwords.js", () => ({
   inventoryDbLogins: vi.fn(async () => ["postgres", "mdf_web", "mdf_auth"]),
@@ -90,4 +124,29 @@ it("fails passwordless app access and distinguishes TCP timeouts from refusal", 
       "54327: refusal unverified",
     ]),
   );
+});
+
+it("fails every host-only exposed port even when Docker refuses every connection", async () => {
+  for (const address of ["127.0.0.1", "::1"]) {
+    host.address = address;
+    for (const port of [54323, 54324, 54327]) {
+      host.port = port;
+      const result = await probe("prod", fixture().runner);
+      expect(result.ok).toBe(false);
+      expect(result.failures).toEqual([`${port}: host ${address} open`]);
+    }
+  }
+});
+
+it("does not count host timeouts or permission errors as connection refusal", async () => {
+  host.port = 54323;
+  for (const result of ["timeout", "error"]) {
+    host.result = result;
+    const checked = await probe("prod", fixture().runner);
+    expect(checked.ok).toBe(false);
+    expect(checked.failures).toEqual([
+      "54323: host 127.0.0.1 refusal unverified",
+    ]);
+    expect(JSON.stringify(checked)).not.toContain("private-network-detail");
+  }
 });
