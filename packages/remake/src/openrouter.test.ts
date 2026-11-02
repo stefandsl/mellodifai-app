@@ -25,6 +25,20 @@ describe("chat", () => {
     expect(calls[0]?.body.usage).toEqual({ include: true });
   });
 
+  it("turns hidden reasoning off for Haiku, which otherwise spends the whole budget thinking", async () => {
+    const { fetchFn, calls } = fakeFetch(() => chatReply("ok"));
+    const client = createClient({ key: KEY, fetchFn });
+    for (const model of [
+      "anthropic/claude-haiku-5.5",
+      "anthropic/claude-sonnet-5.5",
+    ])
+      await client.chat({ step: "t", model, system: "s", user: "u" });
+    expect(calls.map((c) => c.body.reasoning)).toEqual([
+      { enabled: false },
+      { effort: "low" },
+    ]);
+  });
+
   it("estimates the cost from the price table when the reply has none", async () => {
     const { fetchFn } = fakeFetch(() => ({
       choices: [{ message: { content: "ok" } }],

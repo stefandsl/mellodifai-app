@@ -542,6 +542,19 @@ describe("model routing and cost (task 27)", () => {
     expect(result.cost.calls.map((c) => c.step)).toContain("final-pass");
   });
 
+  it("shows the cheap writer each line's literal translation as the wording to avoid", async () => {
+    const { client, calls } = scripted();
+    await rewrite(analysisFixture(), { lang: "it" }, deps(client));
+    const writer = calls.find((c) => role(c) === "lyric writer for a remake");
+    const [system, user] = (
+      writer?.body.messages as { content: string }[] | undefined
+    )?.map((m) => m.content) ?? ["", ""];
+    expect(user).toContain(
+      `literal translation, never use its words: "${LITERAL[0]}"`,
+    );
+    expect(system).toMatch(/must not come back as its translation repeated/u);
+  });
+
   it("takes model ids from the options", async () => {
     const { client, calls } = scripted();
     await rewrite(

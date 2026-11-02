@@ -124,7 +124,11 @@ function lyricSections(analysis: RemakeAnalysis) {
     .filter((s) => s.lines.length > 0);
 }
 
-function sectionBriefs(analysis: RemakeAnalysis, only?: string): string {
+function sectionBriefs(
+  analysis: RemakeAnalysis,
+  only?: string,
+  translation?: string[] | null,
+): string {
   return analysis.music.sections
     .filter((section) => !only || section.id === only)
     .map((section) => {
@@ -136,7 +140,7 @@ function sectionBriefs(analysis: RemakeAnalysis, only?: string): string {
         `meaning: ${meaningText(analysis, section.id) || "none"}`,
         ...lines.map(
           (l) =>
-            `${l.index}. [${range(l.syllables)} syllables, final syllable ${l.ending}, ${(l.end - l.start).toFixed(1)} s] source: "${l.text}"`,
+            `${l.index}. [${range(l.syllables)} syllables, final syllable ${l.ending}, ${(l.end - l.start).toFixed(1)} s] source: "${l.text}"${translation?.[l.index] ? ` | literal translation, never use its words: "${translation[l.index]}"` : ""}`,
         ),
       ].join("\n");
     })
@@ -175,6 +179,7 @@ export function writerSystem(options: RewriteOptions): string {
     `Write in natural, idiomatic, singable ${languageName(options.lang)}${options.country ? `, culturally adapted for an audience in ${options.country} (local references, idioms and imagery, same meaning)` : ""}.`,
     "For every source line write exactly one new line that sings on the same notes: its sung syllable count (vowel merges across words included) must be within one of the number given for that line.",
     "Carry each section's meaning (theme, story beat, imagery, emotional arc, hook idea) with new images and new words. Do not translate source lines: say the idea differently. Where the source repeats a line, you may repeat your new line.",
+    "When a line comes with its literal translation, that is exactly the wording to avoid: a line close to it fails the copyright check. A hook word the source repeats must not come back as its translation repeated; build a new hook with other words.",
     "Invent a new title that is not a translation of the source title and shares no three words in a row with it or with the source hook.",
     'Reply with JSON only: {"title": string, "sections": [{"id": section id, "lines": [one string per source line, in order]}]}.',
   ].join("\n");
@@ -184,6 +189,7 @@ export function writerUser(
   analysis: RemakeAnalysis,
   options: RewriteOptions,
   only?: string,
+  translation?: string[] | null,
 ): string {
   return [
     `Target language: ${languageName(options.lang)}${options.country ? ` (country: ${options.country})` : ""}`,
@@ -192,7 +198,7 @@ export function writerUser(
     `Song: ${analysis.overall.summary}`,
     `Genre: ${analysis.overall.genre.join(", ")}; mood: ${analysis.overall.mood.join(", ")}; ${Math.round(analysis.music.bpm)} BPM, ${analysis.music.key.tonic} ${analysis.music.key.mode}`,
     "",
-    sectionBriefs(analysis, only),
+    sectionBriefs(analysis, only, translation),
   ].join("\n");
 }
 
@@ -916,6 +922,7 @@ async function openSession(
   return {
     models,
     hookIds,
+    translationLines,
     gatesFor,
     gateTargets,
     fixLines,
@@ -973,9 +980,11 @@ async function writeSections(
   log: (line: string) => void,
   extra: string | undefined,
   only?: string,
+  translation?: string[] | null,
 ): Promise<Draft> {
   const base =
-    writerUser(analysis, options, only) + (extra ? `\n\n${extra}` : "");
+    writerUser(analysis, options, only, translation) +
+    (extra ? `\n\n${extra}` : "");
   let user = base;
   for (let attempt = 0; attempt < 3; attempt++) {
     const draft = await client.chatJson<Draft>({
@@ -1017,6 +1026,8 @@ export async function rewrite(
     options,
     log,
     undefined,
+    undefined,
+    session.translationLines,
   );
   let title = draft.title.trim();
   const states = statesFrom(analysis, draft);
@@ -1025,16 +1036,20 @@ export async function rewrite(
   let stoppedBecause: RemakeLyrics["jury"]["stoppedBecause"] = "round_cap";
 
   for (let round = 1; round <= maxRounds; round++) {
-    // Deterministic gates first: targeted line fixes (two passes on the first draft).
+    // Deterministic gates first: targeted line fixes with the cheap fixer, up to three passes on
+    // the first draft while each pass leaves fewer lines to fix, one pass later.
+    let previous = Number.POSITIVE_INFINITY;
     for (
       let pass = 0;
-      pass < (round === 1 ? 2 : 1) && spent() < costCap;
+      pass < (round === 1 ? 3 : 1) && spent() < costCap;
       pass++
     ) {
       const targets = session.gateTargets(states, gates);
       const titleBad =
         !gates.phrase.ok && gates.phrase.detail.startsWith(`"${title}"`);
       if (targets.length === 0 && !titleBad) break;
+      if (targets.length >= previous) break;
+      previous = targets.length;
       title = await session.fixLines(
         states,
         targets,
@@ -1118,6 +1133,8 @@ export async function rewrite(
         options,
         log,
         feedback,
+        undefined,
+        session.translationLines,
       );
       title = draft.title.trim();
       for (const [i, s] of statesFrom(analysis, draft).entries()) {
@@ -1184,6 +1201,7 @@ export async function rewriteSection(
       ...others,
     ].join("\n"),
     sectionId,
+    session.translationLines,
   );
   const got = draft.sections.find((s) => s.id === sectionId);
   for (const [i, s] of states

@@ -46,6 +46,21 @@ export function modelsFromEnv(
   };
 }
 
+export type Reasoning =
+  | { effort: "low" | "medium" | "high" }
+  | { enabled: false };
+
+// Hidden reasoning is billed as output and counts against max_tokens. Haiku 5.5 ignores the
+// effort and spent every token of a 3000 or 4000 token budget thinking (task 27 probe, 02/11:
+// finish "length", empty reply, 0.0018 USD each), so the cheap model runs with reasoning off;
+// the others keep a low effort.
+const REASONING_OFF = [/claude-haiku/iu];
+export function defaultReasoning(model: string): Reasoning {
+  return REASONING_OFF.some((pattern) => pattern.test(model))
+    ? { enabled: false }
+    : { effort: "low" };
+}
+
 // USD per step group (write, fix-lines, final-pass, jury, devil, ...), for the logs.
 export function costByStep(cost: RemakeCost): Record<string, number> {
   const out: Record<string, number> = {};
@@ -136,7 +151,7 @@ export type ChatRequest = {
   maxTokens?: number;
   temperature?: number;
   // Reasoning cannot be disabled on these models; low effort keeps the hidden, output-billed tokens small.
-  reasoning?: { effort: "low" | "medium" | "high" };
+  reasoning?: Reasoning;
 };
 
 export type Client = {
@@ -258,7 +273,7 @@ export function createClient(options: {
         temperature: request.temperature ?? 0.7,
         // These endpoints always reason, and hidden reasoning counts against max_tokens
         // (seen live: Sonnet 5.5 spent all 3000 tokens thinking and returned nothing).
-        reasoning: request.reasoning ?? { effort: "low" },
+        reasoning: request.reasoning ?? defaultReasoning(request.model),
         usage: { include: true },
       },
       90_000,
