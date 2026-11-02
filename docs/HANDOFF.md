@@ -245,3 +245,16 @@ Task 9 review validation is now fully green: lint, both typechecks, 1,450 unit
 tests passed (one existing skip), 136 database tests and all seven e2e tests.
 Validation ran on the isolated e2e stack (API 45621, Next 3219), with runtime
 files on E:. The earlier shared-budget and mail-quota concerns are resolved.
+
+M1 Task 11 adds `pnpm ops deploy.ts --to <tag|main> [--skip-migrations]`.
+It copies the invoking ops package and installs its locked dependencies under
+`<runtime root>/ops-pinned/<timestamp>`, then runs there against the dedicated
+`<runtime root>/deploy` clone. Every target must contain `m1-floor`; absent
+floor tags are refused. Writers stop before the explicit production database
+backup, while Supabase stays running. Backups record the previous revision;
+only backups recorded by deploy are pruned after 14 days. Health requires local
+`ops: "ok"` and the target's newest migration. A failed health check restores
+the previous revision only if migration history is unchanged; otherwise services
+stay stopped and `logs/deploy.log` records the failure without subprocess output.
+First production execution remains the Task 33 owner gate: floor, cutover,
+provisioned secrets, confirmed owner, runtime ACLs and service setup must exist.
