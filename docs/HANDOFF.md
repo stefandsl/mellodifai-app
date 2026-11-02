@@ -258,3 +258,14 @@ the previous revision only if migration history is unchanged; otherwise services
 stay stopped and `logs/deploy.log` records the failure without subprocess output.
 First production execution remains the Task 33 owner gate: floor, cutover,
 provisioned secrets, confirmed owner, runtime ACLs and service setup must exist.
+
+M1 Task 12 adds owner-only `ops/restore.ts` and `ops/cutover.ts`; usage and recovery
+limits are in README.md. Restore validates the floor before reset, preserves media,
+and uses the existing deploy path with `--skip-migrations`. Cutover compares all
+public/auth/storage table counts and adopts the legacy named volumes explicitly
+under the pinned Compose backend. CLI 3 loopback reset needs remote SQL targeting
+with subprocess-only local-port overrides; this was verified on API 45621.
+The guarded integration suite dumps, resets, imports and downloads a real test
+object, with backups retained under E:/mellodifai/tmp. Production cutover and
+restore were not executed. Task 33 owner authorization, ACLs, credentials and
+service-account prerequisites remain open; no owner action was fabricated.

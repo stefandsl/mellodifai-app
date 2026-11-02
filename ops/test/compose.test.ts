@@ -119,3 +119,37 @@ it("serves configured email templates on an internal-only endpoint", () => {
     output.services.auth?.environment?.GOTRUE_MAILER_TEMPLATES_MAGIC_LINK,
   ).toBe("http://templates:8080/magic_link.html");
 });
+
+it("adopts existing production volumes without creating replacements and retains the mapping on render", () => {
+  const dir = stackDir("prod");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "legacy-volumes.json"),
+    JSON.stringify({
+      db: "supabase_db_mellodifai",
+      storage: "supabase_storage_mellodifai",
+    }),
+  );
+  const output = renderCompose("prod", renderConfig(base, "prod", dir));
+  expect(output.volumes).toMatchObject({
+    legacy_db: { external: true, name: "supabase_db_mellodifai" },
+    legacy_storage: { external: true, name: "supabase_storage_mellodifai" },
+  });
+  expect(output.services.db?.volumes).toContainEqual({
+    type: "volume",
+    source: "legacy_db",
+    target: "/var/lib/postgresql/data",
+  });
+  expect(output.services.storage?.volumes).toContainEqual({
+    type: "volume",
+    source: "legacy_storage",
+    target: "/var/lib/storage",
+  });
+  writeFileSync(
+    join(dir, "legacy-volumes.json"),
+    JSON.stringify({ db: "other", storage: "other" }),
+  );
+  expect(() => renderCompose("prod", renderConfig(base, "prod", dir))).toThrow(
+    "Invalid cutover",
+  );
+});

@@ -17,7 +17,9 @@ import { type Runner, realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
 
-type Flags = { noBackup?: boolean };
+import { isRestoreAuthorization } from "./restore.js";
+
+type Flags = { noBackup?: boolean; restore?: unknown };
 const commands = [
   "render",
   "start",
@@ -38,8 +40,8 @@ export function planStackCommand(
     throw new Error("Unknown stack command or environment");
   if (
     ENV_TABLE[env].projectId === "mellodifai" &&
-    (cmd === "reset" ||
-      cmd === "db reset" ||
+    (((cmd === "reset" || cmd === "db reset") &&
+      !isRestoreAuthorization(flags.restore)) ||
       (cmd === "stop" && flags.noBackup))
   )
     throw new Error("Production reset is refused; use ops/restore.ts");
@@ -78,11 +80,16 @@ export function planStackCommand(
     return [
       [
         ...cli,
-        ...(cmd === "migrate" ? ["migration", "up"] : ["db", "reset", "--yes"]),
+        ...(cmd === "migrate"
+          ? ["migration", "up"]
+          : ["db", "reset", "--yes", "--no-seed"]),
         "--workdir",
         dir,
-        "--db-url",
-        databaseUrl("postgres", "", ENV_TABLE[env].ports.db),
+        ...(cmd === "migrate"
+          ? ["--db-url", databaseUrl("postgres", "", ENV_TABLE[env].ports.db)]
+          : [
+              `--remote=${databaseUrl("postgres", "", ENV_TABLE[env].ports.db)}`,
+            ]),
       ],
     ];
   }
@@ -164,9 +171,24 @@ function actions(env: StackEnv, runner: Runner): StackActions {
       const privateArgs = args.map((arg, index) =>
         args[index - 1] === "--db-url"
           ? databaseUrl("postgres", secrets.postgres, ENV_TABLE[env].ports.db)
-          : arg,
+          : arg.startsWith("--remote=")
+            ? `--remote=${databaseUrl("postgres", secrets.postgres, ENV_TABLE[env].ports.db)}?sslmode=disable`
+            : arg,
       );
-      const result = await runner(cmd, privateArgs, { env: privateEnv });
+      // CLI 3 treats a URL matching config db.port as its local Docker stack.
+      // Override only its local-port hints to force the explicit Compose SQL target.
+      const result = await runner(cmd, privateArgs, {
+        env: {
+          ...privateEnv,
+          ...(args.includes("reset")
+            ? {
+                SUPABASE_DB_PORT: "1",
+                SUPABASE_DB_SHADOW_PORT: "2",
+                SUPABASE_DB_SEED_ENABLED: "false",
+              }
+            : {}),
+        },
+      });
       // CLI/database errors may include connection strings. Never echo raw output.
       if (result.code !== 0)
         throw new Error(
@@ -282,7 +304,10 @@ export async function runStackCommand(
     await ops.passwords();
   } else {
     await ops.execute(plan);
-    if (cmd === "reset" || cmd === "db reset") {
+    if (
+      (cmd === "reset" || cmd === "db reset") &&
+      !isRestoreAuthorization(flags.restore)
+    ) {
       await ops.passwords();
       if (env !== "prod") await ops.envFile();
     }

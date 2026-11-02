@@ -49,3 +49,32 @@ pnpm lint
 pnpm typecheck
 pnpm test
 ```
+
+## M1 local production recovery (owner only)
+
+The first cutover remains gated by Task 33: owner authorization, runtime ACLs,
+production credentials, dedicated `E:/mellodifai/deploy` clone and service setup.
+Run these tools from the operator checkout through pnpm, never from that deploy clone.
+
+`pnpm ops cutover.ts` stops writers, records every public/auth/storage table count,
+takes a private data backup, stops the legacy CLI containers and renders the pinned
+Compose stack with project `mellodifai`. It adopts the existing database and media
+volumes as external volumes; it never deletes them or runs migrations. Any changed
+or missing table count fails the cutover. Application services stay stopped for the
+subsequent owner-approved deploy. An attempted cutover leaves `legacy-volumes.json`
+and before/after counts under `stacks/prod`; inspect these before any manual retry.
+
+`pnpm ops restore.ts E:/mellodifai/backups/<timestamp>-<m1-tag>.sql` validates the
+backup tag against `m1-floor` before stopping writers, takes a safety backup, checks
+out the backup tag in the deploy clone, resets only SQL with `--no-seed`, imports
+with fail-fast transactional psql, reapplies stored passwords and deploys with
+`--skip-migrations`. The current deploy must have an exact m1 tag so its safety
+backup is identifiable. Backups from before the migration floor are refused.
+Keep the media volume: SQL backups contain metadata, not audio/video bytes.
+
+CLI 3.0.0 classifies matching loopback URLs as its local Docker stack even with
+`--remote`. The reset subprocess overrides only CLI local-port hints and disables
+seed loading, forcing the explicit SQL target with loopback TLS disabled. It never
+uses `stop --no-backup`. Auth/Storage migration history is retained because Supabase
+data-only dumps exclude it. Failures leave writers stopped; inspect the retained
+safety backup before retrying. Never run production recovery as a test.

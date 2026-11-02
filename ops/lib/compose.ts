@@ -243,6 +243,29 @@ export function renderCompose(env: StackEnv, toml: string): Compose {
         },
       ],
     };
+  const legacyFile = join(dir, "legacy-volumes.json");
+  if (env === "prod" && existsSync(legacyFile)) {
+    const legacy = JSON.parse(readFileSync(legacyFile, "utf8"));
+    if (
+      legacy.db !== "supabase_db_mellodifai" ||
+      legacy.storage !== "supabase_storage_mellodifai"
+    )
+      throw new Error("Invalid cutover volume mapping");
+    compose.volumes = {
+      ...compose.volumes,
+      legacy_db: { external: true, name: legacy.db },
+      legacy_storage: { external: true, name: legacy.storage },
+    };
+    for (const [name, target, volume] of [
+      ["db", "/var/lib/postgresql/data", "legacy_db"],
+      ["storage", "/var/lib/storage", "legacy_storage"],
+    ] as const)
+      required(name).volumes = (required(name).volumes ?? []).map((mount) =>
+        typeof mount !== "string" && mount.target === target
+          ? { type: "volume", source: volume, target }
+          : mount,
+      );
+  }
   return compose;
 }
 
