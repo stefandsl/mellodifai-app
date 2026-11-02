@@ -160,18 +160,33 @@ describe("checkSections", () => {
   it("needs cosine 0.55 against the meaning map", async () => {
     const result = await checkSections({
       sections: [
-        { sectionId: "v", text: "new verse", meaning: "loneliness at night" },
-        { sectionId: "c", text: "new chorus", meaning: "hope" },
-        { sectionId: "i", text: "", meaning: "" },
+        {
+          sectionId: "v",
+          text: "new verse",
+          source: "old verse",
+          meaning: "loneliness at night",
+        },
+        {
+          sectionId: "c",
+          text: "new chorus",
+          source: "old chorus",
+          meaning: "hope",
+        },
+        { sectionId: "i", text: "", source: "", meaning: "" },
       ],
       embed: fakeEmbed({
         "new verse": [1, 1, 0],
         "loneliness at night": [1, 0.8, 0],
         "new chorus": [1, 0, 0],
         hope: [0, 1, 0],
+        "old verse": [1, 0.8, 0],
+        "old chorus": [0, 0.5, 1],
       }),
     });
     expect(result.map((r) => r.ok)).toEqual([true, false, true]);
     expect(result[2]?.meaningCosine).toBeNull();
+    // The source baseline: the old verse matches its meaning, the old chorus barely.
+    expect(result[0]?.sourceCosine).toBeCloseTo(1);
+    expect(result[1]?.sourceCosine).toBeLessThan(0.55);
   });
 });

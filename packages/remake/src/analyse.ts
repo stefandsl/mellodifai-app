@@ -189,12 +189,14 @@ function enumList(name: string, values: readonly string[]) {
   return `${name}: ${values.join(" | ")}`;
 }
 
-// The vision model reads 640 px wide copies: about a quarter of the image tokens of
-// the full sheets, which keeps the call inside its 0.01 USD budget.
-export const VISION_WIDTH = 640;
+// Gemini bills about the same number of tokens per image whatever its size, so up to
+// three contact sheets are stacked into one 768 px wide image: 8 sheets cost 3 images.
+export const VISION_WIDTH = 768;
+export const SHEETS_PER_IMAGE = 3;
 
 async function sheetImages(
   manifest: IngestManifest,
+  dir: string,
   runner: Run,
 ): Promise<{ parts: ContentPart[]; used: number[] }> {
   const sheets = manifest.frames.contactSheets;
@@ -205,37 +207,68 @@ async function sheetImages(
         Math.floor(i * step),
       ),
     ),
-  ];
+  ].filter((k) => sheets[k] && existsSync(sheets[k]?.file ?? ""));
   const parts: ContentPart[] = [];
-  for (const k of used) {
-    const sheet = sheets[k];
-    if (!sheet || !existsSync(sheet.file)) continue;
-    const small = sheet.file.replace(/sheet_(\d+)\.jpg$/u, "vision_$1.jpg");
-    if (small !== sheet.file && !existsSync(small))
+  for (let g = 0; g < used.length; g += SHEETS_PER_IMAGE) {
+    const group = used.slice(g, g + SHEETS_PER_IMAGE);
+    const files = group.map((k) => sheets[k]?.file ?? "");
+    const out = join(
+      dir,
+      "sheets",
+      `vision_${String(g / SHEETS_PER_IMAGE + 1).padStart(2, "0")}.jpg`,
+    );
+    if (!existsSync(out)) {
+      const scaled = files
+        .map((_, i) => `[${i}]scale=${VISION_WIDTH}:-2[s${i}]`)
+        .join(";");
+      const stack =
+        files.length > 1
+          ? `;${files.map((_, i) => `[s${i}]`).join("")}vstack=inputs=${files.length}[out]`
+          : "";
       await runner("ffmpeg", [
         "-hide_banner",
         "-loglevel",
         "error",
         "-y",
-        "-i",
-        sheet.file,
-        "-vf",
-        `scale=${VISION_WIDTH}:-2`,
+        ...files.flatMap((f) => ["-i", f]),
+        "-filter_complex",
+        `${scaled}${stack}`,
+        "-map",
+        files.length > 1 ? "[out]" : "[s0]",
         "-q:v",
         "4",
-        small,
+        out,
       ]).catch(() => null);
-    const image = existsSync(small) ? small : sheet.file;
-    parts.push({
-      type: "text",
-      text: `Sheet ${k + 1}: ${sheet.start}-${sheet.end} s, ${sheet.cols}x${sheet.rows} cells, one frame per second, timestamp burned in.`,
-    });
-    parts.push({
-      type: "image_url",
-      image_url: {
-        url: `data:image/jpeg;base64,${(await readFile(image)).toString("base64")}`,
-      },
-    });
+    }
+    const ranges = group
+      .map((k) => `sheet ${k + 1} (${sheets[k]?.start}-${sheets[k]?.end} s)`)
+      .join(", then ");
+    if (existsSync(out)) {
+      parts.push({
+        type: "text",
+        text: `Image ${g / SHEETS_PER_IMAGE + 1}, top to bottom: ${ranges}. Each sheet is 5x4 cells, one frame per second, timestamp burned in.`,
+      });
+      parts.push({
+        type: "image_url",
+        image_url: {
+          url: `data:image/jpeg;base64,${(await readFile(out)).toString("base64")}`,
+        },
+      });
+    } else
+      for (const k of group) {
+        const sheet = sheets[k];
+        if (!sheet) continue;
+        parts.push({
+          type: "text",
+          text: `Sheet ${k + 1}: ${sheet.start}-${sheet.end} s, 5x4 cells, one frame per second, timestamp burned in.`,
+        });
+        parts.push({
+          type: "image_url",
+          image_url: {
+            url: `data:image/jpeg;base64,${(await readFile(sheet.file)).toString("base64")}`,
+          },
+        });
+      }
   }
   return { parts, used };
 }
@@ -519,7 +552,7 @@ export async function analyse(
     sections,
     durationS,
   });
-  const { parts, used } = await sheetImages(manifest, runner);
+  const { parts, used } = await sheetImages(manifest, dir, runner);
   const sectionOf = new Map(sections.map((s) => [s.id, s]));
   const visionUser: ContentPart[] = [
     {

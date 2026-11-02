@@ -29,6 +29,7 @@ export function parseCliArgs(argv: string[]) {
       embedder: { type: "string", default: "labse" },
       "no-stems": { type: "boolean", default: false },
       "keep-media": { type: "boolean", default: false },
+      "meaning-gate": { type: "string", default: "enforce" },
       force: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -38,6 +39,11 @@ export function parseCliArgs(argv: string[]) {
   if (!parseVideoId(url)) throw new Error(`not a YouTube video link: ${url}`);
   if (values.writer !== "fast" && values.writer !== "strong")
     throw new Error("--writer is fast or strong");
+  if (
+    values["meaning-gate"] !== "enforce" &&
+    values["meaning-gate"] !== "report"
+  )
+    throw new Error("--meaning-gate is enforce or report");
   if (values.embedder !== "labse" && values.embedder !== "openrouter")
     throw new Error("--embedder is labse or openrouter");
   const rounds = Number(values.rounds);
@@ -55,13 +61,14 @@ export function parseCliArgs(argv: string[]) {
     embedder: values.embedder as "labse" | "openrouter",
     stems: !values["no-stems"],
     keepMedia: values["keep-media"],
+    meaningGate: values["meaning-gate"] as "enforce" | "report",
     force: values.force,
   };
 }
 
 const USAGE = `remake <youtube url> [--lang it] [--country IT] [--out E:/mellodifai/remakes]
   [--source-lang en] [--writer fast|strong] [--rounds 1-3] [--embedder labse|openrouter]
-  [--no-stems] [--keep-media] [--force]`;
+  [--meaning-gate enforce|report] [--no-stems] [--keep-media] [--force]`;
 
 export async function main(argv: string[]): Promise<number> {
   const args = parseCliArgs(argv);
@@ -132,6 +139,7 @@ export async function main(argv: string[]): Promise<number> {
         country: args.country,
         writer: args.writer,
         maxRounds: args.rounds,
+        meaningGate: args.meaningGate,
         log,
       },
       { client, embed, embedder: embedderName },
@@ -172,6 +180,7 @@ export async function main(argv: string[]): Promise<number> {
         `New title: ${lyrics.title} (${lyrics.lang}${lyrics.country ? `, ${lyrics.country}` : ""})`,
         `Jury: ${lyrics.jury.passed ? "PASSED" : "NOT PASSED"} after ${lyrics.jury.rounds.length} round(s), stopped: ${lyrics.jury.stoppedBecause}; scores ${JSON.stringify(last?.scores ?? {})}`,
         `Originality: ${lyrics.originality.flaggedLines} flagged lines, max lexical ${lyrics.originality.maxLexical}, max semantic ${lyrics.originality.maxSemantic}, phrase ${lyrics.originality.phrase.ok ? "ok" : lyrics.originality.phrase.detail}`,
+        `Section meaning (${lyrics.originality.meaningGate}; new/source vs map, need 0.55): ${lyrics.originality.sections.map((s) => `${s.sectionId} ${s.meaningCosine ?? "-"}/${s.sourceCosine ?? "-"}`).join(", ")}`,
         `Cost: analysis ${analysisUsd.toFixed(4)} + lyrics ${lyrics.cost.usd.toFixed(4)} = ${total.toFixed(4)} USD${total > COST_TARGET_USD ? ` (over the ${COST_TARGET_USD} USD target)` : ""}`,
         "",
         `analysis:  ${analysisPath}`,

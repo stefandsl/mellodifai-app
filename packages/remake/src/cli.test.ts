@@ -12,6 +12,7 @@ describe("parseCliArgs", () => {
       embedder: "labse",
       stems: true,
       keepMedia: false,
+      meaningGate: "enforce",
     });
   });
 

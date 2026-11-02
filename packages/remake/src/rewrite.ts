@@ -39,8 +39,22 @@ export type RewriteOptions = {
   thresholds?: Thresholds;
   passScore?: number;
   costCapUsd?: number;
+  // Design 10.3 enforces the 0.55 section-meaning gate; "report" records it only.
+  meaningGate?: "enforce" | "report";
   log?: (line: string) => void;
 };
+
+// The song's own title, without the artist and the video labels: artist names never
+// go into a prompt (the account's privacy filter also turns them into tags).
+export function songTitle(analysis: RemakeAnalysis): string {
+  // Video titles read "Artist - Song (Official Video)": the song is the last part.
+  const bare = analysis.title.replace(/[([][^)\]]*[)\]]/gu, "").trim();
+  const parts = bare
+    .split(/\s+[-|:]\s+/u)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.at(-1) || bare || analysis.title;
+}
 
 export const LANGUAGE_NAMES: Record<string, string> = {
   it: "Italian",
@@ -138,7 +152,7 @@ export function writerUser(
   return [
     `Target language: ${languageName(options.lang)}${options.country ? ` (country: ${options.country})` : ""}`,
     `Source language: ${languageName(analysis.sourceLanguage)}`,
-    `Source title (do not reuse or translate): ${analysis.title}`,
+    `Source title (do not reuse or translate): ${songTitle(analysis)}`,
     `Song: ${analysis.overall.summary}`,
     `Genre: ${analysis.overall.genre.join(", ")}; mood: ${analysis.overall.mood.join(", ")}; ${Math.round(analysis.music.bpm)} BPM, ${analysis.music.key.tonic} ${analysis.music.key.mode}`,
     "",
@@ -246,7 +260,7 @@ function devilSystem(): string {
   return [
     "ROLE: devil's advocate.",
     OWNER_RULE,
-    "Argue that these lyrics must NOT pass. Be specific and quote lines.",
+    "Argue that these lyrics must NOT pass. Be specific and quote lines; at most 8 objections, one sentence each.",
     `Each objection has a category (${DEVIL_CATEGORIES.join(", ")}) and a severity: "must_fix" for a concrete problem that must be fixed before release (a line copied, closely paraphrased or literally translated from a source line; an artist, song or brand name; content unsafe for YouTube; a line in the wrong language), "note" for anything else.`,
     'Reply with JSON only: {"objections": [{"category": string, "severity": "must_fix" or "note", "line": line number or null, "text": string}]}.',
   ].join("\n");
@@ -264,7 +278,7 @@ function reviewUser(
   });
   return [
     `Target language: ${languageName(options.lang)}${options.country ? `, adapted for ${options.country}` : ""}`,
-    `Source title: ${analysis.title}`,
+    `Source title: ${songTitle(analysis).toLowerCase()}`,
     `New title: ${title.toLowerCase()}`,
     "Lines are shown in lower case on purpose; do not judge capitalisation.",
     "Meaning map per section:",
@@ -341,7 +355,7 @@ async function runJury(
           system: judgeSystem(),
           user,
           temperature: 0.2,
-          maxTokens: 1200,
+          maxTokens: 2500,
         });
         const scores = completeScores(reply.scores);
         if (!scores) throw new Error("incomplete verdict");
@@ -376,7 +390,7 @@ async function runJury(
       system: devilSystem(),
       user,
       temperature: 0.4,
-      maxTokens: 1200,
+      maxTokens: 1500,
     });
     const objections = objectionsOf(reply.objections).slice(0, 12);
     devil = {
@@ -463,6 +477,7 @@ export async function rewrite(
   const passScore = options.passScore ?? 0.7;
   const maxRounds = options.maxRounds ?? 3;
   const costCap = options.costCapUsd ?? 0.1;
+  const meaningGate = options.meaningGate ?? "enforce";
   const log = options.log ?? (() => {});
   const mark = client.ledger.calls.length;
   const spent = () => client.ledger.since(mark).usd + analysis.cost.usd;
@@ -501,7 +516,7 @@ export async function rewrite(
   );
   const sourceHook = analysis.lines.filter((l) => hookIds.has(l.sectionId));
   const phraseSources = [
-    analysis.title,
+    songTitle(analysis),
     ...sourceHook.map((l) => l.text),
     ...(translationLines
       ? sourceHook.map((l) => translationLines?.[l.index] ?? "")
@@ -558,6 +573,7 @@ export async function rewrite(
           .filter((x) => x.sectionId === s.id)
           .map((x) => x.text)
           .join("\n"),
+        source: s.lines.map((l) => l.text).join("\n"),
         meaning: meaningText(analysis, s.id),
       })),
       embed,
@@ -573,8 +589,14 @@ export async function rewrite(
 
   type Target = { state: LineState; why: string[] };
   function gateTargets(states: LineState[], gates: Gates): Target[] {
+    // Rewriting cannot reach a meaning score the source itself misses: only sections
+    // whose source clears the threshold are sent back for rewriting.
     const failingSections = new Set(
-      gates.sections.filter((s) => !s.ok).map((s) => s.sectionId),
+      gates.sections
+        .filter(
+          (s) => !s.ok && (s.sourceCosine ?? 0) >= thresholds.sectionMeaning,
+        )
+        .map((s) => s.sectionId),
     );
     return states.flatMap((s, i): Target[] => {
       const why: string[] = [];
@@ -595,7 +617,7 @@ export async function rewrite(
       }
       if (failingSections.has(s.sectionId))
         why.push(
-          `its section drifted from its meaning: ${meaningText(analysis, s.sectionId)}`,
+          `its section must carry its meaning more clearly (${analysis.meaning.find((m) => m.sectionId === s.sectionId)?.theme ?? ""})`,
         );
       if (
         !gates.phrase.ok &&
@@ -687,7 +709,8 @@ export async function rewrite(
         flaggedLines: gates.lines.flaggedLines,
         misfitLines: gates.misfit,
         phraseOk: gates.phrase.ok,
-        sectionsOk: gates.sections.every((s) => s.ok),
+        sectionsOk:
+          meaningGate === "report" || gates.sections.every((s) => s.ok),
       },
     );
     rounds.push(jury);
@@ -824,6 +847,7 @@ export async function rewrite(
       maxLexical: gates.lines.maxLexical,
       maxSemantic: gates.lines.maxSemantic,
       phrase: gates.phrase,
+      meaningGate,
       sections: gates.sections,
     },
     jury: { passed: stoppedBecause === "passed", rounds, stoppedBecause },

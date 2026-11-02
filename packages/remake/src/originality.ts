@@ -215,29 +215,56 @@ export function checkPhrases(input: {
   return { ok: longestRun < limit, longestRun, detail };
 }
 
+export type SectionMeaning = {
+  sectionId: string;
+  meaningCosine: number | null;
+  sourceCosine: number | null;
+  ok: boolean;
+};
+
+// Each new section against its meaning map (>= 0.55). The source section's own score is
+// measured too: it is the baseline that tells whether the gate is reachable at all.
 export async function checkSections(input: {
-  sections: { sectionId: string; text: string; meaning: string }[];
+  sections: {
+    sectionId: string;
+    text: string;
+    source: string;
+    meaning: string;
+  }[];
   embed: Embed;
   thresholds?: Thresholds;
-}): Promise<
-  { sectionId: string; meaningCosine: number | null; ok: boolean }[]
-> {
+}): Promise<SectionMeaning[]> {
   const min = (input.thresholds ?? DEFAULT_THRESHOLDS).sectionMeaning;
   const usable = input.sections.filter(
     (s) => s.text.trim() && s.meaning.trim(),
   );
-  const vectors = usable.length
+  const n = usable.length;
+  const vectors = n
     ? await input.embed([
         ...usable.map((s) => s.text),
         ...usable.map((s) => s.meaning),
+        ...usable.map((s) => s.source || s.meaning),
       ])
     : [];
   return input.sections.map((s) => {
     const k = usable.indexOf(s);
-    if (k < 0) return { sectionId: s.sectionId, meaningCosine: null, ok: true };
-    const c = r3(
-      Math.max(0, cosine(vectors[k] ?? [], vectors[usable.length + k] ?? [])),
-    );
-    return { sectionId: s.sectionId, meaningCosine: c, ok: c >= min };
+    if (k < 0)
+      return {
+        sectionId: s.sectionId,
+        meaningCosine: null,
+        sourceCosine: null,
+        ok: true,
+      };
+    const meaning = vectors[n + k] ?? [];
+    const c = r3(Math.max(0, cosine(vectors[k] ?? [], meaning)));
+    const src = s.source
+      ? r3(Math.max(0, cosine(vectors[2 * n + k] ?? [], meaning)))
+      : null;
+    return {
+      sectionId: s.sectionId,
+      meaningCosine: c,
+      sourceCosine: src,
+      ok: c >= min,
+    };
   });
 }

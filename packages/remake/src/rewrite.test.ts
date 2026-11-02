@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createClient, RedactionError } from "./openrouter.js";
 import type { Embed } from "./originality.js";
-import { rewrite } from "./rewrite.js";
+import { rewrite, songTitle } from "./rewrite.js";
 import {
   analysisFixture,
   chatReply,
@@ -34,7 +34,7 @@ const FAIL = { ...PASS, singable: 0.4 };
 
 // Source and translation lines get orthogonal vectors; new lyrics and meaning maps share
 // one direction, so sections match their meaning and no line matches a source line.
-function fakeEmbed(): Embed {
+function fakeEmbed(meaningMatch = true): Embed {
   const refs = new Map<string, number>();
   return async (texts) =>
     texts.map((t) => {
@@ -42,7 +42,8 @@ function fakeEmbed(): Embed {
       if ([...SOURCE, ...LITERAL].includes(t)) {
         if (!refs.has(t)) refs.set(t, refs.size + 1);
         v[refs.get(t) ?? 1] = 1;
-      } else v[0] = 1;
+      } else if (meaningMatch || !GOOD.includes(t)) v[0] = 1;
+      else v[63] = 1;
       return v;
     });
 }
@@ -166,9 +167,12 @@ function scripted(script: Script = {}) {
   };
 }
 
-const deps = (client: ReturnType<typeof scripted>["client"]) => ({
+const deps = (
+  client: ReturnType<typeof scripted>["client"],
+  meaningMatch = true,
+) => ({
   client,
-  embed: fakeEmbed(),
+  embed: fakeEmbed(meaningMatch),
   embedder: "fake",
 });
 
@@ -399,6 +403,38 @@ describe("rewrite", () => {
     );
     expect(calls.some((c) => role(c) === "literal translator")).toBe(false);
     expect(result.originality.flaggedLines).toBe(0);
+  });
+
+  it("enforces the section meaning gate by default and only reports it on request", async () => {
+    const enforced = await rewrite(
+      analysisFixture(),
+      { lang: "it", maxRounds: 2 },
+      deps(scripted({ draft: () => GOOD }).client, false),
+    );
+    expect(enforced.jury).toMatchObject({
+      passed: false,
+      stoppedBecause: "round_cap",
+    });
+    expect(enforced.jury.rounds[0]?.gates.sectionsOk).toBe(false);
+    expect(enforced.originality).toMatchObject({ meaningGate: "enforce" });
+    expect(
+      enforced.originality.sections.find((s) => s.sectionId === "verse-1"),
+    ).toMatchObject({ ok: false, sourceCosine: 0 });
+    const reported = await rewrite(
+      analysisFixture(),
+      { lang: "it", meaningGate: "report" },
+      deps(scripted({ draft: () => GOOD }).client, false),
+    );
+    expect(reported.jury.passed).toBe(true);
+    expect(reported.originality.sections.some((s) => !s.ok)).toBe(true);
+  });
+
+  it("keeps artist names out of the title it puts in prompts", () => {
+    const a = analysisFixture();
+    a.title = "The Sixsters - Alone (Official Music Video)";
+    expect(songTitle(a)).toBe("Alone");
+    a.title = "Night Song";
+    expect(songTitle(a)).toBe("Night Song");
   });
 
   it("refuses a source without sung lines", async () => {

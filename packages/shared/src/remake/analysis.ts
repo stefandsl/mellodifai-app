@@ -373,10 +373,15 @@ export const RemakeLyricsSchema = z.object({
       longestRun: z.number().int().nonnegative(),
       detail: z.string(),
     }),
+    // "enforce" (design 10.3) blocks the pass on a section under 0.55; "report" only
+    // records it, pending the owner's calibration decision (see the task 24 report).
+    meaningGate: z.enum(["enforce", "report"]),
     sections: z.array(
       z.object({
         sectionId: z.string(),
         meaningCosine: unit.nullable(),
+        // The source section against its own meaning map: the reachable baseline.
+        sourceCosine: unit.nullable(),
         ok: z.boolean(),
       }),
     ),
