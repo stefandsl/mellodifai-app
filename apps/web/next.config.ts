@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
       "./analysis.js": "../../packages/shared/src/remake/analysis.ts",
       "./blueprint.js": "../../packages/shared/src/remake/blueprint.ts",
       "./timing-check.js": "../../packages/shared/src/remake/timing-check.ts",
+      "./workflow.js": "../../packages/shared/src/remake/workflow.ts",
       "./rewrite.js": "../../packages/shared/src/rewrite.ts",
       "./song-settings.js": "../../packages/shared/src/song-settings.ts",
       "./song-source.js": "../../packages/shared/src/song-source.ts",
