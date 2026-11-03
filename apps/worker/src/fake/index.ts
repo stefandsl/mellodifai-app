@@ -19,6 +19,7 @@ import {
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { makeThumbnail } from "../stages/art.js";
+import { assertPublishRender } from "../stages/publish.js";
 import { songStoryboard } from "../stages/storyboard.js";
 import { key, renderAssetPath, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
@@ -480,8 +481,9 @@ export function createFakeStages(
           const render = renderId
             ? await ctx.db.getRenderById(renderId)
             : await ctx.db.getRender(ctx.version.id, "master");
-          if (!render?.path || render.version_id !== ctx.version.id)
-            throw new Error("Fake publish render is missing");
+          await assertPublishRender(ctx, render);
+          if (!render)
+            throw new Error("approved current publish render required");
           if (!(await ctx.db.getPublicationForRender(render.id))) {
             const assets = (
               render.qa_results as {

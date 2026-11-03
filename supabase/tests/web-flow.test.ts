@@ -300,14 +300,19 @@ it("generate_again from failed advances once and queues one explicit generation"
 });
 
 async function uploadFixture() {
-  const version = await fixture("failed");
+  const version = await fixture("approved");
   await service
     .from("jobs")
     .update({ status: "failed" })
     .eq("version_id", version);
   const r = await service
     .from("renders")
-    .insert({ owner_id: owner, version_id: version, kind: "master" })
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "master",
+      approved_at: new Date().toISOString(),
+    })
     .select("id")
     .single();
   expect(r.error).toBeNull();
@@ -1022,6 +1027,88 @@ it("publishes a completed landscape visualizer only after master approval", asyn
     .eq("stage", "publish")
     .single();
   expect(job.data?.payload).toMatchObject({ render_id: visualizer.data.id });
+  expect(
+    (
+      await client.rpc("enqueue_publish", {
+        ...input,
+        p_render: master.data.id,
+      })
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select("id")
+        .eq("version_id", version)
+        .eq("stage", "publish")
+    ).data,
+  ).toHaveLength(1);
+  const worker = `${prefix}-${version}`;
+  expect(
+    (await service.from("workers").insert({ id: worker, owner_id: owner }))
+      .error,
+  ).toBeNull();
+  expect(
+    (
+      await service.rpc("reserve_publication_upload", {
+        p_render: visualizer.data.id,
+        p_worker: worker,
+      })
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service.rpc("reserve_publication_upload", {
+        p_render: master.data.id,
+        p_worker: worker,
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await client.from("jobs").insert({
+        owner_id: owner,
+        version_id: version,
+        stage: "publish",
+        idempotency_key: `forged:${version}`,
+        payload: { render_id: master.data.id },
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("versions")
+        .update({ render_attempt: 2, status: "approved" })
+        .eq("id", version)
+    ).error,
+  ).toBeNull();
+  const next = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "master",
+      render_attempt: 2,
+      approved_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  expect(next.error).toBeNull();
+  expect(
+    (await client.rpc("enqueue_publish", { ...input, p_render: next.data.id }))
+      .error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select("id")
+        .eq("version_id", version)
+        .eq("stage", "publish")
+    ).data,
+  ).toHaveLength(2);
 });
 it("generation and retry requests cannot double enqueue on repeated clicks", async () => {
   const v = await fixture("takes_review");
