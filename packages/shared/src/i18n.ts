@@ -43,10 +43,17 @@ export type DictKey =
   | "status.published"
   | "status.failed"
   | "auth.email"
+  | "auth.title"
   | "auth.sendLink"
   | "auth.sent"
   | "auth.unavailable"
   | "auth.rateLimited"
+  | "auth.password"
+  | "auth.signIn"
+  | "auth.magicLink"
+  | "auth.invalidCredentials"
+  | "auth.forgotPassword"
+  | "auth.forgotPasswordHint"
   | "action.approveGeneration"
   | "auth.notAllowed"
   | "project.create"
@@ -259,6 +266,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.published": "Pubblicato",
     "status.failed": "Non riuscito",
     "auth.email": "Indirizzo email",
+    "auth.title": "Accedi a Mellodifai",
     "auth.sendLink": "Invia link di accesso",
     "auth.sent": "Se l'indirizzo è abilitato riceverai un link.",
     "action.backToLyrics": "Torna ai testi",
@@ -280,6 +288,13 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.unavailable":
       "Servizio temporaneamente non disponibile. Riprova tra poco.",
     "auth.rateLimited": "Troppi tentativi, riprova tra qualche minuto",
+    "auth.password": "Password",
+    "auth.signIn": "Accedi",
+    "auth.magicLink": "Ricevi un link via email",
+    "auth.invalidCredentials": "Email o password non validi",
+    "auth.forgotPassword": "Password dimenticata?",
+    "auth.forgotPasswordHint":
+      "Su questo PC esegui Imposta password.cmd, oppure ricevi un link via email.",
     "action.approveGeneration": "Approva e genera la canzone: 12 crediti kie",
     "auth.notAllowed": "Se l'indirizzo è abilitato riceverai un link.",
     "project.create": "Crea progetto",
@@ -416,6 +431,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.published": "Published",
     "status.failed": "Failed",
     "auth.email": "Email address",
+    "auth.title": "Sign in to Mellodifai",
     "auth.sendLink": "Send sign-in link",
     "auth.sent": "If the address is enabled, you will receive a link.",
     "action.backToLyrics": "Back to lyrics",
@@ -436,6 +452,13 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.unavailable":
       "Service temporarily unavailable. Please try again shortly.",
     "auth.rateLimited": "Too many attempts, please try again in a few minutes",
+    "auth.password": "Password",
+    "auth.signIn": "Sign in",
+    "auth.magicLink": "Receive a link by email",
+    "auth.invalidCredentials": "Invalid email or password",
+    "auth.forgotPassword": "Forgot password?",
+    "auth.forgotPasswordHint":
+      "On this PC run Imposta password.cmd, or receive a link by email.",
     "action.approveGeneration": "Approve and generate song: 12 kie credits",
     "auth.notAllowed": "If the address is enabled, you will receive a link.",
     "project.create": "Create project",

@@ -28,7 +28,7 @@ export default async function LoginPage({
       <section className="relative w-full max-w-md rounded-3xl bg-[var(--surface-1)] p-7 ring-1 ring-[var(--hairline)] sm:p-8">
         <Logo />
         <h1 className="mt-8 text-2xl font-medium tracking-tight">
-          {t(lang, "auth.sendLink")}
+          {t(lang, "auth.title")}
         </h1>
         {params.message && (
           <p role="alert" className="mt-3 text-sm text-destructive">

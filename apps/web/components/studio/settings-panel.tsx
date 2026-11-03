@@ -1,6 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { exportBackup } from "@/app/actions/backup";
 
 import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
@@ -23,8 +27,19 @@ function Row({
   );
 }
 
-export function SettingsPanel({ email }: { email: string }) {
+export function SettingsPanel({
+  email,
+  canBackup = false,
+  canChangePassword = false,
+}: {
+  email: string;
+  canBackup?: boolean;
+  canChangePassword?: boolean;
+}) {
   const lang = useLocale();
+  const [backingUp, setBackingUp] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   return (
@@ -45,6 +60,58 @@ export function SettingsPanel({ email }: { email: string }) {
           ]}
         />
       </Row>
+      {canChangePassword ? (
+        <Row label={st(lang, "settings.changePassword")}>
+          <form
+            className="flex flex-wrap items-center gap-2"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (password.length < 10) {
+                toast.error(st(lang, "settings.passwordTooShort"));
+                return;
+              }
+              if (password !== confirmation) {
+                toast.error(st(lang, "settings.passwordMismatch"));
+                return;
+              }
+              const { error } = await createClient().auth.updateUser({
+                password,
+              });
+              if (error) toast.error(st(lang, "settings.passwordFailed"));
+              else {
+                setPassword("");
+                setConfirmation("");
+                toast.success(st(lang, "settings.passwordChanged"));
+              }
+            }}
+          >
+            <input
+              aria-label={st(lang, "settings.newPassword")}
+              type="password"
+              minLength={10}
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="h-8 rounded-md bg-[var(--surface-2)] px-2 text-sm"
+            />
+            <input
+              aria-label={st(lang, "settings.confirmPassword")}
+              type="password"
+              minLength={10}
+              required
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              className="h-8 rounded-md bg-[var(--surface-2)] px-2 text-sm"
+            />
+            <button
+              type="submit"
+              className="h-8 rounded-full bg-[var(--surface-2)] px-3 text-[13px]"
+            >
+              {st(lang, "settings.changePassword")}
+            </button>
+          </form>
+        </Row>
+      ) : null}
       <Row label={st(lang, "settings.theme")}>
         <Segmented
           label={st(lang, "settings.theme")}
@@ -72,6 +139,30 @@ export function SettingsPanel({ email }: { email: string }) {
           </button>
         </span>
       </Row>
+      {canBackup ? (
+        <Row label={st(lang, "settings.backup")}>
+          <button
+            type="button"
+            disabled={backingUp}
+            onClick={async () => {
+              setBackingUp(true);
+              const result = await exportBackup();
+              setBackingUp(false);
+              if (result.ok)
+                toast.success(
+                  `${st(lang, "settings.backupDone")} ${result.dir}`,
+                );
+              else toast.error(result.error);
+            }}
+            className="h-8 rounded-full bg-[var(--surface-2)] px-3 text-[13px] disabled:opacity-60"
+          >
+            {st(
+              lang,
+              backingUp ? "settings.backupRunning" : "settings.backupExport",
+            )}
+          </button>
+        </Row>
+      ) : null}
     </section>
   );
 }

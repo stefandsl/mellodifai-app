@@ -97,7 +97,12 @@ export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
   const previous = await messageIdsFor(email);
   await page.goto("/login");
   await page.getByLabel("Indirizzo email").fill(email);
-  await page.getByRole("button", { name: "Invia link di accesso" }).click();
+  await page
+    .getByRole("button", { name: "Ricevi un link via email", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Invia link di accesso", exact: true })
+    .click();
   await expect(page.getByRole("status")).toHaveText(
     "Se l'indirizzo è abilitato riceverai un link.",
   );

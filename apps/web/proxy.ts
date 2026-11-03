@@ -35,7 +35,22 @@ export async function proxy(request: NextRequest) {
       },
     },
   );
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // This applies to password and magic-link sessions alike. A session alone is
+  // insufficient: only an allowlisted user receives a profile from the DB trigger.
+  if (user && pathname !== "/login" && !pathname.startsWith("/auth/")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!profile)
+      return NextResponse.redirect(
+        redirectUrl(request, "/login?message=not-allowed"),
+      );
+  }
   return response;
 }
 

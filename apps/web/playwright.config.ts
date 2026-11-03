@@ -2,10 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 import { localSupabaseUrl } from "./e2e/local-env";
 
 // Refuses the live stack before anything starts (e2e/local-env.ts). The app under test is its own
-// dev server on E2E_PORT (3210), never the owner's server on 3000, which talks to the live stack.
+// dev server on E2E_PORT (3310 by default), never the owner's app on 3210 (launcher), which talks to the live stack.
 const supabaseUrl = localSupabaseUrl();
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
-const port = Number(process.env.E2E_PORT ?? 3210);
+const port = Number(process.env.E2E_PORT ?? 3310);
 const base = `http://127.0.0.1:${port}`;
 
 export default defineConfig({

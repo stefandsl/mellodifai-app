@@ -9,8 +9,12 @@ import {
 import { expect, it, vi } from "vitest";
 
 const signIn = vi.hoisted(() => vi.fn());
+const signInWithPassword = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/browser", () => ({
-  createClient: () => ({ auth: { signInWithOtp: signIn } }),
+  createClient: () => ({ auth: { signInWithOtp: signIn, signInWithPassword } }),
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 import { LoginForm } from "./login-form";
@@ -58,6 +62,9 @@ it.each(["it", "en"] as const)(
         target: { value: "person@example.com" },
       });
       fireEvent.click(
+        screen.getByRole("button", { name: t(lang, "auth.magicLink") }),
+      );
+      fireEvent.click(
         screen.getByRole("button", { name: t(lang, "auth.sendLink") }),
       );
       await waitFor(() =>
@@ -74,3 +81,50 @@ it.each(["it", "en"] as const)(
     }
   },
 );
+
+it("maps every password failure to the neutral notice", async () => {
+  signInWithPassword.mockResolvedValue({
+    error: { status: 400, message: "User not found" },
+  });
+  render(<LoginForm lang="it" />);
+  fireEvent.change(screen.getByLabelText(t("it", "auth.email")), {
+    target: { value: "person@example.com" },
+  });
+  fireEvent.change(screen.getByLabelText(t("it", "auth.password")), {
+    target: { value: "wrong-password" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: t("it", "auth.signIn") }));
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Email o password non validi",
+    ),
+  );
+  cleanup();
+});
+
+it("keeps the email for a second password attempt and clears the notice", async () => {
+  signInWithPassword.mockResolvedValue({ error: { status: 400 } });
+  render(<LoginForm lang="it" />);
+  const email = screen.getByLabelText(t("it", "auth.email"));
+  const password = screen.getByLabelText(t("it", "auth.password"));
+  const submit = screen.getByRole("button", { name: t("it", "auth.signIn") });
+  fireEvent.change(email, { target: { value: "person@example.com" } });
+  fireEvent.change(password, { target: { value: "wrong-password" } });
+  fireEvent.click(submit);
+  await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
+  expect(email).toHaveValue("person@example.com");
+  expect(password).toHaveValue("");
+
+  signInWithPassword.mockImplementationOnce(() => new Promise(() => {}));
+  fireEvent.change(password, { target: { value: "another-password" } });
+  fireEvent.click(submit);
+  await waitFor(() =>
+    expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+  );
+  await waitFor(() => expect(signInWithPassword).toHaveBeenCalledTimes(2));
+  expect(signInWithPassword).toHaveBeenLastCalledWith({
+    email: "person@example.com",
+    password: "another-password",
+  });
+  cleanup();
+});

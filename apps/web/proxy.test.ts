@@ -2,8 +2,12 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const getUser = vi.hoisted(() => vi.fn());
+const maybeSingle = vi.hoisted(() => vi.fn());
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: () => ({ auth: { getUser } }),
+  createServerClient: () => ({
+    auth: { getUser },
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }),
+  }),
 }));
 
 import { proxy } from "./proxy";
@@ -12,6 +16,7 @@ beforeEach(() => {
   vi.stubEnv("NODE_ENV", "development");
   getUser.mockReset();
   getUser.mockResolvedValue({ data: { user: null } });
+  maybeSingle.mockResolvedValue({ data: { id: "profile" } });
 });
 afterEach(() => vi.unstubAllEnvs());
 it.each([
@@ -51,6 +56,17 @@ it.each(["/", "/login", "/library", "/projects/new"])(
     expect(getUser).not.toHaveBeenCalled();
   },
 );
+
+it("redirects a password or magic-link session without an allowlisted profile", async () => {
+  getUser.mockResolvedValue({ data: { user: { id: "session-user" } } });
+  maybeSingle.mockResolvedValue({ data: null });
+  const response = await proxy(
+    new NextRequest("http://127.0.0.1:3000/library"),
+  );
+  expect(
+    new URL(response.headers.get("location") ?? "http://bad").pathname,
+  ).toBe("/login");
+});
 
 it.each(["/auth/confirm?code=valid", "/library", "/?code="])(
   "continues normal session handling for %s without a redirect loop",
