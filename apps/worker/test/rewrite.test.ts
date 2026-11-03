@@ -475,13 +475,42 @@ describe("kie replace-section", () => {
       takeEngine: "kie",
       take: { kie_task_id: "t", kie_audio_id: "a" },
     });
+    const ledger = recordingLedger();
+    refused.ctx.kieLedger = () => ledger;
     stubKie({
       "/chat/credit": () => ({ code: 200, data: 87 }),
       "/jobs/createTask": () => ({ code: 422, msg: "too long" }),
     });
     await expect(rewrite(refused.ctx)).rejects.toThrow(REWRITE_TEXT.kieRefused);
     expect(refused.db.sectionEdits[0]?.kie_submit_state).toBeNull();
+    expect(ledger.settle).toHaveBeenCalledWith("entry", { credit: 0 });
   });
+  it.each([500, 502, 503, 504])(
+    "keeps HTTP %s submissions open and never submits twice",
+    async (status) => {
+      const { ctx, db } = await setup({
+        engine: "kie",
+        takeEngine: "kie",
+        take: { kie_task_id: "t", kie_audio_id: "a" },
+      });
+      const ledger = recordingLedger();
+      ctx.kieLedger = () => ledger;
+      const requests = stubKie({
+        "/chat/credit": () => ({ code: 200, data: 87 }),
+        "/jobs/createTask": () =>
+          new Response(JSON.stringify({ code: 500, msg: "server error" }), {
+            status,
+          }),
+      });
+      await expect(rewrite(ctx)).rejects.toThrow(REWRITE_TEXT.kieUnknown);
+      expect(db.sectionEdits[0]?.kie_submit_state).toBe("submitting");
+      expect(ledger.settle).not.toHaveBeenCalled();
+      await expect(rewrite(ctx)).rejects.toThrow(REWRITE_TEXT.kieUnknown);
+      expect(requests.filter((r) => r.url.includes("createTask"))).toHaveLength(
+        1,
+      );
+    },
+  );
   it("never submits twice when the answer was lost", async () => {
     const lost = await setup({
       engine: "kie",

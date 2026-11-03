@@ -100,7 +100,10 @@ export class KieClient {
     });
     const text = await response.text();
     const json = (safeJson(text) ?? { msg: text.slice(0, 300) }) as Envelope;
-    if (!response.ok || (json.code !== undefined && json.code !== 200))
+    // HTTP failures do not prove the task was rejected, even with an error body.
+    if (!response.ok)
+      throw new Error(`kie ${new URL(url).pathname} HTTP ${response.status}`);
+    if (json.code !== undefined && json.code !== 200)
       throw new KieRefused(
         `kie ${new URL(url).pathname} answered ${response.status}/${json.code ?? "-"}: ${String(json.msg ?? "").slice(0, 200)}`,
       );
@@ -112,7 +115,7 @@ export class KieClient {
     if (!Number.isFinite(value)) throw new Error("kie balance unreadable");
     return value;
   }
-  // A refusal (HTTP or kie error code) throws KieRefused: kie did not take the task. Anything
+  // An explicit kie error code on a successful HTTP response throws KieRefused. Anything
   // else that goes wrong after the request left (a timeout, a dropped connection) is unknown and
   // throws a plain Error, so the caller never submits twice.
   async createTask(body: { model: string; input: Record<string, unknown> }) {

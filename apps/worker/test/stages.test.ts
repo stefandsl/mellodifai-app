@@ -150,19 +150,26 @@ it.each([
   [4, "balance 3 credits < 12 needed", true],
   [1, "Error: HTTP 503 /api/v1/chat/credit: unavailable", true],
   [1, "Error: HTTP 200 /api/v1/jobs/createTask: refused", true],
+  [1, "Error: HTTP 500 /api/v1/jobs/createTask: internal error", false],
+  [1, "Error: HTTP 502 /api/v1/jobs/createTask: bad gateway", false],
+  [1, "Error: HTTP 503 /api/v1/jobs/createTask: unavailable", false],
+  [1, "Error: HTTP 504 /api/v1/jobs/createTask: gateway timeout", false],
   [1, "TypeError: fetch failed", false],
   [1, "process crashed after POST", false],
   [1, "", false],
 ] as const)(
   "classifies Kie exit %s stderr %s safely",
   async (code, stderr, notCharged) => {
-    const { ctx, output, calls } = await setup();
+    const { ctx, output, calls, kieLedger } = await setup();
     output.submitCode = code;
     output.submitError = stderr;
     await expect(stages.generate_song?.(ctx)).rejects.toThrow(
       notCharged ? "not charged" : "unknown",
     );
     expect(ctx.version.kie_submit_state).toBe(notCharged ? null : "submitting");
+    if (notCharged)
+      expect(kieLedger.settle).toHaveBeenCalledWith("entry", { credit: 0 });
+    else expect(kieLedger.settle).not.toHaveBeenCalled();
     if (notCharged) {
       output.submitCode = 0;
       await expect(stages.generate_song?.(ctx)).resolves.toMatchObject({
