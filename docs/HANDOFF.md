@@ -205,6 +205,10 @@ publish kit select a completed 16:9 Video Studio render. Migration
 `20261103070001_publish_visualizer.sql` allows that render only after master approval; the worker
 uploads the selected render from the job payload. The migration is applied to the private coverage
 stack only. The branch's report has the latest tests and screenshots.
+Review round 4 adds `20261103070002_publish_attempt_guard.sql`. Authenticated users cannot
+insert publish jobs directly, enqueue and reservation allow one active or completed upload per
+render attempt, and both worker paths recheck approval before upload. The private stack has
+passed two database runs; see the branch report for the final browser verification.
 
 ## 5. Later work (after M1)
 

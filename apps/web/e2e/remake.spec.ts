@@ -156,16 +156,23 @@ test("remake: paste a link, follow the progress, review, edit a line, accept and
   );
   const shots = "E:/mellodifai/codex-streams/e2e-coverage/shots";
   await mkdir(shots, { recursive: true });
-  await title.scrollIntoViewIfNeeded();
   for (const [width, height] of [
     [1440, 900],
     [1360, 600],
   ] as const) {
     await page.setViewportSize({ width, height });
+    await firstLine.scrollIntoViewIfNeeded();
+    await expect(firstLine).toBeInViewport();
     await expect(accept).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: `${shots}/remake-verse-${width}x${height}.png`,
+      animations: "disabled",
+    });
+    await accept.scrollIntoViewIfNeeded();
+    await expect(accept).toBeInViewport();
     await page.screenshot({
       path: `${shots}/remake-review-${width}x${height}.png`,
       animations: "disabled",
