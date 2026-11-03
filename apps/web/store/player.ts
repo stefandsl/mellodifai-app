@@ -32,6 +32,8 @@ export type TrackDetail = {
     lyrics?: string | null;
     timing?: LyricTiming | null;
   }[];
+  timing?: LyricTiming | null;
+  playbackTakeId?: string | null;
   // The take whose audio the song plays, or null when no take was chosen.
   chosenTakeId: string | null;
   // Set when the track is a preview of this take instead of the song itself.

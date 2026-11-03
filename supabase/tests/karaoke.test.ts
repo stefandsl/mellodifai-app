@@ -107,6 +107,48 @@ it("queues one local alignment job for the owner's untimed take", async () => {
     .eq("id", first.data);
 });
 
+it("queues alignment from the master preview without take audio", async () => {
+  const { error: renderError } = await service.from("renders").insert({
+    owner_id: users[0],
+    version_id: versionId,
+    kind: "master",
+    render_attempt: 1,
+    preview_path: "previews/test-master.mp4",
+  });
+  expect(renderError).toBeNull();
+  const first = await owner.rpc("request_lyric_alignment", {
+    p_version: versionId,
+    p_take: null,
+  });
+  expect(first.error).toBeNull();
+  const second = await owner.rpc("request_lyric_alignment", {
+    p_version: versionId,
+    p_take: null,
+  });
+  expect(second.data).toBe(first.data);
+  const { data: job } = await service
+    .from("jobs")
+    .select("stage,payload")
+    .eq("id", first.data)
+    .single();
+  expect(job).toMatchObject({
+    stage: "align_lyrics",
+    payload: { source: "master" },
+  });
+  expect(
+    (
+      await stranger.rpc("request_lyric_alignment", {
+        p_version: versionId,
+        p_take: null,
+      })
+    ).error,
+  ).not.toBeNull();
+  await service
+    .from("jobs")
+    .update({ not_before: new Date(Date.now() + 86400000).toISOString() })
+    .eq("id", first.data);
+});
+
 it("rejects another user and a take that is already aligned", async () => {
   expect(
     (

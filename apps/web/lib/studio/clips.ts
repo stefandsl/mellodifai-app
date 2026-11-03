@@ -28,6 +28,7 @@ export type Clip = {
   style: string;
   prompt: string;
   lyrics: string;
+  timing?: LyricTiming | null;
   model: string;
   status: VersionStatus;
   createdAt: string;
@@ -250,6 +251,7 @@ type Row = {
     lyrics?: string;
     settings?: { model?: string };
   } | null;
+  lyric_timing: unknown;
   chosen_take_id: string | null;
   lyric_jury: Jury | null;
   liked: boolean;
@@ -324,7 +326,7 @@ export async function loadClips(
   const base = supabase
     .from("versions")
     .select(
-      "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings,source)",
+      "id,lang,status,created_at,updated_at,lyric_pack,lyric_timing,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings,source)",
     );
   let query = trash
     ? base.not("trashed_at", "is", null)
@@ -533,6 +535,7 @@ export async function loadClips(
       style: pack.style || project?.style || "",
       prompt: project?.topic ?? "",
       lyrics: pack.lyrics || project?.brief || "",
+      timing: parseLyricTiming(row.lyric_timing),
       model: pack.settings?.model || (settings.model as string) || "V6",
       status: row.status,
       createdAt: row.created_at,

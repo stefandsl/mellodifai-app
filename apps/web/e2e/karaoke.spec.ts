@@ -33,216 +33,273 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
   const email = `karaoke-e2e-${Date.now()}@mellodifai.test`;
   const allowlist = await db.from("admin_allowlist").insert({ email });
   if (allowlist.error) throw allowlist.error;
-  const password = `karaoke-${Date.now()}-test-password`;
-  const user = await db.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (user.error || !user.data.user)
-    throw user.error ?? new Error("E2E user missing");
-  const owner = user.data.user.id;
-  const profile = await db
-    .from("profiles")
-    .upsert({ id: owner, email, role: "admin" });
-  if (profile.error) throw profile.error;
-  let cookies: { name: string; value: string }[] = [];
-  const auth = createServerClient(
-    process.env.SUPABASE_URL ?? "",
-    process.env.SUPABASE_ANON_KEY ?? "",
-    {
-      cookies: {
-        getAll: () => cookies,
-        setAll: (entries) => {
-          cookies = entries.map(({ name, value }) => ({ name, value }));
+  let owner: string | undefined;
+  let path: string | undefined;
+  try {
+    const password = `karaoke-${Date.now()}-test-password`;
+    const user = await db.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    if (user.error || !user.data.user)
+      throw user.error ?? new Error("E2E user missing");
+    owner = user.data.user.id;
+    const profile = await db
+      .from("profiles")
+      .upsert({ id: owner, email, role: "admin" });
+    if (profile.error) throw profile.error;
+    let cookies: { name: string; value: string }[] = [];
+    const auth = createServerClient(
+      process.env.SUPABASE_URL ?? "",
+      process.env.SUPABASE_ANON_KEY ?? "",
+      {
+        cookies: {
+          getAll: () => cookies,
+          setAll: (entries) => {
+            cookies = entries.map(({ name, value }) => ({ name, value }));
+          },
         },
       },
-    },
-  );
-  const signed = await auth.auth.signInWithPassword({ email, password });
-  if (signed.error) throw signed.error;
-  await page.context().addCookies(
-    cookies.map(({ name, value }) => ({
-      name,
-      value,
-      url: baseURL,
-    })),
-  );
-  const project = await db
-    .from("projects")
-    .insert({ owner_id: owner, topic: title })
-    .select("id")
-    .single();
-  if (project.error) throw project.error;
-  const version = await db
-    .from("versions")
-    .insert({
-      owner_id: owner,
-      project_id: project.data.id,
-      lang: "it",
-      status: "audio_ready",
-      display_title: title,
-      lyric_pack: {
-        title,
-        lyrics:
-          "[Strofa]\n  La luna splende  \nCammino nella notte\n[Ritornello]\nQuesta è una frase lunga che deve andare a capo senza uscire dalla finestra",
-      },
-    })
-    .select("id")
-    .single();
-  if (version.error) throw version.error;
-  const path = `previews/${owner}/${project.data.id}/it/karaoke-e2e.wav`;
-  const upload = await db.storage
-    .from("previews")
-    .upload(path, wav(12), { contentType: "audio/wav" });
-  if (upload.error) throw upload.error;
-  const take = await db
-    .from("takes")
-    .insert({
+    );
+    const signed = await auth.auth.signInWithPassword({ email, password });
+    if (signed.error) throw signed.error;
+    await page.context().addCookies(
+      cookies.map(({ name, value }) => ({
+        name,
+        value,
+        url: baseURL,
+      })),
+    );
+    const project = await db
+      .from("projects")
+      .insert({ owner_id: owner, topic: title })
+      .select("id")
+      .single();
+    if (project.error) throw project.error;
+    const version = await db
+      .from("versions")
+      .insert({
+        owner_id: owner,
+        project_id: project.data.id,
+        lang: "it",
+        status: "audio_ready",
+        display_title: title,
+        lyric_pack: {
+          title,
+          lyrics:
+            "[Strofa]\n  La luna splende  \nCammino nella notte\n[Ritornello]\nQuesta è una frase lunga che deve andare a capo senza uscire dalla finestra",
+        },
+      })
+      .select("id")
+      .single();
+    if (version.error) throw version.error;
+    path = `previews/${owner}/${project.data.id}/it/karaoke-e2e.wav`;
+    const upload = await db.storage
+      .from("previews")
+      .upload(path, wav(12), { contentType: "audio/wav" });
+    if (upload.error) throw upload.error;
+    const silent = await db.from("takes").insert({
       owner_id: owner,
       version_id: version.data.id,
       generation: 1,
       take_number: 1,
-      audio_preview_path: path,
-      lyric_timing: {
-        source: "whisper",
-        lines: [
-          {
-            text: "La luna splende",
-            start: 0,
-            end: 3,
-            words: [
-              { word: "La", start: 0, end: 1 },
-              { word: "luna", start: 1, end: 2 },
-              { word: "splende", start: 2, end: 3 },
-            ],
-          },
-          {
-            text: "Questa è una frase lunga che deve andare a capo senza uscire dalla finestra",
-            start: 6,
-            end: 11,
-          },
-        ],
-      },
-    })
-    .select("id")
-    .single();
-  if (take.error) throw take.error;
-  const chosen = await db
-    .from("versions")
-    .update({ chosen_take_id: take.data.id })
-    .eq("id", version.data.id);
-  if (chosen.error) throw chosen.error;
-
-  await page.goto("/library");
-  await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
-  await expect
-    .poll(() =>
-      page
-        .locator("audio")
-        .evaluate((element: HTMLAudioElement) => element.duration),
-    )
-    .toBeGreaterThan(0);
-  await page.getByRole("button", { name: "Testo" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Ritornello")).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "La luna splende" }),
-  ).toHaveAttribute("aria-current", "true");
-  await expect(dialog.getByText("luna", { exact: true })).toHaveClass(
-    /text-\[var\(--brand\)\]/,
-  );
-  await expect(
-    dialog.getByRole("button", { name: "Cammino nella notte" }),
-  ).toHaveAttribute("aria-current", "true");
-  await dialog.getByRole("button", { name: "Pausa" }).click();
-  await dialog.getByRole("button", { name: "Cammino nella notte" }).click();
-  await expect(
-    dialog.getByRole("button", { name: "Cammino nella notte" }),
-  ).toHaveAttribute("aria-current", "true");
-  await dialog
-    .getByRole("button", { name: /Questa è una frase lunga/u })
-    .click();
-  await expect(
-    dialog.getByRole("button", { name: /Questa è una frase lunga/u }),
-  ).toHaveAttribute("aria-current", "true");
-  await mkdir(shots, { recursive: true });
-  for (const [width, height] of [
-    [1440, 900],
-    [1360, 600],
-    [390, 844],
-  ]) {
-    await page.setViewportSize({ width, height });
-    await expect(dialog).toBeVisible();
+      lyrics: "These are not the playing lyrics",
+    });
+    if (silent.error) throw silent.error;
+    const take = await db
+      .from("takes")
+      .insert({
+        owner_id: owner,
+        version_id: version.data.id,
+        generation: 1,
+        take_number: 2,
+        audio_preview_path: path,
+        lyric_timing: {
+          source: "whisper",
+          lines: [
+            {
+              text: "La luna splende",
+              start: 0,
+              end: 3,
+              words: [
+                { word: "La", start: 0, end: 1 },
+                { word: "luna", start: 1, end: 2 },
+                { word: "splende", start: 2, end: 3 },
+              ],
+            },
+            {
+              text: "Questa è una frase lunga che deve andare a capo senza uscire dalla finestra",
+              start: 6,
+              end: 11,
+            },
+          ],
+        },
+      })
+      .select("id")
+      .single();
+    if (take.error) throw take.error;
+    await page.goto("/library");
+    await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
     await expect
       .poll(() =>
-        dialog
-          .getByRole("button", { name: /Questa è una frase lunga/u })
-          .evaluate((element) => {
-            const rect = element.getBoundingClientRect();
-            const container = element
-              .closest('[data-slot="karaoke-scroll"]')
-              ?.getBoundingClientRect();
-            if (!container) return false;
-            return (
-              Math.abs(
-                (rect.top + rect.bottom) / 2 -
-                  (container.top + container.bottom) / 2,
-              ) < 5
-            );
-          }),
+        page
+          .locator("audio")
+          .evaluate((element: HTMLAudioElement) => element.duration),
       )
+      .toBeGreaterThan(0);
+    await page.getByRole("button", { name: "Testo" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByText("These are not the playing lyrics"),
+    ).toHaveCount(0);
+    await expect(dialog.getByText("Ritornello")).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "La luna splende" }),
+    ).toHaveAttribute("aria-current", "true");
+    await expect(dialog.getByText("luna", { exact: true })).toHaveClass(
+      /text-\[var\(--brand\)\]/,
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Cammino nella notte" }),
+    ).toHaveAttribute("aria-current", "true");
+    await dialog.getByRole("button", { name: "Pausa" }).click();
+    await dialog.getByRole("button", { name: "Cammino nella notte" }).click();
+    await expect(
+      dialog.getByRole("button", { name: "Cammino nella notte" }),
+    ).toHaveAttribute("aria-current", "true");
+    await dialog
+      .getByRole("button", { name: /Questa è una frase lunga/u })
+      .click();
+    await expect(
+      dialog.getByRole("button", { name: /Questa è una frase lunga/u }),
+    ).toHaveAttribute("aria-current", "true");
+    await mkdir(shots, { recursive: true });
+    for (const [width, height] of [
+      [1440, 900],
+      [1360, 600],
+      [390, 844],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await expect(dialog).toBeVisible();
+      await expect
+        .poll(() =>
+          dialog
+            .getByRole("button", { name: /Questa è una frase lunga/u })
+            .evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              const container = element
+                .closest('[data-slot="karaoke-scroll"]')
+                ?.getBoundingClientRect();
+              if (!container) return false;
+              return (
+                Math.abs(
+                  (rect.top + rect.bottom) / 2 -
+                    (container.top + container.bottom) / 2,
+                ) < 5
+              );
+            }),
+        )
+        .toBe(true);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+      await page.screenshot({
+        path: `${shots}/karaoke-${width}x${height}.png`,
+      });
+    }
+    await dialog.getByRole("button", { name: "Chiudi il testo" }).click();
+    await expect(dialog).not.toBeVisible();
+    // Fake only the local worker output; the browser uses the real action, RPC and polling.
+    const original = await db
+      .from("takes")
+      .select("lyric_timing")
+      .eq("id", take.data.id)
+      .single();
+    const cleared = await db
+      .from("takes")
+      .update({ lyric_timing: null })
+      .eq("id", take.data.id);
+    if (cleared.error) throw cleared.error;
+    await page.reload();
+    await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
+    await page.getByRole("button", { name: "Testo" }).click();
+    await dialog.getByRole("button", { name: "Pausa" }).click();
+    await dialog.getByRole("button", { name: "Sincronizza testo" }).click();
+    await expect
+      .poll(async () => {
+        const { data } = await db
+          .from("jobs")
+          .select("id")
+          .eq("version_id", version.data.id)
+          .eq("stage", "align_lyrics");
+        return data?.length;
+      })
+      .toBe(1);
+    const aligned = await db
+      .from("takes")
+      .update({ lyric_timing: original.data?.lyric_timing })
+      .eq("id", take.data.id);
+    if (aligned.error) throw aligned.error;
+    const completed = await db
+      .from("jobs")
+      .update({ status: "done" })
+      .eq("version_id", version.data.id)
+      .eq("stage", "align_lyrics");
+    if (completed.error) throw completed.error;
+    await expect(
+      dialog.getByRole("button", { name: "Sincronizzazione in corso..." }),
+    ).toHaveCount(0);
+    await dialog.getByRole("button", { name: "La luna splende" }).click();
+    await expect(
+      dialog.getByRole("button", { name: "La luna splende" }),
+    ).toBeEnabled();
+    // The same song now plays its master preview; the worker result is still faked locally.
+    const master = await db.from("renders").insert({
+      owner_id: owner,
+      version_id: version.data.id,
+      kind: "master",
+      render_attempt: 1,
+      preview_path: path,
+    });
+    if (master.error) throw master.error;
+    const noTakeAudio = await db
+      .from("takes")
+      .update({ audio_preview_path: null })
+      .eq("id", take.data.id);
+    if (noTakeAudio.error) throw noTakeAudio.error;
+    await page.reload();
+    await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
+    await page.getByRole("button", { name: "Testo" }).click();
+    await dialog.getByRole("button", { name: "Pausa" }).click();
+    await dialog.getByRole("button", { name: "Sincronizza testo" }).click();
+    await expect
+      .poll(async () => {
+        const { data } = await db
+          .from("jobs")
+          .select("payload")
+          .eq("version_id", version.data.id)
+          .eq("stage", "align_lyrics");
+        return data?.some((job) => job.payload?.source === "master");
+      })
       .toBe(true);
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth),
-    ).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: `${shots}/karaoke-${width}x${height}.png` });
+    const masterAligned = await db
+      .from("versions")
+      .update({ lyric_timing: original.data?.lyric_timing })
+      .eq("id", version.data.id);
+    if (masterAligned.error) throw masterAligned.error;
+    await expect(
+      dialog.getByRole("button", { name: "Sincronizzazione in corso..." }),
+    ).toHaveCount(0);
+    await dialog.getByRole("button", { name: "La luna splende" }).click();
+    await expect(
+      dialog.getByRole("button", { name: "La luna splende" }),
+    ).toHaveAttribute("aria-current", "true");
+  } finally {
+    await Promise.all([
+      path && db.storage.from("previews").remove([path]),
+      owner && db.auth.admin.deleteUser(owner),
+      db.from("admin_allowlist").delete().eq("email", email),
+    ]);
   }
-  await dialog.getByRole("button", { name: "Chiudi il testo" }).click();
-  await expect(dialog).not.toBeVisible();
-  // Fake only the local worker output; the browser uses the real action, RPC and polling.
-  const original = await db
-    .from("takes")
-    .select("lyric_timing")
-    .eq("id", take.data.id)
-    .single();
-  const cleared = await db
-    .from("takes")
-    .update({ lyric_timing: null })
-    .eq("id", take.data.id);
-  if (cleared.error) throw cleared.error;
-  await page.reload();
-  await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
-  await page.getByRole("button", { name: "Testo" }).click();
-  await dialog.getByRole("button", { name: "Sincronizza testo" }).click();
-  await expect
-    .poll(async () => {
-      const { data } = await db
-        .from("jobs")
-        .select("id")
-        .eq("version_id", version.data.id)
-        .eq("stage", "align_lyrics");
-      return data?.length;
-    })
-    .toBe(1);
-  const aligned = await db
-    .from("takes")
-    .update({ lyric_timing: original.data?.lyric_timing })
-    .eq("id", take.data.id);
-  if (aligned.error) throw aligned.error;
-  const completed = await db
-    .from("jobs")
-    .update({ status: "done" })
-    .eq("version_id", version.data.id)
-    .eq("stage", "align_lyrics");
-  if (completed.error) throw completed.error;
-  await expect(
-    dialog.getByRole("button", { name: "Sincronizzazione in corso..." }),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: "La luna splende" }),
-  ).toBeEnabled();
-  await db.storage.from("previews").remove([path]);
-  await db.auth.admin.deleteUser(owner);
-  await db.from("admin_allowlist").delete().eq("email", email);
 });

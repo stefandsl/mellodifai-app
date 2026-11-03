@@ -1909,6 +1909,43 @@ describe("exact stage subprocess contracts", () => {
 });
 
 describe("local lyric alignment", () => {
+  it("aligns a master preview when no take audio exists", async () => {
+    const { ctx, db } = await setup();
+    ctx.job.payload = { source: "master" };
+    ctx.version.lyric_pack = { lyrics: "Hello world" };
+    await db.upsertRender({
+      version_id: ctx.version.id,
+      kind: "master",
+      render_attempt: ctx.version.render_attempt ?? 1,
+      preview_path: "previews/owner/master.mp4",
+    });
+    const download = vi.fn(async (_path: string, file: string) => {
+      await writeFile(file, "fake preview");
+    });
+    ctx.storage.download = download;
+    vi.spyOn(ctx.engine, "run").mockImplementation(async (_command, args) => {
+      await writeFile(
+        args[3] as string,
+        JSON.stringify([
+          { word: "Hello", start: 0, end: 1 },
+          { word: "world", start: 1, end: 2 },
+        ]),
+      );
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    await expect(stages.align_lyrics?.(ctx)).resolves.toEqual({});
+    expect(download).toHaveBeenCalledWith(
+      "previews/owner/master.mp4",
+      expect.stringContaining("master-preview.mp4"),
+    );
+    expect(db.versions[0]?.lyric_timing).toMatchObject({
+      source: "whisper",
+      lines: [{ words: [{ word: "Hello" }, { word: "world" }] }],
+    });
+    await expect(
+      readFile(join(ctx.ws.root, "align-lyrics", "master", "words.json")),
+    ).rejects.toThrow();
+  });
   it.each(["success", "engine failure", "unmatched"])(
     "handles %s and cleans its workspace",
     async (result) => {

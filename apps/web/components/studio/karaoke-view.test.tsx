@@ -42,6 +42,7 @@ function track(id: string) {
       style: "pop",
       createdAt: "",
       chosenTakeId: `${id}-take`,
+      playbackTakeId: `${id}-take`,
       takes: [{ id: `${id}-take`, number: 1, audioUrl: "audio.wav" }],
     },
   };
@@ -157,6 +158,7 @@ it("ignores a request response after changing takes", async () => {
               detail: {
                 ...item.detail,
                 takeNumber: 2,
+                playbackTakeId: "another-take",
                 takes: [
                   ...item.detail.takes,
                   { id: "another-take", number: 2, audioUrl: "audio.wav" },
@@ -232,5 +234,88 @@ it("highlights the first measured word despite leading whitespace and missing li
   expect(screen.getByText("world", { exact: true })).toHaveClass(
     "text-[var(--brand)]",
   );
+  vi.unstubAllGlobals();
+});
+
+it("uses the playable take ID when the first take has no audio", () => {
+  const item = track("fallback");
+  usePlayer.setState({
+    queue: [
+      {
+        ...item,
+        detail: {
+          ...item.detail,
+          chosenTakeId: null,
+          playbackTakeId: "playable",
+          takes: [
+            { id: "silent", number: 1, audioUrl: null, lyrics: "Wrong words" },
+            {
+              id: "playable",
+              number: 2,
+              audioUrl: "audio.wav",
+              lyrics: "Right words",
+            },
+          ],
+        },
+      },
+    ],
+    index: 0,
+  });
+  mount();
+  expect(screen.getByRole("button", { name: "Right words" })).toBeVisible();
+  expect(screen.queryByText("Wrong words")).not.toBeInTheDocument();
+});
+
+it("queues and receives alignment for a master-only song", async () => {
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  Element.prototype.scrollIntoView = vi.fn();
+  const item = track("master");
+  usePlayer.setState({
+    queue: [
+      {
+        ...item,
+        detail: {
+          ...item.detail,
+          playbackTakeId: null,
+          takes: [{ id: "silent", number: 1, audioUrl: null }],
+        },
+      },
+    ],
+    index: 0,
+  });
+  mocks.request.mockResolvedValue({ ok: true, id: "master-job" });
+  mocks.single.mockImplementation(async (table) => ({
+    data:
+      table === "versions"
+        ? {
+            lyric_timing: {
+              source: "whisper",
+              lines: [{ text: "Hello world", start: 0, end: 2 }],
+            },
+          }
+        : { status: "done" },
+    error: null,
+  }));
+  mount();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Sincronizza testo" }),
+  );
+  await waitFor(() =>
+    expect(mocks.single).toHaveBeenCalledWith("versions", "master"),
+  );
+  await waitFor(() =>
+    expect(usePlayer.getState().queue[0]?.detail?.timing).toBeTruthy(),
+  );
+  expect(mocks.request).toHaveBeenCalledWith({
+    versionId: "master",
+    takeId: null,
+  });
   vi.unstubAllGlobals();
 });

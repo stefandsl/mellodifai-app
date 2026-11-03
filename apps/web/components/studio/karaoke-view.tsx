@@ -19,14 +19,17 @@ import { formatTime, type TrackDetail, usePlayer } from "@/store/player";
 export function KaraokeView() {
   const track = usePlayer((state) => state.queue[state.index]);
   const detail = track?.detail;
-  const take = detail?.takes.find(
-    (item) =>
-      item.number ===
-      (detail.takeNumber ??
-        detail.takes.find((item) => item.id === detail.chosenTakeId)?.number ??
-        detail.takes[0]?.number),
+  const playbackTakeId =
+    detail?.takeNumber === undefined
+      ? detail?.playbackTakeId
+      : detail.takes.find((item) => item.number === detail.takeNumber)?.id;
+  const take = detail?.takes.find((item) => item.id === playbackTakeId);
+  return (
+    <KaraokeSession
+      key={`${detail?.songId}:${take?.id ?? "master"}`}
+      take={take}
+    />
   );
-  return <KaraokeSession key={`${detail?.songId}:${take?.id}`} take={take} />;
 }
 
 function KaraokeSession({
@@ -39,9 +42,10 @@ function KaraokeSession({
   const track = p.queue[p.index];
   const detail = track?.detail;
   const lyrics = take?.lyrics || detail?.lyrics || "";
+  const timing = take ? take.timing : detail?.timing;
   const lines = useMemo(
-    () => karaokeLines(lyrics, take?.timing ?? null),
-    [lyrics, take?.timing],
+    () => karaokeLines(lyrics, timing ?? null),
+    [lyrics, timing],
   );
   const active = activeLine(lines, p.time);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -73,13 +77,17 @@ function KaraokeSession({
   }, [active, p.showLyrics]);
 
   useEffect(() => {
-    if (!job || !take) return;
+    if (!job || !detail) return;
     const db = createClient();
     let cancelled = false;
     const poll = async () => {
       try {
         const [updatedResult, statusResult] = await Promise.all([
-          db.from("takes").select("lyric_timing").eq("id", take.id).single(),
+          db
+            .from(take ? "takes" : "versions")
+            .select("lyric_timing")
+            .eq("id", take?.id ?? detail.songId)
+            .single(),
           db.from("jobs").select("status").eq("id", job).single(),
         ]);
         if (cancelled) return;
@@ -97,9 +105,13 @@ function KaraokeSession({
                 ...item,
                 detail: {
                   ...item.detail,
-                  takes: item.detail.takes.map((entry) =>
-                    entry.id === take.id ? { ...entry, timing } : entry,
-                  ),
+                  ...(take
+                    ? {
+                        takes: item.detail.takes.map((entry) =>
+                          entry.id === take.id ? { ...entry, timing } : entry,
+                        ),
+                      }
+                    : { timing }),
                 },
               };
             }),
@@ -127,13 +139,13 @@ function KaraokeSession({
   }, [job, take, detail]);
 
   const request = async () => {
-    if (!detail || !take) return;
+    if (!detail || !track?.audioUrl) return;
     setRequesting(true);
     setError(false);
     try {
       const result = await requestLyricAlignment({
         versionId: detail.songId,
-        takeId: take.id,
+        takeId: take?.id ?? null,
       });
       if (result.ok && result.id) setJob(result.id);
       else setError(true);
@@ -177,12 +189,12 @@ function KaraokeSession({
             className="min-h-0 flex-1 overflow-y-auto px-5 scrollbar-thin sm:px-10"
           >
             <div className="mx-auto max-w-4xl py-10">
-              {lyrics.trim() && !take?.timing ? (
+              {lyrics.trim() && !timing ? (
                 <div className="mb-8 rounded-xl border border-[var(--hairline)] bg-[var(--surface-1)] p-4">
                   <p className="mb-3 text-sm text-[var(--fg-muted)]">
                     {st(lang, "karaoke.unsynced")}
                   </p>
-                  {take?.audioUrl ? (
+                  {track?.audioUrl ? (
                     <button
                       type="button"
                       disabled={requesting || Boolean(job)}
