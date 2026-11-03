@@ -93,7 +93,10 @@ export function AmbientBackdrop() {
         canvas.width = 36;
         canvas.height = 36;
         const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) return;
+        if (!context) {
+          if (!cancelled) setPalette(fallback);
+          return;
+        }
         context.drawImage(image, 0, 0, 36, 36);
         const colors = coverColors(context.getImageData(0, 0, 36, 36));
         cache.set(url, colors);

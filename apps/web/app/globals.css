@@ -255,9 +255,19 @@
 [data-page-hidden="true"] .karaoke-theme-neon::before {
   display: none;
 }
+[data-page-hidden="true"] .ambient-enter,
+[data-page-hidden="true"].glass .cover-enter,
+[data-page-hidden="true"] .karaoke-theme-glass::before,
+[data-page-hidden="true"] .karaoke-theme-neon::before {
+  animation: none;
+}
 [data-page-hidden="true"] .studio-sidebar,
 [data-page-hidden="true"] .studio-player,
-[data-page-hidden="true"] [data-slot="dialog-content"] {
+[data-page-hidden="true"] [data-slot="dialog-content"],
+[data-page-hidden="true"] [data-slot="alert-dialog-content"],
+[data-page-hidden="true"] [data-slot="now-playing"],
+[data-page-hidden="true"] .karaoke-theme-glass header,
+[data-page-hidden="true"] .karaoke-theme-glass footer {
   backdrop-filter: none;
 }
 

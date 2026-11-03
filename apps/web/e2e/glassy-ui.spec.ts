@@ -38,6 +38,7 @@ test("glass setting changes the shell and karaoke themes without layout overflow
   const db = serviceClient();
   const email = `glass-e2e-${Date.now()}@mellodifai.test`;
   const title = `Colori in prova ${Date.now()}`;
+  const nextTitle = `Altri colori ${Date.now()}`;
   const password = `glass-${Date.now()}-test-password`;
   let owner: string | undefined;
   const paths: string[] = [];
@@ -126,6 +127,36 @@ test("glass setting changes the shell and karaoke themes without layout overflow
       cover_path: coverPath,
     });
     if (take.error) throw take.error;
+    const nextVersion = await db
+      .from("versions")
+      .insert({
+        owner_id: owner,
+        project_id: project.data.id,
+        lang: "en",
+        status: "audio_ready",
+        display_title: nextTitle,
+      })
+      .select("id")
+      .single();
+    if (nextVersion.error) throw nextVersion.error;
+    const nextCoverPath = `${prefix}/glass-e2e-alt.svg`;
+    paths.push(nextCoverPath);
+    const nextCover = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360"><rect width="120" height="360" fill="#14be5a"/><rect x="120" width="120" height="360" fill="#dc4614"/><rect x="240" width="120" height="360" fill="#961ed2"/></svg>',
+    );
+    const nextUpload = await db.storage
+      .from("previews")
+      .upload(nextCoverPath, nextCover, { contentType: "image/svg+xml" });
+    if (nextUpload.error) throw nextUpload.error;
+    const nextTake = await db.from("takes").insert({
+      owner_id: owner,
+      version_id: nextVersion.data.id,
+      generation: 1,
+      take_number: 1,
+      audio_preview_path: audioPath,
+      cover_path: nextCoverPath,
+    });
+    if (nextTake.error) throw nextTake.error;
 
     await page.goto("/library");
     await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
@@ -163,13 +194,37 @@ test("glass setting changes the shell and karaoke themes without layout overflow
     await expect(page.locator("html")).toHaveClass(/glass/u);
     await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
     await expect(page.locator(".ambient-backdrop")).toBeVisible();
+    const palette = async () =>
+      page
+        .locator("html")
+        .evaluate((el) =>
+          [1, 2, 3].map((index) =>
+            el.style.getPropertyValue(`--ambient-${index}`),
+          ),
+        );
     await expect
-      .poll(() =>
-        page
-          .locator("html")
-          .evaluate((el) => el.style.getPropertyValue("--ambient-1")),
-      )
-      .not.toBe("rgb(94 42 64)");
+      .poll(palette)
+      .toEqual(["rgb(89 25 52)", "rgb(28 54 104)", "rgb(69 52 28)"]);
+    await expect(page.locator(".studio-player .cover-enter")).toHaveAttribute(
+      "style",
+      /glass-e2e\.svg/u,
+    );
+    await page.getByRole("button", { name: `Riproduci: ${nextTitle}` }).click();
+    await expect(page.locator(".studio-player .cover-enter")).toHaveAttribute(
+      "style",
+      /glass-e2e-alt\.svg/u,
+    );
+    await expect(page.locator(".studio-player .cover-enter")).toHaveCSS(
+      "animation-name",
+      "ambient-cover-in",
+    );
+    await expect
+      .poll(palette)
+      .toEqual(["rgb(17 59 36)", "rgb(87 35 19)", "rgb(76 22 104)"]);
+    await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
+    await expect
+      .poll(palette)
+      .toEqual(["rgb(89 25 52)", "rgb(28 54 104)", "rgb(69 52 28)"]);
     for (const [width, height] of sizes) {
       await page.setViewportSize({ width, height });
       expect(
@@ -220,6 +275,45 @@ test("glass setting changes the shell and karaoke themes without layout overflow
       ),
     ).toBe("none");
     await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-page-hidden",
+      "true",
+    );
+    for (const selector of [
+      ".studio-sidebar",
+      ".studio-player",
+      ".karaoke-theme-glass header",
+      ".karaoke-theme-glass footer",
+    ]) {
+      await expect(page.locator(selector)).toHaveCSS("backdrop-filter", "none");
+    }
+    await expect(page.locator(".studio-player .cover-enter")).toHaveCSS(
+      "animation-name",
+      "none",
+    );
+    await expect(page.locator(".ambient-enter")).toHaveCSS(
+      "animation-name",
+      "none",
+    );
+    expect(
+      await dialog.evaluate(
+        (el) => getComputedStyle(el, "::before").animationName,
+      ),
+    ).toBe("none");
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => false,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
     for (const [width, height] of sizes) {
       await page.setViewportSize({ width, height });
       expect(
