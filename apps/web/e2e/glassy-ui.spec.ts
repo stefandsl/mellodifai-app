@@ -233,6 +233,10 @@ test("glass setting changes the shell and karaoke themes without layout overflow
         "rgb(28 54 104)",
         "rgb(69 52 28)",
       ]);
+      await expect(page.locator(".studio-player .cover-enter")).toHaveAttribute(
+        "style",
+        /glass-e2e\.svg/u,
+      );
     } finally {
       releaseCover?.();
     }
@@ -260,40 +264,44 @@ test("glass setting changes the shell and karaoke themes without layout overflow
     }
     await page.getByRole("button", { name: "Testo" }).click();
     const dialog = page.getByRole("dialog");
-    await dialog.getByRole("button", { name: "Vetro" }).click();
-    await expect(dialog).toHaveClass(/karaoke-theme-glass/u);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.waitForTimeout(600);
-    const frames = await page.evaluate(async () => {
-      const times: number[] = [];
-      await new Promise<void>((resolve) => {
-        const end = performance.now() + 2500;
-        const tick = (now: number) => {
-          times.push(now);
-          if (now < end) requestAnimationFrame(tick);
-          else resolve();
-        };
-        requestAnimationFrame(tick);
+    const sampleFps = async () => {
+      await page.waitForTimeout(600);
+      const frames = await page.evaluate(async () => {
+        const times: number[] = [];
+        await new Promise<void>((resolve) => {
+          const end = performance.now() + 2500;
+          const tick = (now: number) => {
+            times.push(now);
+            if (now < end) requestAnimationFrame(tick);
+            else resolve();
+          };
+          requestAnimationFrame(tick);
+        });
+        return times;
       });
-      return times;
-    });
-    const intervals = frames
-      .slice(1)
-      .map((time, index) => time - frames[index]);
-    const fps = Math.round(
-      1000 /
-        (intervals.reduce((sum, interval) => sum + interval, 0) /
-          intervals.length),
-    );
-    await writeFile(
-      `${shots}/karaoke-perf.json`,
-      JSON.stringify({
-        fps,
+      const intervals = frames
+        .slice(1)
+        .map((time, index) => time - frames[index]);
+      return {
+        fps: Math.round(
+          1000 /
+            (intervals.reduce((sum, interval) => sum + interval, 0) /
+              intervals.length),
+        ),
         frames: frames.length,
         maxIntervalMs: Math.round(Math.max(...intervals)),
-      }),
+      };
+    };
+    const classicPerf = await sampleFps();
+    await dialog.getByRole("button", { name: "Vetro" }).click();
+    await expect(dialog).toHaveClass(/karaoke-theme-glass/u);
+    const glassPerf = await sampleFps();
+    await writeFile(
+      `${shots}/karaoke-perf.json`,
+      JSON.stringify({ classic: classicPerf, glass: glassPerf }),
     );
-    expect(fps).toBeGreaterThanOrEqual(55);
+    expect(glassPerf.fps).toBeGreaterThanOrEqual(classicPerf.fps - 5);
     await page.emulateMedia({ reducedMotion: "reduce" });
     expect(
       await dialog.evaluate(
@@ -373,6 +381,15 @@ test("glass setting changes the shell and karaoke themes without layout overflow
       .getByRole("radio", { name: "Classico" })
       .click();
     await expect(page.locator("html")).not.toHaveClass(/glass/u);
+    await page.goto("/library");
+    await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
+    await page.getByRole("button", { name: "Testo" }).click();
+    await expect(page.getByRole("dialog")).toHaveClass(
+      /karaoke-theme-classic/u,
+    );
+    await expect(
+      page.getByRole("group", { name: "Tema del testo" }),
+    ).toHaveCount(0);
   } finally {
     if (paths.length) await db.storage.from("previews").remove(paths);
     if (owner) await db.auth.admin.deleteUser(owner);

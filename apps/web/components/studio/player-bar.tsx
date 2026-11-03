@@ -291,7 +291,7 @@ export function PlayerBar() {
               onClick={() => p.set({ showNow: true })}
               className="relative size-10 shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
             >
-              <CrossfadeCover art={track.art} />
+              <CrossfadeCover art={track.art} coverUrl={track.coverUrl} />
             </button>
           ) : (
             <span

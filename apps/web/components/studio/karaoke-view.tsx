@@ -56,6 +56,7 @@ function KaraokeSession({
   const [error, setError] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [theme, setTheme] = useState<"classic" | "glass" | "neon">("classic");
+  const visibleTheme = glassEnabled ? theme : "classic";
 
   useEffect(() => {
     if (!p.showLyrics || active < 0) return;
@@ -167,7 +168,7 @@ function KaraokeSession({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Popup
           data-slot="karaoke-view"
-          className={`fixed inset-0 z-50 flex flex-col bg-[var(--bg)] text-[var(--fg)] outline-none karaoke-theme-${theme}`}
+          className={`fixed inset-0 z-50 flex flex-col bg-[var(--bg)] text-[var(--fg)] outline-none karaoke-theme-${visibleTheme}`}
         >
           <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--hairline)] px-5 py-3 sm:px-10">
             <div className="min-w-0">
@@ -188,9 +189,9 @@ function KaraokeSession({
                   <button
                     key={choice}
                     type="button"
-                    aria-pressed={theme === choice}
+                    aria-pressed={visibleTheme === choice}
                     onClick={() => setTheme(choice)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium focus-visible:ring-2 focus-visible:ring-[var(--brand)] ${theme === choice ? "bg-[var(--fg)] text-[var(--bg)]" : "text-[var(--fg-muted)] hover:text-[var(--fg)]"}`}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium focus-visible:ring-2 focus-visible:ring-[var(--brand)] ${visibleTheme === choice ? "bg-[var(--fg)] text-[var(--bg)]" : "text-[var(--fg-muted)] hover:text-[var(--fg)]"}`}
                   >
                     {st(lang, `karaoke.${choice}`)}
                   </button>

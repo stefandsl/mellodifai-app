@@ -131,7 +131,7 @@ function NowPlayingBody({ track }: { track: Track }) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin sm:px-6 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-12 lg:overflow-hidden lg:px-12 lg:pb-6">
         <div className="mx-auto w-full max-w-[26rem] space-y-5 lg:mx-0 lg:overflow-y-auto lg:pr-1 lg:scrollbar-thin">
           <div className="relative aspect-square w-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-[var(--hairline)]">
-            <CrossfadeCover art={track.art} />
+            <CrossfadeCover art={track.art} coverUrl={track.coverUrl} />
             <button
               type="button"
               aria-label={st(lang, p.playing ? "player.pause" : "player.play")}

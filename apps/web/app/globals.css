@@ -214,6 +214,7 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  will-change: opacity;
   background:
     radial-gradient(ellipse at 16% 20%, var(--ambient-1), transparent 56%),
     radial-gradient(ellipse at 84% 15%, var(--ambient-2), transparent 57%),
@@ -225,7 +226,6 @@
 .karaoke-theme-glass header,
 .karaoke-theme-glass footer {
   background: var(--glass-panel);
-  backdrop-filter: blur(18px);
 }
 .karaoke-theme-neon::before {
   filter: saturate(1.6);
