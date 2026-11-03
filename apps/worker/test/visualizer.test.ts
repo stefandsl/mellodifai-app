@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,6 +20,7 @@ import {
   DELIVERY_LIMIT,
   deliveryKbps,
   renderedPercent,
+  upscaleImage,
   VISUALIZER_PACKAGE,
 } from "../src/stages/visualizer.js";
 
@@ -35,7 +37,7 @@ type Call = { cmd: string; args: string[]; props?: Record<string, unknown> };
 // ffmpeg, ffprobe and the Remotion render would.
 async function setup(
   params: VisualizerParams,
-  { renderCode = 0, cover = true } = {},
+  { renderCode = 0, cover = true, imageSize = "4000x4000" } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "visualizer-tests-"));
   roots.push(root);
@@ -60,7 +62,15 @@ async function setup(
     setImmediate(() => {
       void (async () => {
         if (cmd === "ffprobe") {
-          child.stdout.emit("data", "4.5\n");
+          child.stdout.emit(
+            "data",
+            args.includes("format=duration") ? "4.5\n" : `${imageSize}\n`,
+          );
+        } else if (cmd === "ffmpeg" && args.includes("showinfo")) {
+          child.stderr.emit(
+            "data",
+            `[Parsed_showinfo_0] n: 0 s:${imageSize}\n`,
+          );
         } else if (cmd === process.execPath) {
           call.props = JSON.parse(await readFile(args[1] as string, "utf8"));
           for (const n of [0, 30, 60, 90])
@@ -243,6 +253,91 @@ describe("visualizer stage", () => {
       "previews/owner/project/it/visualizer-9x16.mp4",
     );
   });
+
+  it("upscales small background and centre images for a 4K frame without changing their aspect", async () => {
+    const params = defaultVisualizerParams();
+    params.quality = "4K";
+    const { ctx, calls } = await setup(params, { imageSize: "800x400" });
+    await stages.visualizer?.(ctx);
+    const props = calls.find((c) => c.cmd === process.execPath)?.props;
+    expect(props).toMatchObject({
+      background: { file: "background-upscaled.png", kind: "image" },
+      center: "cover-upscaled.png",
+    });
+    const scales = calls.filter(
+      (c) =>
+        c.cmd === "ffmpeg" && c.args.some((a) => a.includes("flags=lanczos")),
+    );
+    expect(scales.map((c) => c.args[c.args.indexOf("-vf") + 1])).toEqual([
+      "scale=4320:2160:flags=lanczos",
+      "scale=4320:2160:flags=lanczos",
+    ]);
+  });
+
+  it("preserves a real JPEG's displayed aspect after EXIF rotation", async () => {
+    const { ctx } = await setup(defaultVisualizerParams());
+    ctx.engine = new Engine({ log: async () => {} }).withWorkspace(ctx.ws.root);
+    const source = join(ctx.ws.root, "rotated.jpg");
+    await ctx.engine.run("ffmpeg", [
+      "-v",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=red:s=800x400",
+      "-frames:v",
+      "1",
+      source,
+    ]);
+    const jpeg = await readFile(source);
+    // APP1 EXIF: little-endian TIFF with orientation 6 (90 degrees clockwise).
+    const exif = Buffer.from(
+      "ffe1002245786966000049492a0008000000010012010300010000000600000000000000",
+      "hex",
+    );
+    await writeFile(
+      source,
+      Buffer.concat([jpeg.subarray(0, 2), exif, jpeg.subarray(2)]),
+    );
+    const result = await upscaleImage(ctx, source, {
+      width: 3840,
+      height: 2160,
+    });
+    const dimensions = execFileSync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=s=x:p=0",
+        result,
+      ],
+      { encoding: "utf8", windowsHide: true },
+    ).trim();
+    expect(dimensions).toBe("3840x7680");
+  }, 30_000);
+
+  it.each(["1000x10", "10x1000", "2100x1000"])(
+    "rejects oversized enlargement of %s before scaling or rendering",
+    async (imageSize) => {
+      const params = defaultVisualizerParams();
+      params.quality = "4K";
+      params.aspect = "9:16";
+      const { ctx, calls } = await setup(params, { imageSize });
+      await expect(stages.visualizer?.(ctx)).rejects.toThrow(
+        "Immagine troppo allungata",
+      );
+      expect(
+        calls.some((c) => c.args.some((a) => a.includes("flags=lanczos"))),
+      ).toBe(false);
+      expect(calls.some((c) => c.cmd === process.execPath)).toBe(false);
+    },
+  );
 
   it("fetches the logos like the centre upload, leaving out a missing one", async () => {
     const params = defaultVisualizerParams();

@@ -71,13 +71,14 @@ Merged into `build/studio-ui` and pushed:
   without it). The worker now depends on `@mellodifai/remake`: `pnpm install` before starting it.
   The audio editor trim test flake under load is fixed (146d2dc).
 - Agentic studio design revision 6 and the M1 plan.
+- Video Studio 1080p/4K quality selection and local image upscaler, merged from `feat/render-4k`.
 
 In progress:
 
 | Work | Branch / worktree | Brief | What is left |
 | --- | --- | --- | --- |
 | M1 agent access (47 tasks) | `build/m1-agent-access`, `.claude/worktrees/m1-agent-access` | `docs/superpowers/plans/2026-11-02-m1-agent-access.md` | Run the Codex driver (section 4). |
-| Karaoke lyrics | `feat/karaoke`, `E:/mellodifai/wt/karaoke` | `E:/mellodifai/codex-streams/karaoke/brief.md` | Implemented with local Whisper alignment; R1-R3 recovery, centering and word-timing fixes committed, awaiting integration. Report and screenshots: `E:/mellodifai/codex-streams/karaoke/`. |
+| Karaoke lyrics | `feat/karaoke`, `E:/mellodifai/wt/karaoke` | `E:/mellodifai/codex-streams/karaoke/brief.md` | Implemented with local Whisper alignment; R1-R3 fixes committed, awaiting integration. Report and screenshots: `E:/mellodifai/codex-streams/karaoke/`. |
 
 Leftover worktrees to clean up when their branches are merged: `agent-aeb276f7c9d48b97b`
 (T28, merged), `agent-ab7634b26f5114742` (T27, merged). Remove with
@@ -123,10 +124,23 @@ If you are not using the driver, the same loop by hand: read the task text in th
 implement with tests, commit, push, then review the task's diff against its text with fresh
 eyes before starting the next one.
 
+## 4b. Parallel Codex workstreams (started 2026-11-03)
+
+Six independent streams run next to M1, each in its own worktree `E:/mellodifai/wt/<name>` on
+branch `feat/<name>` from `build/studio-ui`: `render-4k` (1080p minimum, 4K, upscaler), `karaoke`
+(Spotify-like lyrics view), `song-assets` (per-song storyboard/thumbnail/metadata bug, CTR
+thumbnails), `repo-audit` (ponytail audit and fixes), `plan-m2` and `plan-m3m4` (plans only).
+Runner: `bash E:/mellodifai/codex-streams/stream.sh <name> <e2e-port>`; brief, report, reviews
+and `status.log` live in `E:/mellodifai/codex-streams/<name>/`. Builders use `gpt-6-sol`
+(reasoning high). `gpt-6-astra` returns 429 under parallel load, so reviewers and the M1 driver also run on sol: use `E:/mellodifai/codex-streams/stream3.sh` and start M1 with `CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh <from> 47`. `gpt-6.1-sol` is refused on a ChatGPT account. Re-run a parked stream's review loop with `SKIP_IMPL=1 bash E:/mellodifai/codex-streams/stream3.sh <name> <port>`. A stream
+ends with "DONE branch ..." in its status.log; then review its report, merge the branch into
+`build/studio-ui` (renumber migrations to the next free number if needed), run all gates, push.
+Launch detached on Windows with PowerShell `Start-Process` so it outlives the agent session.
+
 ## 5. Later work (after M1)
 
-1080p minimum and 4K with an upscaler; per-song storyboard, thumbnail and metadata; Spotify-
-per-language publishing hub (11 languages); CTR thumbnails (not clickbait);
+Per-song storyboard, thumbnail and metadata; per-language publishing hub (11 languages); CTR
+thumbnails (not clickbait);
 milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner

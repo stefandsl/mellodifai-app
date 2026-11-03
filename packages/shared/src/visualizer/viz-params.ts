@@ -66,6 +66,8 @@ export type ContourStyle = (typeof CONTOUR_STYLES)[number];
 
 export const VISUALIZER_ASPECTS = ["16:9", "9:16"] as const;
 export type VisualizerAspect = (typeof VISUALIZER_ASPECTS)[number];
+export const VISUALIZER_QUALITIES = ["1080p", "4K"] as const;
+export type VisualizerQuality = (typeof VISUALIZER_QUALITIES)[number];
 
 // Render size per aspect. 9:16 is a true full-frame Short: every preset lays itself out again
 // for the tall frame instead of letterboxing the wide one.
@@ -76,6 +78,15 @@ export const ASPECT_SIZE: Record<
   "16:9": { width: 1920, height: 1080 },
   "9:16": { width: 1080, height: 1920 },
 };
+export function renderSize(
+  aspect: VisualizerAspect,
+  quality: VisualizerQuality,
+) {
+  const size = ASPECT_SIZE[aspect];
+  return quality === "4K"
+    ? { width: size.width * 2, height: size.height * 2 }
+    : size;
+}
 export const VISUALIZER_FPS = 30;
 
 export const BACKGROUND_MODES = ["random", "image", "video"] as const;
@@ -242,6 +253,7 @@ export function defaultBadges(): VisualizerBadges {
 export const VisualizerParamsSchema = z.object({
   preset: z.enum(VISUALIZER_PRESETS),
   aspect: z.enum(VISUALIZER_ASPECTS),
+  quality: z.enum(VISUALIZER_QUALITIES).default("1080p"),
   background: z.object({
     mode: z.enum(BACKGROUND_MODES),
     seed: z.number().int().min(0).max(2147483647),
@@ -293,6 +305,7 @@ export function defaultVisualizerParams(): VisualizerParams {
   return {
     preset: "circle",
     aspect: "16:9",
+    quality: "1080p",
     background: { mode: "random", seed: 0, assetUrl: null, dimming: 60 },
     colors: { primary: first.primary, secondary: first.secondary },
     particles: 30,
@@ -396,6 +409,7 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
   return {
     preset: pick(shape.preset, field(input, "preset"), d.preset),
     aspect: pick(shape.aspect, field(input, "aspect"), d.aspect),
+    quality: pick(shape.quality, field(input, "quality"), d.quality),
     background: {
       mode: pick(bgShape.mode, field(bg, "mode"), d.background.mode),
       seed: pick(bgShape.seed, field(bg, "seed"), d.background.seed),
