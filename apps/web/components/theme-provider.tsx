@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 export type Theme = "dark" | "light";
 const KEY = "mellodifai-theme";
@@ -25,6 +25,14 @@ function subscribe(onChange: () => void) {
 
 // The theme lives on <html>: dark is the default, light is opt-in and remembered.
 export function useTheme() {
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(KEY) === "light") {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.classList.add("light");
+      }
+    } catch {}
+  }, []);
   const theme = useSyncExternalStore<Theme | null>(subscribe, read, () => null);
   const setTheme = useCallback((next: Theme) => {
     const classes = document.documentElement.classList;

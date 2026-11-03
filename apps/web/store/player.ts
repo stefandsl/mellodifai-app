@@ -11,6 +11,7 @@ export type Track = {
   videoUrl: string | null;
   href: string;
   art: string;
+  coverUrl?: string | null;
   // The reaction when the track was queued (the live value comes from the reactions store), or
   // null for a preview that is not a library song, like a take: it cannot be liked or counted.
   reaction: Reaction | null;
