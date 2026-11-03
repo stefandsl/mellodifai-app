@@ -94,10 +94,12 @@ export class KieClient {
     });
     const text = await response.text();
     const json = (safeJson(text) ?? { msg: text.slice(0, 300) }) as Envelope;
-    if (!response.ok || (json.code !== undefined && json.code !== 200))
-      throw new KieRefused(
-        `kie ${new URL(url).pathname} answered ${response.status}/${json.code ?? "-"}: ${String(json.msg ?? "").slice(0, 200)}`,
-      );
+    if (!response.ok || (json.code !== undefined && json.code !== 200)) {
+      const message = `kie ${new URL(url).pathname} answered ${response.status}/${json.code ?? "-"}: ${String(json.msg ?? "").slice(0, 200)}`;
+      if (response.status >= 500 || (json.code ?? 0) >= 500)
+        throw new Error(message);
+      throw new KieRefused(message);
+    }
     return json;
   }
   async credits(): Promise<number> {
@@ -106,7 +108,7 @@ export class KieClient {
     if (!Number.isFinite(value)) throw new Error("kie balance unreadable");
     return value;
   }
-  // A refusal (HTTP or kie error code) throws KieRefused: kie did not take the task. Anything
+  // A clear refusal (4xx or kie client error code) throws KieRefused. Anything
   // else that goes wrong after the request left (a timeout, a dropped connection) is unknown and
   // throws a plain Error, so the caller never submits twice.
   async createTask(body: { model: string; input: Record<string, unknown> }) {
