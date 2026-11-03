@@ -24,10 +24,22 @@ describe("karaoke selection", () => {
       [1.5, 3.5, 5.5, 1.5, 7].map((time) => activeLine(lines, time)),
     ).toEqual([1, -1, 3, 1, -1]);
   });
-  it("lights only a word with a measured timestamp", () => {
+  it("keeps measured words lit through gaps until the active line ends", () => {
     expect(
-      [1.2, 2.2, 3].map((time) => activeWord(lines[1]?.words ?? [], time)),
-    ).toEqual([0, 1, -1]);
+      [0.9, 1.2, 2.2, 2.9].map((time) =>
+        activeWord(lines[1]?.words ?? [], time),
+      ),
+    ).toEqual([-1, 0, 1, 1]);
+    expect(
+      activeWord(
+        [
+          { start: 1, end: 1.3 },
+          { start: 2, end: 2.3 },
+        ],
+        1.8,
+      ),
+    ).toBe(0);
+    expect(activeLine(lines, 3)).toBe(-1);
   });
   it("keeps section labels and plain lyrics when timing is absent", () => {
     expect(

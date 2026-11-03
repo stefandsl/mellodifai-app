@@ -65,7 +65,6 @@ export function activeWord(
     if (
       word &&
       time >= word.start &&
-      time < word.end &&
       (active < 0 || word.start >= (words[active]?.start ?? 0))
     )
       active = i;
