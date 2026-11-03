@@ -1,9 +1,43 @@
 import { readFileSync } from "node:fs";
+import type { Sql, TransactionSql } from "postgres";
 import { afterAll, expect, it } from "vitest";
 import { ownerSql } from "./helpers/pg";
 
 const sql = ownerSql();
 afterAll(() => sql.end());
+
+async function columnGrants(connection: Sql | TransactionSql) {
+  return connection`
+    select 'column|' || n.nspname || '.' || c.relname || '.' || a.attname || '|'
+      || case when x.grantee = 0 then 'PUBLIC' else r.rolname end || '|' || x.privilege_type as line
+    from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    cross join lateral aclexplode(a.attacl) x
+    left join pg_roles r on r.oid = x.grantee
+    where n.nspname in ('public', 'ops') and c.relkind in ('r', 'p', 'v', 'm', 'f')
+      and a.attnum > 0 and not a.attisdropped
+      and (x.grantee = 0 or r.rolname in ('anon', 'authenticated', 'mdf_web', 'mdf_auth', 'service_role'))
+    order by line
+  `;
+}
+
+it("detects an unreviewed PUBLIC column grant and rolls it back", async () => {
+  const before = await columnGrants(sql);
+  const rollback = new Error("rollback PUBLIC column grant");
+  await expect(
+    sql.begin(async (tx) => {
+      await tx`grant select (topic) on public.projects to public`;
+      const after = await columnGrants(tx);
+      expect(after).toContainEqual({
+        line: "column|public.projects.topic|PUBLIC|SELECT",
+      });
+      expect(after).not.toEqual(before);
+      throw rollback;
+    }),
+  ).rejects.toBe(rollback);
+  expect(await columnGrants(sql)).toEqual(before);
+});
 
 it("matches the reviewed public and ops ACL allowlist", async () => {
   const objects = await sql`
@@ -33,18 +67,7 @@ it("matches the reviewed public and ops ACL allowlist", async () => {
     from relations c cross join roles r
     order by line
   `;
-  const columns = await sql`
-    select 'column|' || n.nspname || '.' || c.relname || '.' || a.attname || '|' || r.rolname || '|' || x.privilege_type as line
-    from pg_attribute a
-    join pg_class c on c.oid = a.attrelid
-    join pg_namespace n on n.oid = c.relnamespace
-    cross join lateral aclexplode(a.attacl) x
-    join pg_roles r on r.oid = x.grantee
-    where n.nspname in ('public', 'ops') and c.relkind in ('r', 'p', 'v', 'm', 'f')
-      and a.attnum > 0 and not a.attisdropped
-      and r.rolname in ('anon', 'authenticated', 'mdf_web', 'mdf_auth', 'service_role')
-    order by line
-  `;
+  const columns = await columnGrants(sql);
   const schemas = await sql`
     select 'schema|' || n.nspname || '|' || r.name || '|USAGE=' || has_schema_privilege(r.name, n.oid, 'USAGE') as line
     from pg_namespace n cross join (values ('mdf_web'), ('mdf_auth')) r(name)
