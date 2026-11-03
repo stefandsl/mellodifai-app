@@ -5,7 +5,7 @@ import {
   readFile,
   writeFile,
 } from "node:fs/promises";
-import { extname, join, resolve, sep } from "node:path";
+import { extname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
   type LyricPack,
@@ -21,7 +21,7 @@ import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { workerTempDir } from "../runtime.js";
 import { makeThumbnail } from "../stages/art.js";
 import { assertPublishRender } from "../stages/publish.js";
-import { songStoryboard } from "../stages/storyboard.js";
+import { resolveStoryboardPath, songStoryboard } from "../stages/storyboard.js";
 import { key, renderAssetPath, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
 
@@ -316,13 +316,11 @@ export function createFakeStages(
             `storyboard-${renderAttempt}.json`,
           );
           if (renderAttempt > 1 && typeof saved?.storyboard_path === "string") {
-            const source = resolve(saved.storyboard_path);
-            if (
-              !source.startsWith(
-                resolve(join(ctx.ws.publicDir, "data", ctx.version.lang)) + sep,
-              )
-            )
-              throw new Error("Invalid storyboard path");
+            const source = resolveStoryboardPath(
+              saved.storyboard_path,
+              ctx.ws.publicDir,
+              ctx.version.lang,
+            );
             await copyFile(source, archived);
             await copyFile(archived, path);
             result.patch = {

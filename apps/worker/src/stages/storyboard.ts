@@ -97,6 +97,18 @@ export function songStoryboard(
   };
 }
 
+export function resolveStoryboardPath(
+  path: string,
+  publicDir: string,
+  lang: string,
+) {
+  const dataDir = resolve(publicDir, "data", lang);
+  const source = resolve(publicDir, path);
+  if (!source.startsWith(dataDir + sep))
+    throw new Error("Invalid storyboard path");
+  return source;
+}
+
 export const storyboard: StageHandler = async (context) => {
   const lang = language(context);
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
@@ -111,9 +123,11 @@ export const storyboard: StageHandler = async (context) => {
     (context.version.render_attempt ?? 1) > 1 &&
     typeof saved?.storyboard_path === "string"
   ) {
-    const source = resolve(saved.storyboard_path);
-    if (!source.startsWith(resolve(dataDir) + sep))
-      throw new Error("Invalid storyboard path");
+    const source = resolveStoryboardPath(
+      saved.storyboard_path,
+      context.ws.publicDir,
+      lang,
+    );
     const current = join(dataDir, "storyboard.json");
     const archived = join(
       dataDir,

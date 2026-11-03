@@ -1,8 +1,10 @@
 import type { ChildProcess } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
+import postgres from "postgres";
+import { assertTestStack } from "../../../ops/test-db-guard";
 import { localSupabaseUrl } from "./local-env";
 import {
   createFrenchProject,
@@ -149,7 +151,18 @@ test("published song starts a new render and keeps its original publication", as
     await readFile(version.storyboard_path, "utf8"),
   );
   storyboard.shots[0].props.emphasis = ["Edited scene"];
-  await writeFile(version.storyboard_path, JSON.stringify(storyboard));
+  // Pre-merge songs keep a workspace-relative storyboard path in the database.
+  await writeFile(
+    join(dirname(version.storyboard_path), "storyboard.json"),
+    JSON.stringify(storyboard),
+  );
+  assertTestStack(process.env);
+  const sql = postgres(process.env.TEST_DB_URL ?? "", { max: 1 });
+  try {
+    await sql`update public.versions set storyboard_path='data/fr/storyboard.json' where id=${version.id}`;
+  } finally {
+    await sql.end();
+  }
   const look = {
     preset: "circle",
     aspect: "16:9",
@@ -259,10 +272,10 @@ test("published song starts a new render and keeps its original publication", as
     await expect(
       page.getByRole("button", { name: "Nuovo render" }),
     ).toBeVisible();
-    const shots = "E:/mellodifai/codex-streams/e2e-coverage/shots";
+    const shots = "E:/mellodifai/codex-streams/m1-integrate/shots";
     await mkdir(shots, { recursive: true });
     await page.screenshot({
-      path: join(shots, `rerender-${width}x${height}.png`),
+      path: join(shots, `legacy-rerender-${width}x${height}.png`),
       animations: "disabled",
     });
   }

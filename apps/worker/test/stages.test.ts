@@ -2109,6 +2109,43 @@ describe("stage safety and behavior", () => {
       },
     });
   });
+  it("rerenders a pre-merge song with a workspace-relative storyboard", async () => {
+    const { ctx, db } = await setup();
+    const legacy = join(ctx.ws.publicDir, "data", "fr", "storyboard.json");
+    await writeFile(legacy, '{"title":"Legacy scene"}');
+    ctx.version.render_attempt = 8;
+    await db.upsertRender({
+      version_id: ctx.version.id,
+      render_attempt: 8,
+      kind: "master",
+      owner_id: "owner",
+      qa_results: {
+        assets: {
+          storyboard_path: "data/fr/storyboard.json",
+          storyboard_sections: [{ title: "Legacy scene" }],
+        },
+      },
+    });
+    const result = await stages.storyboard?.(ctx);
+    const archived = join(ctx.ws.publicDir, "data", "fr", "storyboard-8.json");
+    expect(result?.patch).toMatchObject({
+      storyboard_path: archived,
+      storyboard_sections: [{ title: "Legacy scene" }],
+    });
+    expect(await readFile(archived, "utf8")).toBe('{"title":"Legacy scene"}');
+
+    await db.patchRender(
+      (await db.getRender(ctx.version.id, "master"))?.id ?? "",
+      {
+        qa_results: {
+          assets: { storyboard_path: "data/other/storyboard.json" },
+        },
+      },
+    );
+    await expect(stages.storyboard?.(ctx)).rejects.toThrow(
+      "Invalid storyboard path",
+    );
+  });
   it("uses lyric style when both project moods are blank", async () => {
     const { ctx, db } = await setup();
     ctx.project.mood = "  ";
