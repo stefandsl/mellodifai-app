@@ -236,6 +236,7 @@ export interface Db {
   patchRender(id: string, patch: Partial<Render>): Promise<void>;
   createPublication(publication: Omit<Publication, "id">): Promise<Publication>;
   getPublicationForVersion(versionId: string): Promise<Publication | null>;
+  getPublicationForRender(renderId: string): Promise<Publication | null>;
   patchPublication(id: string, patch: Partial<Publication>): Promise<void>;
   getWorker(id: string): Promise<WorkerUpdate | null>;
   // profiles.role of a song's owner: local engines are for the admin only (design 5.5).
@@ -568,6 +569,17 @@ export class SupabaseDb implements Db {
       .eq("renders.version_id", versionId)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Publication | null;
+  }
+  async getPublicationForRender(renderId: string): Promise<Publication | null> {
+    const { data, error } = await this.client
+      .from("publications")
+      .select("*")
+      .eq("render_id", renderId)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -918,6 +930,11 @@ export class InMemoryDb implements Db {
             (b.created_at ?? "").localeCompare(a.created_at ?? "") ||
             b.id.localeCompare(a.id),
         )[0] ?? null
+    );
+  }
+  async getPublicationForRender(renderId: string) {
+    return (
+      this.publications.find((item) => item.render_id === renderId) ?? null
     );
   }
   async patchPublication(id: string, patch: Partial<Publication>) {

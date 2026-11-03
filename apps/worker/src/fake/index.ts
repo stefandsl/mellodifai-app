@@ -11,8 +11,10 @@ import {
   type LyricPack,
   LyricPackSchema,
   privacyVersionStatus,
+  publicationDefaults,
   STAGE_STATUS,
   type Stage,
+  songMood,
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { makeThumbnail } from "../stages/art.js";
@@ -272,9 +274,11 @@ export function createFakeStages(
             timing,
             pack.title,
             ctx.version.lang,
-            ctx.project.mood ??
-              (ctx.project.song_settings as { mood?: string } | null)?.mood ??
+            songMood(
+              ctx.project.mood,
+              (ctx.project.song_settings as { mood?: string } | null)?.mood,
               pack.style,
+            ),
           );
           await writeFile(path, JSON.stringify(storyboard));
           const archived = join(
@@ -355,11 +359,11 @@ export function createFakeStages(
                 storyboard_sections: ctx.version.storyboard_sections,
                 title: LyricPackSchema.parse(ctx.version.lyric_pack).title,
                 lang: ctx.version.lang,
-                mood:
-                  ctx.project.mood ??
-                  (ctx.project.song_settings as { mood?: string } | null)
-                    ?.mood ??
+                mood: songMood(
+                  ctx.project.mood,
+                  (ctx.project.song_settings as { mood?: string } | null)?.mood,
                   LyricPackSchema.parse(ctx.version.lyric_pack).style,
+                ),
               },
             },
           });
@@ -378,7 +382,27 @@ export function createFakeStages(
         case "publish": {
           const render = await ctx.db.getRender(ctx.version.id, "master");
           if (!render) throw new Error("Fake master is missing");
-          if (!(await ctx.db.getPublicationForVersion(ctx.version.id)))
+          if (!(await ctx.db.getPublicationForRender(render.id))) {
+            const assets = (
+              render.qa_results as {
+                assets?: {
+                  lyric_pack?: unknown;
+                  lang?: string;
+                  storyboard_sections?: unknown;
+                  mood?: string;
+                };
+              } | null
+            )?.assets;
+            const pack = LyricPackSchema.parse(
+              assets?.lyric_pack ?? ctx.version.lyric_pack,
+            );
+            const defaults = publicationDefaults(
+              pack.title,
+              pack.lyrics,
+              assets?.lang ?? ctx.version.lang,
+              assets?.storyboard_sections ?? ctx.version.storyboard_sections,
+              assets?.mood ?? "",
+            );
             await ctx.db.createPublication({
               ...(ctx.version.owner_id
                 ? { owner_id: ctx.version.owner_id }
@@ -389,6 +413,7 @@ export function createFakeStages(
               upload_state: "uploaded",
               privacy_applied: "private",
               metadata: {
+                ...defaults,
                 ...((ctx.job.payload?.metadata ?? {}) as Record<
                   string,
                   unknown
@@ -397,6 +422,7 @@ export function createFakeStages(
                 defaultAudioLanguage: ctx.version.lang,
               },
             });
+          }
           result.versionStatus = "approved";
           break;
         }

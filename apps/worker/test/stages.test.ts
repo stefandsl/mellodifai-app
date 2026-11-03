@@ -1342,6 +1342,39 @@ describe("stage safety and behavior", () => {
       privacyStatus: "private",
     });
   });
+  it("fills a title-only publish job from its render snapshot", async () => {
+    const { ctx, db } = await setup();
+    ctx.project.brief = "Old project brief";
+    ctx.version.lyric_pack = {
+      ...pack,
+      title: "Current title",
+      lyrics: "Current lyrics",
+    };
+    ctx.job.payload = { metadata: { title: "Reviewed title" } };
+    await db.patchRender(db.renders[0]?.id ?? "", {
+      qa_results: {
+        assets: {
+          lyric_pack: {
+            ...pack,
+            title: "Rendered title",
+            lyrics: "Une lumière sur le port",
+          },
+          lang: "fr",
+          mood: "Pop luminoso",
+        },
+      },
+    });
+    await stages.publish?.(ctx);
+    const meta = JSON.parse(
+      await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+    );
+    expect(meta.title).toBe("Reviewed title");
+    expect(meta.description).toContain("Une lumière sur le port");
+    expect(meta.description).toContain("lumineux");
+    expect(meta.description).not.toContain("Old project brief");
+    expect(meta.description).not.toContain("Current lyrics");
+    expect(meta.tags).toContain("lumineux");
+  });
   it("strips loaded secrets from child environment, including overridden aliases", async () => {
     const { ctx, calls } = await setup();
     const file = join(ctx.ws.root, "fixture.env");
@@ -1616,6 +1649,27 @@ describe("stage safety and behavior", () => {
       },
     });
   });
+  it("uses lyric style when both project moods are blank", async () => {
+    const { ctx, db } = await setup();
+    ctx.project.mood = "  ";
+    ctx.project.song_settings = { mood: "" };
+    ctx.version.lyric_pack = { ...pack, style: "sad dark" };
+    const storyboard = await stages.storyboard?.(ctx);
+    expect(storyboard?.patch?.storyboard_sections).toBeTruthy();
+    const scenes = JSON.parse(
+      await readFile(
+        join(ctx.ws.publicDir, "data", "fr", "storyboard.json"),
+        "utf8",
+      ),
+    );
+    expect(scenes.shots[0].mood).toBe("ink");
+    await stages.art?.(ctx);
+    expect(
+      (await db.getRender(ctx.version.id, "master"))?.qa_results,
+    ).toMatchObject({
+      assets: { mood: "sad dark" },
+    });
+  });
   it("writes the lyric files an imported song never had before timing it", async () => {
     const { ctx } = await setup();
     ctx.version.lyric_pack = fakePack;
@@ -1809,7 +1863,19 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   });
   await run("set_privacy");
   expect(ctx.version.status).toBe("published");
-  expect(sleep).toHaveBeenCalledTimes(11);
+  ctx.version.render_attempt = 8;
+  const replacement = await db.upsertRender({
+    version_id: ctx.version.id,
+    kind: "master",
+    render_attempt: 8,
+    path: join(ctx.ws.renderDir, "video.mp4"),
+  });
+  await run("publish");
+  expect(db.publications).toHaveLength(2);
+  expect(db.publications[1]?.render_id).toBe(replacement.id);
+  await run("publish");
+  expect(db.publications).toHaveLength(2);
+  expect(sleep).toHaveBeenCalledTimes(13);
   expect(ctx.storage.upload).toHaveBeenCalledWith(
     "previews/owner/project/fr/version/7/master-preview.mp4",
     join(ctx.ws.renderDir, "master-preview.mp4"),

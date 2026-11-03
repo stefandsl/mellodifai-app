@@ -141,6 +141,11 @@ titles beginning with `--`; the focused database and browser regressions pass.
 R5 snapshots each render's mood (or its style fallback) for publication defaults and retains
 the previews of publication-linked renders during cleanup. The focused database and unit tests pass;
 the shared e2e worker queue delayed the latest two-song browser reruns.
+R6 localizes recognized mood terms before adding them to publication copy, treats blank project
+moods as absent, and derives direct publish metadata from the render snapshot. Fake republishing
+now checks the current render id. The focused database and two-song browser tests pass on the e2e
+stack at port 3223, and the full unit gates pass. Unrecognized free-form moods are omitted from
+public copy until a translation is available.
 
 ## 6. Waiting on the owner
 
