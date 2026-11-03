@@ -1388,6 +1388,14 @@ Full report: `.superpowers/sdd/2026-11-02-m1-agent-access/task-3-report.md`.
 - A read-only check after the attempt found production migration head `20261103070002_publish_attempt_guard`, with other `20261103` migrations already applied. This branch's newest file is `20261102000041_ops_lockdown.sql`. The current deploy health check requires the target's newest migration to equal the live `schema`, so `m1-floor` would not pass while production is ahead. Reconcile the migration history and expected health schema before deployment; do not downgrade the live database.
 - The runtime-root ACL and dedicated Windows accounts remain owner administrator actions; this session is not elevated. SMTP remains unconfigured. Per the later owner approval ruling these are recorded as pending, not represented as applied.
 
+### M1 integration before production cutover, 2026-11-03
+
+- Merged `origin/build/studio-ui` into `build/m1-agent-access`, preserving the M1 ops route and the new studio features. `ops.lyric_alignment_request` now serves karaoke alignment. Migration `20261103080001_ops_alignment_lockdown.sql` runs last and reasserts the public ACL; deploy uses `migration up --include-all` because production is already at `20261103070002`.
+- First-cutover code now bootstraps private signing, stack and database password files from the legacy database before recovery starts. It records a private rotation marker; deploy rotates the login passwords after migrations. No production code path was run in this integration.
+- A new private dev stack at `E:/mellodifai/stacks/dev` restored `E:/mellodifai/backups/2026-11-03-task-33-pre-cutover.sql`. All 52 table counts from `task-33-counts-preflight.json` matched, totaling 11,145 rows. M1 seed tables that are absent from the old dump remained available. The database and browser gates used this private stack and port 3219.
+- The shared e2e database at API 45621 already contains the studio alignment function while its migration history ends before that migration. Applying the fresh migration set there fails on the preexisting function. This integration did not edit that shared schema or migration history.
+- `E:/mellodifai/deploy` now tracks `build/m1-agent-access`. The owner still needs to run `ops/owner-admin.ps1` from elevated PowerShell, then perform the production cutover and local owner read, write and heartbeat smoke checks under the Task 33 procedure. DNS, tunnel credentials and SMTP remain owner actions. No production service, database or key was changed.
+
 ## Major to task
 
 | Round-5 Major | Task(s) and the test that proves it | Deadline in the round-5 report |

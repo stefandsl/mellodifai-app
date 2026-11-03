@@ -571,3 +571,18 @@ killed. Firewall reinstall updates the existing MellodifAI block LAN rule in
 place; it creates a new rule only when absent and never deletes the old rule
 before an update. Actual administrator account/firewall verification remains
 pending with the existing owner actions.
+
+M1 integration merges `build/studio-ui` into `build/m1-agent-access`. The studio
+lyric alignment action now uses `ops.lyric_alignment_request`; migration
+`20261103080001_ops_alignment_lockdown.sql` reasserts the public function and
+direct-write lockdown after all merged studio migrations. Deploy applies every
+pending migration with `--include-all`, including migrations that sort before
+the live migration head. The first production cutover bootstraps private
+Supabase keys and database password files from the running legacy database,
+then deploy rotates the database logins. `ops/restore.ts --env dev` was used on
+a private E: stack to restore the pre-cutover backup; all 52 recorded table
+counts matched. The production database and services were not changed.
+`ops/owner-admin.ps1` is ready for the owner to run in elevated PowerShell. It
+installs local service accounts, their private credentials, ACLs and the LAN
+firewall rule. The live cutover, service installation and local owner smoke
+check remain owner actions. See the plan Deploy log for the exact state.
