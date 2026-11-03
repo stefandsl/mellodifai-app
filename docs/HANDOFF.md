@@ -4,7 +4,7 @@ Read this first if you are picking up the work without the previous Claude sessi
 the single source for where things stand, the rules, and how to continue. Keep it current:
 when you finish or change something listed here, edit this file and commit it.
 
-Last updated: 2026-11-02.
+Last updated: 2026-11-03.
 
 ## 1. What the product is
 
@@ -290,3 +290,22 @@ and reports applied migration metadata without a cookie. Remote health remains
 web-only. Stack start/migrate writes the fake-stack flag from `ENV_TABLE` as
 postgres; callers cannot disable real caps. Existing application grants remain
 until Task 32 lockdown. No production migration or owner action was performed.
+
+M1 Task 15 adds `20261102000029_ops_tokens.sql`: local session-only token
+administration, pairing claims, nonce-bound OAuth consent and adapter storage.
+Token creation always inserts a 1 USD/day token cap. The `spend_caps` table is
+created here per preflight ruling 3; Task 16 must reuse it for ledger seeds and
+reservations. PAT and OAuth use recheck the owner's admin role and cap; remote
+PAT use and OAuth resolution obey `remote_mcp` immediately.
+Pairing closes atomically on the first registration and retains the client name,
+host and time. Each Client storage payload retains private registration provenance
+across later pairing windows; `oauth_find` hides that internal field and `jti`.
+The adapter cannot replace that provenance or change nonce-bound Interaction params.
+`oauth_consent_info` and `oauth_consent` are granted to `mdf_web`; the ten storage
+and flow functions are granted only to `mdf_auth`. `resolve_access_token` returns
+the identity object directly and raises on refusal; user-context functions return
+the normal ops result envelope. OAuth actor contexts carry `access_token_hash`
+and the canonical `resource`. `oauth_interaction_result` returns user_id,
+client_id, scopes, test_mode and token_id once; Task 42 binds its resulting Grant
+through `oauth_bind_grant`. Consent reconnects revoke prior rows, including expired
+or abandoned grants, before creating the replacement. Production was untouched.

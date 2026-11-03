@@ -237,8 +237,10 @@ it("mdf_web cannot update stack_settings; mdf.force_caps on turns caps on and no
 it("resolves PAT identity from storage, refuses revoked and remote-disabled tokens, and seeds flags off", async () => {
   await fixture(async (tx) => {
     const ctx = await actor(tx);
+    await tx`update public.profiles set role = 'admin' where id = ${ctx.user_id}`;
     const [token] =
       await tx`insert into public.agent_tokens (owner_id, kind, name, token_hash, scopes) values (${ctx.user_id}, 'pat', 'test', ${randomUUID()}, array['read']) returning id, token_hash`;
+    await tx`insert into public.spend_caps (scope, key, period, "limit") values ('token', ${token.id}, 'day', 1)`;
     const pat = {
       actor_kind: "pat",
       token_hash: token.token_hash,
