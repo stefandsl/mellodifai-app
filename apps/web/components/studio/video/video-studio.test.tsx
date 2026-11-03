@@ -265,6 +265,13 @@ describe("Video Studio", () => {
     );
   });
 
+  it("starts at 1080p and saves the selected 4K quality", async () => {
+    const dialog = studio();
+    expect(params().quality).toBe("1080p");
+    await userEvent.click(within(dialog).getByRole("radio", { name: "4K" }));
+    expect(params().quality).toBe("4K");
+  });
+
   it("plays the song through the shared player", async () => {
     const dialog = studio();
     await userEvent.click(

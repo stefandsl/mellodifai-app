@@ -4,7 +4,7 @@ Read this first if you are picking up the work without the previous Claude sessi
 the single source for where things stand, the rules, and how to continue. Keep it current:
 when you finish or change something listed here, edit this file and commit it.
 
-Last updated: 2026-11-02.
+Last updated: 2026-11-03.
 
 ## 1. What the product is
 
@@ -77,6 +77,7 @@ In progress:
 | Work | Branch / worktree | Brief | What is left |
 | --- | --- | --- | --- |
 | M1 agent access (47 tasks) | `build/m1-agent-access`, `.claude/worktrees/m1-agent-access` | `docs/superpowers/plans/2026-11-02-m1-agent-access.md` | Run the Codex driver (section 4). |
+| Video Studio 1080p and 4K | `feat/render-4k`, `E:/mellodifai/wt/render-4k` | `E:/mellodifai/codex-streams/render-4k/brief.md` | R1 enlargement limits and R3 EXIF orientation fixed with real JPEG coverage. Shared database/e2e failures remain documented in the report and are excluded from R3 review; coordinate those gates before merge. |
 
 Leftover worktrees to clean up when their branches are merged: `agent-aeb276f7c9d48b97b`
 (T28, merged), `agent-ab7634b26f5114742` (T27, merged). Remove with
@@ -130,14 +131,14 @@ branch `feat/<name>` from `build/studio-ui`: `render-4k` (1080p minimum, 4K, ups
 thumbnails), `repo-audit` (ponytail audit and fixes), `plan-m2` and `plan-m3m4` (plans only).
 Runner: `bash E:/mellodifai/codex-streams/stream.sh <name> <e2e-port>`; brief, report, reviews
 and `status.log` live in `E:/mellodifai/codex-streams/<name>/`. Builders use `gpt-6-sol`
-(reasoning high), reviewers `gpt-6-astra`; `gpt-6.1-sol` is refused on a ChatGPT account. A stream
+(reasoning high). `gpt-6-astra` returns 429 under parallel load, so reviewers and the M1 driver also run on sol: use `E:/mellodifai/codex-streams/stream3.sh` and start M1 with `CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh <from> 47`. `gpt-6.1-sol` is refused on a ChatGPT account. Re-run a parked stream's review loop with `SKIP_IMPL=1 bash E:/mellodifai/codex-streams/stream3.sh <name> <port>`. A stream
 ends with "DONE branch ..." in its status.log; then review its report, merge the branch into
 `build/studio-ui` (renumber migrations to the next free number if needed), run all gates, push.
 Launch detached on Windows with PowerShell `Start-Process` so it outlives the agent session.
 
 ## 5. Later work (after M1)
 
-1080p minimum and 4K with an upscaler; per-song storyboard, thumbnail and metadata; Spotify-
+Per-song storyboard, thumbnail and metadata; Spotify-
 like karaoke; per-language publishing hub (11 languages); CTR thumbnails (not clickbait);
 milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
