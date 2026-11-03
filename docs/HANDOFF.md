@@ -77,7 +77,7 @@ In progress:
 | Work | Branch / worktree | Brief | What is left |
 | --- | --- | --- | --- |
 | M1 agent access (47 tasks) | `build/m1-agent-access`, `.claude/worktrees/m1-agent-access` | `docs/superpowers/plans/2026-11-02-m1-agent-access.md` | Run the Codex driver (section 4). |
-| Video Studio 1080p and 4K | `feat/render-4k`, `E:/mellodifai/wt/render-4k` | `E:/mellodifai/codex-streams/render-4k/brief.md` | Merge after reviewing the report; the shared e2e database has unrelated failing gates. |
+| Video Studio 1080p and 4K | `feat/render-4k`, `E:/mellodifai/wt/render-4k` | `E:/mellodifai/codex-streams/render-4k/brief.md` | R1 image enlargement limits fixed. Do not merge: required shared database/e2e gates remain blocked; see the report for schema drift evidence. |
 
 Leftover worktrees to clean up when their branches are merged: `agent-aeb276f7c9d48b97b`
 (T28, merged), `agent-ab7634b26f5114742` (T27, merged). Remove with

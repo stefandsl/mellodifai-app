@@ -205,11 +205,29 @@ async function upscaleImage(
   if (!match) throw new Error("Dimensioni dell'immagine non disponibili");
   const width = Number(match[1]);
   const height = Number(match[2]);
-  if (!width || !height) throw new Error("Dimensioni dell'immagine non valide");
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    !width ||
+    !height
+  )
+    throw new Error("Dimensioni dell'immagine non valide");
   const factor = Math.max(size.width / width, size.height / height);
   if (factor <= 1) return file;
   const scaled = file.replace(/\.[^.]+$/u, "-upscaled.png");
   const even = (n: number) => Math.ceil(n / 2) * 2;
+  const scaledWidth = even(width * factor);
+  const scaledHeight = even(height * factor);
+  // Bound decoded output memory while allowing standard landscape/portrait 4K crops.
+  if (
+    scaledWidth > 8192 ||
+    scaledHeight > 8192 ||
+    scaledWidth * scaledHeight > 30_000_000
+  ) {
+    throw new Error(
+      "Immagine troppo allungata per l'ingrandimento: ritagliala prima di riprovare",
+    );
+  }
   await context.engine.run(
     "ffmpeg",
     [
@@ -222,7 +240,7 @@ async function upscaleImage(
       "-frames:v",
       "1",
       "-vf",
-      `scale=${even(width * factor)}:${even(height * factor)}:flags=lanczos`,
+      `scale=${scaledWidth}:${scaledHeight}:flags=lanczos`,
       scaled,
     ],
     { cwd: dirname(file), outputs: [scaled] },

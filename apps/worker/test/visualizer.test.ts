@@ -267,6 +267,23 @@ describe("visualizer stage", () => {
     ]);
   });
 
+  it.each(["1000x10", "10x1000", "2100x1000"])(
+    "rejects oversized enlargement of %s before scaling or rendering",
+    async (imageSize) => {
+      const params = defaultVisualizerParams();
+      params.quality = "4K";
+      params.aspect = "9:16";
+      const { ctx, calls } = await setup(params, { imageSize });
+      await expect(stages.visualizer?.(ctx)).rejects.toThrow(
+        "Immagine troppo allungata",
+      );
+      expect(
+        calls.some((c) => c.args.some((a) => a.includes("flags=lanczos"))),
+      ).toBe(false);
+      expect(calls.some((c) => c.cmd === process.execPath)).toBe(false);
+    },
+  );
+
   it("fetches the logos like the centre upload, leaving out a missing one", async () => {
     const params = defaultVisualizerParams();
     const mine = (n: number) =>
