@@ -376,6 +376,16 @@ export function ProjectWorkspace({
   if (["approved", "publishing", "published"].includes(version.status))
     return (
       <>
+        {version.status !== "publishing" && (
+          <Button
+            variant="outline"
+            className="mb-4"
+            disabled={pending || activeJob}
+            onClick={() => run(() => rerenderVideo({ versionId: version.id }))}
+          >
+            {t(lang, "action.newRender")}
+          </Button>
+        )}
         <section className="mb-8 space-y-6">
           <StoryboardSummary sections={sections} lang={lang} />
           {(["master", "hook"] as const).map((kind) => {

@@ -65,6 +65,7 @@ export type DictKey =
   | "action.pick"
   | "action.uploadPrivate"
   | "action.rerender"
+  | "action.newRender"
   | "worker.online"
   | "worker.offline"
   | "worker.busy"
@@ -297,6 +298,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "action.pick": "Scegli",
     "action.uploadPrivate": "Carica come privato",
     "action.rerender": "Rigenera video",
+    "action.newRender": "Nuovo render",
     "worker.online": "Online",
     "worker.offline": "Offline",
     "worker.busy": "Occupato",
@@ -452,6 +454,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "action.pick": "Pick",
     "action.uploadPrivate": "Upload private",
     "action.rerender": "Re-render video",
+    "action.newRender": "New render",
     "worker.online": "Online",
     "worker.offline": "Offline",
     "worker.busy": "Busy",

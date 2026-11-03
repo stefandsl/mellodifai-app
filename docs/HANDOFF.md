@@ -147,10 +147,15 @@ The `feat/ui-polish` stream has a visual audit, UI fixes, and before/after scree
 1440x900, 1360x600, and 390x844. The focused browser suite and unit gates pass; the shared
 database and full e2e stack had unrelated failures in its review-round-2 run.
 
+The `feat/rerender` stream adds a new attempt after video approval or publication, protects
+published render files and thumbnails during cleanup, and adds the song-page action. Migration
+`20261103050001_rerender_published.sql` is applied to the e2e database only. Report and
+screenshots: `E:/mellodifai/codex-streams/rerender/`. It awaits integration into `build/studio-ui`.
+
 ## 5. Later work (after M1)
 
 Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design
-(plans in docs/superpowers/plans/2026-11-03-*); re-render after approval (song-assets follow-up);
+(plans in docs/superpowers/plans/2026-11-03-*);
 cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
