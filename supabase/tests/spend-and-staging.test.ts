@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 let service: SupabaseClient;
 let admin: SupabaseClient;
@@ -87,7 +88,7 @@ it("blocks Generate again without changing the generation or enqueueing a spend"
       })
     ).error,
   ).not.toBeNull();
-  const result = await admin.rpc("generate_again", {
+  const result = await opsRpc(admin, "generate_again", {
     p_version: id,
     p_generation: 1,
   });
@@ -103,31 +104,27 @@ it("blocks Generate again without changing the generation or enqueueing a spend"
   expect(jobs.error).toBeNull();
   expect(jobs.data).toEqual([]);
 });
-it("allows Generate again only after an admin resolves not_submitted", async () => {
+it("returns an uncharged ambiguous submission to lyrics review", async () => {
   const id = await ambiguous();
   expect(
     (
-      await admin.rpc("resolve_kie_submission", {
+      await opsRpc(admin, "resolve_kie_submission", {
         p_version: id,
-        p_outcome: "not_submitted",
+        p_charged: false,
       })
     ).error,
   ).toBeNull();
   expect(await state(id)).toMatchObject({
     kie_submit_state: null,
     kie_task_id: null,
-    generation_count: 1,
+    generation_count: 2,
+    status: "lyrics_review",
   });
   expect(
-    (await admin.rpc("generate_again", { p_version: id, p_generation: 1 }))
-      .error,
-  ).toBeNull();
-  expect(await state(id)).toMatchObject({
-    generation_count: 2,
-    status: "song_queued",
-  });
+    (await service.from("jobs").select("id").eq("version_id", id)).data,
+  ).toEqual([]);
 });
-it("recovers a submitted task for a same-generation retry", async () => {
+it("recovers a charged submission by queueing its known task", async () => {
   const id = await ambiguous();
   const job = await service
     .from("jobs")
@@ -143,29 +140,34 @@ it("recovers a submitted task for a same-generation retry", async () => {
   expect(job.error).toBeNull();
   expect(
     (
-      await admin.rpc("resolve_kie_submission", {
+      await opsRpc(admin, "resolve_kie_submission", {
         p_version: id,
-        p_outcome: "submitted:recovered-task",
+        p_charged: true,
+        p_task_id: "recovered-task",
       })
     ).error,
-  ).toBeNull();
-  expect(
-    (await admin.rpc("retry_stage", { p_version: id, p_job: job.data.id }))
-      .error,
   ).toBeNull();
   expect(await state(id)).toMatchObject({
     kie_task_id: "recovered-task",
     kie_submit_state: "submitted",
     generation_count: 1,
-    kie_generation: 1,
     status: "song_queued",
   });
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select("id")
+        .eq("version_id", id)
+        .eq("status", "queued")
+    ).data,
+  ).toHaveLength(1);
 });
 it("requires an owning admin, rejects malformed outcomes, and does not resolve active work", async () => {
   const id = await ambiguous();
-  const args = { p_version: id, p_outcome: "not_submitted" };
+  const args = { p_version: id, p_charged: false };
   expect(
-    (await other.rpc("resolve_kie_submission", args)).error,
+    (await opsRpc(other, "resolve_kie_submission", args)).error,
   ).not.toBeNull();
   expect(
     (
@@ -177,7 +179,7 @@ it("requires an owning admin, rejects malformed outcomes, and does not resolve a
   ).toBeNull();
   try {
     expect(
-      (await admin.rpc("resolve_kie_submission", args)).error?.message,
+      (await opsRpc(admin, "resolve_kie_submission", args)).error?.message,
     ).toBe("admin required");
   } finally {
     expect(
@@ -185,10 +187,20 @@ it("requires an owning admin, rejects malformed outcomes, and does not resolve a
         .error,
     ).toBeNull();
   }
-  for (const p_outcome of [null, "", "submitted:", "submitted: ", "invalid"]) {
+  for (const [p_charged, p_task_id] of [
+    [null, null],
+    [true, null],
+    [true, ""],
+    [true, "bad task"],
+  ] as const) {
     expect(
-      (await admin.rpc("resolve_kie_submission", { p_version: id, p_outcome }))
-        .error,
+      (
+        await opsRpc(admin, "resolve_kie_submission", {
+          p_version: id,
+          p_charged,
+          p_task_id,
+        })
+      ).error,
     ).not.toBeNull();
   }
   const anon = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"));
@@ -203,9 +215,9 @@ it("requires an owning admin, rejects malformed outcomes, and does not resolve a
       })
     ).error,
   ).toBeNull();
-  expect((await admin.rpc("resolve_kie_submission", args)).error?.message).toBe(
-    "job already active",
-  );
+  expect(
+    (await opsRpc(admin, "resolve_kie_submission", args)).error?.message,
+  ).toBe("job already active");
   expect(await state(id)).toMatchObject({
     kie_submit_state: "submitting",
     kie_task_id: null,

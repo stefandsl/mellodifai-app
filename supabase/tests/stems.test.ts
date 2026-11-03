@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 // Stems and the audio editor (migration 20261101000020): request_stems, the stage check, stems on
 // takes, edited takes and their storage policies.
@@ -147,10 +148,10 @@ async function version(id: string) {
 describe("request_stems", () => {
   it("queues one stems job for the chosen take and returns it again on a repeat", async () => {
     const s = await song();
-    const first = await client.rpc("request_stems", { p_version: s.id });
+    const first = await opsRpc(client, "request_stems", { p_version: s.id });
     expect(first.error).toBeNull();
     const jobId = first.data as string;
-    const second = await client.rpc("request_stems", { p_version: s.id });
+    const second = await opsRpc(client, "request_stems", { p_version: s.id });
     expect(second.error).toBeNull();
     expect(second.data).toBe(jobId);
     await park(jobId);
@@ -179,7 +180,7 @@ describe("request_stems", () => {
       "published",
     ]) {
       const s = await song(status);
-      const r = await client.rpc("request_stems", { p_version: s.id });
+      const r = await opsRpc(client, "request_stems", { p_version: s.id });
       expect(r.error, status).toBeNull();
       await park(r.data as string);
       expect((await version(s.id)).status).toBe(status);
@@ -191,7 +192,7 @@ describe("request_stems", () => {
       "failed",
     ]) {
       const s = await song(status);
-      const r = await client.rpc("request_stems", { p_version: s.id });
+      const r = await opsRpc(client, "request_stems", { p_version: s.id });
       expect(r.error?.message, status).toContain("chosen take required");
     }
   });
@@ -199,17 +200,18 @@ describe("request_stems", () => {
   it("refuses a song without a chosen take, without audio, foreign, trashed or anonymous", async () => {
     const none = await song("audio_ready", { chosen: false });
     expect(
-      (await client.rpc("request_stems", { p_version: none.id })).error
+      (await opsRpc(client, "request_stems", { p_version: none.id })).error
         ?.message,
     ).toContain("chosen take required");
     const silent = await song("audio_ready", { audio: false });
     expect(
-      (await client.rpc("request_stems", { p_version: silent.id })).error
+      (await opsRpc(client, "request_stems", { p_version: silent.id })).error
         ?.message,
     ).toContain("chosen take audio required");
     const mine = await song();
     expect(
-      (await other.rpc("request_stems", { p_version: mine.id })).error?.message,
+      (await opsRpc(other, "request_stems", { p_version: mine.id })).error
+        ?.message,
     ).toContain("owned version required");
     expect(
       (await anon.rpc("request_stems", { p_version: mine.id })).error,
@@ -219,7 +221,7 @@ describe("request_stems", () => {
       .update({ trashed_at: new Date().toISOString() })
       .eq("id", mine.id);
     expect(
-      (await client.rpc("request_stems", { p_version: mine.id })).error
+      (await opsRpc(client, "request_stems", { p_version: mine.id })).error
         ?.message,
     ).toContain("owned version required");
     const { count } = await service
@@ -231,7 +233,7 @@ describe("request_stems", () => {
 
   it("queues a failed job again but leaves a finished one alone", async () => {
     const s = await song();
-    const jobId = (await client.rpc("request_stems", { p_version: s.id }))
+    const jobId = (await opsRpc(client, "request_stems", { p_version: s.id }))
       .data as string;
     await service
       .from("jobs")
@@ -243,7 +245,7 @@ describe("request_stems", () => {
         finished_at: new Date().toISOString(),
       })
       .eq("id", jobId);
-    const retry = await client.rpc("request_stems", { p_version: s.id });
+    const retry = await opsRpc(client, "request_stems", { p_version: s.id });
     expect(retry.error).toBeNull();
     expect(retry.data).toBe(jobId);
     await park(jobId);
@@ -258,15 +260,15 @@ describe("request_stems", () => {
       .from("jobs")
       .update({ status: "done", error: null })
       .eq("id", jobId);
-    expect((await client.rpc("request_stems", { p_version: s.id })).data).toBe(
-      jobId,
-    );
+    expect(
+      (await opsRpc(client, "request_stems", { p_version: s.id })).data,
+    ).toBe(jobId);
     expect((await job(jobId)).status).toBe("done");
   });
 
   it("asks again for a new chosen take", async () => {
     const s = await song();
-    const a = (await client.rpc("request_stems", { p_version: s.id }))
+    const a = (await opsRpc(client, "request_stems", { p_version: s.id }))
       .data as string;
     await park(a);
     const take = await service
@@ -285,7 +287,7 @@ describe("request_stems", () => {
       .from("versions")
       .update({ chosen_take_id: take.data?.id, generation_count: 2 })
       .eq("id", s.id);
-    const b = (await client.rpc("request_stems", { p_version: s.id }))
+    const b = (await opsRpc(client, "request_stems", { p_version: s.id }))
       .data as string;
     await park(b);
     expect(b).not.toBe(a);
@@ -393,7 +395,7 @@ describe("stems on takes (RLS)", () => {
 describe("my_stems_queue", () => {
   it("lists the caller's queued stems jobs and keeps them out of the song badge", async () => {
     const s = await song();
-    const jobId = (await client.rpc("request_stems", { p_version: s.id }))
+    const jobId = (await opsRpc(client, "request_stems", { p_version: s.id }))
       .data as string;
     const [stems, songs] = await Promise.all([
       client.rpc("my_stems_queue"),
@@ -442,7 +444,7 @@ describe("save_edited_take", () => {
     const s = await song("video_review");
     const path = `edits/${owner}/${s.id}/${uuid()}.mp3`;
     expect((await upload(path)).error).toBeNull();
-    const saved = await client.rpc("save_edited_take", {
+    const saved = await opsRpc(client, "save_edited_take", {
       p_version: s.id,
       p_path: path,
     });
@@ -466,8 +468,12 @@ describe("save_edited_take", () => {
     });
     // The same file is not a second take.
     expect(
-      (await client.rpc("save_edited_take", { p_version: s.id, p_path: path }))
-        .error?.message,
+      (
+        await opsRpc(client, "save_edited_take", {
+          p_version: s.id,
+          p_path: path,
+        })
+      ).error?.message,
     ).toContain("edit already saved");
     // A saved edit can no longer be deleted by the owner.
     await client.storage.from("previews").remove([path]);
@@ -486,7 +492,7 @@ describe("save_edited_take", () => {
       `previews/${owner}/${s.id}/${uuid()}.mp3`,
       `edits/${owner}/${s.id}/${uuid()}.wav`,
     ]) {
-      const r = await client.rpc("save_edited_take", {
+      const r = await opsRpc(client, "save_edited_take", {
         p_version: s.id,
         p_path: path,
       });
@@ -496,7 +502,7 @@ describe("save_edited_take", () => {
     expect((await upload(wrongType, client, "text/plain")).error).toBeNull();
     expect(
       (
-        await client.rpc("save_edited_take", {
+        await opsRpc(client, "save_edited_take", {
           p_version: s.id,
           p_path: wrongType,
         })
@@ -505,14 +511,18 @@ describe("save_edited_take", () => {
     const path = `edits/${owner}/${s.id}/${uuid()}.mp3`;
     expect((await upload(path)).error).toBeNull();
     expect(
-      (await other.rpc("save_edited_take", { p_version: s.id, p_path: path }))
-        .error?.message,
+      (
+        await opsRpc(other, "save_edited_take", {
+          p_version: s.id,
+          p_path: path,
+        })
+      ).error?.message,
     ).toContain("owned version required");
     for (const status of ["producing", "publishing", "takes_review"]) {
       await service.from("versions").update({ status }).eq("id", s.id);
       expect(
         (
-          await client.rpc("save_edited_take", {
+          await opsRpc(client, "save_edited_take", {
             p_version: s.id,
             p_path: path,
           })

@@ -400,6 +400,7 @@ describe("row level security", () => {
   });
 
   it("denies queue RPCs to anonymous and authenticated clients", async () => {
+    // These direct calls prove that worker RPCs cannot be reached through PostgREST.
     const user = await createUser(true);
     for (const client of [anonClient(), user.client]) {
       for (const [name, args] of [

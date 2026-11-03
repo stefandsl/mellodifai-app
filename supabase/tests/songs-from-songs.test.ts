@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 // Songs from songs (migration 20261101000023): "Riscrivi una parte" (section_edits and its RPCs),
 // choose_take, "Importa da Suno" (import_song), recordings in the uploads bucket, create_song
@@ -127,7 +128,7 @@ const request = (
   s: { id: string; take: string },
   patch: Record<string, unknown> = {},
 ) =>
-  db.rpc("request_section_edit", {
+  opsRpc(db, "request_section_edit", {
     p_version: s.id,
     p_take: s.take,
     p_engine: "kie",
@@ -301,13 +302,13 @@ describe("keep_section_edit and choose_take", () => {
     const s = await song();
     const r = await request(client, s);
     await park(s.id);
-    const early = await client.rpc("keep_section_edit", {
+    const early = await opsRpc(client, "keep_section_edit", {
       p_edit: r.data,
       p_alternative: 0,
     });
     expect(early.error?.message).toContain("alternative not found");
     await finished(r.data as string);
-    const kept = await client.rpc("keep_section_edit", {
+    const kept = await opsRpc(client, "keep_section_edit", {
       p_edit: r.data,
       p_alternative: 1,
     });
@@ -349,7 +350,7 @@ describe("keep_section_edit and choose_take", () => {
     expect(v?.status).toBe("audio_ready");
     expect(
       (
-        await client.rpc("keep_section_edit", {
+        await opsRpc(client, "keep_section_edit", {
           p_edit: r.data,
           p_alternative: 0,
         })
@@ -357,7 +358,7 @@ describe("keep_section_edit and choose_take", () => {
     ).toContain("already kept");
     // Back to the original, with its own lyrics.
     expect(
-      (await client.rpc("choose_take", { p_version: s.id, p_take: s.take }))
+      (await opsRpc(client, "choose_take", { p_version: s.id, p_take: s.take }))
         .error,
     ).toBeNull();
     const { data: back } = await client
@@ -373,7 +374,7 @@ describe("keep_section_edit and choose_take", () => {
     const r = await request(client, s);
     await park(s.id);
     await finished(r.data as string, 1);
-    const kept = await client.rpc("keep_section_edit", {
+    const kept = await opsRpc(client, "keep_section_edit", {
       p_edit: r.data,
       p_alternative: 0,
     });
@@ -386,8 +387,12 @@ describe("keep_section_edit and choose_take", () => {
     expect(v?.chosen_take_id).toBeNull();
     expect(v?.lyric_pack.lyrics).toBe(LYRICS);
     expect(
-      (await client.rpc("keep_audio", { p_version: s.id, p_take: kept.data }))
-        .error,
+      (
+        await opsRpc(client, "keep_audio", {
+          p_version: s.id,
+          p_take: kept.data,
+        })
+      ).error,
     ).toBeNull();
     const { data: after } = await client
       .from("versions")
@@ -403,35 +408,35 @@ describe("keep_section_edit and choose_take", () => {
     await park(s.id);
     await finished(r.data as string);
     expect(
-      (await other.rpc("discard_section_edit", { p_edit: r.data })).error,
+      (await opsRpc(other, "discard_section_edit", { p_edit: r.data })).error,
     ).not.toBeNull();
     expect(
       (
-        await other.rpc("keep_section_edit", {
+        await opsRpc(other, "keep_section_edit", {
           p_edit: r.data,
           p_alternative: 0,
         })
       ).error,
     ).not.toBeNull();
     expect(
-      (await client.rpc("discard_section_edit", { p_edit: r.data })).error,
+      (await opsRpc(client, "discard_section_edit", { p_edit: r.data })).error,
     ).toBeNull();
     expect(
       (
-        await client.rpc("keep_section_edit", {
+        await opsRpc(client, "keep_section_edit", {
           p_edit: r.data,
           p_alternative: 0,
         })
       ).error?.message,
     ).toContain("discarded");
     expect(
-      (await other.rpc("choose_take", { p_version: s.id, p_take: s.take }))
+      (await opsRpc(other, "choose_take", { p_version: s.id, p_take: s.take }))
         .error,
     ).not.toBeNull();
     const review = await song("producing");
     expect(
       (
-        await client.rpc("choose_take", {
+        await opsRpc(client, "choose_take", {
           p_version: review.id,
           p_take: review.take,
         })
@@ -479,7 +484,7 @@ describe("recordings and Importa da Suno", () => {
   it("makes a song waiting for import_audio, with its source", async () => {
     const file = await uploadAudio(client, owner);
     expect(file.error).toBeNull();
-    const r = await client.rpc("import_song", {
+    const r = await opsRpc(client, "import_song", {
       p_title: "La mia canzone",
       p_style: "",
       p_lyrics: "[Verse]\nriga",
@@ -530,7 +535,7 @@ describe("recordings and Importa da Suno", () => {
     const missing = `${owner}/audio/${crypto.randomUUID()}.mp3`;
     expect(
       (
-        await client.rpc("import_song", {
+        await opsRpc(client, "import_song", {
           ...base,
           p_upload: missing,
           p_source: { kind: "upload" },
@@ -541,7 +546,7 @@ describe("recordings and Importa da Suno", () => {
     expect(theirs.error).toBeNull();
     expect(
       (
-        await client.rpc("import_song", {
+        await opsRpc(client, "import_song", {
           ...base,
           p_upload: theirs.path,
           p_source: { kind: "upload" },
@@ -551,7 +556,7 @@ describe("recordings and Importa da Suno", () => {
     const mine = await uploadAudio(client, owner);
     expect(
       (
-        await client.rpc("import_song", {
+        await opsRpc(client, "import_song", {
           ...base,
           p_upload: mine.path,
           p_source: { kind: "cover" },
@@ -560,7 +565,7 @@ describe("recordings and Importa da Suno", () => {
     ).toContain("invalid source");
     expect(
       (
-        await client.rpc("import_song", {
+        await opsRpc(client, "import_song", {
           ...base,
           p_upload: mine.path,
           p_source: { kind: "suno", licence: "stolen" },
@@ -572,7 +577,7 @@ describe("recordings and Importa da Suno", () => {
 
 describe("create_song from audio and the source record", () => {
   const create = (db: SupabaseClient, settings: Record<string, unknown>) =>
-    db.rpc("create_song", {
+    opsRpc(db, "create_song", {
       p_prompt: `${prefix} cover`,
       p_lyrics: "",
       p_languages: ["it"],
@@ -637,7 +642,7 @@ describe("create_song from audio and the source record", () => {
   });
   it("lets the owner fill in title, author, link and licence, not the kind or the file", async () => {
     const file = await uploadAudio(client, owner);
-    const r = await client.rpc("import_song", {
+    const r = await opsRpc(client, "import_song", {
       p_title: "Fonte",
       p_style: "pop",
       p_lyrics: "",
@@ -652,7 +657,7 @@ describe("create_song from audio and the source record", () => {
       .single();
     const versionId = p?.versions[0]?.id as string;
     await park(versionId);
-    const set = await client.rpc("set_song_source", {
+    const set = await opsRpc(client, "set_song_source", {
       p_version: versionId,
       p_source: {
         kind: "suno",
@@ -679,7 +684,7 @@ describe("create_song from audio and the source record", () => {
     });
     expect(
       (
-        await client.rpc("set_song_source", {
+        await opsRpc(client, "set_song_source", {
           p_version: versionId,
           p_source: { url: "ftp://x" },
         })
@@ -687,7 +692,7 @@ describe("create_song from audio and the source record", () => {
     ).toContain("url");
     expect(
       (
-        await other.rpc("set_song_source", {
+        await opsRpc(other, "set_song_source", {
           p_version: versionId,
           p_source: { licence: "own" },
         })

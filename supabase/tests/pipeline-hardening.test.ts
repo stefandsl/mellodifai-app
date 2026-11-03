@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 let service: SupabaseClient;
 let client: SupabaseClient;
@@ -186,7 +187,7 @@ it("rejects forged worker fields and not_before on job insertion", async () => {
 it("confirmation requires owner and uploaded video; records identity and queues privacy", async () => {
   expect(
     (
-      await other.rpc("confirm_publication", {
+      await opsRpc(other, "confirm_publication", {
         p_publication: publication,
         p_privacy: "public",
       })
@@ -194,7 +195,7 @@ it("confirmation requires owner and uploaded video; records identity and queues 
   ).not.toBeNull();
   expect(
     (
-      await client.rpc("confirm_publication", {
+      await opsRpc(client, "confirm_publication", {
         p_publication: publication,
         p_privacy: "scheduled",
         p_publish_at: "2000-01-01T00:00:00Z",
@@ -208,13 +209,13 @@ it("confirmation requires owner and uploaded video; records identity and queues 
     .single();
   expect(
     (
-      await client.rpc("confirm_publication", {
+      await opsRpc(client, "confirm_publication", {
         p_publication: pending.data.id,
         p_privacy: "public",
       })
     ).error,
   ).not.toBeNull();
-  const result = await client.rpc("confirm_publication", {
+  const result = await opsRpc(client, "confirm_publication", {
     p_publication: publication,
     p_privacy: "public",
   });
@@ -333,14 +334,14 @@ it("claim skips future jobs and explicit transitions are owner-checked", async (
   ).toBeNull();
   expect(
     (
-      await other.rpc("render_again", {
+      await opsRpc(other, "render_again", {
         p_version: version,
       })
     ).error,
   ).not.toBeNull();
   expect(
     (
-      await client.rpc("render_again", {
+      await opsRpc(client, "render_again", {
         p_version: version,
       })
     ).error,

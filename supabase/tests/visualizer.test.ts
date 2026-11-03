@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 // Visualizer videos (migration 20261101000022): request_visualizer, the renders it keeps per
 // aspect, the queue line, the stage check and the uploads bucket with its policies.
@@ -166,7 +167,7 @@ async function upload(
 describe("request_visualizer", () => {
   it("stores the parameters on one render per aspect and queues the visualizer stage", async () => {
     const s = await song();
-    const first = await client.rpc("request_visualizer", {
+    const first = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params(),
     });
@@ -193,7 +194,7 @@ describe("request_visualizer", () => {
     expect((await job(jobId)).payload.render_id).toBe(renders.data?.[0]?.id);
 
     // Asking again while it waits keeps the job and its place, with the new look.
-    const again = await client.rpc("request_visualizer", {
+    const again = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({ preset: "mirror" }),
     });
@@ -207,7 +208,7 @@ describe("request_visualizer", () => {
     expect(after.data?.visualizer_params.preset).toBe("mirror");
 
     // The other aspect is a second render and a second job.
-    const tall = await client.rpc("request_visualizer", {
+    const tall = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({ aspect: "9:16" }),
     });
@@ -230,7 +231,7 @@ describe("request_visualizer", () => {
 
   it("queues a finished or failed render again, and refuses one that is rendering", async () => {
     const s = await song("published");
-    const first = await client.rpc("request_visualizer", {
+    const first = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params(),
     });
@@ -239,7 +240,7 @@ describe("request_visualizer", () => {
       .from("jobs")
       .update({ status: "failed", error: "boom" })
       .eq("id", jobId);
-    const retry = await client.rpc("request_visualizer", {
+    const retry = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params(),
     });
@@ -253,13 +254,13 @@ describe("request_visualizer", () => {
       .from("jobs")
       .update({ status: "running", worker_id: "test", not_before: null })
       .eq("id", jobId);
-    const busy = await client.rpc("request_visualizer", {
+    const busy = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params(),
     });
     expect(busy.error?.message).toContain("visualizer already rendering");
     await service.from("jobs").update({ status: "done" }).eq("id", jobId);
-    const redo = await client.rpc("request_visualizer", {
+    const redo = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params(),
     });
@@ -270,7 +271,7 @@ describe("request_visualizer", () => {
   it("needs a chosen take with audio, a valid aspect and the caller's own song", async () => {
     for (const status of ["lyrics_review", "takes_review", "failed"]) {
       const s = await song(status);
-      const r = await client.rpc("request_visualizer", {
+      const r = await opsRpc(client, "request_visualizer", {
         p_version: s.id,
         p_params: params(),
       });
@@ -279,7 +280,7 @@ describe("request_visualizer", () => {
     const none = await song("audio_ready", { chosen: false });
     expect(
       (
-        await client.rpc("request_visualizer", {
+        await opsRpc(client, "request_visualizer", {
           p_version: none.id,
           p_params: params(),
         })
@@ -287,13 +288,13 @@ describe("request_visualizer", () => {
     ).toContain("chosen take required");
     const s = await song();
     for (const bad of [params({ aspect: "4:3" }), { aspect: "16:9" }, null]) {
-      const r = await client.rpc("request_visualizer", {
+      const r = await opsRpc(client, "request_visualizer", {
         p_version: s.id,
         p_params: bad,
       });
       expect(r.error?.message).toContain("invalid visualizer params");
     }
-    const foreign = await other.rpc("request_visualizer", {
+    const foreign = await opsRpc(other, "request_visualizer", {
       p_version: s.id,
       p_params: params(),
     });
@@ -309,7 +310,7 @@ describe("request_visualizer", () => {
     const s = await song();
     const image = await upload(client, owner, "jpg", "image/jpeg");
     expect(image.error).toBeNull();
-    const ok = await client.rpc("request_visualizer", {
+    const ok = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({
         background: {
@@ -327,7 +328,7 @@ describe("request_visualizer", () => {
     expect(ok.error).toBeNull();
     await park(ok.data as string);
     // A picture is not a video background.
-    const wrongKind = await client.rpc("request_visualizer", {
+    const wrongKind = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({
         background: {
@@ -348,7 +349,7 @@ describe("request_visualizer", () => {
       `/media/uploads/stock/visualizer/bg-01.jpg`,
       `/media/previews/${owner}/x.jpg`,
     ]) {
-      const r = await client.rpc("request_visualizer", {
+      const r = await opsRpc(client, "request_visualizer", {
         p_version: s.id,
         p_params: params({ centerImage: { mode: "upload", assetUrl: url } }),
       });
@@ -363,7 +364,7 @@ describe("request_visualizer", () => {
       10 * 1024 * 1024 + 10,
     );
     expect(big.error).toBeNull();
-    const tooBig = await client.rpc("request_visualizer", {
+    const tooBig = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({
         centerImage: { mode: "upload", assetUrl: `/media/uploads/${big.path}` },
@@ -371,7 +372,7 @@ describe("request_visualizer", () => {
     });
     expect(tooBig.error?.message).toContain("invalid visualizer asset");
     const video = await upload(client, owner, "mp4", "video/mp4");
-    const withVideo = await client.rpc("request_visualizer", {
+    const withVideo = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({
         background: {
@@ -397,7 +398,7 @@ describe("request_visualizer", () => {
       opacity: 100,
     });
     const mine = `/media/uploads/${image.path}`;
-    const ok = await client.rpc("request_visualizer", {
+    const ok = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({ logos: [logo(mine), logo(mine)] }),
     });
@@ -412,18 +413,18 @@ describe("request_visualizer", () => {
       `/media/uploads/${video.path}`,
       `/media/uploads/stock/visualizer/bg-01.jpg`,
     ]) {
-      const r = await client.rpc("request_visualizer", {
+      const r = await opsRpc(client, "request_visualizer", {
         p_version: s.id,
         p_params: params({ logos: [logo(url)] }),
       });
       expect(r.error?.message, url).toContain("invalid visualizer asset");
     }
-    const missing = await client.rpc("request_visualizer", {
+    const missing = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({ logos: [{ position: "top-left" }] }),
     });
     expect(missing.error?.message).toContain("invalid visualizer asset");
-    const three = await client.rpc("request_visualizer", {
+    const three = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({ logos: [logo(mine), logo(mine), logo(mine)] }),
     });
@@ -434,7 +435,7 @@ describe("request_visualizer", () => {
 describe("visualizer queue and stage", () => {
   it("reports the queue position per aspect and keeps it off the song's own badge", async () => {
     const s = await song();
-    const r = await client.rpc("request_visualizer", {
+    const r = await opsRpc(client, "request_visualizer", {
       p_version: s.id,
       p_params: params({ aspect: "9:16" }),
     });
