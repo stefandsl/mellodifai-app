@@ -152,27 +152,30 @@ export function createFakeStages(
       };
       switch (stage) {
         case "align_lyrics": {
-          const take = (await ctx.db.getTakes(ctx.version.id)).find(
-            (item) => item.id === ctx.job.payload?.take_id,
-          );
-          if (!take) throw new Error("Take not found");
-          await ctx.db.patchTake(take.id, {
-            lyric_timing: {
-              source: "whisper",
-              lines: [
-                {
-                  text: "A little brighter",
-                  start: 0,
-                  end: 2,
-                  words: [
-                    { word: "A", start: 0, end: 0.5 },
-                    { word: "little", start: 0.5, end: 1 },
-                    { word: "brighter", start: 1, end: 2 },
-                  ],
-                },
-              ],
-            },
-          });
+          const id = ctx.job.payload?.take_id;
+          const take = id
+            ? (await ctx.db.getTakes(ctx.version.id)).find(
+                (item) => item.id === id,
+              )
+            : null;
+          if (id && !take) throw new Error("Take not found");
+          const lyric_timing = {
+            source: "whisper",
+            lines: [
+              {
+                text: "A little brighter",
+                start: 0,
+                end: 2,
+                words: [
+                  { word: "A", start: 0, end: 0.5 },
+                  { word: "little", start: 0.5, end: 1 },
+                  { word: "brighter", start: 1, end: 2 },
+                ],
+              },
+            ],
+          };
+          if (take) await ctx.db.patchTake(take.id, { lyric_timing });
+          else await ctx.db.patchVersion(ctx.version.id, { lyric_timing });
           break;
         }
         case "draft_lyrics":

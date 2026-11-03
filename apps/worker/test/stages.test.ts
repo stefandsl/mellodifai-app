@@ -1684,6 +1684,35 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   );
 }, 30_000);
 
+it("runs master-only lyric alignment through the fake worker", async () => {
+  const { ctx, db } = await setup();
+  db.takes = [];
+  db.jobs.push({
+    ...ctx.job,
+    stage: "align_lyrics",
+    payload: { source: "master" },
+    idempotency_key: "align_lyrics:master:version",
+  });
+  const loop = new WorkerLoop({
+    db,
+    workerId: "worker",
+    stages: createFakeStages({ tempRoot: ctx.ws.root, sleep: async () => {} }),
+    engine: ctx.engine,
+    storage: ctx.storage,
+    secrets: ctx.secrets,
+    workspace: { forVersion: async () => ctx.ws },
+  });
+  expect(await loop.runOnce()).toBe(true);
+  expect(db.jobs[0]?.status).toBe("done");
+  expect(db.versions[0]?.lyric_timing).toMatchObject({
+    source: "whisper",
+    lines: [
+      { words: [{ word: "A" }, { word: "little" }, { word: "brighter" }] },
+    ],
+  });
+  expect(db.versions[0]?.status).toBe("producing");
+});
+
 describe("exact stage subprocess contracts", () => {
   it.each([
     "generate_song",
