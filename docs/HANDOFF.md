@@ -136,6 +136,8 @@ Publication copy follows the song language, and each new render stores its lyric
 R2 adds `20261103030002_preserve_take_lyrics.sql` for generated and legacy take lyric
 snapshots, including original A to rewritten A to original B; timing refreshes its files
 on every run. Kept rewrites can use take numbers above 2.
+R4 makes thumbnail font selection glyph-aware for mixed-script and emoji titles and accepts
+titles beginning with `--`; the focused database and browser regressions pass.
 
 ## 6. Waiting on the owner
 

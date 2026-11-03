@@ -1807,6 +1807,7 @@ describe("exact stage subprocess contracts", () => {
     "set_privacy",
   ] as Stage[])("%s arguments, cwd, environment", async (stage) => {
     const { ctx, calls, db } = await setup();
+    if (stage === "art") ctx.version.lyric_pack = { ...pack, title: "--Night" };
     if (stage === "set_privacy")
       await db.createPublication({
         render_id: db.renders[0]?.id ?? "",
@@ -1888,8 +1889,7 @@ describe("exact stage subprocess contracts", () => {
             fileURLToPath(
               new URL("../src/stages/thumbnail.py", import.meta.url),
             ),
-            "--title",
-            "Test song",
+            "--title=--Night",
             "--lang",
             "fr",
             "--source",

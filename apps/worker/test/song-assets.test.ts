@@ -97,10 +97,13 @@ it("keeps thumbnail text readable, contrasted and inside the 90 percent safe box
     "Luce sul porto",
     "Pioggia di novembre",
     "A very long song title about the dawn after the last autumn storm",
+    "Tokyo 東京 😀",
+    "Voice 👩‍🎤",
+    "--Night",
   ]) {
     const output = spawnSync(
       "python",
-      [script, "--title", title, "--lang", "it", "--check"],
+      [script, `--title=${title}`, "--lang", "en", "--check"],
       { encoding: "utf8" },
     );
     expect(output.status, output.stderr).toBe(0);
@@ -108,6 +111,7 @@ it("keeps thumbnail text readable, contrasted and inside the 90 percent safe box
       size: number;
       bounds: number[];
       contrast: number;
+      fonts: string[];
     };
     expect(plan.size / 4).toBeGreaterThanOrEqual(16);
     expect(plan.contrast).toBeGreaterThanOrEqual(4.5);
@@ -115,5 +119,23 @@ it("keeps thumbnail text readable, contrasted and inside the 90 percent safe box
     expect(plan.bounds[1]).toBeGreaterThanOrEqual(36);
     expect(plan.bounds[2]).toBeLessThanOrEqual(1216);
     expect(plan.bounds[3]).toBeLessThanOrEqual(684);
+    if (title === "Tokyo 東京 😀") {
+      expect(plan.fonts).toContain("meiryob.ttc");
+      expect(plan.fonts).toContain("seguiemj.ttf");
+    }
+    if (title === "Voice 👩‍🎤") expect(plan.fonts).toContain("seguiemj.ttf");
   }
+});
+
+it("rejects thumbnail characters without a real glyph", () => {
+  const script = fileURLToPath(
+    new URL("../src/stages/thumbnail.py", import.meta.url),
+  );
+  const output = spawnSync(
+    "python",
+    [script, "--title=Unknown \u{10fffd}", "--lang", "en", "--check"],
+    { encoding: "utf8" },
+  );
+  expect(output.status).not.toBe(0);
+  expect(output.stderr).toContain("No thumbnail font covers U+10FFFD");
 });
