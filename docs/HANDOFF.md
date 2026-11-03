@@ -356,3 +356,13 @@ Only the e2e stack was migrated. Task 20 owns cookie-only wrappers, and Task 29
 still owns routing the existing server actions through the operations layer.
 Task 19 review fixes limit cancellation to queued jobs. Remake analysis/rewrite
 retries are refused through ops until their paid work has ledger coverage.
+
+M1 Task 20 adds `20261102000034_ops_cookie_wrappers.sql`: 27 cookie-only
+and local-admin wrappers, with ownership/test checks, claim clearing, audit,
+idempotency and job reservations. Customer style-format and transcription
+checks count 20 and 10 calls per Europe/Rome day; admins are not counted.
+Publication confirmation refuses scheduled privacy. Kie resolution closes the
+matching ambiguous generation or section-edit reservation, retaining charged
+spend; the optional `p_edit` selects section-edit recovery. The current audio
+keep RPC creates no timing job, but its wrapper reserves any jobs it enqueues.
+Only e2e was migrated. Existing web action routing remains Task 29.
