@@ -29,6 +29,8 @@ import {
   stopAll,
 } from "./lib/services.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
+import { probe } from "./probe.js";
+import { reapplyDbPasswords } from "./rotate-db-passwords.js";
 import { planStackCommand } from "./stack.js";
 
 // Keep the console attached for Windows credential prompts; capture output for the ACL probe.
@@ -187,6 +189,9 @@ export async function managedService(
     const config = join(root, "secrets/cloudflared/config.yml");
     const template = join(deploy, "ops/cloudflared/config.template.yml");
     assertTunnelConfig(config, template);
+    await reapplyDbPasswords("prod", realRunner);
+    if (!(await probe("prod", realRunner)).ok)
+      throw new Error("Production database probe failed; tunnel start refused");
     const expectedOwners = await expectedPortOwners();
     const actualOwners = await portOwners();
     if (

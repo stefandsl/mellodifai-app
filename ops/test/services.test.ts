@@ -16,6 +16,7 @@ import { runtimeRoot } from "../lib/runtime.js";
 import {
   aclCommands,
   aclProbePaths,
+  expectedPortOwners,
   icaclsProbe,
   installCommands,
   planStart,
@@ -114,9 +115,9 @@ describe("services", () => {
       },
     ]);
     await expect(portOwners(runner)).resolves.toEqual({
-      3000: "mdf-web",
-      3010: "mdf-auth",
-      3080: "mdf-web",
+      3000: "pc\\mdf-web",
+      3010: "pc\\mdf-auth",
+      3080: "pc\\mdf-web",
     });
   });
 
@@ -133,14 +134,18 @@ describe("services", () => {
     const runner = vi.fn(async (_cmd: string, args: string[]) => ({
       code: 0,
       stdout: args.some((a) => a.includes("Get-LocalUser"))
-        ? "mdf-web,mdf-auth"
+        ? JSON.stringify({
+            3000: "pc\\mdf-web",
+            3010: "pc\\mdf-auth",
+            3080: "pc\\mdf-web",
+          })
         : args.includes("__start")
           ? ""
           : args.some((a) => a.includes("Get-NetTCPConnection"))
             ? JSON.stringify([
-                { port: 3000, owner: "other" },
-                { port: 3010, owner: "mdf-auth" },
-                { port: 3080, owner: "mdf-web" },
+                { port: 3000, owner: "DOMAIN\\mdf-web" },
+                { port: 3010, owner: "PC\\mdf-auth" },
+                { port: 3080, owner: "PC\\mdf-web" },
               ])
             : "",
       stderr: "",
@@ -170,15 +175,23 @@ describe("services", () => {
     });
     const runner = vi.fn(async (_cmd: string, args: string[]) => {
       if (args.some((a) => a.includes("Get-LocalUser")))
-        return { code: 0, stdout: "mdf-web,mdf-auth", stderr: "" };
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            3000: "pc\\mdf-web",
+            3010: "pc\\mdf-auth",
+            3080: "pc\\mdf-web",
+          }),
+          stderr: "",
+        };
       if (args.some((a) => a.includes("Get-NetTCPConnection"))) {
         events.push("ports");
         return {
           code: 0,
           stdout: JSON.stringify([
-            { port: 3000, owner: "mdf-web" },
-            { port: 3010, owner: "mdf-auth" },
-            { port: 3080, owner: "mdf-web" },
+            { port: 3000, owner: "PC\\mdf-web" },
+            { port: 3010, owner: "PC\\mdf-auth" },
+            { port: 3080, owner: "PC\\mdf-web" },
           ]),
           stderr: "",
         };
@@ -206,9 +219,14 @@ describe("services", () => {
   it("watchPorts reports a later owner mismatch", async () => {
     vi.useFakeTimers();
     const mismatch = vi.fn();
-    const stop = watchPorts({ 3000: "mdf-web" }, mismatch, 100, async () => ({
-      3000: "other",
-    }));
+    const stop = watchPorts(
+      { 3000: "PC\\mdf-web" },
+      mismatch,
+      100,
+      async () => ({
+        3000: "DOMAIN\\mdf-web",
+      }),
+    );
     try {
       await vi.advanceTimersByTimeAsync(100);
       expect(mismatch).toHaveBeenCalledTimes(1);
@@ -593,4 +611,126 @@ it.skipIf(process.platform !== "win32")(
     }
   },
   60000,
+);
+
+it.skipIf(process.platform !== "win32")(
+  "removes unrelated explicit grants from nested protected paths before service grants",
+  async () => {
+    const root = mkdtempSync(join(runtimeRoot(), "tmp", "acl-reset-"));
+    try {
+      const files = [
+        "deploy/apps/web/.env.local",
+        "deploy/bin/start.js",
+        "secrets/auth/key.json",
+        "stacks/e2e/config.json",
+        "backups/day/db.sql",
+      ];
+      for (const file of files) {
+        mkdirSync(join(root, file, ".."), { recursive: true });
+        writeFileSync(join(root, file), "fixture");
+        expect(
+          (
+            await realRunner("icacls", [
+              join(root, file),
+              "/grant",
+              "*S-1-1-0:F",
+            ])
+          ).code,
+        ).toBe(0);
+      }
+      const commands = installCommands({ root });
+      // Execute only the pre-account ACL hardening, never account creation or firewall changes.
+      for (const [cmd, ...args] of commands.slice(1)) {
+        if (args.some((arg) => arg.includes("Get-Credential"))) break;
+        expect((await realRunner(cmd as string, args)).code).toBe(0);
+      }
+      for (const file of files) {
+        const result = await realRunner("powershell.exe", [
+          "-NoProfile",
+          "-Command",
+          `$a=Get-Acl -LiteralPath '${join(root, file)}'; $a.Access | ForEach-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }`,
+        ]);
+        expect(result.code).toBe(0);
+        expect(result.stdout).not.toContain("S-1-1-0");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+  30000,
+);
+
+it("direct tunnel startup refuses a failing database probe after password reapplication", async () => {
+  const root = mkdtempSync(join(runtimeRoot(), "tmp", "tunnel-db-"));
+  try {
+    for (const dir of ["deploy/ops/cloudflared", "secrets/cloudflared"])
+      mkdirSync(join(root, dir), { recursive: true });
+    for (const file of [
+      "deploy/ops/cloudflared/config.template.yml",
+      "secrets/cloudflared/config.yml",
+    ])
+      writeFileSync(
+        join(root, file),
+        "ingress:\n  - service: http_status:404\n",
+      );
+    const events: string[] = [];
+    vi.mocked(reapplyDbPasswords).mockImplementation(async () => {
+      events.push("passwords");
+    });
+    vi.mocked(probe).mockImplementation(async () => {
+      events.push("probe");
+      return { ok: false, failures: [] };
+    });
+    await expect(managedService("start", "cloudflared", root)).rejects.toThrow(
+      /database probe/i,
+    );
+    expect(events).toEqual(["passwords", "probe"]);
+    expect(reapplyDbPasswords).toHaveBeenCalledWith("prod", realRunner);
+    expect(probe).toHaveBeenCalledWith("prod", realRunner);
+    expect(existsSync(join(root, "logs/cloudflared.launch.json"))).toBe(false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("rejects different domains on listeners sharing one port", async () => {
+  const runner = recordingRunner([
+    {
+      code: 0,
+      stderr: "",
+      stdout: JSON.stringify([
+        { port: 3000, owner: "PC\\mdf-web" },
+        { port: 3000, owner: "DOMAIN\\mdf-web" },
+      ]),
+    },
+  ]);
+  await expect(portOwners(runner)).rejects.toThrow(/owner mismatch/);
+});
+
+it.each(["PC\\mdf-web", "DOMAIN\\owner"])(
+  "preserves the expected identity %s",
+  async (owner) => {
+    const runner = recordingRunner([
+      {
+        code: 0,
+        stderr: "",
+        stdout: JSON.stringify({ 3000: owner, 3010: owner, 3080: owner }),
+      },
+    ]);
+    expect(await expectedPortOwners(runner)).toEqual({
+      3000: owner.toLowerCase(),
+      3010: owner.toLowerCase(),
+      3080: owner.toLowerCase(),
+    });
+  },
+);
+
+it.skipIf(process.platform !== "win32")(
+  "reads fully qualified expected identities from Windows",
+  async () => {
+    const owners = await expectedPortOwners();
+    expect(Object.keys(owners).sort()).toEqual(["3000", "3010", "3080"]);
+    for (const owner of Object.values(owners))
+      expect(owner).toMatch(/^[^\\]+\\[^\\]+$/);
+  },
 );

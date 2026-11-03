@@ -461,3 +461,14 @@ historical functions; a future e2e reset requires the recovery documented in
 .superpowers/sdd/2026-11-02-m1-agent-access/task-35-report.md. Administrator
 account/ACL/firewall setup and testing under the actual dedicated accounts
 remain owner actions, together with DNS and tunnel credentials.
+
+Task 35 review R2 closes three further gaps. Before account grants, install
+resets ACLs recursively on deploy, secrets, stacks and backups while the
+runtime root permits only the owner and SYSTEM. Existing descendant explicit
+grants are removed; failures abort installation. The reset operates on links
+themselves (/L), rather than following them outside the protected trees.
+Direct __start cloudflared also reapplies database passwords and requires a
+passing production probe. Both startup and the supervisor compare full Windows
+account identities; local service accounts use COMPUTERNAME and fallback uses
+the launcher's full Windows identity. These changes do not complete the pending
+administrator installation or production tunnel owner actions.

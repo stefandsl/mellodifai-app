@@ -80,7 +80,7 @@ try {
       if ($listeners.Count -eq 0) { throw 'Missing tunnel upstream listener' }
       foreach ($listener in $listeners) {
         $owner = (Get-Process -Id $listener.OwningProcess -IncludeUserName).UserName
-        if (($owner -split '\\')[-1] -ine $entry.Value) { throw 'Tunnel port owner mismatch' }
+        if ($owner -ine $entry.Value) { throw 'Tunnel port owner mismatch' }
       }
     }
   }

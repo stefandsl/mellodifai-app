@@ -52,6 +52,15 @@ export function installCommands(opts: { root: string }): string[][] {
       "if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 1 }",
     ],
     ...aclCommands(root),
+    // Reset descendant ACLs while their parent permits only the owner and SYSTEM.
+    // /L changes links themselves rather than following them outside these trees.
+    ...["deploy", "secrets", "stacks", "backups"].map((name) => [
+      "powershell.exe",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$ErrorActionPreference='Stop'; $path='${join(root, name).replaceAll("'", "''")}'; if (Test-Path -LiteralPath $path) { & icacls $path /reset /T /L /Q | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'Protected ACL reset failed' } }`,
+    ]),
     [
       "powershell.exe",
       "-NoProfile",
@@ -219,14 +228,10 @@ export async function portOwners(
   const owners: Record<number, string> = {};
   for (const row of Array.isArray(rows) ? rows : [rows]) {
     const port = Number(row.port);
-    const owner =
-      String(row.owner ?? "")
-        .split("\\")
-        .at(-1)
-        ?.toLowerCase() ?? "";
+    const owner = String(row.owner ?? "").toLowerCase();
     if (
       !(port in LISTENERS) ||
-      !owner ||
+      !/^[^\\]+\\[^\\]+$/.test(owner) ||
       (owners[port] && owners[port] !== owner)
     )
       throw new Error("Port owner mismatch");
@@ -276,16 +281,17 @@ export async function expectedPortOwners(
     "-NoProfile",
     "-NonInteractive",
     "-Command",
-    "@( 'mdf-web','mdf-auth' | ForEach-Object { if (Get-LocalUser -Name $_ -ErrorAction SilentlyContinue) { $_ } }) -join ','",
+    "$ErrorActionPreference='Stop'; $owner=[Security.Principal.WindowsIdentity]::GetCurrent().Name; $web=$owner; $auth=$owner; if (Get-LocalUser -Name 'mdf-web' -ErrorAction SilentlyContinue) { $web=$env:COMPUTERNAME+'\\mdf-web' }; if (Get-LocalUser -Name 'mdf-auth' -ErrorAction SilentlyContinue) { $auth=$env:COMPUTERNAME+'\\mdf-auth' }; @{'3000'=$web;'3010'=$auth;'3080'=$web} | ConvertTo-Json -Compress",
   ]);
   if (result.code !== 0) throw new Error("Cannot inspect service accounts");
-  const present = new Set(result.stdout.trim().split(","));
-  const owner = userInfo().username.toLowerCase();
+  const owners = JSON.parse(result.stdout);
   return Object.fromEntries(
-    Object.entries(LISTENERS).map(([port, account]) => [
-      Number(port),
-      present.has(account) ? account : owner,
-    ]),
+    Object.keys(LISTENERS).map((port) => {
+      const owner = String(owners[port] ?? "").toLowerCase();
+      if (!/^[^\\]+\\[^\\]+$/.test(owner))
+        throw new Error("Invalid expected port owner");
+      return [Number(port), owner];
+    }),
   );
 }
 
