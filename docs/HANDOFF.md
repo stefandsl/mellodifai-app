@@ -592,3 +592,10 @@ grants. Existing env-file content is preserved; the owner must still provide
 production env values before starting services.
 Review round 2 resolves legacy `data/<lang>/storyboard.json` paths under the
 song workspace in both real and fake workers, so pre-merge songs can rerender.
+Review round 3 maps only the exact pre-cutover backup under
+`E:/mellodifai/backups` to the reviewed `m1-floor` restore target. Its
+production restore path keeps the floor guard and safety backup; the same dump
+restored on the private dev stack with all 52 recorded table counts matching.
+The private dev integration suite passed 6/6 and database suite passed 289/289
+after a fresh reset with fake mode enabled. The owner runs the admin script only
+from the deploy clone at the reviewed branch and floor tag.

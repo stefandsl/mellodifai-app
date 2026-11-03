@@ -765,14 +765,14 @@ it("a customer and an admin session JWT cannot insert or update jobs, insert pro
 - [ ] **Step 4:** Migrate, run `pnpm lint && pnpm typecheck && pnpm test && pnpm test:db && pnpm e2e && pnpm test:ledger`. Expected: all PASS.
 - [ ] **Step 5:** Commit and tag: `git commit -m "feat(db): ops lockdown with ACL and refusal tests" && git tag m1-floor && git push -u origin build/m1-agent-access m1-floor`. Accepted preflight ruling 26 supersedes the original `build/studio-ui` target; integrate that branch only through the planned whole-branch review.
 
-### Task 33: First production deploy at `m1-floor`
+### Task 33: First production deploy at reviewed `m1-floor`
 
 Preconditions (round-5 report: Majors 1, 2, 3, 17 and 19 before the first production deploy): Tasks 4, 5, 8, 9, 10, 12 and 14 are done; `pnpm ops services.ts acl --apply` has run (or is recorded as a pending owner action with the reason).
 
 - [ ] **Step 1:** Create the deploy clone: `git clone <origin> E:/mellodifai/deploy`, copy `pnpm-lock.yaml` per the builder note, record `MELLODIFAI_OWNER_EMAIL` in `E:/mellodifai/config/ops.env`.
 - [ ] **Step 2:** Run `pnpm ops cutover.ts`. Expected: row counts identical before and after; prod now runs with `--workdir E:/mellodifai/stacks/prod`, project `mellodifai`, Studio, mail catcher and analytics off.
 - [ ] **Step 3:** Run `pnpm ops rotate-db-passwords.ts --env prod` and `pnpm ops probe.ts --env prod`. Expected: every default-password login fails; 54323, 54324, 54327 refuse.
-- [ ] **Step 4:** Run `pnpm ops deploy.ts --to m1-floor`. Expected: success; local `/api/health` shows `ops: "ok"` and schema `20261102000035`.
+- [ ] **Step 4:** Run `pnpm ops deploy.ts --to m1-floor` after updating the deploy clone and floor tag to the reviewed integration commit. Expected: success; local `/api/health` shows `ops: "ok"` and schema `20261103080001`.
 - [ ] **Step 5:** Run `pnpm ops deploy.ts --to <the tag before m1-floor, or a commit without it>`. Expected: refused.
 - [ ] **Step 6:** Sign in as the owner with `pnpm ops sign-in-link.ts <owner email> http://127.0.0.1:3000`, open the library (a read under RLS) and rename one song (a write through `ops.song_rename` as `mdf_web`); check that health shows a fresh worker heartbeat. No paid action is triggered on production. Record results in this plan's "Deploy log" section and commit only this file.
 
@@ -1396,6 +1396,7 @@ Full report: `.superpowers/sdd/2026-11-02-m1-agent-access/task-3-report.md`.
 - The shared e2e database at API 45621 already contains the studio alignment function while its migration history ends before that migration. Applying the fresh migration set there fails on the preexisting function. This integration did not edit that shared schema or migration history.
 - `E:/mellodifai/deploy` now tracks `build/m1-agent-access`. The owner still needs to run `ops/owner-admin.ps1` from elevated PowerShell, then perform the production cutover and local owner read, write and heartbeat smoke checks under the Task 33 procedure. DNS, tunnel credentials and SMTP remain owner actions. No production service, database or key was changed.
 - Final private gates: lint passed with 5 warnings and 1 info; both TypeScript commands passed; unit tests passed with 1,751 tests and 1 existing skip; integration passed 6/6; database passed 289/289; Playwright passed 19/19 at port 3219. `m1-floor` moved to the final lockdown commit `c9b3784` and was pushed. The dedicated E: deploy clone was fast forwarded to this branch and its local floor tag updated.
+- Review R3 recovery command after the owner has run the admin script and cutover: from the operator checkout, `pnpm ops restore.ts E:/mellodifai/backups/2026-11-03-task-33-pre-cutover.sql`. This exact legacy path resolves to the reviewed `m1-floor` target, still validates the backup, verifies the floor, takes a safety backup, resets only the production database and redeploys with migrations skipped. The path was validated with the production runner test; the data import was proven on the private dev stack with all 52 recorded counts matching. Do not run this command unless recovery is required.
 
 ## Major to task
 
