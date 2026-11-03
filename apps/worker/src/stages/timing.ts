@@ -70,7 +70,7 @@ export const timing: StageHandler = async (context) => {
     lines?: {
       section?: string;
       text?: string;
-      words?: { word?: string; start: number; end: number }[];
+      words?: { w?: string; word?: string; start: number; end: number }[];
     }[];
     sections?: {
       name?: string;
@@ -88,10 +88,12 @@ export const timing: StageHandler = async (context) => {
             text: line.text,
             start: first.start,
             end: last.end,
-            ...(line.words?.every((word) => typeof word.word === "string")
+            ...(line.words?.every(
+              (word) => typeof (word.word ?? word.w) === "string",
+            )
               ? {
                   words: line.words.map((word) => ({
-                    word: word.word ?? "",
+                    word: word.word ?? word.w ?? "",
                     start: word.start,
                     end: word.end,
                   })),

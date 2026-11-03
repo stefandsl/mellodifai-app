@@ -1965,3 +1965,51 @@ describe("local lyric alignment", () => {
     },
   );
 });
+
+it.each(["w", "word", "missing"])(
+  "preserves pipeline lyric timing with %s word fields",
+  async (field) => {
+    const { ctx, db, output } = await setup();
+    const measured = [
+      { start: 60, end: 60.2 },
+      { start: 60.7, end: 62 },
+    ];
+    output.timing = {
+      duration: 70,
+      lines: [
+        {
+          section: "Final Chorus",
+          text: "Hello world",
+          words: measured.map((time, index) => ({
+            ...time,
+            ...(field === "missing"
+              ? {}
+              : { [field]: ["Hello", "world"][index] }),
+          })),
+        },
+      ],
+    };
+    await stages.timing?.(ctx);
+    expect(
+      db.takes.find((take) => take.id === ctx.version.chosen_take_id)
+        ?.lyric_timing,
+    ).toEqual({
+      source: "timing",
+      lines: [
+        {
+          text: "Hello world",
+          start: 60,
+          end: 62,
+          ...(field === "missing"
+            ? {}
+            : {
+                words: [
+                  { word: "Hello", ...measured[0] },
+                  { word: "world", ...measured[1] },
+                ],
+              }),
+        },
+      ],
+    });
+  },
+);
