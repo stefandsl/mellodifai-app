@@ -106,6 +106,13 @@ function loop(
     stages: remakeStages(engine, { root: scratch() }),
     songless: { lyrics_assist: lyricsAssist },
     ...dependencies,
+    secrets: {
+      ...dependencies.secrets,
+      values: {
+        ...dependencies.secrets.values,
+        LYRICS_STATE_FILE: join(scratch(), "lyrics.json"),
+      },
+    },
   });
 }
 
