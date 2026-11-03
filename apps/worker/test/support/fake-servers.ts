@@ -6,7 +6,13 @@ import {
 
 export type FakeServer = {
   url: string;
-  calls: Array<{ path: string; body: unknown }>;
+  attempt?: { jobId: string; attempt: number };
+  calls: Array<{
+    path: string;
+    body: unknown;
+    jobId?: string;
+    attempt?: number;
+  }>;
   reply: (path: string, body: unknown) => unknown;
 };
 
@@ -29,7 +35,7 @@ async function start(
           body = text;
         }
       }
-      calls.push({ path, body });
+      calls.push({ path, body, ...fake.attempt });
       const answer = fake.reply(path, body);
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(answer));

@@ -30,6 +30,8 @@ type Charge = {
 };
 type Entry = {
   provider: string;
+  call_key: string;
+  job_id: string;
   state: string;
   usd: string | null;
   usd_est: string;
@@ -42,7 +44,26 @@ type Result = {
   entries: number;
   calls: number;
   states: string[];
+  paidEntries: PaidCall[];
+  paidCalls: PaidCall[];
 };
+type PaidCall = { provider: string; jobId: string; attempt: number };
+
+function assertCallsMatch(entries: PaidCall[], calls: PaidCall[]) {
+  const identity = ({ provider, jobId, attempt }: PaidCall) =>
+    JSON.stringify([provider, jobId, attempt]);
+  expect(entries.map(identity).sort()).toEqual(calls.map(identity).sort());
+}
+
+it("rejects matching totals attributed to the wrong provider or attempt", () => {
+  const call = { provider: "kie", jobId: "job", attempt: 1 };
+  const calls = [call];
+  expect(() =>
+    assertCallsMatch([{ ...call, provider: "groq" }], calls),
+  ).toThrow();
+  expect(() => assertCallsMatch([{ ...call, attempt: 2 }], calls)).toThrow();
+});
+
 const results = new Map<Scenario, Result>();
 const engineRoot =
   process.env.MELLODIFAI_ENGINE_ROOT ?? "C:/Users/Asus/Documents/suno-remake";
@@ -144,24 +165,6 @@ async function fixture(stage: Job["stage"]) {
   const user = randomUUID();
   const run = randomUUID();
   const email = `${user}@example.test`;
-  const baseline = new Map(
-    (
-      await sql`select scope,key,provider,unit,period,window_start::text,used from public.spend_counters where scope='global'`
-    ).map(
-      (row) =>
-        [
-          JSON.stringify([
-            row.scope,
-            row.key,
-            row.provider,
-            row.unit,
-            row.period,
-            row.window_start,
-          ]),
-          Number(row.used),
-        ] as const,
-    ),
-  );
   return sql.begin(async (tx) => {
     await tx`insert into public.admin_allowlist(email,role) values (${email},'admin')`;
     await tx`insert into auth.users(id,email,email_confirmed_at) values (${user},${email},now())`;
@@ -181,7 +184,6 @@ async function fixture(stage: Job["stage"]) {
       user,
       run,
       email,
-      baseline,
       session: session.id as string,
       project: project as Project,
       version: version as Version,
@@ -251,7 +253,16 @@ async function contextFor(f: Fixture) {
   };
 }
 
+function observeAttempt(context: StageContext) {
+  for (const fake of [fakes.kie, fakes.openrouter, fakes.groq])
+    fake.attempt = {
+      jobId: context.job.id,
+      attempt: context.job.attempts ?? 1,
+    };
+}
+
 async function runDraft(context: StageContext, valid: boolean) {
+  observeAttempt(context);
   const lyrics = await readFile(
     join(engineRoot, "versions", "it", "lyrics.txt"),
     "utf8",
@@ -279,6 +290,7 @@ async function runDraft(context: StageContext, valid: boolean) {
 }
 
 async function crashSubmit(f: Fixture, context: StageContext) {
+  observeAttempt(context);
   const lyrics = await readFile(
     join(engineRoot, "versions", "it", "lyrics.txt"),
     "utf8",
@@ -322,12 +334,8 @@ async function crashSubmit(f: Fixture, context: StageContext) {
   await sql`update public.versions set status='failed' where id=${f.version.id}`;
 }
 
-async function completeGeneration(f: Fixture, context: StageContext) {
-  const [job] =
-    await sql`insert into public.jobs(owner_id,version_id,stage,idempotency_key,run_id,attempts)
-    values (${f.user},${f.version.id},'generate_song',${randomUUID()},${f.run},1) returning *`;
-  if (!job) throw new Error("generation job missing");
-  context.job = job as Job;
+async function completeGeneration(context: StageContext) {
+  observeAttempt(context);
   const previousKieReply = fakes.kie.reply;
   fakes.kie.reply = (path) => {
     if (path.startsWith("/api/v1/chat/credit"))
@@ -365,7 +373,7 @@ async function completeGeneration(f: Fixture, context: StageContext) {
     values: {
       ...context.secrets.values,
       GROQ_API_KEY: "fake-groq-key",
-      WORKER_ID: `ledger-${f.user}`,
+      WORKER_ID: `ledger-${context.job.owner_id}`,
     },
   };
   const spawn: Spawn = (command, args, options) => {
@@ -425,8 +433,18 @@ async function completeGeneration(f: Fixture, context: StageContext) {
     log: async () => {},
   }).withWorkspace(context.ws.root);
   try {
-    await generateSong(context);
-    await sql`update public.jobs set status='done' where id=${job.id}`;
+    const result = await generateSong(context);
+    expect(result.versionStatus).toBe("takes_review");
+    if (!result.versionStatus) throw new Error("generation status missing");
+    const takes =
+      await sql`select scores from public.takes where version_id=${context.version.id}`;
+    expect(takes).toHaveLength(2);
+    expect(takes.every((take) => take.scores !== null)).toBe(true);
+    await context.db.patchVersion(context.version.id, {
+      ...result.patch,
+      status: result.versionStatus,
+    });
+    await sql`update public.jobs set status='done' where id=${context.job.id}`;
   } finally {
     fakes.kie.reply = previousKieReply;
   }
@@ -437,7 +455,7 @@ async function snapshot(f: Fixture): Promise<Result> {
     await sql`select id,state,charges from public.reservations where user_id=${f.user}`;
   const entries = await sql<
     Entry[]
-  >`select e.provider,e.state,e.usd,e.usd_est,e.items,e.items_est from public.spend_entries e join public.reservations r on r.id=e.reservation_id where r.user_id=${f.user}`;
+  >`select e.provider,e.call_key,r.job_id,e.state,e.usd,e.usd_est,e.items,e.items_est from public.spend_entries e join public.reservations r on r.id=e.reservation_id where r.user_id=${f.user}`;
   const [counter] =
     await sql`select coalesce(sum(used),0) as used from public.spend_counters where scope='run' and key=${f.run}`;
   if (!counter) throw new Error("run counter missing");
@@ -450,17 +468,32 @@ async function snapshot(f: Fixture): Promise<Result> {
         (n, e) => n + Number(e.state === "settled" ? e.usd : e.usd_est),
         0,
       );
-  const calls =
-    fakes.kie.calls.filter((c) => c.path.startsWith("/api/v1/jobs/createTask"))
-      .length +
-    fakes.openrouter.calls.length +
-    fakes.groq.calls.filter((c) => c.path.includes("/audio/transcriptions"))
-      .length;
+  const paidEntries = entries.map((e) => {
+    const attempt = /:(?:a)?(\d+)$/u.exec(e.call_key)?.[1];
+    if (!attempt) throw new Error(`unrecognized call key: ${e.call_key}`);
+    return { provider: e.provider, jobId: e.job_id, attempt: Number(attempt) };
+  });
+  const paidCalls = [
+    ...fakes.kie.calls
+      .filter((c) => c.path.startsWith("/api/v1/jobs/createTask"))
+      .map((c) => ({ ...c, provider: "kie" })),
+    ...fakes.openrouter.calls.map((c) => ({ ...c, provider: "openrouter" })),
+    ...fakes.groq.calls
+      .filter((c) => c.path.includes("/audio/transcriptions"))
+      .map((c) => ({ ...c, provider: "groq" })),
+  ].map(({ provider, jobId, attempt }) => {
+    if (!jobId || !attempt)
+      throw new Error("HTTP call has no observed job attempt");
+    return { provider, jobId, attempt };
+  });
+  assertCallsMatch(paidEntries, paidCalls);
   return {
     used: Number(counter.used),
     expected,
     entries: entries.length,
-    calls,
+    calls: paidCalls.length,
+    paidEntries,
+    paidCalls,
     states: reservations.map((r) => String(r.state)),
   };
 }
@@ -526,20 +559,24 @@ async function clean(f: Fixture) {
   }
   const failures: unknown[] = [];
   try {
-    for (const [key, { charge: c, amount }] of adjustments) {
-      const [counter] =
-        await sql`select used from public.spend_counters where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
-      try {
-        if (!counter) throw new Error("charged counter missing");
-        expect(Number(counter.used) - (f.baseline.get(key) ?? 0)).toBeCloseTo(
-          amount,
-          4,
-        );
-      } catch (error) {
-        failures.push(error);
-      } finally {
-        await sql`update public.spend_counters set used=${f.baseline.get(key) ?? 0} where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
-      }
+    for (const { charge: c, amount } of adjustments.values()) {
+      await sql.begin(async (tx) => {
+        const [counter] =
+          await tx`select used from public.spend_counters where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start} for update`;
+        try {
+          if (!counter) throw new Error("charged counter missing");
+          if (c.scope === "global")
+            expect(Number(counter.used)).toBeGreaterThanOrEqual(
+              Number(amount.toFixed(4)),
+            );
+          else expect(Number(counter.used)).toBeCloseTo(amount, 4);
+        } catch (error) {
+          failures.push(error);
+        } finally {
+          // Shared counters may include newer charges from other consumers.
+          await tx`update public.spend_counters set used=used-round(${amount}::numeric,4) where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start} and used>=round(${amount}::numeric,4)`;
+        }
+      });
     }
   } finally {
     await sql`delete from public.reservations where user_id=${f.user}`;
@@ -563,8 +600,9 @@ async function run(scenario: Scenario): Promise<Result> {
       ? "generate_song"
       : "draft_lyrics",
   );
-  const { context, root } = await contextFor(f);
+  const root = join(runtimeRoot, "tmp", `ledger-${f.job.id}`);
   try {
+    const { context } = await contextFor(f);
     if (scenario === "cancel") {
       await sql`select ops.reserve_job(${f.job.id})`;
       const actor = {
@@ -583,6 +621,7 @@ async function run(scenario: Scenario): Promise<Result> {
       await crashSubmit(f, context);
       if (scenario === "resume-after-resolve") {
         const actor = {
+          run_id: f.run,
           actor_kind: "session",
           user_id: f.user,
           session_id: f.session,
@@ -595,13 +634,27 @@ async function run(scenario: Scenario): Promise<Result> {
         const [next] =
           await sql`select * from public.jobs where version_id=${f.version.id} and stage='generate_song' and status='queued' order by created_at desc limit 1`;
         if (!next) throw new Error("resolved job missing");
-        await sql`update public.jobs set run_id=${f.run} where id=${next.id}`;
-        context.job = next as Job;
+        expect(next.run_id).toBe(f.run);
+        const claimed = await context.db.claim(`ledger-${f.user}`);
+        expect(claimed?.id).toBe(next.id);
+        if (!claimed) throw new Error("resolved job was not claimed");
+        context.job = claimed;
         const version = await context.db.getVersion(f.version.id);
         if (!version) throw new Error("resolved version missing");
         context.version = version;
-        await expect(generateSong(context)).rejects.toThrow();
-        await sql`update public.jobs set status='failed' where id=${next.id}`;
+        await completeGeneration(context);
+        expect(fakes.groq.calls).toHaveLength(2);
+        expect(
+          fakes.kie.calls.filter((call) =>
+            call.path.startsWith("/api/v1/jobs/createTask"),
+          ),
+        ).toHaveLength(1);
+        const [completed] =
+          await sql`select status from public.jobs where id=${next.id}`;
+        expect(completed?.status).toBe("done");
+        const [spend] =
+          await sql`select count(*)::integer as entries from public.spend_entries e join public.reservations r on r.id=e.reservation_id where r.job_id=${next.id} and e.provider='groq' and e.state='settled'`;
+        expect(spend?.entries).toBe(2);
       }
     } else if (scenario === "retry-later") {
       const { WorkerLoop } = await import("../src/loop.js");
@@ -644,7 +697,7 @@ async function run(scenario: Scenario): Promise<Result> {
             Math.max(0, Date.parse(notBefore) - Date.now()) + 50,
           ),
         );
-        expect(await worker.runOnce()).toBe(true);
+        await expect.poll(() => worker.runOnce(), { timeout: 5000 }).toBe(true);
         expect(errors).toEqual([]);
         expect(executions).toBe(2);
         const [done] =
@@ -666,7 +719,12 @@ async function run(scenario: Scenario): Promise<Result> {
         if (!pack) throw new Error("draft did not produce a lyric pack");
         context.version.lyric_pack = pack;
         await sql`update public.versions set lyric_pack=${sql.json(pack as Parameters<typeof sql.json>[0])} where id=${f.version.id}`;
-        await completeGeneration(f, context);
+        const [job] =
+          await sql`insert into public.jobs(owner_id,version_id,stage,idempotency_key,run_id,attempts)
+          values (${f.user},${f.version.id},'generate_song',${randomUUID()},${f.run},1) returning *`;
+        if (!job) throw new Error("generation job missing");
+        context.job = job as Job;
+        await completeGeneration(context);
       }
     }
     if (scenario === "retry-later") {
@@ -701,7 +759,7 @@ for (const scenario of [
   it(`spend entries equal the calls the fake servers observed after ${scenario} (Major 7)`, () => {
     const result = results.get(scenario);
     if (!result) throw new Error(`missing result for ${scenario}`);
-    expect(result.entries).toBe(result.calls);
+    assertCallsMatch(result.paidEntries, result.paidCalls);
   });
 }
 it("reservations end closed, or ambiguous for crash-after-submit", () => {
@@ -724,8 +782,9 @@ it("replace_section submits through the kie fake and settles its entry", async (
   for (const fake of [fakes.kie, fakes.openrouter, fakes.groq])
     fake.calls.length = 0;
   const f = await fixture("replace_section");
-  const { context, root } = await contextFor(f);
+  const root = join(runtimeRoot, "tmp", `ledger-${f.job.id}`);
   try {
+    const { context } = await contextFor(f);
     const [take] =
       await sql`insert into public.takes(owner_id,version_id,engine,take_number,generation,kie_task_id,kie_audio_id,audio_preview_path)
       values (${f.user},${f.version.id},'kie',1,1,'source-task','source-audio','fake-preview') returning id`;
@@ -752,6 +811,7 @@ it("replace_section submits through the kie fake and settles its entry", async (
     context.engine = new Engine({ spawn, log: async () => {} }).withWorkspace(
       root,
     );
+    observeAttempt(context);
     await expect(replaceSection(context)).rejects.toThrow();
     await sql`update public.jobs set status='failed' where id=${f.job.id}`;
     const result = await snapshot(f);
@@ -773,8 +833,9 @@ it("Groq scoring sends one fake transcription per spend entry", async () => {
   for (const fake of [fakes.kie, fakes.openrouter, fakes.groq])
     fake.calls.length = 0;
   const f = await fixture("import_audio");
-  const { context, root } = await contextFor(f);
+  const root = join(runtimeRoot, "tmp", `ledger-${f.job.id}`);
   try {
+    const { context } = await contextFor(f);
     const [row] =
       await sql`insert into public.takes(owner_id,version_id,engine,take_number,generation,audio_preview_path)
       values (${f.user},${f.version.id},'kie',1,1,'fake-preview') returning *`;
@@ -809,6 +870,7 @@ it("Groq scoring sends one fake transcription per spend entry", async () => {
         validateEngineEntries(service, ids, providers),
       log: async () => {},
     }).withWorkspace(root);
+    observeAttempt(context);
     await scoreTakes(context, [take]);
     expect(
       JSON.parse(
@@ -856,5 +918,50 @@ it("cleans fixtures even when a counter assertion fails", async () => {
     expect(Number(remaining?.counters)).toBe(0);
   } finally {
     await clean(f);
+  }
+});
+
+it("cleanup preserves another consumer's charge on shared counters", async () => {
+  const f = await fixture("draft_lyrics");
+  const root = join(runtimeRoot, "tmp", `ledger-${f.job.id}`);
+  let counter: Charge | undefined;
+  let cleaned = false;
+  let injected = false;
+  try {
+    const { context } = await contextFor(f);
+    await runDraft(context, true);
+    const [reservation] =
+      await sql`select charges from public.reservations where user_id=${f.user}`;
+    if (!reservation) throw new Error("reservation missing");
+    counter = (reservation.charges as Charge[]).find(
+      (c) => c.scope === "global" && c.unit === "usd",
+    );
+    if (!counter) throw new Error("global USD charge missing");
+    const c = counter;
+    await sql`update public.jobs set status='done' where id=${f.job.id}`;
+    const [before] =
+      await sql`select used from public.spend_counters where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
+    await sql`update public.spend_counters set used=used+0.03 where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
+    injected = true;
+    // The injected charge belongs to a separate consumer, not this fixture.
+    try {
+      await clean(f);
+    } finally {
+      cleaned = true;
+    }
+    const [remaining] =
+      await sql`select used from public.spend_counters where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
+    expect(Number(remaining?.used)).toBeCloseTo(
+      Number(before?.used) - 0.0001 + 0.03,
+      4,
+    );
+  } finally {
+    await sql`update public.jobs set status='failed' where id=${f.job.id} and status in ('queued','running')`;
+    if (!cleaned) await clean(f);
+    await rm(root, { recursive: true, force: true });
+    if (counter && injected) {
+      const c = counter;
+      await sql`update public.spend_counters set used=used-0.03 where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start} and used>=0.03`;
+    }
   }
 });
