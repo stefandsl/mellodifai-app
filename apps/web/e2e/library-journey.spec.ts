@@ -27,6 +27,7 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
   const db = serviceClient();
   const owner = await getAdminId();
   const title = `Libreria ${Date.now().toString(36)}`;
+  const otherTitle = `${title} in coda`;
   const project = await db
     .from("projects")
     .insert({ owner_id: owner, topic: title })
@@ -51,6 +52,21 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
     .single();
   if (version.error || !version.data)
     throw version.error ?? new Error("Version missing");
+  const otherProject = await db
+    .from("projects")
+    .insert({ owner_id: owner, topic: otherTitle })
+    .select("id")
+    .single();
+  if (otherProject.error || !otherProject.data)
+    throw otherProject.error ?? new Error("Other project missing");
+  const otherVersion = await db.from("versions").insert({
+    owner_id: owner,
+    project_id: otherProject.data.id,
+    lang: "it",
+    status: "song_queued",
+    display_title: otherTitle,
+  });
+  if (otherVersion.error) throw otherVersion.error;
   const path = `previews/${owner}/${project.data.id}/it/library-e2e.wav`;
   const upload = await db.storage
     .from("previews")
@@ -92,10 +108,16 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
   try {
     await signIn(page, E2E_ADMIN_EMAIL);
     await page.goto("/library");
-    const song = page.getByRole("article", { name: title });
+    const song = page.getByRole("article", { name: title, exact: true });
+    const otherSong = page.getByRole("article", {
+      name: otherTitle,
+      exact: true,
+    });
     await expect(song).toBeVisible();
+    await expect(otherSong).toBeVisible();
     await page.getByRole("searchbox", { name: "Cerca" }).fill(title);
     await expect(song).toBeVisible();
+    await expect(otherSong).toBeVisible();
     await page.getByRole("searchbox", { name: "Cerca" }).fill("no-match-e2e");
     await expect(song).toHaveCount(0);
     await page.getByRole("searchbox", { name: "Cerca" }).fill("");
@@ -120,10 +142,24 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
       .getByRole("button", { name: "Mi piace", exact: true })
       .click();
     await expect(song).toBeVisible();
+    await expect(otherSong).toHaveCount(0);
     await page
       .locator("header")
       .getByRole("button", { name: "Mi piace", exact: true })
       .click();
+    await expect(otherSong).toBeVisible();
+    await page
+      .getByRole("button", { name: "In creazione", exact: true })
+      .click();
+    await expect(otherSong).toBeVisible();
+    await expect(song).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "In creazione", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Solo audio", exact: true }).click();
+    await expect(song).toBeVisible();
+    await expect(otherSong).toHaveCount(0);
+    await page.getByRole("button", { name: "Solo audio", exact: true }).click();
 
     await song.getByRole("button", { name: "Aggiungi a playlist" }).click();
     const dialog = page.getByRole("dialog");
@@ -182,10 +218,16 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
     await expect(
       lyrics.getByRole("button", { name: "La luna splende" }),
     ).toHaveAttribute("aria-current", "true");
-    await lyrics.getByRole("button", { name: "Cammino nella notte" }).click();
+    await page.locator("audio").evaluate(async (element: HTMLAudioElement) => {
+      element.currentTime = 3.5;
+      await element.play();
+    });
+    await expect(
+      lyrics.getByRole("button", { name: "La luna splende" }),
+    ).toHaveAttribute("aria-current", "true");
     await expect(
       lyrics.getByRole("button", { name: "Cammino nella notte" }),
-    ).toHaveAttribute("aria-current", "true");
+    ).toHaveAttribute("aria-current", "true", { timeout: 5_000 });
     await expect(page.getByText(/Tolta da "Ascolti/u)).toHaveCount(0);
     await mkdir("E:/mellodifai/codex-streams/e2e-coverage/shots", {
       recursive: true,
@@ -273,5 +315,6 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
   } finally {
     await db.storage.from("previews").remove([path]);
     await db.from("projects").delete().eq("id", project.data.id);
+    await db.from("projects").delete().eq("id", otherProject.data.id);
   }
 });
