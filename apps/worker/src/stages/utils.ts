@@ -87,11 +87,18 @@ export async function upload(
       const published = new Set(rows.publishedRenderIds);
       for (const r of rows.renders) {
         // A visualizer video belongs to no render attempt: a new lyric video leaves it alone.
-        const files = r.preview_path
-          ? r.kind === "visualizer"
-            ? [r.preview_path, posterOf(r.preview_path)]
-            : [r.preview_path]
-          : [];
+        const thumbnail = (
+          r.qa_results as { assets?: { thumbnail_path?: unknown } } | null
+        )?.assets?.thumbnail_path;
+        const files =
+          r.kind === "visualizer"
+            ? r.preview_path
+              ? [r.preview_path, posterOf(r.preview_path)]
+              : []
+            : [r.preview_path, thumbnail].filter(
+                (file): file is string =>
+                  typeof file === "string" && Boolean(file),
+              );
         for (const file of files)
           (r.kind !== "visualizer" &&
           !published.has(r.id) &&

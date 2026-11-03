@@ -119,6 +119,7 @@ it("prunes only superseded previews of this version after upload succeeds", asyn
     kind: "master",
     render_attempt: 1,
     preview_path: "old-render.mp4",
+    qa_results: { assets: { thumbnail_path: "old-thumbnail.png" } },
   });
   db.renders.push({
     id: "foreign",
@@ -140,7 +141,11 @@ it("prunes only superseded previews of this version after upload succeeds", asyn
   expect(remove).not.toHaveBeenCalled();
   await stages.render_master?.(ctx);
   expect(remove).toHaveBeenCalledWith(
-    expect.arrayContaining(["old-render.mp4", "old-take.mp3"]),
+    expect.arrayContaining([
+      "old-render.mp4",
+      "old-thumbnail.png",
+      "old-take.mp3",
+    ]),
   );
   expect(JSON.stringify(remove.mock.calls)).not.toContain("other.mp4");
   expect(JSON.stringify(remove.mock.calls)).not.toContain("master-preview.mp4");
@@ -153,6 +158,7 @@ it("retains the preview of a published render after rerendering", async () => {
     kind: "master",
     render_attempt: 1,
     preview_path: "published-preview.mp4",
+    qa_results: { assets: { thumbnail_path: "published-thumbnail.png" } },
   });
   db.publications.push({
     id: "publication",
@@ -164,6 +170,9 @@ it("retains the preview of a published render after rerendering", async () => {
   await stages.render_master?.(ctx);
   expect(JSON.stringify(remove.mock.calls)).not.toContain(
     "published-preview.mp4",
+  );
+  expect(JSON.stringify(remove.mock.calls)).not.toContain(
+    "published-thumbnail.png",
   );
 });
 it.each([
