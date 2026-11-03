@@ -100,12 +100,20 @@ function loop(
   db: InMemoryDb,
   engine: RemakeEngine = fakeRemakeEngine(async () => {}),
 ) {
+  const root = scratch();
   return new WorkerLoop({
     db,
     workerId: "test",
-    stages: remakeStages(engine, { root: scratch() }),
+    stages: remakeStages(engine, { root }),
     songless: { lyrics_assist: lyricsAssist },
     ...dependencies,
+    secrets: {
+      ...dependencies.secrets,
+      values: {
+        ...dependencies.secrets.values,
+        LYRICS_STATE_FILE: join(root, "lyrics-state.json"),
+      },
+    },
   });
 }
 
