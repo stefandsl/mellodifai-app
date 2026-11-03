@@ -1669,6 +1669,11 @@ begin
       and ((p_edit is null and section_edit_id is null and kie_generation=owned_version.kie_generation)
         or (p_edit is not null and section_edit_id=p_edit)) for update
     loop
+      -- Confirm the pre-submit entry before close counts any still-open estimate.
+      update public.spend_entries set
+        items=case when p_charged then items_est else (select jsonb_object_agg(key,0) from jsonb_each(items_est)) end,
+        usd=case when p_charged then usd_est else 0 end,state='settled',settled_at=now()
+        where reservation_id=r.id and provider='kie' and state='open';
       if p_charged and not exists(select 1 from public.spend_entries where reservation_id=r.id and provider='kie') then
         select e into estimate from jsonb_array_elements(r.estimate) e where e->>'provider'='kie' limit 1;
         if estimate is null then raise exception 'price_missing' using errcode='MDF05'; end if;

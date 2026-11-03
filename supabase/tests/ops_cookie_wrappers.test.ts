@@ -588,3 +588,130 @@ it.each([true, false])(
     });
   },
 );
+
+it.each(
+  ["generate_song", "replace_section"].flatMap((stage) =>
+    [true, false].flatMap((charged) =>
+      ["open", "settled"].map((state) => ({ stage, charged, state })),
+    ),
+  ),
+)(
+  "Kie recovery reconciles an existing $state entry for $stage, charged=$charged",
+  async ({ stage, charged, state }) => {
+    await fixture(async (tx) => {
+      await tx`set local mdf.force_caps='on'`;
+      const a = await actor(tx);
+      await tx`insert into public.spend_caps(scope,key,provider,unit,period,"limit") values('user',${a.user_id},'kie','credit','day',100)`;
+      const { version, take } = await song(
+        tx,
+        a.user_id,
+        stage === "generate_song" ? "song_queued" : "audio_ready",
+      );
+      let edit: string | null = null;
+      let job: string;
+      if (stage === "replace_section") {
+        const request = await call(tx, "mdf_web", "section_edit_request", [
+          a,
+          version,
+          take,
+          "kie",
+          10,
+          25,
+          120,
+          [0],
+          "New words",
+          "All words",
+        ]);
+        expect(request.ok).toBe(true);
+        edit = request.data.edit_id;
+        job = request.data.jobs[0].job_id;
+      } else {
+        const [row] =
+          await tx`insert into public.jobs(owner_id,version_id,stage,idempotency_key) values(${a.user_id},${version},'generate_song',${randomUUID()}) returning id`;
+        job = row.id;
+        await tx`select ops.reserve_job(${job})`;
+      }
+      const [reservation] =
+        await tx`select id,estimate from public.reservations where job_id=${job}`;
+      const estimate = reservation.estimate.find(
+        (e: { provider: string }) => e.provider === "kie",
+      );
+      const [opened] =
+        await tx`select ops.spend_entry_open(${reservation.id},'kie:submit','kie',${estimate.model},${tx.json(estimate.items)}) as id`;
+      if (state === "settled") {
+        const items = Object.fromEntries(
+          Object.entries(estimate.items as Record<string, number>).map(
+            ([key, amount]) => [key, amount / 2],
+          ),
+        );
+        await tx`select ops.settle_spend(${opened.id},${tx.json(items)},${Number(estimate.usd) / 2})`;
+      }
+      const [before] =
+        await tx`select * from public.spend_entries where id=${opened.id}`;
+      // An unrelated ambiguous reservation must keep its open entry and charge estimate.
+      const [other] =
+        await tx`insert into public.reservations(user_id,estimate,state,kie_submit_reserved) values(${a.user_id},${tx.json([estimate])},'ambiguous',true) returning id`;
+      const [unrelated] =
+        await tx`insert into public.spend_entries(reservation_id,call_key,provider,model,items_est,usd_est) values(${other.id},'kie:submit','kie',${estimate.model},${tx.json(estimate.items)},${estimate.usd}) returning *`;
+      if (edit) {
+        await tx`update public.section_edits set kie_submit_state='submitting' where id=${edit}`;
+      } else {
+        await tx`update public.versions set status='failed',kie_generation=1,kie_submit_state='submitting' where id=${version}`;
+      }
+      await tx`update public.jobs set status='failed' where id=${job}`;
+      const [ambiguous] =
+        await tx`select state from public.reservations where id=${reservation.id}`;
+      expect(ambiguous.state).toBe("ambiguous");
+      expect(
+        await call(tx, "mdf_web", "admin_resolve_kie_submission", [
+          a,
+          version,
+          charged,
+          charged ? "confirmed-task" : null,
+          edit,
+        ]),
+      ).toMatchObject({ ok: true });
+      const [after] =
+        await tx`select * from public.spend_entries where id=${opened.id}`;
+      const fraction = state === "settled" ? 0.5 : charged ? 1 : 0;
+      const items = Object.fromEntries(
+        Object.entries(estimate.items as Record<string, number>).map(
+          ([key, amount]) => [key, amount * fraction],
+        ),
+      );
+      expect(after).toMatchObject({ state: "settled", items });
+      expect(Number(after.usd)).toBeCloseTo(Number(estimate.usd) * fraction, 4);
+      expect(after.settled_at).not.toBeNull();
+      if (state === "settled") expect(after).toEqual(before);
+      expect(
+        await tx`select 1 from public.spend_entries where reservation_id=${reservation.id} and provider='kie'`,
+      ).toHaveLength(1);
+      const [closed] =
+        await tx`select state,charges from public.reservations where id=${reservation.id}`;
+      expect(closed.state).toBe("closed");
+      expect(
+        closed.charges.filter(
+          (c: { provider: string; unit: string }) =>
+            c.provider === "kie" && c.unit === "credit",
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ amount: items.credit }),
+        ]),
+      );
+      const [counter] =
+        await tx`select used from public.spend_counters where scope='user' and key=${a.user_id} and provider='kie' and unit='credit'`;
+      expect(Number(counter.used)).toBe(items.credit);
+      expect(
+        (
+          await tx`select * from public.spend_entries where id=${unrelated.id}`
+        )[0],
+      ).toEqual(unrelated);
+      expect(
+        (
+          await tx`select state from public.reservations where id=${other.id}`
+        )[0].state,
+      ).toBe("ambiguous");
+    });
+  },
+);
