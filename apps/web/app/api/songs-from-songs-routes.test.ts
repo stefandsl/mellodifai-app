@@ -7,6 +7,9 @@ const mock = vi.hoisted(() => ({
   role: "admin",
   uploads: [] as { path: string; type: string }[],
   groq: "gsk-test" as string | null,
+  check: vi.fn(),
+  rate: vi.fn((): { ok: boolean; retryAfter?: number } => ({ ok: true })),
+  key: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
@@ -32,7 +35,13 @@ vi.mock("@/lib/supabase/server", () => ({
     },
   }),
 }));
-vi.mock("@/lib/openrouter-key", () => ({ groqKey: async () => mock.groq }));
+vi.mock("@/lib/openrouter-key", () => ({ groqKey: mock.key }));
+vi.mock("@/lib/db/ops-client", () => ({ callOps: mock.check }));
+vi.mock("@/lib/ops/context", () => ({
+  sessionCtx: async () => ({ actor_kind: "session", user_id: mock.user?.id }),
+}));
+vi.mock("@/lib/rate-limit", () => ({ rateLimit: mock.rate }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { POST as sunoLink } from "./suno-link/route";
 import { POST as transcribe } from "./transcribe/route";
@@ -48,6 +57,9 @@ beforeEach(() => {
   mock.user = { id: "4b6f8d2e-1c3a-4e5f-9a7b-2c4d6e8f0a1b" };
   mock.uploads = [];
   mock.groq = "gsk-test";
+  mock.check.mockReset().mockResolvedValue({ ok: true, data: {} });
+  mock.rate.mockReset().mockReturnValue({ ok: true });
+  mock.key.mockReset().mockImplementation(async () => mock.groq);
   vi.unstubAllGlobals();
 });
 
@@ -157,11 +169,46 @@ describe("transcription", () => {
     });
     expect((sent as unknown as FormData).get("language")).toBe("it");
     expect((sent as unknown as FormData).get("model")).toBe("whisper-large-v3");
+    expect(mock.check).toHaveBeenCalledWith("transcribe_check", [
+      expect.objectContaining({ user_id: mock.user?.id }),
+    ]);
   });
   it("needs a signed-in studio user and a key", async () => {
     mock.groq = null;
     expect((await transcribe(form())).status).toBe(503);
     mock.user = null;
     expect((await transcribe(form())).status).toBe(401);
+  });
+  it("refuses a daily transcription limit before reading the Groq key", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mock.check.mockResolvedValueOnce({
+      ok: false,
+      code: "rate_limited",
+      retry_after: 3600,
+    });
+    const response = await transcribe(form());
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "rate_limited",
+      retry_after: 3600,
+    });
+    expect(mock.key).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("refuses the per-minute limit before the database and Groq", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mock.rate.mockReturnValueOnce({ ok: false, retryAfter: 42 });
+    const response = await transcribe(form());
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("42");
+    expect(await response.json()).toEqual({
+      error: "rate_limited",
+      retry_after: 42,
+    });
+    expect(mock.check).not.toHaveBeenCalled();
+    expect(mock.key).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,10 @@ import { LANGS } from "@mellodifai/shared";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { groqKey } from "@/lib/openrouter-key";
+import { sessionCtx } from "@/lib/ops/context";
+import { transcribeCheck } from "@/lib/ops/defs/transcribe-check";
+import { runOp } from "@/lib/ops/run";
+import { rateLimit } from "@/lib/rate-limit";
 import { segmentsToLyrics } from "@/lib/studio/transcribe-text";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,6 +38,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "file required" }, { status: 400 });
   if (file.size > MAX_BYTES)
     return NextResponse.json({ error: "too big" }, { status: 413 });
+  const ctx = await sessionCtx().catch(() => null);
+  if (!ctx || ctx.user_id !== user.id)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const minute = rateLimit(user.id, "write");
+  if (!minute.ok)
+    return NextResponse.json(
+      { error: "rate_limited", retry_after: minute.retryAfter },
+      { status: 429, headers: { "Retry-After": String(minute.retryAfter) } },
+    );
+  const check = await runOp(transcribeCheck, ctx, {});
+  if (!check.ok)
+    return NextResponse.json(
+      {
+        error: check.code,
+        ...(check.retry_after ? { retry_after: check.retry_after } : {}),
+      },
+      { status: check.code === "rate_limited" ? 429 : 503 },
+    );
   const key = await groqKey();
   if (!key) return NextResponse.json({ error: "unavailable" }, { status: 503 });
   const body = new FormData();

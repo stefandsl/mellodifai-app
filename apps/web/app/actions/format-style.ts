@@ -4,6 +4,7 @@ import { openRouterKey } from "@/lib/openrouter-key";
 import { sessionCtx } from "@/lib/ops/context";
 import { styleFormatCheck } from "@/lib/ops/defs/style-format-check";
 import { runOp } from "@/lib/ops/run";
+import { rateLimit } from "@/lib/rate-limit";
 import { isRemote } from "@/lib/remote";
 import {
   buildMessages,
@@ -20,12 +21,15 @@ export type FormatResult =
 const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
 
 // "Formatta con AI": runs on the server because the OpenRouter key must never reach the browser.
-// The key comes from the server environment or the worker's env files (lib/openrouter-key.ts).
+// The key comes from the web server environment (lib/openrouter-key.ts).
 export async function formatStyle(input: unknown): Promise<FormatResult> {
   if (isRemote(await headers())) return { ok: false, error: "failed" };
   try {
     const { styles } = FormatStyleInput.parse(input);
-    const check = await runOp(styleFormatCheck, await sessionCtx(), {});
+    const ctx = await sessionCtx();
+    if (!rateLimit(ctx.user_id ?? "", "write").ok)
+      return { ok: false, error: "limit" };
+    const check = await runOp(styleFormatCheck, ctx, {});
     if (!check.ok)
       return {
         ok: false,

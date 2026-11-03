@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(),
+  rate: vi.fn((): { ok: boolean; retryAfter?: number } => ({ ok: true })),
   key: vi.fn(async (): Promise<string | null> => "sk-test-key-123456"),
   user: { id: "u1" } as { id: string },
   signedIn: true,
@@ -16,6 +17,7 @@ vi.mock("@/lib/ops/context", () => ({
   },
 }));
 vi.mock("@/lib/db/ops-client", () => ({ callOps: mocks.check }));
+vi.mock("@/lib/rate-limit", () => ({ rateLimit: mocks.rate }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/openrouter-key", () => ({ openRouterKey: mocks.key }));
 
@@ -143,6 +145,34 @@ it("requires the persisted daily ops check before the paid request", async () =>
   ]);
   expect(fetchMock).not.toHaveBeenCalled();
   expect(mocks.key).not.toHaveBeenCalled();
+});
+
+it("a customer's 21st format today returns rate_limited and makes no OpenRouter call", async () => {
+  let used = 0;
+  mocks.check.mockImplementation(async () =>
+    ++used <= 20
+      ? { ok: true, data: {} }
+      : { ok: false, code: "rate_limited", retry_after: 3600 },
+  );
+  for (let i = 0; i < 20; i++)
+    expect((await formatStyle({ styles: "pop" })).ok).toBe(true);
+  fetchMock.mockClear();
+  expect(await formatStyle({ styles: "pop" })).toEqual({
+    ok: false,
+    error: "limit",
+  });
+  expect(mocks.check).toHaveBeenCalledTimes(21);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("refuses the per-minute limit before OpenRouter", async () => {
+  mocks.rate.mockReturnValueOnce({ ok: false, retryAfter: 60 });
+  expect(await formatStyle({ styles: "pop" })).toEqual({
+    ok: false,
+    error: "limit",
+  });
+  expect(mocks.check).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
 });
 
 it("does not call the provider when the ops check fails", async () => {

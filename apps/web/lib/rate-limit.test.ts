@@ -1,15 +1,32 @@
-import { expect, it } from "vitest";
-import { createLimiter } from "./rate-limit";
+import { afterEach, expect, it, vi } from "vitest";
+import { rateLimit } from "./rate-limit";
 
-it("allows `max` takes per window, per key, and frees them as time passes", () => {
-  let t = 0;
-  const limiter = createLimiter(2, 1000, () => t);
-  expect(limiter.take("a")).toBe(true);
-  expect(limiter.take("a")).toBe(true);
-  expect(limiter.take("a")).toBe(false);
-  expect(limiter.take("b")).toBe(true);
-  t = 999;
-  expect(limiter.take("a")).toBe(false);
-  t = 1001;
-  expect(limiter.take("a")).toBe(true);
+afterEach(() => vi.useRealTimers());
+
+it("the sliding window allows 60 reads per minute", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-11-03T12:00:00Z"));
+  for (let i = 0; i < 60; i++)
+    expect(rateLimit("reader", "read")).toEqual({ ok: true });
+  expect(rateLimit("reader", "read")).toEqual({ ok: false, retryAfter: 60 });
+  vi.advanceTimersByTime(59_001);
+  expect(rateLimit("reader", "read")).toEqual({ ok: false, retryAfter: 1 });
+  vi.advanceTimersByTime(999);
+  expect(rateLimit("reader", "read")).toEqual({ ok: true });
+});
+
+it("limits writes and reservations separately by key", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-11-03T12:00:00Z"));
+  for (let i = 0; i < 10; i++)
+    expect(rateLimit("writer", "write").ok).toBe(true);
+  expect(rateLimit("writer", "write")).toEqual({ ok: false, retryAfter: 60 });
+  expect(rateLimit("writer", "read")).toEqual({ ok: true });
+  expect(rateLimit("other", "write")).toEqual({ ok: true });
+  for (let i = 0; i < 20; i++)
+    expect(rateLimit("writer", "reservation").ok).toBe(true);
+  expect(rateLimit("writer", "reservation")).toEqual({
+    ok: false,
+    retryAfter: 3600,
+  });
 });
