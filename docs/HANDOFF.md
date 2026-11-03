@@ -323,3 +323,14 @@ stack. The shared stage resource map matches the SQL insert trigger; local
 generation/replacement uses GPU. Task 17 owns settlement, close and expiry;
 Tasks 19/20 own paid wrappers, and Task 24 owns worker call enforcement.
 No production migration or paid provider call was performed.
+
+M1 Task 17 adds `20261102000031_ledger_close.sql`: bounded entry opening,
+unclamped actual settlement, over-estimate reporting, and atomic terminal-job
+close/expiry. Settled spend and open calls at estimate remain counted; only
+unused charges are released. Kie recovery is limited to the reserved generation
+or section edit, and unknown submissions retain their charges as ambiguous.
+`worker_enqueue` copies the parent's token, run, fake flag and priority and
+reserves the child atomically. `costs_get` returns owner-only spend and each cap's
+own current period counter. Functions retain the exact worker/web grants.
+Task 20 still owns administrative resolution of ambiguous submissions; Task 26
+owns the periodic expiry scheduler. No production migration or paid call was made.
