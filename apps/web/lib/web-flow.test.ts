@@ -2,6 +2,19 @@ import { expect, it } from "vitest";
 import { publicationDefaults } from "./publication-defaults";
 import { upsertJob } from "./timeline";
 
+it("uses the song language when the UI language differs", () => {
+  const french = publicationDefaults("Le port", "Une lumière", "fr", null);
+  expect(french.title).toBe("Le port | Vidéo avec paroles");
+  expect(french.description).toContain(
+    "Créé avec des outils d’intelligence artificielle.",
+  );
+  expect(french.description).not.toContain("Creato con");
+  expect(french.tags).toBe("Le port, vidéo avec paroles, fr");
+  expect(
+    publicationDefaults("Song", "Words", "en", null).description,
+  ).toContain("Created with AI tools.");
+});
+
 it("prefills metadata and filters chapter starts less than ten seconds apart", () => {
   expect(
     publicationDefaults(
@@ -13,7 +26,6 @@ it("prefills metadata and filters chapter starts less than ten seconds apart", (
         { title: "Verse", start: 4 },
         { title: "Chorus", start: 65 },
       ],
-      "en",
     ),
   ).toEqual({
     title: "My song | Lyric video",
@@ -22,7 +34,7 @@ it("prefills metadata and filters chapter starts less than ten seconds apart", (
     tags: "My song, lyric video, en",
     chapters: "0:00 Intro\n1:05 Chorus",
   });
-  expect(publicationDefaults("Song", "", "it", null, "it").chapters).toBe("");
+  expect(publicationDefaults("Song", "", "it", null).chapters).toBe("");
 });
 it("updates jobs in chronological position without duplicating rows", () => {
   const a = { id: "a", created_at: "2026-01-01", status: "queued" };

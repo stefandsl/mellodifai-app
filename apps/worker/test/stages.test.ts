@@ -1584,6 +1584,8 @@ describe("stage safety and behavior", () => {
         storyboard_path: ctx.version.storyboard_path,
         thumbnail_path: "previews/owner/project/fr/version/7/thumbnail.png",
         chosen_take_id: "take-one",
+        lyric_pack: ctx.version.lyric_pack,
+        storyboard_sections: ctx.version.storyboard_sections,
         title: "Test song",
         lang: "fr",
       },

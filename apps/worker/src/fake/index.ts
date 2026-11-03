@@ -351,6 +351,8 @@ export function createFakeStages(
                 storyboard_path: ctx.version.storyboard_path,
                 thumbnail_path: thumbnailPath,
                 chosen_take_id: ctx.version.chosen_take_id,
+                lyric_pack: ctx.version.lyric_pack,
+                storyboard_sections: ctx.version.storyboard_sections,
                 title: LyricPackSchema.parse(ctx.version.lyric_pack).title,
                 lang: ctx.version.lang,
               },

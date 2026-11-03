@@ -130,6 +130,9 @@ eyes before starting the next one.
 
 Per-song storyboard, thumbnail, metadata and CTR thumbnail work is in `feat/song-assets`,
 pending review and merge.
+Its R1 revision adds migration `20261103030001_invalidate_take_assets.sql`: switching a
+rendered take starts a new video review; existing publications keep their original render.
+Publication copy follows the song language, and each new render stores its lyric snapshot.
 
 ## 6. Waiting on the owner
 

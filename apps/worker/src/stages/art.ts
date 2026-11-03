@@ -46,6 +46,8 @@ export const art: StageHandler = async (context) => {
         storyboard_path: context.version.storyboard_path,
         thumbnail_path: thumbnailPath,
         chosen_take_id: context.version.chosen_take_id,
+        lyric_pack: context.version.lyric_pack,
+        storyboard_sections: context.version.storyboard_sections,
         title: LyricPackSchema.parse(context.version.lyric_pack).title,
         lang: context.version.lang,
       },

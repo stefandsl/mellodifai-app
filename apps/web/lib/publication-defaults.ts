@@ -1,4 +1,4 @@
-import { t } from "@mellodifai/shared";
+import { publicationCopy } from "@mellodifai/shared";
 
 function defaultTags(title: string, language: string, lyricTag: string) {
   const unique = (words: string[]) => [
@@ -51,9 +51,8 @@ export function publicationDefaults(
   lyrics: string,
   language: string,
   sections: unknown,
-  locale: "it" | "en",
-  mood = "",
 ) {
+  const copy = publicationCopy(language);
   const starts: { title: string; start: number }[] = Array.isArray(sections)
     ? sections
         .filter(
@@ -77,21 +76,20 @@ export function publicationDefaults(
     last = start;
   }
   return {
-    title: `${title} | ${t(locale, "publish.suffix")}`,
+    title: `${title} | ${copy.suffix}`,
     description: [
       title,
-      mood,
       lyrics
         .split(/\r?\n/u)
         .map((line) => line.trim())
         .filter((line) => line && !/^\[.*\]$/u.test(line))
         .slice(0, 4)
         .join("\n"),
-      t(locale, "publish.credits"),
+      copy.credits,
     ]
       .filter(Boolean)
       .join("\n\n"),
-    tags: defaultTags(title, language, t(locale, "publish.tag")),
+    tags: defaultTags(title, language, copy.tag),
     chapters: chapters.join("\n"),
   };
 }

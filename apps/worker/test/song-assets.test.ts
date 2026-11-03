@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runtimeRoot } from "@mellodifai/remake";
 import { afterEach, expect, it } from "vitest";
 import { songStoryboard } from "../src/stages/storyboard.js";
 import { WorkspaceFactory } from "../src/workspace.js";
@@ -71,7 +71,9 @@ it("builds each song's scenes from its own timed lines, title, language and mood
 });
 
 it("keeps local render artifacts separate across attempts", async () => {
-  const root = await mkdtemp(join(tmpdir(), "song-assets-"));
+  const scratch = join(runtimeRoot(), "tmp");
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "song-assets-"));
   roots.push(root);
   const previous = process.env.WORKER_FAKE;
   process.env.WORKER_FAKE = "1";

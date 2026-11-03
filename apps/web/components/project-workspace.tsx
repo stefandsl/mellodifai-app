@@ -38,7 +38,14 @@ export type RenderPreview = {
   id: string;
   kind: string;
   previewUrl: string | null;
-  qa_results: { gates?: { name: string; pass: boolean; value: unknown }[] };
+  qa_results: {
+    gates?: { name: string; pass: boolean; value: unknown }[];
+    assets?: {
+      lyric_pack?: LyricPack;
+      lang?: string;
+      storyboard_sections?: unknown;
+    };
+  };
 };
 export type PublicationView = {
   upload_state?: string;
@@ -149,15 +156,14 @@ export function ProjectWorkspace({
   const failed = gates.some((g) => !g.pass);
   const freeKieRetry =
     Boolean(version.kie_task_id) && version.kie_task_state !== "failed";
+  const rendered = master?.qa_results.assets;
+  const pack = rendered?.lyric_pack ?? version.lyric_pack;
+  const sections = rendered?.storyboard_sections ?? version.storyboard_sections;
   const defaults = publicationDefaults(
-    version.lyric_pack?.title ?? "",
-    version.lyric_pack?.lyrics ?? "",
-    version.lang,
-    version.storyboard_sections,
-    lang,
-    typeof settings?.mood === "string"
-      ? settings.mood
-      : (version.lyric_pack?.style ?? "").slice(0, 160),
+    pack?.title ?? "",
+    pack?.lyrics ?? "",
+    rendered?.lang ?? version.lang,
+    sections,
   );
   if (version.status === "lyrics_review" && version.lyric_pack)
     return (
@@ -185,7 +191,7 @@ export function ProjectWorkspace({
   if (version.status === "video_review")
     return (
       <section className="space-y-4">
-        <StoryboardSummary sections={version.storyboard_sections} lang={lang} />
+        <StoryboardSummary sections={sections} lang={lang} />
         {renders.map(
           (r) =>
             r.previewUrl && (
@@ -369,10 +375,7 @@ export function ProjectWorkspace({
     return (
       <>
         <section className="mb-8 space-y-6">
-          <StoryboardSummary
-            sections={version.storyboard_sections}
-            lang={lang}
-          />
+          <StoryboardSummary sections={sections} lang={lang} />
           {(["master", "hook"] as const).map((kind) => {
             const preview = renders.find(
               (render) => render.kind === kind,

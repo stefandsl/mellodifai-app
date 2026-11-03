@@ -167,14 +167,72 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
     }
     await page.getByRole("button", { name: "Approva video" }).click();
     await expect(page.getByText("FR Approvato")).toBeVisible();
+    if (title === songs[0]) {
+      const { data: previous } = await db
+        .from("versions")
+        .select("id,chosen_take_id,render_attempt,storyboard_path")
+        .eq("project_id", projectId)
+        .eq("lang", "fr")
+        .single();
+      if (!previous) throw new Error("Previous version missing");
+      const { data: alternate } = await db
+        .from("takes")
+        .select("id")
+        .eq("version_id", previous.id)
+        .neq("id", previous.chosen_take_id)
+        .limit(1)
+        .single();
+      if (!alternate) throw new Error("Alternate take missing");
+      const switchedLyrics =
+        "[Verse 1]\nLa mer chante une autre histoire\n[Chorus]\nLe vent nous ramène au port";
+      expect(
+        (
+          await serviceClient()
+            .from("takes")
+            .update({ lyrics: switchedLyrics })
+            .eq("id", alternate.id)
+        ).error,
+      ).toBeNull();
+      expect(
+        (
+          await browserSession.rpc("choose_take", {
+            p_version: previous.id,
+            p_take: alternate.id,
+          })
+        ).error,
+      ).toBeNull();
+      await page.reload();
+      await expect(page.getByLabel("Descrizione")).toHaveCount(0);
+      await expect(page.getByText("FR Revisione video")).toBeVisible();
+      await page.getByRole("button", { name: "Approva video" }).click();
+      await expect(page.getByText("FR Approvato")).toBeVisible();
+      expect(await page.getByLabel("Descrizione").inputValue()).toContain(
+        "La mer chante une autre histoire",
+      );
+      const { data: current } = await db
+        .from("versions")
+        .select("render_attempt,storyboard_path")
+        .eq("id", previous.id)
+        .single();
+      expect(current?.render_attempt).toBe(previous.render_attempt + 1);
+      expect(current?.storyboard_path).not.toBe(previous.storyboard_path);
+      expect(await readFile(previous.storyboard_path, "utf8")).toContain(title);
+      expect(await readFile(current?.storyboard_path, "utf8")).not.toBe(
+        await readFile(previous.storyboard_path, "utf8"),
+      );
+    }
     await expect(
       page.getByRole("img", { name: "Miniatura del video" }),
     ).toBeVisible();
     await expect(page.getByLabel("Titolo video")).toHaveValue(
-      `${title} | Lyric video`,
+      `${title} | Vidéo avec paroles`,
     );
     const description = await page.getByLabel("Descrizione").inputValue();
     expect(description).toContain(title);
+    expect(description).toContain(
+      "Créé avec des outils d’intelligence artificielle.",
+    );
+    expect(description).not.toContain("Creato con strumenti AI.");
     expect(description).not.toMatch(/AIMELODIA|STEFANDSL\.COM/iu);
     await page
       .locator("details")
@@ -268,7 +326,7 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
     if (publicationError || !publication)
       throw publicationError ?? new Error("Publication missing");
     expect(publication.metadata).toMatchObject({
-      title: `${title} | Lyric video`,
+      title: `${title} | Vidéo avec paroles`,
       description,
       defaultLanguage: "fr",
       defaultAudioLanguage: "fr",
