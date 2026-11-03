@@ -309,3 +309,17 @@ and the canonical `resource`. `oauth_interaction_result` returns user_id,
 client_id, scopes, test_mode and token_id once; Task 42 binds its resulting Grant
 through `oauth_bind_grant`. Consent reconnects revoke prior rows, including expired
 or abandoned grants, before creating the replacement. Production was untouched.
+
+M1 Task 16 adds `20261102000030_spend_ledger.sql`: price/operation seeds,
+reservations, entries and calendar counters, with atomic reserve and extend
+functions granted only to service_role. User defaults resolve per cap dimension
+but charge each actual user's counters. The customer USD/day default is 1.75:
+the seeded strong-writer language estimate is 0.572445 USD and three times it
+rounds up to that 0.25 step. Kie remains 0.005 USD/credit, explicitly unverified
+pending owner confirmation. OpenRouter prices were fetched on 2026-11-03;
+Jev was absent from the models API, so its official model page is the recorded
+source. `withRealCaps` runs ledger tests in one transaction on the fake e2e
+stack. The shared stage resource map matches the SQL insert trigger; local
+generation/replacement uses GPU. Task 17 owns settlement, close and expiry;
+Tasks 19/20 own paid wrappers, and Task 24 owns worker call enforcement.
+No production migration or paid provider call was performed.

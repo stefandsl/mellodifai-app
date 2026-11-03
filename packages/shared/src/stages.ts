@@ -46,6 +46,29 @@ export const STAGES = [
 
 export type Stage = (typeof STAGES)[number];
 
+// Default class; local generation/replacement uses GPU instead of the network.
+export const STAGE_RESOURCE_CLASS: Record<Stage, "gpu" | "cpu" | "net"> = {
+  draft_lyrics: "net",
+  generate_song: "net",
+  timing: "net",
+  storyboard: "cpu",
+  render_master: "gpu",
+  render_hook: "gpu",
+  qa: "cpu",
+  art: "cpu",
+  publish: "net",
+  set_privacy: "net",
+  import_legacy: "cpu",
+  stems: "gpu",
+  visualizer: "gpu",
+  replace_section: "net",
+  import_audio: "net",
+  remake_ingest: "net",
+  remake_analyse: "net",
+  remake_rewrite: "net",
+  lyrics_assist: "net",
+};
+
 export const REMAKE_JOB_STAGES: readonly Stage[] = [
   "remake_ingest",
   "remake_analyse",
