@@ -68,7 +68,7 @@ export function findTracks(node: unknown, found: KieTrack[] = []): KieTrack[] {
   );
 }
 
-type Envelope = { code?: number; msg?: string; data?: unknown };
+type Envelope = { code: number; msg?: string; data?: unknown };
 
 export class KieClient {
   constructor(
@@ -93,11 +93,29 @@ export class KieClient {
       signal: AbortSignal.timeout(60_000),
     });
     const text = await response.text();
-    const json = (safeJson(text) ?? { msg: text.slice(0, 300) }) as Envelope;
-    if (!response.ok || (json.code !== undefined && json.code !== 200))
-      throw new KieRefused(
-        `kie ${new URL(url).pathname} answered ${response.status}/${json.code ?? "-"}: ${String(json.msg ?? "").slice(0, 200)}`,
-      );
+    const parsed = safeJson(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      throw new Error("kie response unreadable");
+    const raw = parsed as Record<string, unknown>;
+    const code =
+      typeof raw.code === "number"
+        ? raw.code
+        : typeof raw.code === "string" && /^\d{3}$/u.test(raw.code)
+          ? Number(raw.code)
+          : Number.NaN;
+    if (!Number.isInteger(code) || code < 100 || code > 599)
+      throw new Error("kie response unreadable");
+    const json = { ...raw, code } as Envelope;
+    if (!response.ok || code !== 200) {
+      const message = `kie ${new URL(url).pathname} answered ${response.status}/${code}: ${String(json.msg ?? "").slice(0, 200)}`;
+      if (
+        (response.ok || (response.status >= 400 && response.status < 500)) &&
+        code >= 400 &&
+        code < 500
+      )
+        throw new KieRefused(message);
+      throw new Error(message);
+    }
     return json;
   }
   async credits(): Promise<number> {
@@ -106,7 +124,7 @@ export class KieClient {
     if (!Number.isFinite(value)) throw new Error("kie balance unreadable");
     return value;
   }
-  // A refusal (HTTP or kie error code) throws KieRefused: kie did not take the task. Anything
+  // A validated kie client error code throws KieRefused. Anything
   // else that goes wrong after the request left (a timeout, a dropped connection) is unknown and
   // throws a plain Error, so the caller never submits twice.
   async createTask(body: { model: string; input: Record<string, unknown> }) {

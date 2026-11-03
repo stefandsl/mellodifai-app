@@ -247,11 +247,22 @@ export const generateSong: StageHandler = async (context) => {
           },
         });
     if (submit.code !== 0) {
+      const response =
+        /HTTP (\d{3}) \/api\/v1\/jobs\/createTask: ([^\r\n]*)/u.exec(stderr);
+      let apiCode = Number.NaN;
+      try {
+        apiCode = JSON.parse(response?.[2] ?? "null")?.code ?? Number.NaN;
+      } catch {
+        // A truncated response cannot prove that the submission was refused.
+      }
+      const httpCode = Number(response?.[1]);
       const refused =
         submit.code === 4 ||
-        /HTTP [^\r\n]*\/api\/v1\/(?:chat\/credit|jobs\/createTask)(?=[:\s])/u.test(
-          stderr,
-        );
+        /HTTP \d{3} \/api\/v1\/chat\/credit(?=[:\s])/u.test(stderr) ||
+        ((httpCode === 200 || (httpCode >= 400 && httpCode < 500)) &&
+          Number.isInteger(apiCode) &&
+          apiCode >= 400 &&
+          apiCode < 500);
       if (!refused)
         throw new Error(
           "kie submission state unknown, check the kie dashboard",
