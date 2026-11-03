@@ -27,6 +27,7 @@ const def = {
   name: "example",
   fn: "example",
   input: z.object({ value: z.string() }),
+  args: (input: { value: string }) => [input.value],
   output: z.object({ id: z.string() }),
   scope: "create" as const,
   key: false,
@@ -36,9 +37,71 @@ const def = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.revalidatePath.mockReset();
   mocks.headers.mockResolvedValue(new Headers());
   mocks.callOps.mockResolvedValue({ ok: true, data: { id: "project" } });
 });
+
+it.each(["jsonb", "positional"])(
+  "maps %s RPC arguments explicitly and hashes validated input",
+  async (kind) => {
+    const { runOp, requestHash } = await import("./run");
+    const input = { title: "Song", settings: { engine: "kie" } };
+    const ctx = {
+      actor_kind: "session" as const,
+      remote: false,
+      request_id: "request",
+    };
+    const args =
+      kind === "jsonb"
+        ? (value: typeof input) => [value]
+        : (value: typeof input) => [value.settings, value.title];
+    const operation = {
+      ...def,
+      name: "song_create",
+      fn: "song_create",
+      input: z.object({
+        title: z.string(),
+        settings: z.object({ engine: z.string() }),
+      }),
+      args,
+    };
+    expect(
+      await runOp(operation, ctx, { ...input, ignored: true }),
+    ).toMatchObject({ ok: true });
+    expect(mocks.callOps).toHaveBeenCalledWith("song_create", [
+      { ...ctx, request_hash: requestHash("song_create", input) },
+      ...args(input),
+    ]);
+  },
+);
+
+it.each(["paths", "cache"])(
+  "preserves committed success when %s revalidation throws",
+  async (kind) => {
+    const { runOp } = await import("./run");
+    const failure = () => {
+      throw new Error("private cache detail");
+    };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    if (kind === "cache") mocks.revalidatePath.mockImplementation(failure);
+    try {
+      expect(
+        await runOp(
+          { ...def, revalidate: kind === "paths" ? failure : def.revalidate },
+          { actor_kind: "session", remote: false, request_id: "request" },
+          { value: "ok" },
+        ),
+      ).toEqual({ ok: true, data: { id: "project" } });
+      expect(mocks.callOps).toHaveBeenCalledOnce();
+      expect(JSON.stringify(log.mock.calls)).not.toContain(
+        "private cache detail",
+      );
+    } finally {
+      log.mockRestore();
+    }
+  },
+);
 
 it("runAction refuses remote requests with forbidden_scope before database work", async () => {
   mocks.headers.mockResolvedValue(new Headers({ "x-mdf-remote": "1" }));

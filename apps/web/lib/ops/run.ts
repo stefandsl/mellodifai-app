@@ -22,13 +22,6 @@ export function requestHash(op: string, input: unknown): string {
     .digest("hex");
 }
 
-function operationArgs(input: unknown): unknown[] {
-  if (input === undefined) return [];
-  if (Array.isArray(input)) return input;
-  if (input !== null && typeof input === "object") return Object.values(input);
-  return [input];
-}
-
 export async function runOp<I, O>(
   def: OpDef<I, O>,
   ctx: OpsCtx,
@@ -40,7 +33,7 @@ export async function runOp<I, O>(
       return { ok: false, code: "validation", message: "Invalid input" };
     const result = await callOps<O>(def.fn, [
       { ...ctx, request_hash: requestHash(def.name, parsed.data) },
-      ...operationArgs(parsed.data),
+      ...def.args(parsed.data),
     ]);
     if (!result.ok) return result;
     const output = def.output.safeParse(result.data);
@@ -51,11 +44,16 @@ export async function runOp<I, O>(
         message: "Invalid operation response",
       };
     if (def.mutating) {
-      for (const path of def.revalidate(output.data)) revalidatePath(path);
-      for (const path of ["/library", "/create", "/playlists", "/search"])
-        revalidatePath(path);
-      for (const path of ["/playlists/[id]", "/stems/[id]", "/editor/[id]"])
-        revalidatePath(path, "page");
+      try {
+        for (const path of def.revalidate(output.data)) revalidatePath(path);
+        for (const path of ["/library", "/create", "/playlists", "/search"])
+          revalidatePath(path);
+        for (const path of ["/playlists/[id]", "/stems/[id]", "/editor/[id]"])
+          revalidatePath(path, "page");
+      } catch {
+        // The mutation committed. Reporting failure could cause a duplicate paid job.
+        console.error("Operation committed, but path revalidation failed");
+      }
     }
     return { ok: true, data: output.data };
   } catch {

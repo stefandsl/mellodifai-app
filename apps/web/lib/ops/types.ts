@@ -16,6 +16,8 @@ export type OpDef<I, O> = {
   name: string;
   fn: string;
   input: ZodType<I>;
+  // SQL arguments after p_ctx, in the function signature's order.
+  args: (input: I) => unknown[];
   output: ZodType<O>;
   scope: "read" | "create" | "spend" | "admin";
   key: boolean;
