@@ -82,6 +82,21 @@ it("uses the rendered song mood in publication defaults", () => {
   expect(urgent.description).toContain("urgent");
   expect(urgent.tags).toContain("urgent");
   expect(calm).not.toEqual(urgent);
+  const french = publicationDefaults(
+    "Le port",
+    "Paroles",
+    "fr",
+    null,
+    "Pop luminoso",
+  );
+  expect(french.description).toContain("lumineux");
+  expect(french.tags).toContain("lumineux");
+  expect(french.description).not.toContain("luminoso");
+  expect(french.tags).not.toContain("luminoso");
+  expect(
+    publicationDefaults("Le port", "Paroles", "fr", null, "unmapped style")
+      .tags,
+  ).toBe("Le port, vidéo avec paroles, fr");
   const long = publicationDefaults(
     "Song",
     "A".repeat(5000),

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LyricPackSchema } from "@mellodifai/shared";
+import { LyricPackSchema, songMood } from "@mellodifai/shared";
 import type { StageContext, StageHandler } from "../loop.js";
 import { ENGINE_ROOT, upload } from "./utils.js";
 
@@ -49,10 +49,11 @@ export const art: StageHandler = async (context) => {
         storyboard_sections: context.version.storyboard_sections,
         title: LyricPackSchema.parse(context.version.lyric_pack).title,
         lang: context.version.lang,
-        mood:
-          context.project.mood ??
-          (context.project.song_settings as { mood?: string } | null)?.mood ??
+        mood: songMood(
+          context.project.mood,
+          (context.project.song_settings as { mood?: string } | null)?.mood,
           LyricPackSchema.parse(context.version.lyric_pack).style,
+        ),
       },
     },
   });

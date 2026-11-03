@@ -230,7 +230,8 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
     );
     const description = await page.getByLabel("Descrizione").inputValue();
     expect(description).toContain(title);
-    expect(description).toContain(mood);
+    expect(description).toContain("lumineux");
+    expect(description).not.toContain("luminoso");
     expect(description).toContain(
       "Créé avec des outils d’intelligence artificielle.",
     );
@@ -334,7 +335,9 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
       defaultLanguage: "fr",
       defaultAudioLanguage: "fr",
     });
-    expect((publication.metadata as { tags: string }).tags).toContain(mood);
+    expect((publication.metadata as { tags: string }).tags).toContain(
+      "lumineux",
+    );
   }
   expect(assets.map((asset) => asset.title)).toEqual(songs);
   expect(assets[0].storyboard).not.toBe(assets[1].storyboard);

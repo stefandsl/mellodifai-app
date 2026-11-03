@@ -1,6 +1,6 @@
 import { copyFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { LyricPackSchema } from "@mellodifai/shared";
+import { LyricPackSchema, songMood } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
 import { key, language, readJson } from "./utils.js";
 
@@ -106,9 +106,11 @@ export const storyboard: StageHandler = async (context) => {
     timing,
     pack.title,
     lang,
-    context.project.mood ??
-      (context.project.song_settings as { mood?: string } | null)?.mood ??
+    songMood(
+      context.project.mood,
+      (context.project.song_settings as { mood?: string } | null)?.mood,
       pack.style,
+    ),
   );
   const current = join(dataDir, "storyboard.json");
   const archived = join(
