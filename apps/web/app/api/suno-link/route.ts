@@ -11,6 +11,32 @@ const HEADERS = {
   Accept: "text/html,application/xhtml+xml",
 };
 
+const isSunoPage = (url: URL) =>
+  url.protocol === "https:" &&
+  !url.port &&
+  !url.username &&
+  !url.password &&
+  ["suno.com", "www.suno.com", "app.suno.ai"].includes(url.hostname);
+
+async function fetchAllowed(
+  url: URL,
+  allowed: (url: URL) => boolean,
+  headers: HeadersInit,
+  signal: AbortSignal,
+): Promise<{ response: Response; url: URL } | null> {
+  for (let redirects = 0; redirects <= 3; redirects++) {
+    if (!allowed(url)) return null;
+    const response = await fetch(url, { headers, redirect: "manual", signal });
+    if (response.status < 300 || response.status >= 400)
+      return { response, url };
+    const location = response.headers.get("location");
+    await response.body?.cancel();
+    if (!location) return null;
+    url = new URL(location, url);
+  }
+  return null;
+}
+
 async function readLimited(
   response: Response,
   limit: number,
@@ -55,35 +81,41 @@ export async function POST(request: NextRequest) {
   const link = typeof body?.url === "string" ? sunoLink(body.url) : null;
   if (!link)
     return NextResponse.json({ error: "not a suno link" }, { status: 400 });
-  let page: Response;
+  let pageResult: Awaited<ReturnType<typeof fetchAllowed>>;
   try {
-    page = await fetch(link, {
-      headers: HEADERS,
-      redirect: "follow",
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(20_000)]),
-    });
+    pageResult = await fetchAllowed(
+      link,
+      isSunoPage,
+      HEADERS,
+      AbortSignal.any([request.signal, AbortSignal.timeout(20_000)]),
+    );
   } catch {
     return NextResponse.json({ error: "unreachable" }, { status: 502 });
   }
-  const final = new URL(page.url || link.href);
-  // A redirect may only land on Suno itself.
-  if (!page.ok || !/(?:^|\.)suno\.(?:com|ai)$/u.test(final.hostname))
+  if (!pageResult?.response.ok)
     return NextResponse.json({ error: "page" }, { status: 502 });
-  const html = await readLimited(page, PAGE_LIMIT);
+  const html = await readLimited(pageResult.response, PAGE_LIMIT);
   if (!html) return NextResponse.json({ error: "page" }, { status: 502 });
-  const song = readSunoPage(new TextDecoder().decode(html), final.href);
+  const song = readSunoPage(
+    new TextDecoder().decode(html),
+    pageResult.url.href,
+  );
   if (!song.audio || !isSunoAudio(song.audio))
     return NextResponse.json({ error: "no audio" }, { status: 422 });
-  let audio: Response;
+  let audioResult: Awaited<ReturnType<typeof fetchAllowed>>;
   try {
-    audio = await fetch(song.audio, {
-      headers: { "User-Agent": HEADERS["User-Agent"] },
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]),
-    });
+    audioResult = await fetchAllowed(
+      new URL(song.audio),
+      (url) => isSunoAudio(url.href),
+      { "User-Agent": HEADERS["User-Agent"] },
+      AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]),
+    );
   } catch {
     return NextResponse.json({ error: "audio" }, { status: 502 });
   }
-  const bytes = audio.ok ? await readLimited(audio, AUDIO_UPLOAD_LIMIT) : null;
+  const bytes = audioResult?.response.ok
+    ? await readLimited(audioResult.response, AUDIO_UPLOAD_LIMIT)
+    : null;
   if (!bytes) return NextResponse.json({ error: "audio" }, { status: 502 });
   const path = `${user.id}/audio/${crypto.randomUUID()}.mp3`;
   const { error } = await db.storage
