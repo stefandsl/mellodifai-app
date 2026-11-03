@@ -11,7 +11,7 @@ import {
 } from "@mellodifai/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createClient } from "@/lib/supabase/browser";
+import { readRemake } from "@/app/actions/remake";
 
 // The create panel's view of the person's current remake (my_remake, migration 20261102000025).
 export type RemakeView = {
@@ -104,8 +104,9 @@ export function useRemake() {
   const refresh = useCallback(async () => {
     const mine = ++tick.current;
     try {
-      const { data, error } = await createClient().rpc("my_remake");
-      if (error || mine !== tick.current) return;
+      const result = await readRemake();
+      if (!result.ok || mine !== tick.current) return;
+      const data = result.data;
       setView(toView(data as Row));
       setLoaded(true);
     } catch {

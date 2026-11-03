@@ -405,7 +405,6 @@ it("keeps worker RPCs inaccessible to both client roles and client recovery RPCs
       "resolve_kie_submission",
       { p_version: id, p_charged: false, p_task_id: null },
     ],
-    ["resolve_kie_submission", { p_version: id, p_outcome: "not_submitted" }],
     [
       "resolve_upload",
       { p_publication: id, p_uploaded: false, p_video_id: null },
@@ -416,6 +415,14 @@ it("keeps worker RPCs inaccessible to both client roles and client recovery RPCs
       code: "42501",
     });
   }
+  expect(
+    (
+      await anon.rpc("resolve_kie_submission", {
+        p_version: id,
+        p_outcome: "not_submitted",
+      })
+    ).error?.code,
+  ).toBe("PGRST202");
 });
 
 it.each([false, true])(

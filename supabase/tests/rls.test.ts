@@ -96,15 +96,15 @@ afterEach(async () => {
 });
 
 async function fixture(user: TestUser) {
-  const project = await user.client
+  const project = await service
     .from("projects")
-    .insert({ topic: "Security test" })
+    .insert({ owner_id: user.id, topic: "Security test" })
     .select("id")
     .single();
   expect(project.error).toBeNull();
-  const version = await user.client
+  const version = await service
     .from("versions")
-    .insert({ project_id: project.data?.id, lang: "en" })
+    .insert({ owner_id: user.id, project_id: project.data?.id, lang: "en" })
     .select("id")
     .single();
   expect(version.error).toBeNull();
@@ -113,9 +113,9 @@ async function fixture(user: TestUser) {
     stage: "draft_lyrics",
     idempotency_key: `security-${user.id}`,
   };
-  const job = await user.client
+  const job = await service
     .from("jobs")
-    .insert(intent)
+    .insert({ ...intent, owner_id: user.id })
     .select("id")
     .single();
   expect(job.error).toBeNull();
@@ -202,7 +202,7 @@ describe("row level security", () => {
     expect(signup.data.session).toBeNull();
   });
 
-  it("allows enqueue and cancellation but denies worker-owned writes", async () => {
+  it("denies direct enqueue and cancellation and worker-owned writes", async () => {
     const user = await createUser(true);
     const { intent, jobId } = await fixture(user);
     for (const patch of [
@@ -255,8 +255,7 @@ describe("row level security", () => {
       .eq("id", jobId)
       .select("status")
       .single();
-    expect(cancel.error).toBeNull();
-    expect(cancel.data).toEqual({ status: "cancelled" });
+    expect(cancel.error?.code).toBe("42501");
     expect(
       (await service.from("jobs").update({ status: "running" }).eq("id", jobId))
         .error,
@@ -266,8 +265,7 @@ describe("row level security", () => {
       .update({ status: "cancelled" })
       .eq("id", jobId)
       .select("id");
-    expect(cancelRunning.error).toBeNull();
-    expect(cancelRunning.data).toEqual([]);
+    expect(cancelRunning.error?.code).toBe("42501");
     for (const table of ["job_events", "workers"]) {
       expect(
         (
@@ -518,25 +516,26 @@ describe("row level security", () => {
     const userA = await createUser(true);
     const userB = await createUser(true);
 
-    const { data: project, error: projectError } = await userA.client
+    const { data: project, error: projectError } = await service
       .from("projects")
-      .insert({ topic: "User A project" })
+      .insert({ owner_id: userA.id, topic: "User A project" })
       .select("id")
       .single();
     expect(projectError).toBeNull();
     expect(project).not.toBeNull();
     if (!project) throw new Error("Expected project");
 
-    const { data: version, error: versionError } = await userA.client
+    const { data: version, error: versionError } = await service
       .from("versions")
-      .insert({ project_id: project.id, lang: "en" })
+      .insert({ owner_id: userA.id, project_id: project.id, lang: "en" })
       .select("id")
       .single();
     expect(versionError).toBeNull();
     expect(version).not.toBeNull();
     if (!version) throw new Error("Expected version");
 
-    const { error: jobError } = await userA.client.from("jobs").insert({
+    const { error: jobError } = await service.from("jobs").insert({
+      owner_id: userA.id,
       version_id: version.id,
       stage: "draft_lyrics",
       idempotency_key: `rls-owner-${runId}`,

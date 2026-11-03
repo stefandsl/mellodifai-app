@@ -428,3 +428,12 @@ M1 Task 26 adds the worker scheduler loop. It claims one due task every 30
 seconds through the `ops` API, runs the claimed SQL body, records success or
 error, and stops on worker shutdown. The `expire_reservations` integration
 case passed on the e2e stack. No production scheduler was started.
+
+M1 Task 32 adds `20261102000041_ops_lockdown.sql` after migrations 039 and
+040. It removes authenticated direct writes to jobs, projects and versions,
+revokes public write RPC access, and keeps the six browser read RPCs. The
+remake and lyric editor polls now use `ops.my_remake` and
+`ops.lyrics_assist_state` through local server actions. The ACL allowlist and
+customer/admin JWT refusal tests pass on the e2e stack.
+Production remains at the Task 33 owner gate. The ledger integration gate
+needs port 3210 free; the owner's local launcher currently holds that port.

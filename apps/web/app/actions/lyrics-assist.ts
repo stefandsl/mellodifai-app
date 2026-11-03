@@ -4,6 +4,7 @@
 import { LyricsAssistInputSchema } from "@mellodifai/shared";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { callOps } from "@/lib/db/ops-client";
 import { sessionCtx } from "@/lib/ops/context";
 import { lyricsAssistCancel } from "@/lib/ops/defs/lyrics-assist-cancel";
 import { lyricsAssistRequest } from "@/lib/ops/defs/lyrics-assist-request";
@@ -15,6 +16,34 @@ export type LyricsAssistActionResult =
   | { ok: true; id: string }
   | { ok: true; committed: true }
   | { ok: false; error: LyricsAssistError; idempotencyKey?: string };
+
+export async function readLyricsAssistState(input: string) {
+  if (isRemote(await headers()))
+    return {
+      ok: false as const,
+      code: "unauthorized" as const,
+      message: "Local access required",
+    };
+  const id = z.string().uuid().safeParse(input);
+  if (!id.success)
+    return {
+      ok: false as const,
+      code: "validation" as const,
+      message: "Invalid request",
+    };
+  try {
+    return await callOps<unknown>("lyrics_assist_state", [
+      await sessionCtx(),
+      id.data,
+    ]);
+  } catch {
+    return {
+      ok: false as const,
+      code: "unauthorized" as const,
+      message: "Session required",
+    };
+  }
+}
 
 export async function requestLyricsAssist(
   input: unknown,

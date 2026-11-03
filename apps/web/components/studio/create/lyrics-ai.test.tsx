@@ -22,11 +22,7 @@ const mock = vi.hoisted(() => ({
 vi.mock("@/app/actions/lyrics-assist", () => ({
   requestLyricsAssist: mock.request,
   cancelLyricsAssist: mock.cancel,
-}));
-vi.mock("@/lib/supabase/browser", () => ({
-  createClient: () => ({
-    rpc: async () => ({ data: mock.state, error: null }),
-  }),
+  readLyricsAssistState: async () => ({ ok: true, data: mock.state }),
 }));
 vi.mock("sonner", () => ({ toast: mock.toast }));
 

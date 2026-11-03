@@ -54,15 +54,11 @@ const mock = vi.hoisted(() => ({
   cancel: vi.fn(async () => ({ ok: true as const })),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
-vi.mock("@/lib/supabase/browser", () => ({
-  createClient: () => ({
-    rpc: async (name: string) => {
-      mock.rpc(name);
-      return { data: mock.row, error: null };
-    },
-  }),
-}));
 vi.mock("@/app/actions/remake", () => ({
+  readRemake: async () => {
+    mock.rpc("my_remake");
+    return { ok: true, data: mock.row };
+  },
   startRemake: mock.start,
   editRemake: mock.edit,
   acceptRemake: mock.accept,

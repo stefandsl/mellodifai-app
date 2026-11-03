@@ -15,6 +15,7 @@ import {
 import { headers } from "next/headers";
 import { z } from "zod";
 import { actionProfile } from "@/lib/auth";
+import { callOps } from "@/lib/db/ops-client";
 import { sessionCtx } from "@/lib/ops/context";
 import { remakeAccept } from "@/lib/ops/defs/remake-accept";
 import { remakeCancel } from "@/lib/ops/defs/remake-cancel";
@@ -26,6 +27,24 @@ import { remakeStart } from "@/lib/ops/defs/remake-start";
 import { runOp } from "@/lib/ops/run";
 import type { OpDef } from "@/lib/ops/types";
 import { isRemote } from "@/lib/remote";
+
+export async function readRemake() {
+  if (isRemote(await headers()))
+    return {
+      ok: false as const,
+      code: "unauthorized" as const,
+      message: "Local access required",
+    };
+  try {
+    return await callOps<unknown>("my_remake", [await sessionCtx()]);
+  } catch {
+    return {
+      ok: false as const,
+      code: "unauthorized" as const,
+      message: "Session required",
+    };
+  }
+}
 
 export type RemakeActionError =
   | "invalidUrl"

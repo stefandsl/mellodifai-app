@@ -12,11 +12,11 @@ import { toast } from "sonner";
 
 import {
   cancelLyricsAssist,
+  readLyricsAssistState,
   requestLyricsAssist,
 } from "@/app/actions/lyrics-assist";
 import { useLocale } from "@/components/locale-provider";
 import { type StudioKey, st, stf } from "@/lib/studio/i18n";
-import { createClient } from "@/lib/supabase/browser";
 import { useCreateForm } from "@/store/create-form";
 import { Tip } from "../ui";
 
@@ -66,12 +66,10 @@ export function LyricsAi({
   // biome-ignore lint/correctness/useExhaustiveDependencies: see the comment above.
   useEffect(() => {
     if (!request) return;
-    const supabase = createClient();
     let alive = true;
     const poll = async () => {
-      const { data } = await supabase.rpc("lyrics_assist_state", {
-        p_request: request.id,
-      });
+      const result = await readLyricsAssistState(request.id);
+      const data = result.ok ? result.data : null;
       if (!alive || !data) return;
       const next = data as State;
       setState(next);
