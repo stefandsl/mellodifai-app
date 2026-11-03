@@ -31,8 +31,15 @@ export async function stopWriters(runner: Runner) {
 
 export function dumpTables(content: string): Set<string> {
   const tables = new Set<string>();
-  for (const match of content.matchAll(/^COPY ([^\s]+) \(/gmu)) {
-    const name = match[1];
+  const names = [
+    ...[
+      ...content.matchAll(
+        /^-- Data for Name: ([^;]+); Type: TABLE DATA; Schema: ([^;]+);/gmu,
+      ),
+    ].map((match) => `${match[2]}.${match[1]}`),
+    ...[...content.matchAll(/^COPY ([^\s]+) \(/gmu)].map((match) => match[1]),
+  ];
+  for (const name of names) {
     if (!name || !/^(public|auth|storage)\.[a-z_][a-z0-9_]*$/u.test(name))
       throw new Error("Unsupported backup table name");
     tables.add(name);
