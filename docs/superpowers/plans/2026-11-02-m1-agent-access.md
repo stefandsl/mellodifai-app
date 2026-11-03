@@ -64,7 +64,8 @@ Migration file names (numbering continues after 026; visualizer logos and remake
 | `20261102000033_ops_wrappers.sql` | 19 |
 | `20261102000034_ops_cookie_wrappers.sql` | 20 |
 | `20261102000035_fast_writer_price.sql` | 22 review R2 |
-| `20261102000036_ops_lockdown.sql` | 32 |
+| `20261102000036_engine_spend_authorization.sql` | 23 review R1 |
+| `20261102000037_ops_lockdown.sql` | 32 |
 
 The design names three additive migrations (`ops_roles`, `ops_layer`, `spend_ledger`); splitting them into reviewable files changes nothing that gets built (21.2 step 1 allows several files).
 
@@ -746,7 +747,7 @@ it("reservations end closed, or ambiguous for crash-after-submit", async () => {
 ### Task 32: `ops_lockdown`, the ACL test and the refusal tests (one commit, tag `m1-floor`)
 
 **Files:**
-- Create: `supabase/migrations/20261102000036_ops_lockdown.sql`, `supabase/tests/ops_acl.test.ts`, `supabase/tests/acl-allowlist.json`, `supabase/tests/ops_lockdown.test.ts`
+- Create: `supabase/migrations/20261102000037_ops_lockdown.sql`, `supabase/tests/ops_acl.test.ts`, `supabase/tests/acl-allowlist.json`, `supabase/tests/ops_lockdown.test.ts`
 - Modify: `supabase/tests/rls.test.ts` (Major 22)
 
 - [ ] **Step 1: Write the failing tests:**

@@ -7,6 +7,7 @@ import {
   timingFromWords,
 } from "@mellodifai/shared";
 import type { Take } from "../db.js";
+import { EngineAuthorizationError } from "../engine.js";
 import type { StageContext } from "../loop.js";
 import type { Ledger } from "../providers/ledger.js";
 import { callKey, groqAvailable } from "../providers/paid.js";
@@ -59,7 +60,7 @@ export async function storeHeardTiming(
 }
 
 // Hears each take with Groq Whisper and stores takes.scores, so the studio can suggest one.
-// Scores are a nicety: any failure is logged and the takes keep no scores, never failing the song.
+// Scorer failures are optional; ledger failures must fail the job.
 // ceiling: an engine length limit (YuE2 max_duration); a take ending within 5 s of it, or one
 // listed in truncated (its log reported the token budget), was cut by the engine.
 export async function scoreTakes(
@@ -67,6 +68,7 @@ export async function scoreTakes(
   takes: Take[],
   options: { ceiling?: number; truncated?: ReadonlySet<number> } = {},
 ): Promise<void> {
+  let ledgerOperation = false;
   try {
     if (!groqAvailable(context.secrets.values)) {
       await context.log("Takes not scored: GROQ_API_KEY is not set");
@@ -95,10 +97,11 @@ export async function scoreTakes(
     const entries: Array<{ take: Take; id: string }> = [];
     let ledger: Ledger | undefined;
     if (uncached.length) {
+      ledgerOperation = true;
       if (!context.groqLedger) throw new Error("Groq ledger is not configured");
       ledger = context.groqLedger();
       if (!(await ledger.reservationFor(context.job.id)))
-        throw new Error("Groq scoring has no reservation");
+        throw new Error("cap_exceeded: Groq scoring has no reservation");
       if ((context.job.attempts ?? 1) > 1)
         await ledger.extendStage(context.job.id);
       for (const take of uncached) {
@@ -118,6 +121,7 @@ export async function scoreTakes(
         }
         entries.push({ take, id });
       }
+      ledgerOperation = false;
     }
     await context.engine.run(
       "python",
@@ -145,13 +149,28 @@ export async function scoreTakes(
     );
     const report: unknown = JSON.parse(await readFile(reportFile, "utf8"));
     const scores = scoresByTake(report);
+    const rows = (
+      report as {
+        rows?: Array<{ take?: string; provider_duration?: unknown }>;
+      } | null
+    )?.rows;
+    ledgerOperation = true;
     for (const { take, id } of entries) {
-      const duration = scores.get(take.take_number ?? 0)?.duration;
+      const row = Array.isArray(rows)
+        ? rows.find((row) => row?.take === `take-${take.take_number}.mp3`)
+        : undefined;
+      const duration = row?.provider_duration;
       if (!ledger) throw new Error("Groq ledger is not configured");
       await ledger.settle(id, {
-        audio_hour: duration && duration > 0 ? duration / 3600 : 0.1,
+        audio_hour:
+          typeof duration === "number" &&
+          Number.isFinite(duration) &&
+          duration >= 0
+            ? duration / 3600
+            : 0.1,
       });
     }
+    ledgerOperation = false;
     for (const take of takes) {
       const number = take.take_number;
       const own = number && scores.get(number);
@@ -165,6 +184,15 @@ export async function scoreTakes(
     }
     await storeHeardTiming(context, takes);
   } catch (error) {
+    if (ledgerOperation || error instanceof EngineAuthorizationError) {
+      if (
+        ["MDF02", "MDF06"].includes(
+          (error as { code?: string } | null)?.code ?? "",
+        )
+      )
+        throw new Error("cap_exceeded", { cause: error });
+      throw error;
+    }
     try {
       await context.log(
         context.secrets.redact(`Take scoring failed: ${String(error)}`),

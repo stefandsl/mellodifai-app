@@ -381,9 +381,18 @@ M1 Task 23 sets the flag after childEnvironment, rejects unaccounted paid
 secrets in engine.run, and passes Groq entry IDs for uncached take scoring.
 Task 24 owns the remaining worker paid-call mapping.
 
+Task 23 review R1 adds migration 036, `ops.spend_entries_authorize`, granted
+only to service_role. Engine authorization now checks open entries and open
+reservations for every named provider; free grants are limited to the matching
+Kie CLI operation. Scoring ledger refusals propagate to the worker loop.
+Engine commit `83d8432` in `suno-remake` disables Whisper HTTP retries under
+`MELLODIFAI_ENV_ONLY=1` and passes provider duration through the score report.
+Use that engine revision with this worker. It is committed locally; the engine
+repository still has no configured remote.
+
 Task 22 review R2 adds migration `20261102000035_fast_writer_price.sql`
 for the default Sonnet 5.5 fast writer (verified OpenRouter prices: 2 USD input
 and 10 USD output per million tokens). The planned lockdown migration now takes
-036 or the next free number. OpenRouter job retries extend every rule in the
+037 or the next free number (Task 23 review R1 uses 036 for engine entry authorization). OpenRouter job retries extend every rule in the
 database stage estimate before their first request, once per transport; refusal
 blocks all requests. Partial extensions remain reserved until normal job close.

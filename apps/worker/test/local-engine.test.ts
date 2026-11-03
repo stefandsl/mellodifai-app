@@ -210,6 +210,7 @@ async function setup(
     comfy: runtime,
   };
   ctx.engine = new Engine({
+    validateEntries: async () => true,
     spawn,
     log: async () => {},
     secrets: ctx.secrets,

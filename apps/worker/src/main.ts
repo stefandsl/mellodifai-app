@@ -14,7 +14,7 @@ import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
 import { fakeSongless } from "./fake/lyrics-assist.js";
 import { WorkerLoop } from "./loop.js";
-import { serviceLedger } from "./providers/ledger.js";
+import { serviceLedger, validateEngineEntries } from "./providers/ledger.js";
 import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
@@ -121,6 +121,8 @@ async function main() {
   const db = new SupabaseDb(url, key, secrets.values.WORKER_OWNER_ID);
   const client = createClient(url, key);
   const engine = new Engine({
+    validateEntries: (entries, providers) =>
+      validateEngineEntries(client, entries, providers),
     log: async (line) => console.log(secrets.redact(line)),
     secrets,
     report,

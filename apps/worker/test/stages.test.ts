@@ -230,8 +230,8 @@ describe("take scoring at the end of generate_song", () => {
     ).toEqual(["first-entry", "second-entry"]);
     expect(vi.mocked(groqLedger.open).mock.calls).toHaveLength(2);
     expect(vi.mocked(groqLedger.settle).mock.calls).toEqual([
-      ["first-entry", { audio_hour: 212.4 / 3600 }],
-      ["second-entry", { audio_hour: 198 / 3600 }],
+      ["first-entry", { audio_hour: 0.1 }],
+      ["second-entry", { audio_hour: 0.1 }],
     ]);
     expect(call).toMatchObject({
       cmd: "python",
@@ -293,6 +293,37 @@ describe("take scoring at the end of generate_song", () => {
     expect(options?.entryIds).toBeUndefined();
     expect(vi.mocked(groqLedger.open)).not.toHaveBeenCalled();
     expect(scoreCalls(calls)).toHaveLength(1);
+  });
+  it.each(["MDF02", "MDF06"])(
+    "propagates reservation refusal %s before scoring",
+    async (code) => {
+      const { ctx, calls, groqLedger } = await scoringSetup();
+      vi.mocked(groqLedger.reservationFor).mockRejectedValue({ code });
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("cap_exceeded");
+      expect(scoreCalls(calls)).toHaveLength(0);
+    },
+  );
+  it.each(["extendStage", "open"] as const)(
+    "propagates %s cap refusal before scoring",
+    async (operation) => {
+      const { ctx, calls, groqLedger } = await scoringSetup();
+      vi.mocked(groqLedger[operation]).mockRejectedValue({ code: "MDF02" });
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("cap_exceeded");
+      expect(scoreCalls(calls)).toHaveLength(0);
+    },
+  );
+  it("settles provider duration rather than the probed file duration", async () => {
+    const { ctx, output, groqLedger } = await scoringSetup();
+    output.scores = {
+      rows: [{ take: "take-1.mp3", provider_duration: 120, duration: 999 }],
+    };
+    await stages.generate_song?.(ctx);
+    expect(groqLedger.settle).toHaveBeenNthCalledWith(1, "entry", {
+      audio_hour: 120 / 3600,
+    });
+    expect(groqLedger.settle).toHaveBeenNthCalledWith(2, "entry", {
+      audio_hour: 0.1,
+    });
   });
   it("never lets the Groq key reach the log", async () => {
     const { ctx } = await scoringSetup();
@@ -1252,6 +1283,7 @@ async function setup() {
     signal: new AbortController().signal,
   };
   ctx.engine = new Engine({
+    validateEntries: async () => true,
     spawn,
     log: async () => {},
     secrets: ctx.secrets,

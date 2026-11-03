@@ -109,7 +109,12 @@ it("hands a child only the secrets the caller names, and still redacts its outpu
     redact: (text: string) => text.replaceAll("groq-secret-value", "***"),
   };
   const log = vi.fn(async () => {});
-  const engine = new Engine({ spawn, log, secrets });
+  const engine = new Engine({
+    spawn,
+    log,
+    secrets,
+    validateEntries: async () => true,
+  });
   await engine.run("tool", []);
   await engine.run("tool", [], {
     secretEnv: ["GROQ_API_KEY"],
@@ -143,11 +148,57 @@ it("accepts several entry ids", async () => {
     queueMicrotask(() => child.emit("close", 0));
     return child;
   });
-  await new Engine({ spawn, log: async () => {} }).run("tool", [], {
-    secretEnv: ["GROQ_API_KEY"],
-    entryIds: ["take-1-entry", "take-2-entry"],
-  });
+  const validateEntries = vi.fn(async () => true);
+  await new Engine({ spawn, validateEntries, log: async () => {} }).run(
+    "tool",
+    [],
+    {
+      secretEnv: ["GROQ_API_KEY"],
+      entryIds: ["take-1-entry", "take-2-entry"],
+    },
+  );
   expect(spawn).toHaveBeenCalledOnce();
+  expect(validateEntries).toHaveBeenCalledWith(
+    ["take-1-entry", "take-2-entry"],
+    ["groq"],
+  );
+});
+
+it.each([undefined, async () => false])(
+  "rejects unverified or non-open entry IDs",
+  async (validateEntries) => {
+    const spawn = vi.fn<Spawn>();
+    const engine = new Engine({
+      spawn,
+      log: async () => {},
+      ...(validateEntries ? { validateEntries } : {}),
+    });
+    await expect(
+      engine.run("tool", [], {
+        secretEnv: ["GROQ_API_KEY"],
+        entryIds: ["invented-entry"],
+      }),
+    ).rejects.toThrow(/spend entry/u);
+    expect(spawn).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  ["GROQ_API_KEY", "credit"],
+  ["KIE_API_KEY", "generate"],
+])("rejects a free credit grant for %s and %s", async (key, operation) => {
+  const spawn = vi.fn<Spawn>();
+  await expect(
+    new Engine({ spawn, log: async () => {} }).run(
+      "node",
+      ["tools/kie.mjs", operation],
+      {
+        secretEnv: [key],
+        freeCall: "kie:credit",
+      },
+    ),
+  ).rejects.toThrow(/spend entry/u);
+  expect(spawn).not.toHaveBeenCalled();
 });
 
 it("accepts a named free call and refuses an unknown or blank authorization", async () => {
@@ -157,7 +208,7 @@ it("accepts a named free call and refuses an unknown or blank authorization", as
     return child;
   });
   const engine = new Engine({ spawn, log: async () => {} });
-  await engine.run("tool", [], {
+  await engine.run("node", ["tools/kie.mjs", "credit"], {
     secretEnv: ["KIE_API_KEY"],
     freeCall: "kie:credit",
   });

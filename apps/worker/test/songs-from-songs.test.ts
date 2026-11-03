@@ -141,7 +141,11 @@ async function setup(settings: Record<string, unknown> = {}, seconds = 200) {
     project,
     ws,
     db,
-    engine: new Engine({ spawn, log: async () => {} }).withWorkspace(root),
+    engine: new Engine({
+      spawn,
+      log: async () => {},
+      validateEntries: async () => true,
+    }).withWorkspace(root),
     storage,
     log: vi.fn(async () => {}),
     progress: vi.fn(async () => {}),

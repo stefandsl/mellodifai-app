@@ -52,6 +52,44 @@ async function refused(
 ) {
   await expect(tx.savepoint(work)).rejects.toMatchObject({ code });
 }
+it("authorizes only existing open entries on open reservations for every requested provider", async () => {
+  await fixture(async (tx) => {
+    const j = await job(tx);
+    const reservation = await reserve(tx, j.id);
+    const [entry] =
+      await tx`select ops.spend_entry_open(${reservation}, 'groq:test:a1', 'groq', '', '{"audio_hour":0.1}') as id`;
+    const authorized = async (ids: string[], providers: string[]) => {
+      const [row] =
+        await tx`select ops.spend_entries_authorize(${ids}::uuid[], ${providers}::text[]) as ok`;
+      return row.ok;
+    };
+    expect(await authorized([entry.id], ["groq"])).toBe(true);
+    const [second] =
+      await tx`select ops.spend_entry_open(${reservation}, 'groq:second:a1', 'groq', '', '{"audio_hour":0.1}') as id`;
+    expect(await authorized([entry.id, second.id], ["groq"])).toBe(true);
+    expect(await authorized([entry.id, randomUUID()], ["groq"])).toBe(false);
+    expect(await authorized([entry.id], ["kie"])).toBe(false);
+    expect(await authorized([entry.id], ["groq", "kie"])).toBe(false);
+    expect(await authorized([randomUUID()], ["groq"])).toBe(false);
+    expect(await authorized([], ["groq"])).toBe(false);
+    await tx`update public.reservations set state='closed' where id=${reservation}`;
+    expect(await authorized([entry.id], ["groq"])).toBe(false);
+    await tx`update public.reservations set state='open' where id=${reservation}`;
+    await tx`select ops.settle_spend(${entry.id}, '{"audio_hour":0.1}')`;
+    expect(await authorized([entry.id], ["groq"])).toBe(false);
+    for (const role of ["anon", "authenticated", "mdf_web", "mdf_auth"])
+      expect(
+        (
+          await tx`select has_function_privilege(${role}, 'ops.spend_entries_authorize(uuid[],text[])', 'execute') as ok`
+        )[0].ok,
+      ).toBe(false);
+    expect(
+      (
+        await tx`select has_function_privilege('service_role', 'ops.spend_entries_authorize(uuid[],text[])', 'execute') as ok`
+      )[0].ok,
+    ).toBe(true);
+  });
+});
 it("empty spend_caps: every paid path refuses with cap_exceeded reason no_cap", async () => {
   await fixture(async (tx) => {
     await tx`delete from public.spend_caps`;

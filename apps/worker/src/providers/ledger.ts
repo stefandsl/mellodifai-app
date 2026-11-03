@@ -2,6 +2,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type Items = Record<string, number>;
 
+export async function validateEngineEntries(
+  client: SupabaseClient,
+  entries: string[],
+  providers: string[],
+): Promise<boolean> {
+  const { data, error } = await client
+    .schema("ops")
+    .rpc("spend_entries_authorize", {
+      p_entries: entries,
+      p_providers: providers,
+    });
+  if (error) throw error;
+  return data === true;
+}
+
 export type Ledger = {
   reservationFor(jobId: string): Promise<string | null>;
   open(key: string, items: Items): Promise<string>;

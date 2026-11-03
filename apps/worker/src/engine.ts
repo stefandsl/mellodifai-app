@@ -6,13 +6,16 @@ import { FREE_KEY_CALLS } from "./providers/paid.js";
 import { workerTempDir } from "./runtime.js";
 import { childEnvironment, type Secrets } from "./secrets.js";
 
-export const PAID_SECRET_NAMES = [
-  "KIE_API_KEY",
-  "OPENROUTER_API_KEY",
-  "LYRICS_OPENROUTER_KEY",
-  "GROQ_API_KEY",
-  "HIGGSFIELD_API_KEY",
-] as const;
+const paidProviders: Record<string, string> = {
+  KIE_API_KEY: "kie",
+  OPENROUTER_API_KEY: "openrouter",
+  LYRICS_OPENROUTER_KEY: "openrouter",
+  GROQ_API_KEY: "groq",
+  HIGGSFIELD_API_KEY: "higgsfield",
+};
+export const PAID_SECRET_NAMES = Object.keys(paidProviders);
+
+export class EngineAuthorizationError extends Error {}
 
 type Child = {
   pid?: number | undefined;
@@ -40,6 +43,10 @@ export type EngineOptions = {
   cwd?: string;
 };
 type Dependencies = {
+  validateEntries?: (
+    entries: string[],
+    providers: string[],
+  ) => Promise<boolean>;
   secrets?: Secrets;
   spawn?: Spawn;
   log: (line: string) => Promise<void>;
@@ -123,17 +130,50 @@ export class Engine {
         "Shell shims are unsupported: use node <path to remotion CLI js> instead of npx or .cmd",
       );
     }
-    if (
-      options.secretEnv?.some((name) =>
-        (PAID_SECRET_NAMES as readonly string[]).includes(name),
-      ) &&
-      !options.entryIds?.some((id) => id.trim()) &&
-      !(
+    const providers = [
+      ...new Set(
+        (options.secretEnv ?? []).flatMap((name) =>
+          paidProviders[name] ? [paidProviders[name]] : [],
+        ),
+      ),
+    ];
+    if (providers.length) {
+      const freeOperation =
+        options.freeCall === "kie:balance-refresh"
+          ? "credit"
+          : options.freeCall?.slice(4);
+      const free =
+        providers.every((provider) => provider === "kie") &&
         options.freeCall &&
-        (FREE_KEY_CALLS as readonly string[]).includes(options.freeCall)
-      )
-    )
-      throw new Error("Paid secret requires a spend entry or free call");
+        (FREE_KEY_CALLS as readonly string[]).includes(options.freeCall) &&
+        /^(node)(?:\.exe)?$/iu.test(win32.basename(command)) &&
+        args[0]?.replaceAll("\\", "/") === "tools/kie.mjs" &&
+        ["credit", "job", "wait", "lyrics-ts"].includes(freeOperation ?? "") &&
+        args[1] === freeOperation;
+      if (!free) {
+        let authorized = false;
+        try {
+          if (
+            options.entryIds?.length &&
+            options.entryIds.every((id) => id.trim())
+          )
+            authorized =
+              (await this.dependencies.validateEntries?.(
+                options.entryIds,
+                providers,
+              )) ?? false;
+        } catch (cause) {
+          throw new EngineAuthorizationError(
+            "Paid secret spend entry validation failed",
+            { cause },
+          );
+        }
+        if (!authorized)
+          throw new EngineAuthorizationError(
+            "Paid secret requires a matching open spend entry or free call",
+          );
+      }
+    }
     const parts = new Map(
       (options.outputs ?? []).map((file) => {
         const { dir, name, ext } = parse(file);
