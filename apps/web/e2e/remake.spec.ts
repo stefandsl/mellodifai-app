@@ -88,11 +88,35 @@ test("remake: paste a link, follow the progress, review, edit a line, accept and
     card.getByText("Righe da riscrivere prima di continuare: 1"),
   ).toHaveCount(0);
 
+  const db = serviceClient();
+  const verse = card.getByRole("region", { name: "Verse 2" });
+  const firstLine = verse.getByRole("button", {
+    name: /^Modifica la riga 14:/u,
+  });
+  const beforeLine = await firstLine.getAttribute("aria-label");
+  const { data: beforeRemake, error: beforeError } = await db
+    .from("remakes")
+    .select("lyrics")
+    .eq("video_id", "49rDdMbXd_w")
+    .single();
+  if (beforeError || !beforeRemake)
+    throw beforeError ?? new Error("Remake lyrics missing");
+  const beforeVerse = (
+    beforeRemake.lyrics as {
+      sections: { id: string; lines: { text: string }[] }[];
+    }
+  ).sections
+    .find((section) => section.id === "verse-2")
+    ?.lines.map((line) => line.text);
+  if (!beforeLine || !beforeVerse)
+    throw new Error("Verse 2 missing before regeneration");
   await card
     .getByRole("button", { name: "Rigenera la sezione Verse 2" })
     .click();
+  await expect
+    .poll(() => firstLine.getAttribute("aria-label"))
+    .not.toBe(beforeLine);
   await expect(accept).toBeEnabled({ timeout: 60_000 });
-  const db = serviceClient();
   const { data: remake, error: remakeError } = await db
     .from("remakes")
     .select("id,version_id,stage,revision,lyrics")
@@ -101,6 +125,14 @@ test("remake: paste a link, follow the progress, review, edit a line, accept and
   if (remakeError || !remake) throw remakeError ?? new Error("Remake missing");
   expect(remake.stage).toBe("review");
   expect(remake.revision).toBeGreaterThan(1);
+  const afterVerse = (
+    remake.lyrics as { sections: { id: string; lines: { text: string }[] }[] }
+  ).sections
+    .find((section) => section.id === "verse-2")
+    ?.lines.map((line) => line.text);
+  expect(afterVerse).toBeDefined();
+  expect(afterVerse).not.toEqual(beforeVerse);
+  expect(await firstLine.getAttribute("aria-label")).toContain(afterVerse?.[0]);
   expect(JSON.stringify(remake.lyrics)).toContain(
     "il mondo corre e non mi vede",
   );
