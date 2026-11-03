@@ -44,7 +44,6 @@ const { chromium } =
 const SHELL =
   "C:\\Users\\Asus\\Documents\\suno-remake\\motion\\node_modules\\.remotion\\chrome-headless-shell\\win64\\chrome-headless-shell-win64\\chrome-headless-shell.exe";
 const FRAME = 75;
-const SCALE = 0.5;
 
 let dir: string;
 let server: Server;
@@ -190,6 +189,7 @@ async function compareFrame(
     inputProps: props,
     browserExecutable: SHELL,
   });
+  const scale = params.quality === "4K" ? 0.25 : 0.5;
   const out = join(
     dir,
     `${params.preset}-${params.aspect.replace(":", "x")}-${shots++}.png`,
@@ -201,7 +201,7 @@ async function compareFrame(
     frame: FRAME,
     inputProps: props,
     imageFormat: "png",
-    scale: SCALE,
+    scale,
     browserExecutable: SHELL,
   });
   const pub = `${origin}/public`;
@@ -216,8 +216,8 @@ async function compareFrame(
       {
         params: previewParams,
         frame: FRAME,
-        width: Math.round(composition.width * SCALE),
-        height: Math.round(composition.height * SCALE),
+        width: Math.round(composition.width * scale),
+        height: Math.round(composition.height * scale),
         title: props.title,
         duration: props.duration,
       },
@@ -254,6 +254,11 @@ describe("preview and render draw the same frame", () => {
       { ...base, preset },
     ]),
     ["classico 9:16", { ...base, preset: "classico", aspect: "9:16" }],
+    ["circle 4K 16:9", { ...base, preset: "circle", quality: "4K" }],
+    [
+      "classico 4K 9:16",
+      { ...base, preset: "classico", aspect: "9:16", quality: "4K" },
+    ],
     [
       "spectrum 16:9 with effects",
       {
@@ -402,6 +407,17 @@ describe("preview and render draw the same frame", () => {
       logo("dotline", "9:16", "bottom-left", 30),
     ],
     ["circle logo bottom right 9:16", logo("circle", "9:16", "bottom-right")],
+    [
+      "circle 4K logo and scanlines 16:9",
+      {
+        ...logo("circle", "16:9", "top-right", 20),
+        quality: "4K",
+        effects: base.effects.map((effect) => ({
+          ...effect,
+          enabled: effect.id === "scanlines" || effect.id === "vignette",
+        })),
+      },
+    ],
   ];
   for (const [name, params] of withLogos)
     it(name, async () => {

@@ -12,6 +12,7 @@ import {
   ANALYSIS_RATE,
   analyseSong,
   normalizeVisualizerParams,
+  renderSize,
   stockBackground,
   uploadPathOf,
   VISUALIZER_FPS,
@@ -172,6 +173,85 @@ async function probeSeconds(
   return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
 }
 
+export async function upscaleImage(
+  context: StageContext,
+  file: string,
+  size: { width: number; height: number },
+): Promise<string> {
+  let output = "";
+  const probe = context.engine.withWorkspace(
+    context.ws.root,
+    async (line) => {
+      output += line;
+    },
+    context.signal,
+  );
+  await probe.run(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "info",
+      "-i",
+      file,
+      "-frames:v",
+      "1",
+      "-vf",
+      "showinfo",
+      "-f",
+      "null",
+      "-",
+    ],
+    { cwd: dirname(file) },
+  );
+  // showinfo sees the decoded frame after ffmpeg's automatic EXIF rotation.
+  const match = /\bs:(\d+)x(\d+)\b/u.exec(output);
+  if (!match) throw new Error("Dimensioni dell'immagine non disponibili");
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    !width ||
+    !height
+  )
+    throw new Error("Dimensioni dell'immagine non valide");
+  const factor = Math.max(size.width / width, size.height / height);
+  if (factor <= 1) return file;
+  const scaled = file.replace(/\.[^.]+$/u, "-upscaled.png");
+  const even = (n: number) => Math.ceil(n / 2) * 2;
+  const scaledWidth = even(width * factor);
+  const scaledHeight = even(height * factor);
+  // Bound decoded output memory while allowing standard landscape/portrait 4K crops.
+  if (
+    scaledWidth > 8192 ||
+    scaledHeight > 8192 ||
+    scaledWidth * scaledHeight > 30_000_000
+  ) {
+    throw new Error(
+      "Immagine troppo allungata per l'ingrandimento: ritagliala prima di riprovare",
+    );
+  }
+  await context.engine.run(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      file,
+      "-frames:v",
+      "1",
+      "-vf",
+      `scale=${scaledWidth}:${scaledHeight}:flags=lanczos`,
+      scaled,
+    ],
+    { cwd: dirname(file), outputs: [scaled] },
+  );
+  return scaled;
+}
+
 export const visualizer: StageHandler = async (context) => {
   const { render, take, params } = await wanted(context);
   const name = `visualizer-${aspectName(params.aspect)}`;
@@ -269,6 +349,21 @@ export const visualizer: StageHandler = async (context) => {
             : null,
         ) ?? coverName;
     }
+    const frameSize = renderSize(params.aspect, params.quality);
+    const upscaled = new Map<string, string>();
+    const readyImage = async (name: string) => {
+      if (!upscaled.has(name))
+        upscaled.set(
+          name,
+          local(
+            await upscaleImage(context, join(pub, name), frameSize),
+          ) as string,
+        );
+      return upscaled.get(name) as string;
+    };
+    if (background?.kind === "image")
+      background.file = await readyImage(background.file);
+    if (center) center = await readyImage(center);
     // The user's logos, fetched like the centre upload. A logo whose file is gone is left out,
     // not a failed render; only the user's own uploads are read.
     const owner = render.owner_id ?? context.job.owner_id;

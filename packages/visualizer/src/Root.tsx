@@ -1,6 +1,6 @@
 import {
-  ASPECT_SIZE,
   normalizeVisualizerParams,
+  renderSize,
   VISUALIZER_FPS,
 } from "@mellodifai/shared";
 import { Composition } from "remotion";
@@ -33,7 +33,7 @@ export function Root() {
         const params = normalizeVisualizerParams(props.params);
         return {
           durationInFrames: Math.max(1, Math.round(props.frames)),
-          ...ASPECT_SIZE[params.aspect],
+          ...renderSize(params.aspect, params.quality),
           props: { ...props, params },
         };
       }}
