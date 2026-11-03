@@ -524,25 +524,35 @@ async function clean(f: Fixture) {
       });
     }
   }
-  for (const [key, { charge: c, amount }] of adjustments) {
-    const [counter] =
-      await sql`select used from public.spend_counters where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
-    if (!counter) throw new Error("charged counter missing");
-    expect(Number(counter.used) - (f.baseline.get(key) ?? 0)).toBeCloseTo(
-      amount,
-      4,
-    );
-    if (amount)
-      await sql`update public.spend_counters set used=used-${amount} where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
+  const failures: unknown[] = [];
+  try {
+    for (const [key, { charge: c, amount }] of adjustments) {
+      const [counter] =
+        await sql`select used from public.spend_counters where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
+      try {
+        if (!counter) throw new Error("charged counter missing");
+        expect(Number(counter.used) - (f.baseline.get(key) ?? 0)).toBeCloseTo(
+          amount,
+          4,
+        );
+      } catch (error) {
+        failures.push(error);
+      } finally {
+        await sql`update public.spend_counters set used=${f.baseline.get(key) ?? 0} where scope=${c.scope} and key=${c.key} and provider=${c.provider} and unit=${c.unit} and period=${c.period} and window_start=${c.window_start}`;
+      }
+    }
+  } finally {
+    await sql`delete from public.reservations where user_id=${f.user}`;
+    await sql`delete from public.jobs where owner_id=${f.user}`;
+    await sql`delete from public.versions where owner_id=${f.user}`;
+    await sql`delete from public.projects where owner_id=${f.user}`;
+    await sql`delete from auth.users where id=${f.user}`;
+    await sql`delete from public.admin_allowlist where email=${f.email}`;
+    await sql`delete from public.spend_caps where scope='run' and key=${f.run}`;
+    await sql`delete from public.spend_counters where scope='run' and key=${f.run}`;
   }
-  await sql`delete from public.reservations where user_id=${f.user}`;
-  await sql`delete from public.jobs where owner_id=${f.user}`;
-  await sql`delete from public.versions where owner_id=${f.user}`;
-  await sql`delete from public.projects where owner_id=${f.user}`;
-  await sql`delete from auth.users where id=${f.user}`;
-  await sql`delete from public.admin_allowlist where email=${f.email}`;
-  await sql`delete from public.spend_caps where scope='run' and key=${f.run}`;
-  await sql`delete from public.spend_counters where scope='run' and key=${f.run}`;
+  if (failures.length)
+    throw new AggregateError(failures, "Ledger counter assertions failed");
 }
 
 async function run(scenario: Scenario): Promise<Result> {
@@ -593,10 +603,60 @@ async function run(scenario: Scenario): Promise<Result> {
         await expect(generateSong(context)).rejects.toThrow();
         await sql`update public.jobs set status='failed' where id=${next.id}`;
       }
+    } else if (scenario === "retry-later") {
+      const { WorkerLoop } = await import("../src/loop.js");
+      const errors: string[] = [];
+      let executions = 0;
+      let notBefore = "";
+      const worker = new WorkerLoop({
+        db: context.db,
+        workerId: `ledger-${f.user}`,
+        engine: context.engine,
+        storage: context.storage,
+        secrets: context.secrets,
+        workspace: { forVersion: async () => context.ws },
+        report: (error) => errors.push(error),
+        stages: {
+          draft_lyrics: async (claimed) => {
+            expect(claimed.job.id).toBe(f.job.id);
+            executions++;
+            const result = await runDraft(claimed, true);
+            if (executions === 1) {
+              notBefore = new Date(Date.now() + 1500).toISOString();
+              return { retryLater: { reason: "integration retry", notBefore } };
+            }
+            return result;
+          },
+        },
+      });
+      try {
+        expect(await worker.runOnce()).toBe(true);
+        expect(errors).toEqual([]);
+        const [queued] =
+          await sql`select status,not_before from public.jobs where id=${f.job.id}`;
+        expect(queued?.status).toBe("queued");
+        expect(new Date(queued?.not_before).toISOString()).toBe(notBefore);
+        expect(await worker.runOnce()).toBe(false);
+        expect(executions).toBe(1);
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            Math.max(0, Date.parse(notBefore) - Date.now()) + 50,
+          ),
+        );
+        expect(await worker.runOnce()).toBe(true);
+        expect(errors).toEqual([]);
+        expect(executions).toBe(2);
+        const [done] =
+          await sql`select status from public.jobs where id=${f.job.id}`;
+        expect(done?.status).toBe("done");
+      } finally {
+        await worker.stop();
+      }
     } else {
-      if (scenario === "requeue" || scenario === "retry-later") {
+      if (scenario === "requeue") {
         await expect(runDraft(context, false)).rejects.toThrow();
-        await sql`update public.jobs set status='queued',attempts=2,not_before=${scenario === "retry-later" ? new Date(Date.now() - 1000).toISOString() : null} where id=${f.job.id}`;
+        await sql`update public.jobs set status='queued',attempts=2,not_before=null where id=${f.job.id}`;
         context.job.attempts = 2;
       }
       const drafted = await runDraft(context, true);
@@ -609,11 +669,19 @@ async function run(scenario: Scenario): Promise<Result> {
         await completeGeneration(f, context);
       }
     }
+    if (scenario === "retry-later") {
+      const [job] =
+        await sql`select attempts from public.jobs where id=${f.job.id}`;
+      expect(job?.attempts).toBe(3);
+    }
     return await snapshot(f);
   } finally {
     await sql`update public.jobs set status='failed' where owner_id=${f.user} and status in ('queued','running')`;
-    await clean(f);
-    await rm(root, { recursive: true, force: true });
+    try {
+      await clean(f);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   }
 }
 
@@ -637,7 +705,11 @@ for (const scenario of [
   });
 }
 it("reservations end closed, or ambiguous for crash-after-submit", () => {
-  for (const [scenario, result] of results)
+  expect(results.size).toBe(6);
+  for (const [scenario, result] of results) {
+    expect(result.states).toHaveLength(
+      scenario === "normal" || scenario === "resume-after-resolve" ? 2 : 1,
+    );
     expect(
       result.states.every(
         (state) =>
@@ -645,6 +717,7 @@ it("reservations end closed, or ambiguous for crash-after-submit", () => {
           (scenario === "crash-after-submit" ? "ambiguous" : "closed"),
       ),
     ).toBe(true);
+  }
 });
 
 it("replace_section submits through the kie fake and settles its entry", async () => {
@@ -688,8 +761,11 @@ it("replace_section submits through the kie fake and settles its entry", async (
     expect(result.states).toEqual(["closed"]);
   } finally {
     await sql`update public.jobs set status='failed' where owner_id=${f.user} and status in ('queued','running')`;
-    await clean(f);
-    await rm(root, { recursive: true, force: true });
+    try {
+      await clean(f);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   }
 });
 
@@ -704,7 +780,6 @@ it("Groq scoring sends one fake transcription per spend entry", async () => {
       values (${f.user},${f.version.id},'kie',1,1,'fake-preview') returning *`;
     if (!row) throw new Error("fixture take missing");
     const take = row as import("../src/db.js").Take;
-    await writeFile(join(context.ws.outDir, "take-1.mp3"), "fake local audio");
     const service = createClient(
       process.env.SUPABASE_URL ?? "",
       process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
@@ -714,50 +789,41 @@ it("Groq scoring sends one fake transcription per spend entry", async () => {
       ...context.secrets,
       values: { ...context.secrets.values, GROQ_API_KEY: "fake-groq-key" },
     };
-    const spawn: Spawn = (_command, _args, options) => {
-      const groqBase = options.env?.GROQ_BASE_URL;
-      if (!groqBase)
-        throw new Error("Groq base URL was not passed to the child");
-      const child = Object.assign(new EventEmitter(), {
-        stdout: new EventEmitter(),
-        stderr: new EventEmitter(),
-      });
-      setImmediate(() => {
-        void (async () => {
-          await fetch(`${groqBase}/audio/transcriptions`, {
-            method: "POST",
-            body: "fake audio",
-          });
-          await writeFile(
-            join(context.ws.outDir, "takes-score.json"),
-            JSON.stringify({
-              rows: [
-                {
-                  take: "take-1.mp3",
-                  duration: 60,
-                  provider_duration: 6,
-                  lufs: -14,
-                  end_drop_db: 3,
-                  fidelity: 0.9,
-                  weak_sections: [],
-                  truncated: false,
-                },
-              ],
-            }),
-          );
-          child.emit("close", 0);
-        })().catch((error: unknown) => child.emit("error", error));
-      });
-      return child as unknown as ReturnType<Spawn>;
-    };
+    await context.engine.run("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=6",
+      "-c:a",
+      "libmp3lame",
+      join(context.ws.outDir, "take-1.mp3"),
+    ]);
+    await writeFile(
+      join(context.ws.versionsDir, "lyrics.txt"),
+      "[Verse]\nfake",
+    );
     context.engine = new Engine({
-      spawn,
       secrets: context.secrets,
       validateEntries: (ids, providers) =>
         validateEngineEntries(service, ids, providers),
       log: async () => {},
     }).withWorkspace(root);
     await scoreTakes(context, [take]);
+    expect(
+      JSON.parse(
+        await readFile(join(context.ws.outDir, "take-1.words.json"), "utf8"),
+      ),
+    ).toEqual([{ word: "fake", start: 0, end: 1 }]);
+    const report = JSON.parse(
+      await readFile(join(context.ws.outDir, "takes-score.json"), "utf8"),
+    );
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0].provider_duration).toBe(6);
+    const [entry] = await sql`select e.state,e.items from public.spend_entries e
+      join public.reservations r on r.id=e.reservation_id where r.user_id=${f.user}`;
+    expect(entry?.state).toBe("settled");
+    expect(Number(entry?.items.audio_hour)).toBeCloseTo(6 / 3600, 6);
     await sql`update public.jobs set status='done' where id=${f.job.id}`;
     const result = await snapshot(f);
     expect(result.used).toBeCloseTo(result.expected, 4);
@@ -766,7 +832,29 @@ it("Groq scoring sends one fake transcription per spend entry", async () => {
     expect(result.states).toEqual(["closed"]);
   } finally {
     await sql`update public.jobs set status='failed' where owner_id=${f.user} and status in ('queued','running')`;
+    try {
+      await clean(f);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+it("cleans fixtures even when a counter assertion fails", async () => {
+  const f = await fixture("draft_lyrics");
+  try {
+    await sql`select ops.reserve_job(${f.job.id})`;
+    await sql`update public.jobs set status='failed' where id=${f.job.id}`;
+    await sql`update public.spend_counters set used=used+0.01 where scope='run' and key=${f.run}`;
+    await expect(clean(f)).rejects.toThrow("Ledger counter assertions failed");
+    const [remaining] = await sql`select
+      (select count(*) from auth.users where id=${f.user}) as users,
+      (select count(*) from public.reservations where user_id=${f.user}) as reservations,
+      (select count(*) from public.spend_counters where scope='run' and key=${f.run}) as counters`;
+    expect(Number(remaining?.users)).toBe(0);
+    expect(Number(remaining?.reservations)).toBe(0);
+    expect(Number(remaining?.counters)).toBe(0);
+  } finally {
     await clean(f);
-    await rm(root, { recursive: true, force: true });
   }
 });

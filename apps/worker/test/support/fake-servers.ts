@@ -68,7 +68,11 @@ export async function startFakeProviders(): Promise<{
     choices: [{ message: { content: "{}" } }],
     usage: { prompt_tokens: 100, completion_tokens: 20, cost: 0.0001 },
   }));
-  const groq = await start(() => ({ text: "fake words", duration: 6 }));
+  const groq = await start(() => ({
+    text: "fake",
+    duration: 6,
+    words: [{ word: "fake", start: 0, end: 1 }],
+  }));
   return {
     kie,
     openrouter,
