@@ -297,6 +297,43 @@ describe("songs from audio on kie", () => {
       "POST https://api.kie.ai/api/v1/jobs/createTask",
     ]);
   });
+  it.each(['{"code":500,"msg":"truncated', "not JSON", "null"])(
+    "keeps source submission guards after an unreadable HTTP 400 response: %s",
+    async (body) => {
+      const { ctx, db } = await setup({
+        source: { mode: "cover", upload: UPLOAD },
+      });
+      db.profiles[0] = { id: OWNER, role: "admin", email: "owner@example.com" };
+      let submissions = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL) => {
+          const url = String(input);
+          if (url.includes("credit"))
+            return new Response(JSON.stringify({ code: 200, data: 50 }));
+          if (url.includes("file-stream-upload"))
+            return new Response(
+              JSON.stringify({
+                code: 200,
+                data: { downloadUrl: "https://kie/f.mp3" },
+              }),
+            );
+          if (url.includes("createTask")) {
+            submissions++;
+            return new Response(body, { status: 400 });
+          }
+          throw new Error("Unexpected fake request");
+        }),
+      );
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("unknown");
+      expect(db.versions[0]?.kie_submit_state).toBe("submitting");
+      await expect(
+        readFile(join(ctx.ws.outDir, "submitting-1.json"), "utf8"),
+      ).resolves.toContain('"state":"submitting"');
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("unknown");
+      expect(submissions).toBe(1);
+    },
+  );
   it("is not charged when the balance is short or the source too long", async () => {
     const { ctx } = await setup({}, 200);
     const poor = new KieClient(

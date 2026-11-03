@@ -93,7 +93,10 @@ export class KieClient {
       signal: AbortSignal.timeout(60_000),
     });
     const text = await response.text();
-    const json = (safeJson(text) ?? { msg: text.slice(0, 300) }) as Envelope;
+    const parsed = safeJson(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      throw new Error("kie response unreadable");
+    const json = parsed as Envelope;
     if (!response.ok || (json.code !== undefined && json.code !== 200)) {
       const message = `kie ${new URL(url).pathname} answered ${response.status}/${json.code ?? "-"}: ${String(json.msg ?? "").slice(0, 200)}`;
       if (response.status >= 500 || (json.code ?? 0) >= 500)
