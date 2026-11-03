@@ -151,8 +151,20 @@ The `feat/suite-health` stream verifies the merged suites on a private Supabase 
 `E:/mellodifai/stacks/suite-health` (API 47621, DB 47622, Studio 47623, Mailpit 47624,
 Next 3230). Copy `supabase/` there and give it a unique `project_id` and ports before
 `npx supabase start --workdir E:/mellodifai/stacks/suite-health`. The CLI v3.0.0 defaults
-to newer service image tags; use only the cached image IDs listed in the stream brief,
-and restore any temporary Docker tags immediately after startup. Keep `SUPABASE_HOME`,
+to newer service image tags. Before starting, use `docker tag <cached source> <CLI tag>`
+for these pairs, then verify each target resolves to the source image ID:
+
+| Cached source | CLI tag |
+| --- | --- |
+| `public.ecr.aws/supabase/storage-api:v1.84.19` | `public.ecr.aws/supabase/storage-api:v1.88.0` |
+| `public.ecr.aws/supabase/postgres:17.11.0.006` | `public.ecr.aws/supabase/postgres:17.11.0.011` |
+| `public.ecr.aws/supabase/studio:2026.10.19-sha-b375769` | `public.ecr.aws/supabase/studio:2026.11.02-sha-a05e7ec` |
+| `public.ecr.aws/supabase/edge-runtime:v1.77.8` | `public.ecr.aws/supabase/edge-runtime:v1.77.9` |
+| `public.ecr.aws/supabase/realtime:v2.147.1` | `supabase/realtime:v2.151.3` |
+
+Record the existing target IDs first, restore existing tags and remove only newly created
+tags after startup. Do not prune Docker images: unrelated stacks share the daemon.
+Keep `SUPABASE_HOME`,
 `TEMP`, and `TMP` on E: and the npm cache on G:. Write `supabase status -o env` to a private
 file under the stack folder, then map its `API_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`, and
 `MAILPIT_URL` to `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and
