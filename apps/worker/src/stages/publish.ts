@@ -14,10 +14,15 @@ export const publish: StageHandler = async (context) => {
   const workerId =
     context.secrets.values.WORKER_ID ??
     `worker-${process.env.COMPUTERNAME ?? "pc"}`;
-  const render = await context.db.getRender(context.version.id, "master");
-  if (!render?.path)
-    throw new Error("master render is required before publishing");
-  const prior = await context.db.getPublicationForVersion(context.version.id);
+  const renderId = (context.job.payload as { render_id?: string } | null)
+    ?.render_id;
+  const render = renderId
+    ? await context.db.getRenderById(renderId)
+    : await context.db.getRender(context.version.id, "master");
+  if (render?.version_id !== context.version.id)
+    throw new Error("publish render must belong to the version");
+  if (!render?.path) throw new Error("render is required before publishing");
+  const prior = await context.db.getPublicationForRender(render.id);
   if (prior?.render_id === render.id && prior.upload_state === "uploading")
     throw new Error("upload state unknown, check YouTube Studio");
   if (prior?.render_id === render.id && prior.upload_state === "uploaded")

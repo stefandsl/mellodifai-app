@@ -1475,6 +1475,25 @@ describe("stage safety and behavior", () => {
       privacyStatus: "private",
     });
   });
+  it("uploads the selected Video Studio render", async () => {
+    const { ctx, db } = await setup();
+    const video = join(ctx.ws.renderDir, "visualizer-16x9.mp4");
+    await writeFile(video, "branded fixture");
+    db.renders.push({
+      id: "branded",
+      version_id: ctx.version.id,
+      kind: "visualizer",
+      aspect: "16:9",
+      path: video,
+    });
+    ctx.job.payload = { render_id: "branded", metadata: { title: "Branded" } };
+    await stages.publish?.(ctx);
+    const meta = JSON.parse(
+      await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+    );
+    expect(meta.video).toBe(video);
+    expect(db.publications[0]?.render_id).toBe("branded");
+  });
   it("fills a title-only publish job from its render snapshot", async () => {
     const { ctx, db } = await setup();
     ctx.project.brief = "Old project brief";

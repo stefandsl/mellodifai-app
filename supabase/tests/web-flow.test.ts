@@ -940,6 +940,89 @@ it("publishes only approved current masters, deduplicates pending requests and p
     .eq("id", v);
   expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
 });
+it("publishes a completed landscape visualizer only after master approval", async () => {
+  const version = await fixture("approved");
+  const master = await service
+    .from("renders")
+    .insert({ owner_id: owner, version_id: version, kind: "master" })
+    .select("id")
+    .single();
+  expect(master.error).toBeNull();
+  const visualizer = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "visualizer",
+      aspect: "16:9",
+      visualizer_params: {},
+      path: "video.mp4",
+      preview_path: "preview.mp4",
+    })
+    .select("id")
+    .single();
+  expect(visualizer.error).toBeNull();
+  const input = {
+    p_render: visualizer.data.id,
+    p_metadata: { title: "Branded video" },
+  };
+  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ approved_at: new Date().toISOString() })
+        .eq("id", master.data.id)
+    ).error,
+  ).toBeNull();
+  const portrait = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "visualizer",
+      aspect: "9:16",
+      visualizer_params: {},
+      path: "portrait.mp4",
+      preview_path: "portrait-preview.mp4",
+    })
+    .select("id")
+    .single();
+  expect(portrait.error).toBeNull();
+  expect(
+    (
+      await client.rpc("enqueue_publish", {
+        ...input,
+        p_render: portrait.data.id,
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ preview_path: null })
+        .eq("id", visualizer.data.id)
+    ).error,
+  ).toBeNull();
+  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ preview_path: "preview.mp4" })
+        .eq("id", visualizer.data.id)
+    ).error,
+  ).toBeNull();
+  expect((await client.rpc("enqueue_publish", input)).error).toBeNull();
+  const job = await service
+    .from("jobs")
+    .select("payload")
+    .eq("version_id", version)
+    .eq("stage", "publish")
+    .single();
+  expect(job.data?.payload).toMatchObject({ render_id: visualizer.data.id });
+});
 it("generation and retry requests cannot double enqueue on repeated clicks", async () => {
   const v = await fixture("takes_review");
   const first = await client.rpc("generate_again", {

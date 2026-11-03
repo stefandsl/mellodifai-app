@@ -200,6 +200,11 @@ private database and browser suites each passed twice again; the stack is stoppe
 Review round 2 verifies the visible private publication title and visibility, the playlist item's
 song ID, and the actual 2-8 second WAV segment. The private database and browser suites each
 passed twice again; the stack is stopped.
+Review round 3 preserves submitted AI lyrics in the fake draft and lets the approved project's
+publish kit select a completed 16:9 Video Studio render. Migration
+`20261103070001_publish_visualizer.sql` allows that render only after master approval; the worker
+uploads the selected render from the job payload. The migration is applied to the private coverage
+stack only. The branch's report has the latest tests and screenshots.
 
 ## 5. Later work (after M1)
 

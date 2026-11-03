@@ -37,6 +37,7 @@ import { useAction } from "./use-action";
 export type RenderPreview = {
   id: string;
   kind: string;
+  aspect?: string | null;
   previewUrl: string | null;
   qa_results: {
     gates?: { name: string; pass: boolean; value: unknown }[];
@@ -155,6 +156,9 @@ export function ProjectWorkspace({
   const { pending, run } = useAction();
   const [reason, setReason] = useState("");
   const master = renders.find((r) => r.kind === "master");
+  const visualizer = renders.find(
+    (r) => r.kind === "visualizer" && r.aspect === "16:9" && r.previewUrl,
+  );
   const gates = master?.qa_results.gates ?? [];
   const failed = gates.some((g) => !g.pass);
   const freeKieRetry =
@@ -289,6 +293,7 @@ export function ProjectWorkspace({
         {failedJob?.stage === "publish" ? (
           <PublishPanel
             renderId={master?.id}
+            visualizerId={visualizer?.id}
             defaults={defaults}
             publication={publication}
             uploading={activeJob}
@@ -393,21 +398,28 @@ export function ProjectWorkspace({
         )}
         <section className="mb-8 space-y-6">
           <StoryboardSummary sections={sections} lang={lang} />
-          {(["master", "hook"] as const).map((kind) => {
+          {(["master", "hook", "visualizer"] as const).map((kind) => {
             const preview = renders.find(
-              (render) => render.kind === kind,
+              (render) =>
+                render.kind === kind &&
+                (kind !== "visualizer" || render.aspect === "16:9"),
             )?.previewUrl;
+            if (kind === "visualizer" && !preview) return null;
+            const label =
+              kind === "visualizer"
+                ? t(lang, "stage.visualizer")
+                : kind === "master"
+                  ? t(lang, "media.master")
+                  : t(lang, "media.hook");
             return (
               <figure key={kind} className="space-y-2">
-                <figcaption className="text-sm font-medium">
-                  {t(lang, `media.${kind}`)}
-                </figcaption>
+                <figcaption className="text-sm font-medium">{label}</figcaption>
                 {preview ? (
                   // biome-ignore lint/a11y/useMediaCaption: reviewed lyric video has embedded lyrics.
                   <video
                     controls
                     preload="metadata"
-                    aria-label={t(lang, `media.${kind}`)}
+                    aria-label={label}
                     src={preview}
                     className={
                       kind === "master"
@@ -443,6 +455,7 @@ export function ProjectWorkspace({
         </section>
         <PublishPanel
           renderId={master?.id}
+          visualizerId={visualizer?.id}
           defaults={defaults}
           publication={publication}
           uploading={activeJob}
@@ -455,6 +468,7 @@ export function ProjectWorkspace({
 }
 export function PublishPanel({
   renderId,
+  visualizerId,
   defaults,
   publication,
   uploading = false,
@@ -463,6 +477,7 @@ export function PublishPanel({
   quotaNotBefore,
 }: {
   renderId?: string;
+  visualizerId?: string;
   defaults: ReturnType<typeof publicationDefaults>;
   publication: PublicationView | null;
   uploading?: boolean;
@@ -518,14 +533,14 @@ export function PublishPanel({
           {t(lang, `visibility.${publication.privacy}`)}
         </p>
         <a
-          className="underline"
+          className="block underline"
           href={`https://www.youtube.com/watch?v=${publication.youtube_video_id}`}
           target="_blank"
           rel="noreferrer"
         >
           {t(lang, "media.youtube")}
         </a>
-        <label htmlFor="publish-at">
+        <label className="block" htmlFor="publish-at">
           {t(lang, "publish.at")}
           <Input
             id="publish-at"
@@ -566,10 +581,11 @@ export function PublishPanel({
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
-        if (renderId)
+        const selectedRenderId = String(data.get("render") || renderId || "");
+        if (selectedRenderId)
           run(() =>
             uploadPrivate({
-              renderId,
+              renderId: selectedRenderId,
               metadata: Object.fromEntries(
                 ["title", "description", "tags", "chapters"].map((k) => [
                   k,
@@ -580,6 +596,21 @@ export function PublishPanel({
           );
       }}
     >
+      {visualizerId && (
+        <fieldset className="flex flex-wrap gap-4 text-sm">
+          <legend className="mb-2 font-medium">
+            {t(lang, "publish.video")}
+          </legend>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="render" value={renderId} defaultChecked />
+            {t(lang, "media.master")}
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="render" value={visualizerId} />
+            {t(lang, "stage.visualizer")}
+          </label>
+        </fieldset>
+      )}
       {(["title", "description", "tags", "chapters"] as const).map((field) => (
         <label className="grid gap-2" key={field} htmlFor={`publish-${field}`}>
           {t(lang, `publish.${field}`)}

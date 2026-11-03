@@ -60,7 +60,12 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
     .eq("id", projectId)
     .single();
   expect(project?.brief).toBe(approvedLyrics.trim());
-  expect((version.lyric_pack as { lyrics: string }).lyrics).toContain(title);
+  await expect(page.locator("#lyric-lyrics")).toHaveValue(
+    /Apro la finestra sul mattino, sì/u,
+  );
+  expect((version.lyric_pack as { lyrics: string }).lyrics).toContain(
+    approvedLyrics.trim(),
+  );
 
   await page
     .getByRole("button", { name: /Approva e genera la canzone/u })
@@ -142,7 +147,7 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
     .poll(async () => {
       const { data } = await db
         .from("renders")
-        .select("id,preview_path,visualizer_params")
+        .select("id,path,preview_path,visualizer_params")
         .eq("version_id", version.id)
         .eq("kind", "visualizer")
         .order("created_at", { ascending: false })
@@ -153,13 +158,14 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
     .not.toBeNull();
   const { data: visualizer } = await db
     .from("renders")
-    .select("preview_path,visualizer_params")
+    .select("id,path,preview_path,visualizer_params")
     .eq("version_id", version.id)
     .eq("kind", "visualizer")
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
-  if (!visualizer?.preview_path) throw new Error("Visualizer render missing");
+  if (!visualizer?.path || !visualizer.preview_path)
+    throw new Error("Visualizer render missing");
   const logoUrl = (
     visualizer.visualizer_params as { logos: { assetUrl: string }[] }
   ).logos[0]?.assetUrl;
@@ -190,6 +196,7 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
   await page.goto(`/projects/${projectId}?lang=it`);
   await page.getByRole("button", { name: "Approva video" }).click();
   await expect(page.getByText("IT Approvato")).toBeVisible();
+  await page.getByRole("radio", { name: "Video visualizer" }).check();
   const publishTitle = await page.getByLabel("Titolo video").inputValue();
   const description = await page.getByLabel("Descrizione").inputValue();
   expect(description).toContain(title);
@@ -198,28 +205,33 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
     page.getByRole("button", { name: "Rendi pubblico" }),
   ).toBeVisible();
   await expect(page.getByText(`Video: ${publishTitle}`)).toBeVisible();
+  for (const [width, height] of [
+    [1440, 900],
+    [1360, 600],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.getByText(/Visibilit/u).scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `${shots}/published-visualizer-${width}x${height}.png`,
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
   await expect(page.getByText("Visibilità: Privato")).toBeVisible();
-  const { data: master } = await db
-    .from("renders")
-    .select("id,preview_path,qa_results")
-    .eq("version_id", version.id)
-    .eq("kind", "master")
-    .single();
-  if (!master?.preview_path) throw new Error("Master render missing");
   const { data: publication, error: publicationError } = await db
     .from("publications")
     .select("render_id,privacy,metadata,youtube_video_id")
-    .eq("render_id", master.id)
+    .eq("render_id", visualizer.id)
     .single();
   if (publicationError || !publication)
     throw publicationError ?? new Error("Publication missing");
   expect(publication).toMatchObject({
-    render_id: master.id,
+    render_id: visualizer.id,
     privacy: "private",
     metadata: { title: publishTitle, description },
   });
   expect(publication.youtube_video_id).toBeTruthy();
   expect(
-    (await db.storage.from("previews").download(master.preview_path)).error,
+    (await db.storage.from("previews").download(visualizer.preview_path)).error,
   ).toBeNull();
 });
