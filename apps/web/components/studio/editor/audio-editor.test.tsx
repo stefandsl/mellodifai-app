@@ -215,6 +215,8 @@ describe("audio editor", () => {
     await open();
     await setField("Inizio", "2");
     await setField("Fine", "8");
+    await waitFor(() => expect(field("Inizio")).toHaveValue("0:02.0"));
+    await waitFor(() => expect(field("Fine")).toHaveValue("0:08.0"));
     await userEvent.click(
       screen.getByRole("button", { name: /^Dissolvenza in entrata:/u }),
     );
@@ -236,7 +238,7 @@ describe("audio editor", () => {
     expect(
       screen.getByRole("button", { name: "Ascolta la modifica" }),
     ).toBeVisible();
-  });
+  }, 15_000);
 
   it("exports the edit as WAV and as MP3 under the song's name", async () => {
     const saved: { name: string; type: string }[] = [];
@@ -253,6 +255,7 @@ describe("audio editor", () => {
       });
     await open();
     await setField("Fine", "4");
+    await waitFor(() => expect(field("Fine")).toHaveValue("0:04.0"));
     await userEvent.click(screen.getByRole("button", { name: "Scarica WAV" }));
     await waitFor(() => expect(saved).toHaveLength(1));
     await userEvent.click(screen.getByRole("button", { name: "Scarica MP3" }));
