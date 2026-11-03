@@ -69,6 +69,9 @@ export async function scoreTakes(
   options: { ceiling?: number; truncated?: ReadonlySet<number> } = {},
 ): Promise<void> {
   let ledgerOperation = false;
+  const entries: Array<{ take: Take; id: string }> = [];
+  let ledger: Ledger | undefined;
+  let prepared = false;
   try {
     if (!groqAvailable(context.secrets.values)) {
       await context.log("Takes not scored: GROQ_API_KEY is not set");
@@ -94,8 +97,6 @@ export async function scoreTakes(
         uncached.push(take);
       }
     }
-    const entries: Array<{ take: Take; id: string }> = [];
-    let ledger: Ledger | undefined;
     if (uncached.length) {
       ledgerOperation = true;
       if (!context.groqLedger) throw new Error("Groq ledger is not configured");
@@ -123,6 +124,7 @@ export async function scoreTakes(
       }
       ledgerOperation = false;
     }
+    prepared = true;
     await context.engine.run(
       "python",
       [
@@ -184,6 +186,8 @@ export async function scoreTakes(
     }
     await storeHeardTiming(context, takes);
   } catch (error) {
+    if (!prepared && ledger)
+      for (const { id } of entries) await ledger.settle(id, { audio_hour: 0 });
     if (ledgerOperation || error instanceof EngineAuthorizationError) {
       if (
         ["MDF02", "MDF06"].includes(

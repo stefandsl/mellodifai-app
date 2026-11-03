@@ -325,6 +325,27 @@ describe("take scoring at the end of generate_song", () => {
       audio_hour: 0.1,
     });
   });
+  it.each(["open", "extend"] as const)(
+    "settles unused entries at zero when later preparation fails in %s",
+    async (operation) => {
+      const { ctx, calls, groqLedger } = await scoringSetup();
+      vi.mocked(groqLedger.open)
+        .mockResolvedValueOnce("unused-entry")
+        .mockRejectedValueOnce({
+          code: operation === "open" ? "MDF02" : "MDF07",
+        });
+      if (operation === "extend")
+        vi.mocked(groqLedger.extend).mockRejectedValue({ code: "MDF02" });
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("cap_exceeded");
+      expect(scoreCalls(calls)).toHaveLength(0);
+      expect(groqLedger.settle).toHaveBeenCalledExactlyOnceWith(
+        "unused-entry",
+        {
+          audio_hour: 0,
+        },
+      );
+    },
+  );
   it("never lets the Groq key reach the log", async () => {
     const { ctx } = await scoringSetup();
     const run = ctx.engine.run.bind(ctx.engine);

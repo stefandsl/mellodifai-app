@@ -390,6 +390,11 @@ Engine commit `83d8432` in `suno-remake` disables Whisper HTTP retries under
 Use that engine revision with this worker. It is committed locally; the engine
 repository still has no configured remote.
 
+Task 23 reviews R2/R3 authorize paid names in the final child environment,
+including process, dependency and per-call environment inputs. If preparing
+take scoring fails before the engine call, already opened entries settle at
+zero and the ledger failure still propagates.
+
 Task 22 review R2 adds migration `20261102000035_fast_writer_price.sql`
 for the default Sonnet 5.5 fast writer (verified OpenRouter prices: 2 USD input
 and 10 USD output per million tokens). The planned lockdown migration now takes

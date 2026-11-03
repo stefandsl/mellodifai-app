@@ -164,6 +164,38 @@ it("accepts several entry ids", async () => {
   );
 });
 
+it.each(["options", "dependencies", "process"] as const)(
+  "authorizes paid keys from the %s environment before spawning",
+  async (source) => {
+    const spawn = vi.fn<Spawn>(() => {
+      const child = new EventEmitter();
+      queueMicrotask(() => child.emit("close", 0));
+      return child;
+    });
+    const env = { GROQ_API_KEY: "test-groq-value" };
+    const validateEntries = vi.fn(async () => true);
+    if (source === "process") vi.stubEnv("GROQ_API_KEY", env.GROQ_API_KEY);
+    try {
+      const engine = new Engine({
+        spawn,
+        log: async () => {},
+        validateEntries,
+        ...(source === "dependencies" ? { env } : {}),
+      });
+      const options = source === "options" ? { env } : {};
+      await expect(engine.run("tool", [], options)).rejects.toThrow(
+        /spend entry/u,
+      );
+      expect(spawn).not.toHaveBeenCalled();
+      await engine.run("tool", [], { ...options, entryIds: ["entry"] });
+      expect(validateEntries).toHaveBeenCalledWith(["entry"], ["groq"]);
+      expect(spawn.mock.calls[0]?.[2].env).toMatchObject(env);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  },
+);
+
 it.each([undefined, async () => false])(
   "rejects unverified or non-open entry IDs",
   async (validateEntries) => {

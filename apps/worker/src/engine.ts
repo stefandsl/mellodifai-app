@@ -130,11 +130,33 @@ export class Engine {
         "Shell shims are unsupported: use node <path to remotion CLI js> instead of npx or .cmd",
       );
     }
+    const env = {
+      ...childEnvironment(
+        {
+          ...process.env,
+          ...this.dependencies.env,
+          ...options.env,
+        },
+        this.dependencies.secrets,
+      ),
+      ...Object.fromEntries(
+        (options.secretEnv ?? []).flatMap((name) => {
+          const value = this.dependencies.secrets?.values[name];
+          return value ? [[name, value]] : [];
+        }),
+      ),
+      PYTHONIOENCODING: "utf-8",
+      TMP: workerTempDir(),
+      TEMP: workerTempDir(),
+      TMPDIR: workerTempDir(),
+      MELLODIFAI_ENV_ONLY: "1",
+    };
     const providers = [
       ...new Set(
-        (options.secretEnv ?? []).flatMap((name) =>
-          paidProviders[name] ? [paidProviders[name]] : [],
-        ),
+        [...(options.secretEnv ?? []), ...Object.keys(env)].flatMap((name) => {
+          const provider = paidProviders[name.toUpperCase()];
+          return provider ? [provider] : [];
+        }),
       ),
     ];
     if (providers.length) {
@@ -197,27 +219,7 @@ export class Engine {
       shell: false,
       windowsHide: true,
       ...(options.cwd ? { cwd: options.cwd } : {}),
-      env: {
-        ...childEnvironment(
-          {
-            ...process.env,
-            ...this.dependencies.env,
-            ...options.env,
-          },
-          this.dependencies.secrets,
-        ),
-        ...Object.fromEntries(
-          (options.secretEnv ?? []).flatMap((name) => {
-            const value = this.dependencies.secrets?.values[name];
-            return value ? [[name, value]] : [];
-          }),
-        ),
-        PYTHONIOENCODING: "utf-8",
-        TMP: workerTempDir(),
-        TEMP: workerTempDir(),
-        TMPDIR: workerTempDir(),
-        MELLODIFAI_ENV_ONLY: "1",
-      },
+      env,
     });
     let logs = Promise.resolve();
     const tail: string[] = [];
