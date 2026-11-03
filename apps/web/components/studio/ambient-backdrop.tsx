@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   type Color,
   colorCss,
@@ -46,10 +46,12 @@ export function useGlass() {
 export function AmbientBackdrop() {
   const track = usePlayer((state) => state.queue[state.index]);
   const { enabled } = useGlass();
-  const [palette, setPalette] = useState<Color[]>(fallback);
-  const [previous, setPrevious] = useState<Color[] | null>(null);
-  const lastPalette = useRef<Color[] | null>(null);
+  const [layers, setLayers] = useState<{
+    current: Color[];
+    previous: Color[] | null;
+  }>({ current: fallback, previous: null });
   const [light, setLight] = useState(false);
+  const palette = layers.current;
 
   useEffect(() => {
     const sync = () =>
@@ -73,15 +75,21 @@ export function AmbientBackdrop() {
   }, []);
 
   useEffect(() => {
+    const showPalette = (colors: Color[]) =>
+      setLayers((old) =>
+        old.current === colors || old.current.join() === colors.join()
+          ? old
+          : { current: colors, previous: old.current },
+      );
     if (!enabled) return;
     const url = track?.coverUrl;
     if (!url) {
-      setPalette(fallback);
+      showPalette(fallback);
       return;
     }
     const saved = cache.get(url);
     if (saved) {
-      setPalette(saved);
+      showPalette(saved);
       return;
     }
     let cancelled = false;
@@ -94,19 +102,19 @@ export function AmbientBackdrop() {
         canvas.height = 36;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) {
-          if (!cancelled) setPalette(fallback);
+          if (!cancelled) showPalette(fallback);
           return;
         }
         context.drawImage(image, 0, 0, 36, 36);
         const colors = coverColors(context.getImageData(0, 0, 36, 36));
         cache.set(url, colors);
-        if (!cancelled) setPalette(colors);
+        if (!cancelled) showPalette(colors);
       } catch {
-        if (!cancelled) setPalette(fallback);
+        if (!cancelled) showPalette(fallback);
       }
     };
     image.onerror = () => {
-      if (!cancelled) setPalette(fallback);
+      if (!cancelled) showPalette(fallback);
     };
     image.src = url;
     return () => {
@@ -125,11 +133,13 @@ export function AmbientBackdrop() {
 
   useEffect(() => {
     if (!enabled) return;
-    setPrevious(lastPalette.current);
-    lastPalette.current = palette;
-    const timer = window.setTimeout(() => setPrevious(null), 480);
+    if (!layers.previous) return;
+    const timer = window.setTimeout(
+      () => setLayers((old) => ({ ...old, previous: null })),
+      480,
+    );
     return () => window.clearTimeout(timer);
-  }, [enabled, palette]);
+  }, [enabled, layers.previous]);
 
   if (!enabled) return null;
   const background = (colors: Color[]) => ({
@@ -140,11 +150,11 @@ export function AmbientBackdrop() {
       aria-hidden
       className="ambient-backdrop pointer-events-none absolute inset-0 overflow-hidden"
     >
-      {previous && (
-        <div className="absolute inset-0" style={background(previous)} />
+      {layers.previous && (
+        <div className="absolute inset-0" style={background(layers.previous)} />
       )}
       <div
-        key={`${track?.id ?? "idle"}-${palette.join()}`}
+        key={palette.join()}
         className="ambient-enter absolute inset-0"
         style={background(palette)}
       />

@@ -209,7 +209,33 @@ test("glass setting changes the shell and karaoke themes without layout overflow
       "style",
       /glass-e2e\.svg/u,
     );
+    let releaseCover: (() => void) | undefined;
+    const coverReady = new Promise<void>((resolve) => {
+      releaseCover = resolve;
+    });
+    let coverBlocked = false;
+    await page.route(/glass-e2e-alt\.svg/u, async (route) => {
+      coverBlocked = true;
+      await coverReady;
+      await route.continue();
+    });
+    const oldLayer = await page.locator(".ambient-enter").elementHandle();
     await page.getByRole("button", { name: `Riproduci: ${nextTitle}` }).click();
+    try {
+      await expect.poll(() => coverBlocked).toBe(true);
+      await page.waitForTimeout(150);
+      expect(await oldLayer?.evaluate((element) => element.isConnected)).toBe(
+        true,
+      );
+      await expect(page.locator(".ambient-backdrop > div")).toHaveCount(1);
+      expect(await palette()).toEqual([
+        "rgb(89 25 52)",
+        "rgb(28 54 104)",
+        "rgb(69 52 28)",
+      ]);
+    } finally {
+      releaseCover?.();
+    }
     await expect(page.locator(".studio-player .cover-enter")).toHaveAttribute(
       "style",
       /glass-e2e-alt\.svg/u,
@@ -267,7 +293,7 @@ test("glass setting changes the shell and karaoke themes without layout overflow
         maxIntervalMs: Math.round(Math.max(...intervals)),
       }),
     );
-    expect(fps).toBeGreaterThanOrEqual(45);
+    expect(fps).toBeGreaterThanOrEqual(55);
     await page.emulateMedia({ reducedMotion: "reduce" });
     expect(
       await dialog.evaluate(
