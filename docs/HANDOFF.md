@@ -153,8 +153,9 @@ published render files and thumbnails during cleanup, and adds the song-page act
 `20261103050003_rerender_metadata.sql` are applied to the e2e database only. The second migration snapshots
 the current storyboard, thumbnail, publication metadata and Video Studio look, and limits render
 row writes to worker and RPC paths. The third keeps saved metadata across later re-renders. Report and
-screenshots: `E:/mellodifai/codex-streams/rerender/`. It awaits integration into `build/studio-ui`.
-The shared e2e database and full browser suites still have unrelated role, auth rate-limit,
+screenshots: `E:/mellodifai/codex-streams/rerender/`. Review round 3 also covers legacy flat
+preview cleanup and guards its database fixture against non-e2e ports. It awaits integration into
+`build/studio-ui`. The shared e2e database and full browser suites still have role, auth rate-limit,
 and competing-worker failures; read the stream report before integration.
 
 ## 5. Later work (after M1)
