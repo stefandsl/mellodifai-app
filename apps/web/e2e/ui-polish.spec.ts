@@ -6,6 +6,9 @@ import { serviceClient } from "./support";
 
 const email = "e2e-ui-visual-20261103@mellodifai.test";
 
+if (process.platform !== "win32")
+  throw new Error("UI image baselines require the Windows visual test gate");
+
 test.beforeEach(async ({ page, baseURL }) => {
   if (!baseURL) throw new Error("E2E base URL required");
   const db = serviceClient();
@@ -76,10 +79,9 @@ test("mobile remake selectors and action fit", async ({ page }) => {
   if (!countryBox || !actionBox) throw new Error("Remake controls missing");
   expect(countryBox.width).toBeGreaterThan(130);
   expect(actionBox.y).toBeGreaterThan(countryBox.y + countryBox.height);
-  if (process.platform === "win32")
-    await expect(
-      page.locator('section[aria-labelledby="remake-title"]').last(),
-    ).toHaveScreenshot("remake-mobile.png");
+  await expect(
+    page.locator('section[aria-labelledby="remake-title"]').last(),
+  ).toHaveScreenshot("remake-mobile.png");
 });
 
 test("mobile library filters fit without a clipped strip", async ({ page }) => {
@@ -88,10 +90,9 @@ test("mobile library filters fit without a clipped strip", async ({ page }) => {
   const filters = page.getByRole("button", { name: "Filtri" });
   await expect(filters).toBeVisible();
   await expect(page.getByRole("button", { name: "Da fare" })).toBeHidden();
-  if (process.platform === "win32")
-    await expect(page.locator("main header").first()).toHaveScreenshot(
-      "library-header-mobile.png",
-    );
+  await expect(page.locator("main header").first()).toHaveScreenshot(
+    "library-header-mobile.png",
+  );
 });
 
 test.afterAll(async () => {
@@ -122,10 +123,9 @@ test("mobile Video Studio header shows its full subtitle", async ({ page }) => {
   expect(
     await subtitle.evaluate((element) => getComputedStyle(element).whiteSpace),
   ).not.toBe("nowrap");
-  if (process.platform === "win32")
-    await expect(studio.locator("header")).toHaveScreenshot(
-      "video-header-mobile.png",
-    );
+  await expect(studio.locator("header")).toHaveScreenshot(
+    "video-header-mobile.png",
+  );
 });
 
 test("subtle text meets AA contrast in both themes", async ({ page }) => {
