@@ -77,7 +77,7 @@ export function installCommands(opts: { root: string }): string[][] {
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      `$ErrorActionPreference='Stop'; $deploy=${quote(deploy)}; if (-not (Test-Path -LiteralPath $deploy -PathType Container)) { throw 'Deploy clone required' }; foreach ($dir in @(${directories.map(quote).join(",")})) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; foreach ($file in @(${envFiles.map(quote).join(",")})) { if (Test-Path -LiteralPath $file) { if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Expected env file' } } else { New-Item -ItemType File -Path $file | Out-Null } }`,
+      `$ErrorActionPreference='Stop'; $deploy=${quote(deploy)}; if (-not (Test-Path -LiteralPath $deploy -PathType Container)) { throw 'Deploy clone required' }; foreach ($dir in @(${directories.map(quote).join(",")})) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; foreach ($file in @(${envFiles.map(quote).join(",")})) { if (Test-Path -LiteralPath $file) { if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Expected env file' } } else { New-Item -ItemType Directory -Path (Split-Path -Parent $file) -Force | Out-Null; New-Item -ItemType File -Path $file | Out-Null } }`,
     ],
     [
       "powershell.exe",
