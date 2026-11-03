@@ -48,7 +48,6 @@ export type StageResult = {
   enqueue?: {
     stage: Stage;
     idempotencyKey: string;
-    payload?: Record<string, unknown>;
   }[];
   retryLater?: { reason: string; notBefore: string };
 };
@@ -64,8 +63,16 @@ export type SonglessHandler = (
 ) => Promise<Pick<StageResult, "retryLater">>;
 export type SonglessRegistry = Partial<Record<Stage, SonglessHandler>>;
 export type WorkspaceProvider = {
-  forVersion(projectId: string, lang: Version["lang"]): Promise<Workspace>;
+  forVersion(
+    projectId: string,
+    lang: Version["lang"],
+    fake?: boolean,
+  ): Promise<Workspace>;
 };
+
+export function useFakes(job: Pick<Job, "fake_providers">): boolean {
+  return process.env.WORKER_FAKE === "1" || job.fake_providers === true;
+}
 
 let renderLock: Promise<void> = Promise.resolve();
 class MissingRecord extends Error {}
@@ -99,7 +106,9 @@ export class WorkerLoop {
       db: Db;
       workerId: string;
       stages: StageRegistry;
+      fakeStages?: StageRegistry;
       songless?: SonglessRegistry;
+      fakeSongless?: SonglessRegistry;
       workspace?: WorkspaceProvider;
       engine?: Engine;
       storage?: Storage;
@@ -275,7 +284,9 @@ export class WorkerLoop {
       }
     };
     const executeSongless = async (): Promise<StageResult> => {
-      const handler = this.options.songless?.[job.stage];
+      const handler = (
+        useFakes(job) ? this.options.fakeSongless : this.options.songless
+      )?.[job.stage];
       if (!handler)
         throw new Error(
           `No handler registered for songless stage ${job.stage}`,
@@ -311,13 +322,19 @@ export class WorkerLoop {
         throw new MissingRecord(`Project ${version.project_id} not found`);
       await authorizeStage(db, job, version, project);
       authorized = true;
-      const handler = this.options.stages[job.stage];
+      const handler = (
+        useFakes(job) ? this.options.fakeStages : this.options.stages
+      )?.[job.stage];
       if (!handler)
         throw new Error(`No handler registered for stage ${job.stage}`);
       const { engine, storage, secrets, workspace } = this.options;
       if (!engine || !storage || !secrets || !workspace)
         throw new Error("Worker dependencies are not configured");
-      const ws = await workspace.forVersion(project.id, version.lang);
+      const ws = await workspace.forVersion(
+        project.id,
+        version.lang,
+        useFakes(job),
+      );
       signal.throwIfAborted();
       active.engine = engine.withWorkspace(ws.root, log, signal);
       return handler({
@@ -387,12 +404,7 @@ export class WorkerLoop {
           await db.patchVersion(versionId, { status: result.versionStatus });
         for (const next of result.enqueue ?? []) {
           signal.throwIfAborted();
-          await db.enqueue(
-            versionId,
-            next.stage,
-            next.idempotencyKey,
-            next.payload,
-          );
+          await db.enqueue(job.id, versionId, next.stage, next.idempotencyKey);
         }
       }
       signal.throwIfAborted();

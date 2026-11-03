@@ -23,6 +23,10 @@ export type Job = {
   heartbeat_at?: string | null;
   error?: string | null;
   worker_id?: string | null;
+  token_id?: string | null;
+  run_id?: string | null;
+  fake_providers?: boolean;
+  priority?: number;
 };
 export type Version = {
   generation_count?: number;
@@ -196,11 +200,11 @@ export interface Db {
   getProject(id: string): Promise<Project | null>;
   patchVersion(id: string, patch: Partial<Version>): Promise<void>;
   enqueue(
+    parentJobId: string,
     versionId: string,
     stage: Stage,
     idempotencyKey: string,
-    payload?: Record<string, unknown>,
-  ): Promise<void>;
+  ): Promise<string>;
   requeue(
     jobId: string,
     workerId: string,
@@ -391,22 +395,23 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(error.message);
   }
   async enqueue(
+    parentJobId: string,
     versionId: string,
     stage: Stage,
     idempotencyKey: string,
-    payload?: Record<string, unknown>,
-  ): Promise<void> {
-    const { error } = await this.client.from("jobs").upsert(
-      {
-        owner_id: (await this.getVersion(versionId))?.owner_id,
-        version_id: versionId,
-        stage,
-        idempotency_key: idempotencyKey,
-        ...(payload ? { payload } : {}),
-      },
-      { onConflict: "idempotency_key", ignoreDuplicates: true },
-    );
-    if (error) throw new Error(error.message);
+  ): Promise<string> {
+    const { data, error } = await this.client
+      .schema("ops")
+      .rpc("worker_enqueue", {
+        p_parent_job: parentJobId,
+        p_version: versionId,
+        p_stage: stage,
+        p_idempotency_key: idempotencyKey,
+      });
+    if (error) throw error;
+    if (typeof data !== "string")
+      throw new Error("worker_enqueue returned no job id");
+    return data;
   }
   async requeue(
     jobId: string,
@@ -777,23 +782,49 @@ export class InMemoryDb implements Db {
     Object.assign(this.versions.find((item) => item.id === id) ?? {}, patch);
   }
   async enqueue(
+    parentJobId: string,
     versionId: string,
     stage: Stage,
     idempotencyKey: string,
-    payload?: Record<string, unknown>,
-  ) {
-    if (this.jobs.some((job) => job.idempotency_key === idempotencyKey)) return;
+  ): Promise<string> {
+    const parent = this.findJob(parentJobId);
+    if (
+      this.versions.find((version) => version.id === versionId)?.owner_id !==
+      parent.owner_id
+    )
+      throw new Error("owned version required");
+    const existing = this.jobs.find(
+      (job) => job.idempotency_key === idempotencyKey,
+    );
+    if (existing) {
+      if (
+        existing.owner_id !== parent.owner_id ||
+        existing.version_id !== versionId ||
+        existing.stage !== stage ||
+        existing.token_id !== parent.token_id ||
+        existing.run_id !== parent.run_id ||
+        existing.fake_providers !== parent.fake_providers ||
+        existing.priority !== parent.priority
+      )
+        throw new Error("invalid idempotency key reuse");
+      return existing.id;
+    }
+    const id = crypto.randomUUID();
     this.jobs.push({
-      ...(payload ? { payload } : {}),
-      ...((await this.getVersion(versionId))?.owner_id
-        ? { owner_id: (await this.getVersion(versionId))?.owner_id as string }
+      ...(parent.owner_id !== undefined ? { owner_id: parent.owner_id } : {}),
+      ...(parent.token_id !== undefined ? { token_id: parent.token_id } : {}),
+      ...(parent.run_id !== undefined ? { run_id: parent.run_id } : {}),
+      ...(parent.fake_providers !== undefined
+        ? { fake_providers: parent.fake_providers }
         : {}),
-      id: crypto.randomUUID(),
+      ...(parent.priority !== undefined ? { priority: parent.priority } : {}),
+      id,
       version_id: versionId,
       stage,
       status: "queued",
       idempotency_key: idempotencyKey,
     });
+    return id;
   }
   async requeue(
     jobId: string,

@@ -17,7 +17,11 @@ export class WorkspaceFactory {
     private readonly fontsSource = process.env.MELLODIFAI_FONTS ??
       join(workerRuntimeRoot(), "fonts"),
   ) {}
-  async forVersion(projectId: string, lang: Lang): Promise<Workspace> {
+  async forVersion(
+    projectId: string,
+    lang: Lang,
+    fake = process.env.WORKER_FAKE === "1",
+  ): Promise<Workspace> {
     const root = join(this.projectsRoot, projectId, lang);
     const versionsDir = join(root, "versions", lang);
     const outDir = join(root, "out", lang);
@@ -35,8 +39,7 @@ export class WorkspaceFactory {
     try {
       await stat(fontsDestination);
     } catch {
-      if (process.env.WORKER_FAKE === "1")
-        await mkdir(fontsDestination, { recursive: true });
+      if (fake) await mkdir(fontsDestination, { recursive: true });
       else await cp(this.fontsSource, fontsDestination, { recursive: true });
     }
     return { root, versionsDir, outDir, publicDir, renderDir };

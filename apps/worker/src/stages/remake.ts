@@ -292,7 +292,6 @@ export function remakeStages(
         {
           stage: "remake_rewrite",
           idempotencyKey: `remake_rewrite:${remake.id}:${context.job.id}`,
-          payload: { mode: "full" },
         },
       ],
     };

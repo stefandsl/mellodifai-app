@@ -163,8 +163,10 @@ async function main() {
   const loop = new WorkerLoop({
     db,
     workerId,
-    stages: process.env.WORKER_FAKE === "1" ? fakeStages : stages,
-    songless: process.env.WORKER_FAKE === "1" ? fakeSongless : songlessStages,
+    stages,
+    fakeStages,
+    songless: songlessStages,
+    fakeSongless,
     workspace: new WorkspaceFactory(),
     engine,
     storage: new SupabaseStorage(client),

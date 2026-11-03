@@ -17,6 +17,7 @@ it("claims, heartbeats, and finishes its own queued fixture", async () => {
   const worker = `queue-integration-${id}`;
   let owner: string | undefined;
   let project: string | undefined;
+  let childId: string | undefined;
   try {
     expect(
       (await service.from("admin_allowlist").insert({ email })).error,
@@ -41,12 +42,14 @@ it("claims, heartbeats, and finishes its own queued fixture", async () => {
       .select("id")
       .single();
     expect(version.error).toBeNull();
+    const versionId = version.data?.id;
+    if (!versionId) throw new Error("Fixture version was not created");
     expect(
       (
         await service.from("jobs").insert({
           id,
           owner_id: owner,
-          version_id: version.data?.id,
+          version_id: versionId,
           stage: "draft_lyrics",
           idempotency_key: worker,
           created_at: "1970-01-01T00:00:00Z",
@@ -63,6 +66,26 @@ it("claims, heartbeats, and finishes its own queued fixture", async () => {
     });
     expect(await db.heartbeat(id, worker)).toBe(true);
     expect(await db.heartbeat(id, `${worker}-wrong`)).toBe(false);
+    childId = await db.enqueue(
+      id,
+      versionId,
+      "import_audio",
+      `${worker}-child`,
+    );
+    expect(
+      (
+        await service
+          .from("jobs")
+          .select("id,owner_id,version_id,stage")
+          .eq("id", childId)
+          .single()
+      ).data,
+    ).toMatchObject({
+      id: childId,
+      owner_id: owner,
+      version_id: versionId,
+      stage: "import_audio",
+    });
     await db.finishJob(id, { integration: true }, worker);
     const finished = await service
       .from("jobs")
@@ -77,6 +100,10 @@ it("claims, heartbeats, and finishes its own queued fixture", async () => {
     });
     expect(finished.data?.finished_at).toBeTruthy();
   } finally {
+    if (childId)
+      expect(
+        (await service.from("jobs").delete().eq("id", childId)).error,
+      ).toBeNull();
     expect((await service.from("jobs").delete().eq("id", id)).error).toBeNull();
     if (project)
       expect(

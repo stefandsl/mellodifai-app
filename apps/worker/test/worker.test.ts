@@ -45,6 +45,124 @@ const dependencies = {
 };
 
 describe("worker loop", () => {
+  it("child jobs copy the parent's token, run, fake flag and priority", async () => {
+    const db = new InMemoryDb(
+      [
+        {
+          ...job,
+          token_id: "token-1",
+          run_id: "run-1",
+          fake_providers: true,
+          priority: 7,
+        },
+      ],
+      [{ ...version }],
+      [project],
+    );
+    const loop = new WorkerLoop({
+      db,
+      workerId: "test",
+      stages: {
+        qa: async () => ({
+          enqueue: [{ stage: "art", idempotencyKey: "art:1" }],
+        }),
+      },
+      fakeStages: {
+        qa: async () => ({
+          enqueue: [{ stage: "art", idempotencyKey: "art:1" }],
+        }),
+      },
+      ...dependencies,
+    });
+
+    await loop.runOnce();
+
+    expect(db.jobs[1]).toMatchObject({
+      owner_id: "owner",
+      version_id: version.id,
+      stage: "art",
+      token_id: "token-1",
+      run_id: "run-1",
+      fake_providers: true,
+      priority: 7,
+    });
+  });
+
+  it("a refused child reservation fails the parent with cap_exceeded", async () => {
+    const db = new InMemoryDb([{ ...job }], [{ ...version }], [project]);
+    const calls: unknown[][] = [];
+    db.enqueue = async (...args) => {
+      calls.push(args);
+      throw Object.assign(new Error("reservation refused"), { code: "MDF02" });
+    };
+    const loop = new WorkerLoop({
+      db,
+      workerId: "test",
+      stages: {
+        qa: async () => ({
+          enqueue: [{ stage: "art", idempotencyKey: "art:1" }],
+        }),
+      },
+      ...dependencies,
+      report: () => {},
+    });
+
+    await loop.runOnce();
+
+    expect(calls).toEqual([[job.id, version.id, "art", "art:1"]]);
+    expect(db.jobs[0]).toMatchObject({
+      status: "failed",
+      error: "cap_exceeded",
+    });
+    expect(db.jobs).toHaveLength(1);
+  });
+
+  it("a job with fake_providers runs fake stages without WORKER_FAKE", async () => {
+    const previousFake = process.env.WORKER_FAKE;
+    process.env.WORKER_FAKE = "0";
+    const db = new InMemoryDb(
+      [{ ...job, fake_providers: true }],
+      [{ ...version }],
+      [project],
+    );
+    const ran: string[] = [];
+    const workspaceModes: boolean[] = [];
+    const loop = new WorkerLoop({
+      db,
+      workerId: "test",
+      stages: {
+        qa: async () => {
+          ran.push("real");
+          return {};
+        },
+      },
+      fakeStages: {
+        qa: async () => {
+          ran.push("fake");
+          return {};
+        },
+      },
+      ...dependencies,
+      workspace: {
+        forVersion: async (_projectId, _lang, fake) => {
+          workspaceModes.push(fake ?? false);
+          return dependencies.workspace.forVersion();
+        },
+      },
+    });
+
+    try {
+      await loop.runOnce();
+    } finally {
+      if (previousFake === undefined) delete process.env.WORKER_FAKE;
+      else process.env.WORKER_FAKE = previousFake;
+    }
+
+    expect(ran).toEqual(["fake"]);
+    expect(workspaceModes).toEqual([true]);
+    expect(db.jobs[0]?.status).toBe("done");
+  });
+
   it("fails a throwing handler and marks its version failed", async () => {
     const db = new InMemoryDb([{ ...job }], [{ ...version }], [project]);
     const loop = new WorkerLoop({

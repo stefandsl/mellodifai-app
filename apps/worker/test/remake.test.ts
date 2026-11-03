@@ -134,7 +134,7 @@ describe("remake stages", () => {
     expect(db.jobs.map((j) => [j.stage, j.status, j.payload ?? {}])).toEqual([
       ["remake_ingest", "done", {}],
       ["remake_analyse", "done", {}],
-      ["remake_rewrite", "done", { mode: "full" }],
+      ["remake_rewrite", "done", {}],
     ]);
     const remake = db.remakes[0];
     expect(remake).toMatchObject({
