@@ -32,8 +32,8 @@ Gemini) drive the app through a CLI and MCP on the owner's own subscriptions.
 - Disk: never write databases, caches, logs, transcripts, model weights or test data on C:.
   Use `E:/mellodifai/...` (runtime, reports, render-tmp, logs) or `G:\caches`. If C: has
   less than 20 GB free, stop and report. Never delete files you did not create.
-- Playwright / e2e only on the e2e stack (Next on 3210, Supabase API 45621). Never on the
-  live stack (Supabase API 54321).
+- Playwright / e2e only on an isolated test stack (normally Next on 3210, Supabase API 45621).
+  Never on the live stack (Supabase API 54321).
 - The Supabase CLI is `npx supabase` (cached v3.0.0). Never factory-reset Docker. Migrations are additive only, each with database tests.
 - No em dash characters anywhere (use "-"). Plain commit messages, no co-author lines.
 - Do not commit `apps/web/AGENTS.md`. Do not change the owner's account settings.
@@ -146,6 +146,19 @@ The `feat/ui-polish` stream has a visual audit, UI fixes, and before/after scree
 `E:/mellodifai/codex-streams/ui-polish/report.md`. Its final style-card evidence covers
 1440x900, 1360x600, and 390x844. The focused browser suite and unit gates pass; the shared
 database and full e2e stack had unrelated failures in its review-round-2 run.
+
+The `feat/suite-health` stream verifies the merged suites on a private Supabase stack at
+`E:/mellodifai/stacks/suite-health` (API 47621, DB 47622, Studio 47623, Mailpit 47624,
+Next 3230). Copy `supabase/` there and give it a unique `project_id` and ports before
+`npx supabase start --workdir E:/mellodifai/stacks/suite-health`. The CLI v3.0.0 defaults
+to newer service image tags; use only the cached image IDs listed in the stream brief,
+and restore any temporary Docker tags immediately after startup. Keep `SUPABASE_HOME`,
+`TEMP`, and `TMP` on E: and the npm cache on G:. Write `supabase status -o env` to a private
+file under the stack folder, then map its `API_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`, and
+`MAILPIT_URL` to `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and
+`MAILPIT_URL` for the test process. Set `E2E_PORT=3230` and `WORKER_FAKE=1`. Never print or
+commit the status or test env files. `supabase/tests/song-assets.test.ts` now accepts any
+local non-live stack through the same URL guard as Playwright.
 
 ## 5. Later work (after M1)
 
