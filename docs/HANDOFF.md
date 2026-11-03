@@ -69,7 +69,8 @@ Merged into `build/studio-ui` and pushed:
   `20261102000026_remakes.sql` applied to the live stack. Real rewrites stay blocked until the
   owner turns off the OpenRouter privacy filter (or sets `LYRICS_OPENROUTER_KEY` to a key
   without it). The worker now depends on `@mellodifai/remake`: `pnpm install` before starting it.
-  The audio editor trim test flake under load is fixed (146d2dc).
+  The audio editor trim test flake under load is fixed (146d2dc). Playback timeout
+  and export commit race test fixes are on `feat/test-flakes`.
 - Agentic studio design revision 6 and the M1 plan.
 - Video Studio 1080p/4K quality selection and local image upscaler, merged from `feat/render-4k`.
 
