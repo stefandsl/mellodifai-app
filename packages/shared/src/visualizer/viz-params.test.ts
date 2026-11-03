@@ -14,6 +14,7 @@ import {
   newLogo,
   normalizeVisualizerParams,
   PARTICLE_SHAPES,
+  renderSize,
   rerollSeed,
   STOCK_BACKGROUNDS,
   stockBackground,
@@ -140,6 +141,14 @@ describe("visualizer parameters", () => {
   it("renders 16:9 at 1920x1080 and true full-frame 9:16 at 1080x1920", () => {
     expect(ASPECT_SIZE["16:9"]).toEqual({ width: 1920, height: 1080 });
     expect(ASPECT_SIZE["9:16"]).toEqual({ width: 1080, height: 1920 });
+  });
+
+  it("reads older settings as 1080p and sizes both 4K aspects", () => {
+    expect(normalizeVisualizerParams({ aspect: "9:16" }).quality).toBe("1080p");
+    expect(normalizeVisualizerParams({ quality: "4K" }).quality).toBe("4K");
+    expect(normalizeVisualizerParams({ quality: "8K" }).quality).toBe("1080p");
+    expect(renderSize("16:9", "4K")).toEqual({ width: 3840, height: 2160 });
+    expect(renderSize("9:16", "4K")).toEqual({ width: 2160, height: 3840 });
   });
 
   it("rejects out-of-range values and foreign links in the strict schema", () => {
