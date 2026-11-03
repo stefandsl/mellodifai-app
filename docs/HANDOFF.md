@@ -437,3 +437,8 @@ remake and lyric editor polls now use `ops.my_remake` and
 customer/admin JWT refusal tests pass on the e2e stack.
 Production remains at the Task 33 owner gate. The ledger integration gate
 needs port 3210 free; the owner's local launcher currently holds that port.
+Task 32 review R2 confirms that this gate remains unverified. The owner must
+release the launcher port before rerunning `pnpm test:ledger` with the private
+e2e environment loaded. Both 3210 and 3219 must have no listeners. The existing
+progress ruling forbids agents from stopping the launcher; repeated review
+requests do not satisfy that prerequisite. Keep the ledger guard intact.
