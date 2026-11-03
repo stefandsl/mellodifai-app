@@ -5,7 +5,7 @@ import {
   readFile,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
   type LyricPack,
@@ -19,7 +19,7 @@ import {
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { makeThumbnail } from "../stages/art.js";
 import { songStoryboard } from "../stages/storyboard.js";
-import { key, upload, writePack } from "../stages/utils.js";
+import { key, renderAssetPath, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
 
 export const fakePack: LyricPack = {
@@ -286,12 +286,47 @@ export function createFakeStages(
         }
         case "storyboard": {
           const pack = LyricPackSchema.parse(ctx.version.lyric_pack);
+          const currentRender = await ctx.db.getRender(
+            ctx.version.id,
+            "master",
+          );
+          const saved = (
+            currentRender?.qa_results as {
+              assets?: {
+                storyboard_path?: unknown;
+                storyboard_sections?: unknown;
+              };
+            } | null
+          )?.assets;
           const path = join(
             ctx.ws.publicDir,
             "data",
             ctx.version.lang,
             "storyboard.json",
           );
+          const archived = join(
+            ctx.ws.publicDir,
+            "data",
+            ctx.version.lang,
+            `storyboard-${renderAttempt}.json`,
+          );
+          if (renderAttempt > 1 && typeof saved?.storyboard_path === "string") {
+            const source = resolve(saved.storyboard_path);
+            if (
+              !source.startsWith(
+                resolve(join(ctx.ws.publicDir, "data", ctx.version.lang)) + sep,
+              )
+            )
+              throw new Error("Invalid storyboard path");
+            await copyFile(source, archived);
+            await copyFile(archived, path);
+            result.patch = {
+              ...result.patch,
+              storyboard_path: archived,
+              storyboard_sections: saved.storyboard_sections,
+            };
+            break;
+          }
           const timing = JSON.parse(
             await readFile(
               join(ctx.ws.publicDir, "data", ctx.version.lang, "timing.json"),
@@ -309,12 +344,6 @@ export function createFakeStages(
             ),
           );
           await writeFile(path, JSON.stringify(storyboard));
-          const archived = join(
-            ctx.ws.publicDir,
-            "data",
-            ctx.version.lang,
-            `storyboard-${renderAttempt}.json`,
-          );
           await copyFile(path, archived);
           result.patch = {
             ...result.patch,
@@ -352,6 +381,9 @@ export function createFakeStages(
           if (!render) throw new Error("Fake master is missing");
           await ctx.db.patchRender(render.id, {
             qa_results: {
+              ...((render.qa_results as { assets?: unknown } | null)?.assets
+                ? { assets: (render.qa_results as { assets: unknown }).assets }
+                : {}),
               gates: [
                 "integrated_loudness",
                 "true_peak",
@@ -373,13 +405,45 @@ export function createFakeStages(
           break;
         }
         case "art": {
-          const thumbnailPath = await makeThumbnail(ctx, fixtures.thumbnail);
           const master = await ctx.db.getRender(ctx.version.id, "master");
           if (!master) throw new Error("Fake master is missing");
+          const saved = (
+            master.qa_results as {
+              assets?: { thumbnail_path?: unknown };
+            } | null
+          )?.assets;
+          const oldThumbnail = saved?.thumbnail_path;
+          let thumbnailPath: string;
+          if (
+            renderAttempt > 1 &&
+            typeof oldThumbnail === "string" &&
+            renderAssetPath(
+              ctx,
+              renderAttempt - 1,
+              oldThumbnail,
+              /^thumbnail(?:-1280x720)?\.(?:png|jpg|jpeg|webp)$/u,
+            )
+          ) {
+            if (!ctx.storage.download)
+              throw new Error("Thumbnail download unavailable");
+            const extension = extname(oldThumbnail);
+            const local = join(ctx.ws.renderDir, `thumbnail${extension}`);
+            await ctx.storage.download(oldThumbnail, local);
+            thumbnailPath = await upload(
+              ctx,
+              local,
+              extension === ".webp"
+                ? "image/webp"
+                : extension === ".png"
+                  ? "image/png"
+                  : "image/jpeg",
+            );
+          } else thumbnailPath = await makeThumbnail(ctx, fixtures.thumbnail);
           await ctx.db.patchRender(master.id, {
             qa_results: {
               ...((master.qa_results as Record<string, unknown> | null) ?? {}),
               assets: {
+                ...saved,
                 storyboard_path: ctx.version.storyboard_path,
                 thumbnail_path: thumbnailPath,
                 chosen_take_id: ctx.version.chosen_take_id,

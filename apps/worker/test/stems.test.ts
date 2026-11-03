@@ -41,7 +41,10 @@ async function setup({
   demucsCode = 0,
   files = ["take-1.flac", "take-1.mp3"],
 } = {}) {
-  const root = await mkdtemp(join(tmpdir(), "stems-tests-"));
+  const scratch =
+    process.platform === "win32" ? "E:/mellodifai/runtime/tmp" : tmpdir();
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "stems-tests-"));
   roots.push(root);
   const ws = {
     root,
@@ -408,8 +411,12 @@ describe("preview cleanup", () => {
       version_id: "version",
       generation: 1,
       take_number: 2,
-      audio_preview_path: "old.mp3",
-      stems: { tracks: { vocals: { path: "old-vocals.mp3" } } },
+      audio_preview_path: "previews/owner/project/it/old.mp3",
+      stems: {
+        tracks: {
+          vocals: { path: "previews/owner/project/it/old-vocals.mp3" },
+        },
+      },
     });
     db.takes.push({
       id: "edit",
@@ -417,8 +424,12 @@ describe("preview cleanup", () => {
       generation: 2,
       take_number: 1,
       engine: "edit",
-      audio_preview_path: "edit.mp3",
-      stems: { tracks: { vocals: { path: "edit-vocals.mp3" } } },
+      audio_preview_path: "previews/owner/project/it/edit.mp3",
+      stems: {
+        tracks: {
+          vocals: { path: "previews/owner/project/it/edit-vocals.mp3" },
+        },
+      },
     });
     ctx.version.generation_count = 2;
     const file = join(ctx.ws.root, "x.mp3");
@@ -426,7 +437,10 @@ describe("preview cleanup", () => {
     await upload(ctx, file, "audio/mpeg");
     const removed = storage.remove.mock.calls[0]?.[0] as unknown as string[];
     expect(removed).toEqual(
-      expect.arrayContaining(["old.mp3", "old-vocals.mp3"]),
+      expect.arrayContaining([
+        "previews/owner/project/it/old.mp3",
+        "previews/owner/project/it/old-vocals.mp3",
+      ]),
     );
     expect(removed).not.toContain("edit-vocals.mp3");
     expect(removed).not.toContain("edit.mp3");

@@ -24,6 +24,54 @@ import { LocaleProvider } from "./locale-provider";
 import { LyricEditor } from "./lyric-editor";
 import { ProjectWorkspace, PublishPanel } from "./project-workspace";
 
+it.each(["approved", "published"] as const)(
+  "offers a new render after %s",
+  async (status) => {
+    render(
+      <LocaleProvider value="it">
+        <ProjectWorkspace
+          version={{
+            id: "v",
+            lang: "it",
+            status,
+            lyric_pack: null,
+            generation_count: 1,
+            render_attempt: 1,
+          }}
+          takes={[]}
+          renders={[]}
+          publication={null}
+        />
+      </LocaleProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Nuovo render" }));
+    expect(mocks.rerenderVideo).toHaveBeenCalledWith({ versionId: "v" });
+  },
+);
+
+it("hides the new render action while publication is in progress", () => {
+  render(
+    <LocaleProvider value="it">
+      <ProjectWorkspace
+        version={{
+          id: "v",
+          lang: "it",
+          status: "publishing",
+          lyric_pack: null,
+          generation_count: 1,
+          render_attempt: 1,
+        }}
+        takes={[]}
+        renders={[]}
+        publication={null}
+      />
+    </LocaleProvider>,
+  );
+  expect(
+    screen.queryByRole("button", { name: "Nuovo render" }),
+  ).not.toBeInTheDocument();
+});
+
 it("binds publication metadata and storyboard to the rendered take", () => {
   const pack = LyricPackSchema.parse({
     title: "Le port",

@@ -147,6 +147,19 @@ The `feat/ui-polish` stream has a visual audit, UI fixes, and before/after scree
 1440x900, 1360x600, and 390x844. The focused browser suite and unit gates pass; the shared
 database and full e2e stack had unrelated failures in its review-round-2 run.
 
+The `feat/rerender` stream adds a new attempt after video approval or publication, protects
+published render files and thumbnails during cleanup, and adds the song-page action. Migration
+`20261103050001_rerender_published.sql`, `20261103050002_rerender_assets.sql`, and
+`20261103050003_rerender_metadata.sql` are applied to the e2e database only. The second migration snapshots
+the current storyboard, thumbnail, publication metadata and Video Studio look, and limits render
+row writes to worker and RPC paths. The third keeps saved metadata across later re-renders. Report and
+screenshots: `E:/mellodifai/codex-streams/rerender/`. Review round 3 also covers legacy flat
+preview cleanup and guards its database fixture against non-local and live ports. It awaits
+integration into `build/studio-ui`. After merging the latest integration branch, its full database
+suite (144 tests) and browser suite (15 tests) passed on the private `mellodifai_rerender` stack
+(API 48621, Next 3229) with fake workers. That stack was stopped and its temporary image tags
+restored. Read the stream report before integration.
+
 The `feat/suite-health` stream verifies the merged suites on a private Supabase stack at
 `E:/mellodifai/stacks/suite-health` (API 47621, DB 47622, Studio 47623, Mailpit 47624,
 Next 3230). Copy `supabase/` there and give it a unique `project_id` and ports before
@@ -178,7 +191,7 @@ URL guard as Playwright.
 ## 5. Later work (after M1)
 
 Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design
-(plans in docs/superpowers/plans/2026-11-03-*); re-render after approval (song-assets follow-up);
+(plans in docs/superpowers/plans/2026-11-03-*);
 cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
