@@ -597,7 +597,7 @@ describe("kie client", () => {
       "k",
       (async () =>
         new Response(
-          JSON.stringify({ code: 402, msg: "no credits" }),
+          JSON.stringify({ code: "402", msg: "no credits" }),
         )) as typeof fetch,
     );
     await expect(
@@ -609,6 +609,18 @@ describe("kie client", () => {
     await expect(
       dropping.createTask({ model: "m", input: {} }),
     ).rejects.toThrow("state unknown");
+    for (const response of [
+      new Response("server error", { status: 500 }),
+      new Response(JSON.stringify({ code: 500, msg: "server error" })),
+    ]) {
+      const failing = new KieClient(
+        "k",
+        (async () => response) as typeof fetch,
+      );
+      await expect(
+        failing.createTask({ model: "m", input: {} }),
+      ).rejects.toThrow("state unknown");
+    }
     expect(() => new KieClient("")).toThrow(KieRefused);
   });
   it("polls until the task fails", async () => {

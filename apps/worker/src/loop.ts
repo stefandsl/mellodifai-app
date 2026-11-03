@@ -67,6 +67,7 @@ export type WorkspaceProvider = {
     projectId: string,
     lang: Version["lang"],
     fake?: boolean,
+    renderAttempt?: number,
   ): Promise<Workspace>;
 };
 
@@ -334,6 +335,7 @@ export class WorkerLoop {
         project.id,
         version.lang,
         useFakes(job),
+        version.render_attempt ?? 1,
       );
       signal.throwIfAborted();
       active.engine = engine.withWorkspace(ws.root, log, signal);

@@ -6,7 +6,11 @@ import { createClient } from "@supabase/supabase-js";
 import { signInLink } from "../../../ops/sign-in-link";
 import { localSupabaseUrl } from "./local-env";
 
-export const E2E_ADMIN_EMAIL = "e2e-admin@mellodifai.test";
+export const E2E_ADMIN_EMAIL =
+  process.env.E2E_ADMIN_EMAIL ?? "e2e-admin@mellodifai.test";
+const workerId = process.env.E2E_WORKER_ID ?? "e2e-worker";
+// The e2e stack's Mailpit (supabase_inbucket_mellodifai_e2e); the live one is on 54324.
+const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:45624";
 const workerRoot = fileURLToPath(new URL("../../worker/", import.meta.url));
 const workerRequire = createRequire(
   new URL("../../worker/package.json", import.meta.url),
@@ -46,10 +50,11 @@ export async function createFrenchProject(page: Page, topic: string) {
   await page.getByRole("button", { name: /^Lingue:/u }).click();
   const italian = page.getByRole("menuitemcheckbox", { name: /Italiano/u });
   const french = page.getByRole("menuitemcheckbox", { name: /Francese/u });
-  await expect(italian).toHaveAttribute("aria-checked", "true");
-  await italian.click();
+  if ((await italian.getAttribute("aria-checked")) === "true")
+    await italian.click();
   await expect(italian).toHaveAttribute("aria-checked", "false");
-  await french.click();
+  if ((await french.getAttribute("aria-checked")) === "false")
+    await french.click();
   await expect(french).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Crea canzone" }).click();
@@ -73,11 +78,14 @@ export async function removeE2EWorker() {
   const { error } = await serviceClient()
     .from("workers")
     .delete()
-    .eq("id", "e2e-worker");
+    .eq("id", workerId);
   if (error) throw error;
 }
 
-export async function startFakeWorker() {
+export async function startFakeWorker(
+  ownerId?: string,
+  workerId = "e2e-worker",
+) {
   const supabaseUrl = localSupabaseUrl();
   const child = spawn(
     process.execPath,
@@ -94,8 +102,8 @@ export async function startFakeWorker() {
         WORKER_FAKE: "1",
         SUPABASE_URL: supabaseUrl,
         SUPABASE_SERVICE_ROLE_KEY: required("SUPABASE_SERVICE_ROLE_KEY"),
-        WORKER_ID: "e2e-worker",
-        WORKER_OWNER_ID: await getAdminId(),
+        WORKER_ID: workerId,
+        WORKER_OWNER_ID: ownerId ?? (await getAdminId()),
       },
       stdio: "ignore",
     },
@@ -106,13 +114,13 @@ export async function startFakeWorker() {
         const { data } = await serviceClient()
           .from("workers")
           .select("id")
-          .eq("id", "e2e-worker")
+          .eq("id", workerId)
           .maybeSingle();
         return data?.id;
       },
       { timeout: 30_000 },
     )
-    .toBe("e2e-worker");
+    .toBe(workerId);
   return child;
 }
 

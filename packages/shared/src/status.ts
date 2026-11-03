@@ -77,6 +77,8 @@ export const REWRITE_STATUSES: readonly VersionStatus[] = [
 
 export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
   // A visualizer renders the same chosen take the stems separate (request_visualizer).
+  if (stage === "align_lyrics")
+    return status === "takes_review" || STEMS_STATUSES.includes(status);
   if (stage === "stems" || stage === "visualizer")
     return STEMS_STATUSES.includes(status);
   if (stage === "replace_section") return REWRITE_STATUSES.includes(status);

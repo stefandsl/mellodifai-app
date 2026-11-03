@@ -1,15 +1,29 @@
-import { copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
+import { extname, join, resolve, sep } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
   type LyricPack,
+  LyricPackSchema,
   privacyVersionStatus,
+  publicationDefaults,
   STAGE_STATUS,
   type Stage,
+  songMood,
+  sungLineCount,
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { workerTempDir } from "../runtime.js";
 import { key, upload, writePack } from "../stages/utils.js";
+import { makeThumbnail } from "../stages/art.js";
+import { assertPublishRender } from "../stages/publish.js";
+import { songStoryboard } from "../stages/storyboard.js";
+import { key, renderAssetPath, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
 
 export const fakePack: LyricPack = {
@@ -50,7 +64,7 @@ export async function createFakeMedia(
     );
     if (result.code !== 0) throw new Error("Fake media generation failed");
   };
-  await run([
+  const audioArgs = [
     "-f",
     "lavfi",
     "-i",
@@ -60,7 +74,13 @@ export async function createFakeMedia(
     "-b:a",
     "128k",
     audio,
-  ]);
+  ];
+  try {
+    await run(audioArgs);
+  } catch {
+    // Conda's Windows FFmpeg build has MediaFoundation MP3 but no libmp3lame.
+    await run(audioArgs.map((arg) => (arg === "libmp3lame" ? "mp3_mf" : arg)));
+  }
   await run([
     "-f",
     "lavfi",
@@ -130,6 +150,7 @@ export function createFakeStages(
     "visualizer",
     "replace_section",
     "import_audio",
+    "align_lyrics",
   ];
   for (const stage of names)
     registry[stage] = async (ctx) => {
@@ -151,13 +172,58 @@ export function createFakeStages(
         return upload(ctx, target, type);
       };
       switch (stage) {
-        case "draft_lyrics":
-          await writePack(ctx, fakePack);
-          result.patch = { ...result.patch, lyric_pack: fakePack };
+        case "align_lyrics": {
+          const id = ctx.job.payload?.take_id;
+          const take = id
+            ? (await ctx.db.getTakes(ctx.version.id)).find(
+                (item) => item.id === id,
+              )
+            : null;
+          if (id && !take) throw new Error("Take not found");
+          const lyric_timing = {
+            source: "whisper",
+            lines: [
+              {
+                text: "A little brighter",
+                start: 0,
+                end: 2,
+                words: [
+                  { word: "A", start: 0, end: 0.5 },
+                  { word: "little", start: 0.5, end: 1 },
+                  { word: "brighter", start: 1, end: 2 },
+                ],
+              },
+            ],
+          };
+          if (take) await ctx.db.patchTake(take.id, { lyric_timing });
+          else await ctx.db.patchVersion(ctx.version.id, { lyric_timing });
+          break;
+        }
+        case "draft_lyrics": {
+          const title =
+            ((ctx.project.song_settings ?? {}) as { title?: string }).title ||
+            ctx.project.topic;
+          const brief = ctx.project.brief?.trim() ?? "";
+          const pack = {
+            ...fakePack,
+            title,
+            lyrics: [
+              ...(brief ? [brief] : []),
+              "[Verse 1]",
+              ...Array.from(
+                { length: Math.max(0, 80 - sungLineCount(brief)) },
+                (_, i) => `${title}, line ${i + 1}`,
+              ),
+            ].join("\n"),
+            style: ctx.project.style || fakePack.style,
+          };
+          await writePack(ctx, pack);
+          result.patch = { ...result.patch, lyric_pack: pack };
           result.versionStatus = "lyrics_review";
           break;
+        }
         case "generate_song": {
-          await writePack(ctx, fakePack);
+          await writePack(ctx, LyricPackSchema.parse(ctx.version.lyric_pack));
           for (const n of [1, 2]) {
             const path = await copy(
               fixtures.audio,
@@ -187,19 +253,32 @@ export function createFakeStages(
           break;
         }
         case "timing": {
+          const pack = LyricPackSchema.parse(ctx.version.lyric_pack);
+          const sung = pack.lyrics
+            .split(/\r?\n/u)
+            .filter((line) => line.trim() && !line.startsWith("["));
+          const timing = {
+            duration: 10,
+            lines: sung.map((text, i) => ({
+              section:
+                i < 20
+                  ? "Verse 1"
+                  : i < 40
+                    ? "Chorus"
+                    : i < 60
+                      ? "Verse 2"
+                      : "Final Chorus",
+              text,
+              words: [{ w: text, start: i / 8, end: (i + 1) / 8 }],
+            })),
+          };
           const path = join(
             ctx.ws.publicDir,
             "data",
             ctx.version.lang,
             "timing.json",
           );
-          await writeFile(
-            path,
-            JSON.stringify({
-              duration: 10,
-              words: [{ start: 0, end: 1, text: "Hello" }],
-            }),
-          );
+          await writeFile(path, JSON.stringify(timing));
           result.patch = {
             ...result.patch,
             timing_path: path,
@@ -212,14 +291,71 @@ export function createFakeStages(
           break;
         }
         case "storyboard": {
+          const pack = LyricPackSchema.parse(ctx.version.lyric_pack);
+          const currentRender = await ctx.db.getRender(
+            ctx.version.id,
+            "master",
+          );
+          const saved = (
+            currentRender?.qa_results as {
+              assets?: {
+                storyboard_path?: unknown;
+                storyboard_sections?: unknown;
+              };
+            } | null
+          )?.assets;
           const path = join(
             ctx.ws.publicDir,
             "data",
             ctx.version.lang,
             "storyboard.json",
           );
-          await writeFile(path, JSON.stringify({ scenes: [] }));
-          result.patch = { ...result.patch, storyboard_path: path };
+          const archived = join(
+            ctx.ws.publicDir,
+            "data",
+            ctx.version.lang,
+            `storyboard-${renderAttempt}.json`,
+          );
+          if (renderAttempt > 1 && typeof saved?.storyboard_path === "string") {
+            const source = resolve(saved.storyboard_path);
+            if (
+              !source.startsWith(
+                resolve(join(ctx.ws.publicDir, "data", ctx.version.lang)) + sep,
+              )
+            )
+              throw new Error("Invalid storyboard path");
+            await copyFile(source, archived);
+            await copyFile(archived, path);
+            result.patch = {
+              ...result.patch,
+              storyboard_path: archived,
+              storyboard_sections: saved.storyboard_sections,
+            };
+            break;
+          }
+          const timing = JSON.parse(
+            await readFile(
+              join(ctx.ws.publicDir, "data", ctx.version.lang, "timing.json"),
+              "utf8",
+            ),
+          );
+          const { storyboard, sections } = songStoryboard(
+            timing,
+            pack.title,
+            ctx.version.lang,
+            songMood(
+              ctx.project.mood,
+              (ctx.project.song_settings as { mood?: string } | null)?.mood,
+              pack.style,
+            ),
+          );
+          await writeFile(path, JSON.stringify(storyboard));
+          await copyFile(path, archived);
+          result.patch = {
+            ...result.patch,
+            storyboard_path: archived,
+            storyboard_sections: sections,
+          };
           break;
         }
         case "render_master":
@@ -251,6 +387,9 @@ export function createFakeStages(
           if (!render) throw new Error("Fake master is missing");
           await ctx.db.patchRender(render.id, {
             qa_results: {
+              ...((render.qa_results as { assets?: unknown } | null)?.assets
+                ? { assets: (render.qa_results as { assets: unknown }).assets }
+                : {}),
               gates: [
                 "integrated_loudness",
                 "true_peak",
@@ -271,12 +410,61 @@ export function createFakeStages(
           });
           break;
         }
-        case "art":
-          await copy(
-            fixtures.thumbnail,
-            join(ctx.ws.renderDir, "thumbnail.png"),
-            "image/png",
-          );
+        case "art": {
+          const master = await ctx.db.getRender(ctx.version.id, "master");
+          if (!master) throw new Error("Fake master is missing");
+          const saved = (
+            master.qa_results as {
+              assets?: { thumbnail_path?: unknown };
+            } | null
+          )?.assets;
+          const oldThumbnail = saved?.thumbnail_path;
+          let thumbnailPath: string;
+          if (
+            renderAttempt > 1 &&
+            typeof oldThumbnail === "string" &&
+            renderAssetPath(
+              ctx,
+              renderAttempt - 1,
+              oldThumbnail,
+              /^thumbnail(?:-1280x720)?\.(?:png|jpg|jpeg|webp)$/u,
+            )
+          ) {
+            if (!ctx.storage.download)
+              throw new Error("Thumbnail download unavailable");
+            const extension = extname(oldThumbnail);
+            const local = join(ctx.ws.renderDir, `thumbnail${extension}`);
+            await ctx.storage.download(oldThumbnail, local);
+            thumbnailPath = await upload(
+              ctx,
+              local,
+              extension === ".webp"
+                ? "image/webp"
+                : extension === ".png"
+                  ? "image/png"
+                  : "image/jpeg",
+            );
+          } else thumbnailPath = await makeThumbnail(ctx, fixtures.thumbnail);
+          await ctx.db.patchRender(master.id, {
+            qa_results: {
+              ...((master.qa_results as Record<string, unknown> | null) ?? {}),
+              assets: {
+                ...saved,
+                storyboard_path: ctx.version.storyboard_path,
+                thumbnail_path: thumbnailPath,
+                chosen_take_id: ctx.version.chosen_take_id,
+                lyric_pack: ctx.version.lyric_pack,
+                storyboard_sections: ctx.version.storyboard_sections,
+                title: LyricPackSchema.parse(ctx.version.lyric_pack).title,
+                lang: ctx.version.lang,
+                mood: songMood(
+                  ctx.project.mood,
+                  (ctx.project.song_settings as { mood?: string } | null)?.mood,
+                  LyricPackSchema.parse(ctx.version.lyric_pack).style,
+                ),
+              },
+            },
+          });
           await writeFile(
             join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
             "1\n00:00:00,000 --> 00:00:10,000\nA little brighter\n",
@@ -288,10 +476,37 @@ export function createFakeStages(
           );
           result.versionStatus = "video_review";
           break;
+        }
         case "publish": {
-          const render = await ctx.db.getRender(ctx.version.id, "master");
-          if (!render) throw new Error("Fake master is missing");
-          if (!(await ctx.db.getPublicationForVersion(ctx.version.id)))
+          const renderId = (ctx.job.payload as { render_id?: string } | null)
+            ?.render_id;
+          const render = renderId
+            ? await ctx.db.getRenderById(renderId)
+            : await ctx.db.getRender(ctx.version.id, "master");
+          await assertPublishRender(ctx, render);
+          if (!render)
+            throw new Error("approved current publish render required");
+          if (!(await ctx.db.getPublicationForRender(render.id))) {
+            const assets = (
+              render.qa_results as {
+                assets?: {
+                  lyric_pack?: unknown;
+                  lang?: string;
+                  storyboard_sections?: unknown;
+                  mood?: string;
+                };
+              } | null
+            )?.assets;
+            const pack = LyricPackSchema.parse(
+              assets?.lyric_pack ?? ctx.version.lyric_pack,
+            );
+            const defaults = publicationDefaults(
+              pack.title,
+              pack.lyrics,
+              assets?.lang ?? ctx.version.lang,
+              assets?.storyboard_sections ?? ctx.version.storyboard_sections,
+              assets?.mood ?? "",
+            );
             await ctx.db.createPublication({
               ...(ctx.version.owner_id
                 ? { owner_id: ctx.version.owner_id }
@@ -301,7 +516,17 @@ export function createFakeStages(
               privacy: "private",
               upload_state: "uploaded",
               privacy_applied: "private",
+              metadata: {
+                ...defaults,
+                ...((ctx.job.payload?.metadata ?? {}) as Record<
+                  string,
+                  unknown
+                >),
+                defaultLanguage: ctx.version.lang,
+                defaultAudioLanguage: ctx.version.lang,
+              },
             });
+          }
           result.versionStatus = "approved";
           break;
         }

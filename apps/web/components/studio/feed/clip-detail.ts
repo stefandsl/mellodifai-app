@@ -21,14 +21,24 @@ export function detailFor(clip: Clip, takeNumber?: number): TrackDetail {
   return {
     songId: clip.id,
     lyrics: clip.lyrics,
+    timing: clip.timing,
     style: clip.style,
     createdAt: clip.createdAt,
-    takes: clip.takes.map(({ id, number, audioUrl }) => ({
+    takes: clip.takes.map(({ id, number, audioUrl, lyrics, timing }) => ({
       id,
       number,
       audioUrl,
+      lyrics,
+      timing,
     })),
     chosenTakeId: clip.chosenTakeId,
+    playbackTakeId:
+      (takeNumber === undefined
+        ? clip.takes.find(
+            (take) => take.audioUrl && take.audioUrl === clip.audioUrl,
+          )
+        : clip.takes.find((take) => take.number === takeNumber)
+      )?.id ?? null,
     ...(takeNumber === undefined ? {} : { takeNumber }),
     tools: {
       edit: canEdit(clip),

@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb, type Take, type Version } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
-import { createFakeStages } from "../src/fake/index.js";
+import { createFakeStages, fakePack } from "../src/fake/index.js";
 import { type StageContext, WorkerLoop } from "../src/loop.js";
 import { stages } from "../src/stages/index.js";
 import {
@@ -42,7 +42,10 @@ async function setup({
   demucsCode = 0,
   files = ["take-1.flac", "take-1.mp3"],
 } = {}) {
-  const root = await mkdtemp(join(tmpdir(), "stems-tests-"));
+  const scratch =
+    process.platform === "win32" ? "E:/mellodifai/runtime/tmp" : tmpdir();
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "stems-tests-"));
   roots.push(root);
   const ws = {
     root,
@@ -411,8 +414,12 @@ describe("preview cleanup", () => {
       version_id: "version",
       generation: 1,
       take_number: 2,
-      audio_preview_path: "old.mp3",
-      stems: { tracks: { vocals: { path: "old-vocals.mp3" } } },
+      audio_preview_path: "previews/owner/project/it/old.mp3",
+      stems: {
+        tracks: {
+          vocals: { path: "previews/owner/project/it/old-vocals.mp3" },
+        },
+      },
     });
     db.takes.push({
       id: "edit",
@@ -420,8 +427,12 @@ describe("preview cleanup", () => {
       generation: 2,
       take_number: 1,
       engine: "edit",
-      audio_preview_path: "edit.mp3",
-      stems: { tracks: { vocals: { path: "edit-vocals.mp3" } } },
+      audio_preview_path: "previews/owner/project/it/edit.mp3",
+      stems: {
+        tracks: {
+          vocals: { path: "previews/owner/project/it/edit-vocals.mp3" },
+        },
+      },
     });
     ctx.version.generation_count = 2;
     const file = join(ctx.ws.root, "x.mp3");
@@ -429,7 +440,10 @@ describe("preview cleanup", () => {
     await upload(ctx, file, "audio/mpeg");
     const removed = storage.remove.mock.calls[0]?.[0] as unknown as string[];
     expect(removed).toEqual(
-      expect.arrayContaining(["old.mp3", "old-vocals.mp3"]),
+      expect.arrayContaining([
+        "previews/owner/project/it/old.mp3",
+        "previews/owner/project/it/old-vocals.mp3",
+      ]),
     );
     expect(removed).not.toContain("edit-vocals.mp3");
     expect(removed).not.toContain("edit.mp3");
@@ -450,6 +464,7 @@ describe("timing on an edited take", () => {
     await writeFile(join(ws.outDir, "aligned-take1.json"), "{}");
     ctx.job = { ...ctx.job, stage: "timing", payload: {} };
     ctx.version.status = "producing";
+    ctx.version.lyric_pack = fakePack;
     db.takes[0] = { ...take };
     // The pipeline itself is out of scope here: stop right after the audio is in place.
     vi.spyOn(ctx.engine, "run").mockRejectedValueOnce(new Error("stop"));

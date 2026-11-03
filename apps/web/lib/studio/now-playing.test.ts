@@ -68,6 +68,13 @@ describe("activeTake", () => {
     expect(activeTake({ takes, chosenTakeId: "a", takeNumber: 2 })).toBe(2);
     expect(activeTake({ takes, chosenTakeId: "b" })).toBe(2);
     expect(activeTake({ takes, chosenTakeId: null })).toBe(1);
+    expect(
+      activeTake({
+        takes: [{ ...takes[0], audioUrl: null }, takes[1]],
+        chosenTakeId: null,
+        playbackTakeId: "b",
+      }),
+    ).toBe(2);
     expect(activeTake({ takes: [], chosenTakeId: null })).toBeNull();
   });
 });

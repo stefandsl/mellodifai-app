@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { opsRpc } from "./helpers/ops-call";
+import { localSupabaseUrl } from "../../apps/web/e2e/local-env";
 
 let service: SupabaseClient;
 let client: SupabaseClient;
@@ -14,7 +15,8 @@ function env(k: string) {
   return v;
 }
 beforeAll(async () => {
-  service = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
+  const url = localSupabaseUrl(env("SUPABASE_URL"), {});
+  service = createClient(url, env("SUPABASE_SERVICE_ROLE_KEY"));
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
     await service.from("admin_allowlist").insert({ email, role: "admin" });
@@ -303,14 +305,19 @@ it("generate_again from failed advances once and queues one explicit generation"
 });
 
 async function uploadFixture() {
-  const version = await fixture("failed");
+  const version = await fixture("approved");
   await service
     .from("jobs")
     .update({ status: "failed" })
     .eq("version_id", version);
   const r = await service
     .from("renders")
-    .insert({ owner_id: owner, version_id: version, kind: "master" })
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "master",
+      approved_at: new Date().toISOString(),
+    })
     .select("id")
     .single();
   expect(r.error).toBeNull();
@@ -731,6 +738,202 @@ it("records failed-QA override and approver, uses current attempt and rerenders 
     ).error,
   ).not.toBeNull();
 });
+it.each(["approved", "published"])(
+  "starts a new render from %s without changing the publication",
+  async (status) => {
+    const v = await fixture(status);
+    await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+    await service
+      .from("versions")
+      .update({
+        storyboard_path: "current-storyboard.json",
+        storyboard_sections: [{ title: "Edited scene" }],
+      })
+      .eq("id", v);
+    const old = await service
+      .from("renders")
+      .insert({
+        owner_id: owner,
+        version_id: v,
+        kind: "master",
+        preview_path: `old-${v}.mp4`,
+        approved_at: new Date().toISOString(),
+        qa_results: { assets: { thumbnail_path: `old-${v}.png` } },
+      })
+      .select()
+      .single();
+    expect(old.error).toBeNull();
+    const publication = await service
+      .from("publications")
+      .insert({
+        owner_id: owner,
+        render_id: old.data.id,
+        privacy: "private",
+        metadata: { title: "Old video" },
+      })
+      .select()
+      .single();
+    expect(publication.error).toBeNull();
+    const look = { preset: "circle", aspect: "16:9" };
+    expect(
+      (
+        await service.from("renders").insert({
+          owner_id: owner,
+          version_id: v,
+          kind: "visualizer",
+          aspect: "16:9",
+          visualizer_params: look,
+        })
+      ).error,
+    ).toBeNull();
+    expect(
+      (
+        await client
+          .from("renders")
+          .update({
+            qa_results: {
+              assets: { thumbnail_path: "previews/other/song.png" },
+            },
+          })
+          .eq("id", old.data.id)
+          .select("id")
+      ).error,
+    ).not.toBeNull();
+    expect(
+      (await other.rpc("render_again", { p_version: v })).error,
+    ).not.toBeNull();
+    expect(
+      (await client.rpc("render_again", { p_version: v })).error,
+    ).toBeNull();
+    expect(
+      (
+        await service
+          .from("versions")
+          .select("status,render_attempt")
+          .eq("id", v)
+          .single()
+      ).data,
+    ).toMatchObject({ status: "producing", render_attempt: 2 });
+    expect(
+      (
+        await service
+          .from("renders")
+          .select("preview_path,approved_at,qa_results")
+          .eq("id", old.data.id)
+          .single()
+      ).data,
+    ).toMatchObject({
+      preview_path: `old-${v}.mp4`,
+      qa_results: { assets: { thumbnail_path: `old-${v}.png` } },
+    });
+    expect(
+      (
+        await service
+          .from("publications")
+          .select("render_id,metadata")
+          .eq("id", publication.data.id)
+          .single()
+      ).data,
+    ).toMatchObject({
+      render_id: old.data.id,
+      metadata: { title: "Old video" },
+    });
+    const next = await service
+      .from("renders")
+      .select("qa_results")
+      .eq("version_id", v)
+      .eq("kind", "master")
+      .eq("render_attempt", 2)
+      .single();
+    expect(next.data?.qa_results.assets).toMatchObject({
+      storyboard_path: "current-storyboard.json",
+      storyboard_sections: [{ title: "Edited scene" }],
+      thumbnail_path: `old-${v}.png`,
+      metadata: { title: "Old video" },
+      visualizer_params: look,
+    });
+    await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+    await service.from("versions").update({ status: "approved" }).eq("id", v);
+    expect(
+      (await client.rpc("render_again", { p_version: v })).error,
+    ).toBeNull();
+    const third = await service
+      .from("renders")
+      .select("qa_results")
+      .eq("version_id", v)
+      .eq("kind", "master")
+      .eq("render_attempt", 3)
+      .single();
+    expect(third.data?.qa_results.assets).toMatchObject({
+      thumbnail_path: `old-${v}.png`,
+      metadata: { title: "Old video" },
+    });
+  },
+);
+it("carries the project Video Studio look before its first visualizer render", async () => {
+  const v = await fixture("approved");
+  await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+  const { data: version } = await service
+    .from("versions")
+    .select("project_id")
+    .eq("id", v)
+    .single();
+  const look = { preset: "mirror", aspect: "16:9" };
+  expect(
+    (
+      await service
+        .from("projects")
+        .update({ song_settings: { visualizer: look } })
+        .eq("id", version?.project_id)
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .insert({ owner_id: owner, version_id: v, kind: "master" })
+    ).error,
+  ).toBeNull();
+  expect((await client.rpc("render_again", { p_version: v })).error).toBeNull();
+  const { data: next } = await service
+    .from("renders")
+    .select("qa_results")
+    .eq("version_id", v)
+    .eq("render_attempt", 2)
+    .eq("kind", "master")
+    .single();
+  expect(next?.qa_results.assets.visualizer_params).toEqual(look);
+});
+it("refuses a trashed song and an active render", async () => {
+  const v = await fixture("approved");
+  await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+  await service
+    .from("versions")
+    .update({ trashed_at: new Date().toISOString() })
+    .eq("id", v);
+  expect(
+    (await client.rpc("render_again", { p_version: v })).error,
+  ).not.toBeNull();
+  await service.from("versions").update({ trashed_at: null }).eq("id", v);
+  await service.from("jobs").insert({
+    owner_id: owner,
+    version_id: v,
+    stage: "timing",
+    idempotency_key: `active-render:${v}`,
+  });
+  expect(
+    (await client.rpc("render_again", { p_version: v })).error?.message,
+  ).toContain("job already active");
+  expect(
+    (
+      await service
+        .from("versions")
+        .select("status,render_attempt")
+        .eq("id", v)
+        .single()
+    ).data,
+  ).toMatchObject({ status: "approved", render_attempt: 1 });
+});
 it("publishes only approved current masters, deduplicates pending requests and permits failed retries", async () => {
   const v = await fixture("approved");
   const r = await service
@@ -769,6 +972,171 @@ it("publishes only approved current masters, deduplicates pending requests and p
     .update({ render_attempt: 2, status: "approved" })
     .eq("id", v);
   expect((await opsRpc(client, "enqueue_publish", input)).error).not.toBeNull();
+});
+it("publishes a completed landscape visualizer only after master approval", async () => {
+  const version = await fixture("approved");
+  const master = await service
+    .from("renders")
+    .insert({ owner_id: owner, version_id: version, kind: "master" })
+    .select("id")
+    .single();
+  expect(master.error).toBeNull();
+  const visualizer = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "visualizer",
+      aspect: "16:9",
+      visualizer_params: {},
+      path: "video.mp4",
+      preview_path: "preview.mp4",
+    })
+    .select("id")
+    .single();
+  expect(visualizer.error).toBeNull();
+  const input = {
+    p_render: visualizer.data.id,
+    p_metadata: { title: "Branded video" },
+  };
+  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ approved_at: new Date().toISOString() })
+        .eq("id", master.data.id)
+    ).error,
+  ).toBeNull();
+  const portrait = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "visualizer",
+      aspect: "9:16",
+      visualizer_params: {},
+      path: "portrait.mp4",
+      preview_path: "portrait-preview.mp4",
+    })
+    .select("id")
+    .single();
+  expect(portrait.error).toBeNull();
+  expect(
+    (
+      await client.rpc("enqueue_publish", {
+        ...input,
+        p_render: portrait.data.id,
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ preview_path: null })
+        .eq("id", visualizer.data.id)
+    ).error,
+  ).toBeNull();
+  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ preview_path: "preview.mp4" })
+        .eq("id", visualizer.data.id)
+    ).error,
+  ).toBeNull();
+  expect((await client.rpc("enqueue_publish", input)).error).toBeNull();
+  const job = await service
+    .from("jobs")
+    .select("payload")
+    .eq("version_id", version)
+    .eq("stage", "publish")
+    .single();
+  expect(job.data?.payload).toMatchObject({ render_id: visualizer.data.id });
+  expect(
+    (
+      await client.rpc("enqueue_publish", {
+        ...input,
+        p_render: master.data.id,
+      })
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select("id")
+        .eq("version_id", version)
+        .eq("stage", "publish")
+    ).data,
+  ).toHaveLength(1);
+  const worker = `${prefix}-${version}`;
+  expect(
+    (await service.from("workers").insert({ id: worker, owner_id: owner }))
+      .error,
+  ).toBeNull();
+  expect(
+    (
+      await service.rpc("reserve_publication_upload", {
+        p_render: visualizer.data.id,
+        p_worker: worker,
+      })
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service.rpc("reserve_publication_upload", {
+        p_render: master.data.id,
+        p_worker: worker,
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await client.from("jobs").insert({
+        owner_id: owner,
+        version_id: version,
+        stage: "publish",
+        idempotency_key: `forged:${version}`,
+        payload: { render_id: master.data.id },
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("versions")
+        .update({ render_attempt: 2, status: "approved" })
+        .eq("id", version)
+    ).error,
+  ).toBeNull();
+  const next = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "master",
+      render_attempt: 2,
+      approved_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  expect(next.error).toBeNull();
+  expect(
+    (await client.rpc("enqueue_publish", { ...input, p_render: next.data.id }))
+      .error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select("id")
+        .eq("version_id", version)
+        .eq("stage", "publish")
+    ).data,
+  ).toHaveLength(2);
 });
 it("generation and retry requests cannot double enqueue on repeated clicks", async () => {
   const v = await fixture("takes_review");

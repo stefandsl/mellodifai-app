@@ -277,9 +277,31 @@ it("quota reservation is atomic and service-only", async () => {
   ).toBe(true);
 });
 it("publication and quota reservations are serialized for the same render", async () => {
+  const project = await service
+    .from("projects")
+    .insert({ owner_id: owner, topic: `${prefix}-reservation` })
+    .select("id")
+    .single();
+  expect(project.error).toBeNull();
+  const fresh = await service
+    .from("versions")
+    .insert({
+      owner_id: owner,
+      project_id: project.data.id,
+      lang: "fr",
+      status: "approved",
+    })
+    .select("id")
+    .single();
+  expect(fresh.error).toBeNull();
   const r = await service
     .from("renders")
-    .insert({ owner_id: owner, version_id: version, kind: "hook" })
+    .insert({
+      owner_id: owner,
+      version_id: fresh.data.id,
+      kind: "master",
+      approved_at: new Date().toISOString(),
+    })
     .select()
     .single();
   await service

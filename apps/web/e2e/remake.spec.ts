@@ -1,4 +1,5 @@
 import type { ChildProcess } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 import {
@@ -87,6 +88,97 @@ test("remake: paste a link, follow the progress, review, edit a line, accept and
     card.getByText("Righe da riscrivere prima di continuare: 1"),
   ).toHaveCount(0);
 
+  const db = serviceClient();
+  const verse = card.getByRole("region", { name: "Verse 2" });
+  const firstLine = verse.getByRole("button", {
+    name: /^Modifica la riga 14:/u,
+  });
+  const beforeLine = await firstLine.getAttribute("aria-label");
+  const { data: beforeRemake, error: beforeError } = await db
+    .from("remakes")
+    .select("lyrics")
+    .eq("video_id", "49rDdMbXd_w")
+    .single();
+  if (beforeError || !beforeRemake)
+    throw beforeError ?? new Error("Remake lyrics missing");
+  const beforeVerse = (
+    beforeRemake.lyrics as {
+      sections: { id: string; lines: { text: string }[] }[];
+    }
+  ).sections
+    .find((section) => section.id === "verse-2")
+    ?.lines.map((line) => line.text);
+  if (!beforeLine || !beforeVerse)
+    throw new Error("Verse 2 missing before regeneration");
+  await card
+    .getByRole("button", { name: "Rigenera la sezione Verse 2" })
+    .click();
+  await expect
+    .poll(() => firstLine.getAttribute("aria-label"))
+    .not.toBe(beforeLine);
+  await expect(accept).toBeEnabled({ timeout: 60_000 });
+  const { data: remake, error: remakeError } = await db
+    .from("remakes")
+    .select("id,version_id,stage,revision,lyrics")
+    .eq("video_id", "49rDdMbXd_w")
+    .single();
+  if (remakeError || !remake) throw remakeError ?? new Error("Remake missing");
+  expect(remake.stage).toBe("review");
+  expect(remake.revision).toBeGreaterThan(1);
+  const afterVerse = (
+    remake.lyrics as { sections: { id: string; lines: { text: string }[] }[] }
+  ).sections
+    .find((section) => section.id === "verse-2")
+    ?.lines.map((line) => line.text);
+  expect(afterVerse).toBeDefined();
+  expect(afterVerse).not.toEqual(beforeVerse);
+  expect(await firstLine.getAttribute("aria-label")).toContain(afterVerse?.[0]);
+  expect(JSON.stringify(remake.lyrics)).toContain(
+    "il mondo corre e non mi vede",
+  );
+  const { data: remakeJobs } = await db
+    .from("jobs")
+    .select("stage,payload,status")
+    .eq("version_id", remake.version_id);
+  expect(remakeJobs).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ stage: "remake_ingest", status: "done" }),
+      expect.objectContaining({ stage: "remake_analyse", status: "done" }),
+      expect.objectContaining({
+        stage: "remake_rewrite",
+        payload: expect.objectContaining({
+          mode: "section",
+          section: "verse-2",
+        }),
+        status: "done",
+      }),
+    ]),
+  );
+  const shots = "E:/mellodifai/codex-streams/e2e-coverage/shots";
+  await mkdir(shots, { recursive: true });
+  for (const [width, height] of [
+    [1440, 900],
+    [1360, 600],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await firstLine.scrollIntoViewIfNeeded();
+    await expect(firstLine).toBeInViewport();
+    await expect(accept).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: `${shots}/remake-verse-${width}x${height}.png`,
+      animations: "disabled",
+    });
+    await accept.scrollIntoViewIfNeeded();
+    await expect(accept).toBeInViewport();
+    await page.screenshot({
+      path: `${shots}/remake-review-${width}x${height}.png`,
+      animations: "disabled",
+    });
+  }
+
   // Accept: the reviewed lyrics become the song, and the normal generation starts.
   await accept.click();
   await expect(
@@ -97,6 +189,22 @@ test("remake: paste a link, follow the progress, review, edit a line, accept and
   await expect(page.getByText("IT Revisione take")).toBeVisible({
     timeout: 60_000,
   });
+  const { data: accepted } = await db
+    .from("remakes")
+    .select("stage")
+    .eq("id", remake.id)
+    .single();
+  const { data: version } = await db
+    .from("versions")
+    .select("lyric_pack,status")
+    .eq("id", remake.version_id)
+    .single();
+  if (!version) throw new Error("Accepted version missing");
+  expect(accepted?.stage).toBe("accepted");
+  expect(version.status).toBe("takes_review");
+  expect((version.lyric_pack as { lyrics: string }).lyrics).toContain(
+    "il mondo corre e non mi vede",
+  );
 });
 
 test("remake: a private video stops with a clear reason", async ({ page }) => {

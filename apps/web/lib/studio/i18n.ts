@@ -1,6 +1,7 @@
 // Studio interface strings. Kept apart from the v1 dictionary in @mellodifai/shared,
 // which the worker and the v1 screens also use.
 const it = {
+  "nav.main": "Navigazione principale",
   "nav.create": "Crea",
   "nav.library": "Libreria",
   "nav.videos": "Video",
@@ -107,6 +108,7 @@ const it = {
   "create.open": "Crea",
   "create.close": "Chiudi",
   "feed.workspace": "Il mio spazio",
+  "feed.breadcrumb": "Percorso di navigazione",
   "feed.workspaces": "Spazi",
   "feed.search": "Cerca",
   "feed.sort": "Ordina",
@@ -295,6 +297,13 @@ const it = {
   "player.nowPlaying": "In ascolto",
   "now.close": "Chiudi la vista di ascolto",
   "now.lyrics": "Testo",
+  "karaoke.title": "Testo",
+  "karaoke.close": "Chiudi il testo",
+  "karaoke.unsynced":
+    "Il testo non è sincronizzato. Puoi leggerlo scorrendo oppure sincronizzarlo sul PC.",
+  "karaoke.sync": "Sincronizza testo",
+  "karaoke.syncing": "Sincronizzazione in corso...",
+  "karaoke.failed": "Non riesco a sincronizzare il testo. Riprova.",
   "now.noLyrics": "Questa canzone non ha un testo.",
   "now.takes": "Versioni",
   "now.take": "Versione {n}",
@@ -647,6 +656,7 @@ const it = {
   "vs.badgesPlaceholder": "Titolo e artista",
   "vs.songLines": "Artista e album",
   "vs.aspect": "Formato",
+  "vs.quality": "Qualità",
   "vs.wide": "16:9",
   "vs.tall": "9:16 Shorts",
   "vs.preview": "Anteprima",
@@ -879,6 +889,7 @@ const it = {
   "lic.licensed": "Ho la licenza dell'autore",
   "lic.unknown": "Da verificare",
   "imp.open": "Importa da Suno",
+  "imp.openShort": "Importa",
   "imp.title": "Importa da Suno",
   "imp.subtitle":
     "Scarica i brani dal tuo account suno.com e trascinali qui, oppure incolla il link di condivisione di un brano.",
@@ -1117,6 +1128,7 @@ const it = {
 export type StudioKey = keyof typeof it;
 
 const en: Record<StudioKey, string> = {
+  "nav.main": "Main navigation",
   "nav.create": "Create",
   "nav.library": "Library",
   "nav.videos": "Videos",
@@ -1222,6 +1234,7 @@ const en: Record<StudioKey, string> = {
   "create.open": "Create",
   "create.close": "Close",
   "feed.workspace": "My Workspace",
+  "feed.breadcrumb": "Breadcrumb",
   "feed.workspaces": "Workspaces",
   "feed.search": "Search",
   "feed.sort": "Sort",
@@ -1409,6 +1422,13 @@ const en: Record<StudioKey, string> = {
   "player.nowPlaying": "Now playing",
   "now.close": "Close the listening view",
   "now.lyrics": "Lyrics",
+  "karaoke.title": "Lyrics",
+  "karaoke.close": "Close lyrics",
+  "karaoke.unsynced":
+    "These lyrics are not synchronized. Scroll to read them or align them on your PC.",
+  "karaoke.sync": "Synchronize lyrics",
+  "karaoke.syncing": "Synchronizing lyrics...",
+  "karaoke.failed": "Could not synchronize the lyrics. Try again.",
   "now.noLyrics": "This song has no lyrics.",
   "now.takes": "Takes",
   "now.take": "Take {n}",
@@ -1758,6 +1778,7 @@ const en: Record<StudioKey, string> = {
   "vs.badgesPlaceholder": "Title and artist",
   "vs.songLines": "Artist and album",
   "vs.aspect": "Format",
+  "vs.quality": "Quality",
   "vs.wide": "16:9",
   "vs.tall": "9:16 Shorts",
   "vs.preview": "Preview",
@@ -1990,6 +2011,7 @@ const en: Record<StudioKey, string> = {
   "lic.licensed": "Licensed from the author",
   "lic.unknown": "To be checked",
   "imp.open": "Import from Suno",
+  "imp.openShort": "Import",
   "imp.title": "Import from Suno",
   "imp.subtitle":
     "Download the tracks from your suno.com account and drop them here, or paste a track's share link.",

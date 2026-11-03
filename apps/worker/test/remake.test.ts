@@ -82,7 +82,10 @@ const dependencies = {
   engine: new Engine({ log: async () => {} }),
   storage: { upload: async () => {} },
   secrets: {
-    values: { OPENROUTER_API_KEY: "or-test-key-123" } as Record<string, string>,
+    values: {
+      OPENROUTER_API_KEY: "or-test-key-123",
+      LYRICS_STATE_FILE: join(scratch(), "lyrics-state.json"),
+    } as Record<string, string>,
     redact: (text: string) => text.replaceAll("or-test-key-123", "***"),
   },
 };
@@ -111,12 +114,20 @@ function loop(
   db: InMemoryDb,
   engine: RemakeEngine = fakeRemakeEngine(async () => {}),
 ) {
+  const root = scratch();
   return new WorkerLoop({
     db,
     workerId: "test",
-    stages: remakeStages(engine, { root: scratch() }),
+    stages: remakeStages(engine, { root }),
     songless: { lyrics_assist: lyricsAssist },
     ...dependencies,
+    secrets: {
+      ...dependencies.secrets,
+      values: {
+        ...dependencies.secrets.values,
+        LYRICS_STATE_FILE: join(root, "lyrics-state.json"),
+      },
+    },
   });
 }
 

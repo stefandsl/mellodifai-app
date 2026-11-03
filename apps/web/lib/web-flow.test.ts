@@ -1,27 +1,116 @@
+import { LANGS, publicationCopy } from "@mellodifai/shared";
 import { expect, it } from "vitest";
+import { PublicationInput } from "../app/actions/schemas";
 import { publicationDefaults } from "./publication-defaults";
 import { upsertJob } from "./timeline";
+
+it.each(LANGS)(
+  "keeps publication titles within the validator limit in %s",
+  (language) => {
+    const suffix = ` | ${publicationCopy(language).suffix}`;
+    const budget = 100 - suffix.length;
+    for (const length of [1, budget, budget + 1, 80, 100]) {
+      const title = "A".repeat(length);
+      const metadata = publicationDefaults(title, "Lyrics", language, null);
+      expect(metadata.title).toBe(length <= budget ? title + suffix : title);
+      expect(metadata.title.length).toBeLessThanOrEqual(100);
+      expect(
+        PublicationInput.safeParse({
+          renderId: "00000000-0000-4000-8000-000000000001",
+          metadata,
+        }).success,
+      ).toBe(true);
+    }
+    const unicodeTitle = "🎵".repeat(50);
+    expect(publicationDefaults(unicodeTitle, "", language, null).title).toBe(
+      unicodeTitle,
+    );
+  },
+);
+
+it("uses the song language when the UI language differs", () => {
+  const french = publicationDefaults("Le port", "Une lumière", "fr", null);
+  expect(french.title).toBe("Le port | Vidéo avec paroles");
+  expect(french.description).toContain(
+    "Créé avec des outils d’intelligence artificielle.",
+  );
+  expect(french.description).not.toContain("Creato con");
+  expect(french.tags).toBe("Le port, vidéo avec paroles, fr");
+  expect(
+    publicationDefaults("Song", "Words", "en", null).description,
+  ).toContain("Created with AI tools.");
+});
 
 it("prefills metadata and filters chapter starts less than ten seconds apart", () => {
   expect(
     publicationDefaults(
       "My song",
-      "A brief",
+      "[Verse]\nA light across the bay\nWe sing tonight",
       "en",
       [
         { title: "Intro", start: 0 },
         { title: "Verse", start: 4 },
         { title: "Chorus", start: 65 },
       ],
-      "en",
     ),
   ).toEqual({
     title: "My song | Lyric video",
-    description: "A brief\n\nCreated with mellodifai.",
+    description:
+      "My song\n\nA light across the bay\nWe sing tonight\n\nCreated with AI tools.",
     tags: "My song, lyric video, en",
     chapters: "0:00 Intro\n1:05 Chorus",
   });
-  expect(publicationDefaults("Song", "", "it", null, "it").chapters).toBe("");
+  expect(publicationDefaults("Song", "", "it", null).chapters).toBe("");
+});
+it("uses the rendered song mood in publication defaults", () => {
+  const calm = publicationDefaults(
+    "Same song",
+    "Same lyrics",
+    "en",
+    null,
+    "calm",
+  );
+  const urgent = publicationDefaults(
+    "Same song",
+    "Same lyrics",
+    "en",
+    null,
+    "urgent",
+  );
+  expect(calm.description).toContain("calm");
+  expect(calm.tags).toContain("calm");
+  expect(urgent.description).toContain("urgent");
+  expect(urgent.tags).toContain("urgent");
+  expect(calm).not.toEqual(urgent);
+  const french = publicationDefaults(
+    "Le port",
+    "Paroles",
+    "fr",
+    null,
+    "Pop luminoso",
+  );
+  expect(french.description).toContain("lumineux");
+  expect(french.tags).toContain("lumineux");
+  expect(french.description).not.toContain("luminoso");
+  expect(french.tags).not.toContain("luminoso");
+  expect(
+    publicationDefaults("Le port", "Paroles", "fr", null, "unmapped style")
+      .tags,
+  ).toBe("Le port, vidéo avec paroles, fr");
+  const long = publicationDefaults(
+    "Song",
+    "A".repeat(5000),
+    "en",
+    null,
+    "B".repeat(1000),
+  );
+  expect(long.tags.length).toBeLessThanOrEqual(500);
+  expect(
+    PublicationInput.safeParse({
+      renderId: "00000000-0000-4000-8000-000000000001",
+      metadata: long,
+    }).success,
+  ).toBe(true);
 });
 it("updates jobs in chronological position without duplicating rows", () => {
   const a = { id: "a", created_at: "2026-01-01", status: "queued" };

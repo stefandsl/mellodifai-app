@@ -127,6 +127,60 @@ describe("Suno share link", () => {
     expect(response.status).toBe(422);
     expect(calls).toHaveLength(1);
   });
+  it("checks each page redirect before fetching it", async () => {
+    for (const destination of [
+      "http://127.0.0.1:45621/private",
+      "https://example.com/private",
+    ]) {
+      const fetchMock = vi.fn(
+        async (_url: string | URL, _init: RequestInit) =>
+          new Response(null, {
+            status: 302,
+            headers: { location: destination },
+          }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      expect(
+        (await sunoLink(json({ url: "https://suno.com/s/AbCd1234" }))).status,
+      ).toBe(502);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+        redirect: "manual",
+      });
+    }
+  });
+  it("follows a Suno page redirect but refuses an audio redirect to another host", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes("/s/"))
+          return new Response(null, {
+            status: 302,
+            headers: { location: `/song/${ID}` },
+          });
+        if (url.includes("/song/"))
+          return new Response(
+            `<meta property="og:audio" content="https://cdn1.suno.ai/${ID}.mp3">`,
+          );
+        return new Response(null, {
+          status: 302,
+          headers: { location: "http://127.0.0.1:45621/private" },
+        });
+      }),
+    );
+    expect(
+      (await sunoLink(json({ url: "https://suno.com/s/AbCd1234" }))).status,
+    ).toBe(502);
+    expect(urls).toEqual([
+      "https://suno.com/s/AbCd1234",
+      `https://suno.com/song/${ID}`,
+      `https://cdn1.suno.ai/${ID}.mp3`,
+    ]);
+    expect(mock.uploads).toEqual([]);
+  });
 });
 
 describe("transcription", () => {

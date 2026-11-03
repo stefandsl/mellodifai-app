@@ -21,12 +21,13 @@ export class WorkspaceFactory {
     projectId: string,
     lang: Lang,
     fake = process.env.WORKER_FAKE === "1",
+    renderAttempt = 1,
   ): Promise<Workspace> {
     const root = join(this.projectsRoot, projectId, lang);
     const versionsDir = join(root, "versions", lang);
     const outDir = join(root, "out", lang);
     const publicDir = join(root, "public");
-    const renderDir = join(root, "render");
+    const renderDir = join(root, "render", String(renderAttempt));
     await Promise.all([
       mkdir(versionsDir, { recursive: true }),
       mkdir(outDir, { recursive: true }),

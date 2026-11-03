@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
       "../ops/errors.js": "../../packages/shared/src/ops/errors.ts",
       "./i18n.js": "../../packages/shared/src/i18n.ts",
       "./lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
+      "./publication-defaults.js":
+        "../../packages/shared/src/publication-defaults.ts",
       "./lyrics-assist.js": "../../packages/shared/src/lyrics-assist.ts",
       "./remake/index.js": "../../packages/shared/src/remake/index.ts",
       "./analysis.js": "../../packages/shared/src/remake/analysis.ts",

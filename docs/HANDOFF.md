@@ -32,8 +32,8 @@ Gemini) drive the app through a CLI and MCP on the owner's own subscriptions.
 - Disk: never write databases, caches, logs, transcripts, model weights or test data on C:.
   Use `E:/mellodifai/...` (runtime, reports, render-tmp, logs) or `G:\caches`. If C: has
   less than 20 GB free, stop and report. Never delete files you did not create.
-- Playwright / e2e only on the e2e stack (Next on 3210, Supabase API 45621). Never on the
-  live stack (Supabase API 54321).
+- Playwright / e2e only on an isolated test stack (normally Next on 3210, Supabase API 45621).
+  Never on the live stack (Supabase API 54321).
 - The Supabase CLI is `npx supabase` (cached v3.0.0). Never factory-reset Docker. Migrations are additive only, each with database tests.
 - No em dash characters anywhere (use "-"). Plain commit messages, no co-author lines.
 - Do not commit `apps/web/AGENTS.md`. Do not change the owner's account settings.
@@ -81,14 +81,17 @@ Merged into `build/studio-ui` and pushed:
   `20261102000026_remakes.sql` applied to the live stack. Real rewrites stay blocked until the
   owner turns off the OpenRouter privacy filter (or sets `LYRICS_OPENROUTER_KEY` to a key
   without it). The worker now depends on `@mellodifai/remake`: `pnpm install` before starting it.
-  The audio editor trim test flake under load is fixed (146d2dc).
+  The audio editor trim test flake under load is fixed (146d2dc). Playback timeout
+  and export commit race test fixes are on `feat/test-flakes`.
 - Agentic studio design revision 6 and the M1 plan.
+- Video Studio 1080p/4K quality selection and local image upscaler, merged from `feat/render-4k`.
 
 In progress:
 
 | Work | Branch / worktree | Brief | What is left |
 | --- | --- | --- | --- |
 | M1 agent access (47 tasks) | `build/m1-agent-access`, `.claude/worktrees/m1-agent-access` | `docs/superpowers/plans/2026-11-02-m1-agent-access.md` | Run the Codex driver (section 4). |
+| Karaoke lyrics | `feat/karaoke`, `E:/mellodifai/wt/karaoke` | `E:/mellodifai/codex-streams/karaoke/brief.md` | Implemented with local Whisper alignment; playback-take selection, master-only audio alignment and fake worker master jobs are fixed, awaiting integration. Apply migrations `20261103020001` and `20261103020002`. Report and screenshots: `E:/mellodifai/codex-streams/karaoke/`. |
 
 Leftover worktrees to clean up when their branches are merged: `agent-aeb276f7c9d48b97b`
 (T28, merged), `agent-ab7634b26f5114742` (T27, merged). Remove with
@@ -134,11 +137,96 @@ If you are not using the driver, the same loop by hand: read the task text in th
 implement with tests, commit, push, then review the task's diff against its text with fresh
 eyes before starting the next one.
 
+Migration order note: the live stack already has `20261103020001`/`020002` (karaoke). M1's
+migrations (`20261102000027` onward) sort before them, so applying M1 to the live stack needs
+`npx supabase migration up --include-all`.
+
+## 4b. Parallel Codex workstreams (started 2026-11-03)
+
+Six independent streams run next to M1, each in its own worktree `E:/mellodifai/wt/<name>` on
+branch `feat/<name>` from `build/studio-ui`: `render-4k` (merged), `karaoke` (merged)
+(Spotify-like lyrics view), `song-assets` (per-song storyboard/thumbnail/metadata bug, CTR
+thumbnails), `repo-audit` (merged), `plan-m2` (merged) and `plan-m3m4` (plans only).
+Runner: `bash E:/mellodifai/codex-streams/stream.sh <name> <e2e-port>`; brief, report, reviews
+and `status.log` live in `E:/mellodifai/codex-streams/<name>/`. Builders use `gpt-6-sol`
+(reasoning high). `gpt-6-astra` returns 429 under parallel load, so reviewers and the M1 driver also run on sol: use `E:/mellodifai/codex-streams/stream4.sh` and start M1 with `CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh <from> 47`. `gpt-6.1-sol` is refused on a ChatGPT account. Re-run a parked stream's review loop with `SKIP_IMPL=1 bash E:/mellodifai/codex-streams/stream4.sh <name> <port>`. A stream
+ends with "DONE branch ..." in its status.log; then review its report, merge the branch into
+`build/studio-ui` (renumber migrations to the next free number if needed), run all gates, push.
+Launch detached on Windows with PowerShell `Start-Process` so it outlives the agent session.
+
+The `feat/ui-polish` stream has a visual audit, UI fixes, and before/after screenshots at
+`E:/mellodifai/codex-streams/ui-polish/report.md`. Its final style-card evidence covers
+1440x900, 1360x600, and 390x844. The focused browser suite and unit gates pass; the shared
+database and full e2e stack had unrelated failures in its review-round-2 run.
+
+The `feat/rerender` stream adds a new attempt after video approval or publication, protects
+published render files and thumbnails during cleanup, and adds the song-page action. Migration
+`20261103050001_rerender_published.sql`, `20261103050002_rerender_assets.sql`, and
+`20261103050003_rerender_metadata.sql` are applied to the e2e database only. The second migration snapshots
+the current storyboard, thumbnail, publication metadata and Video Studio look, and limits render
+row writes to worker and RPC paths. The third keeps saved metadata across later re-renders. Report and
+screenshots: `E:/mellodifai/codex-streams/rerender/`. Review round 3 also covers legacy flat
+preview cleanup and guards its database fixture against non-local and live ports. It awaits
+integration into `build/studio-ui`. After merging the latest integration branch, its full database
+suite (144 tests) and browser suite (15 tests) passed on the private `mellodifai_rerender` stack
+(API 48621, Next 3229) with fake workers. That stack was stopped and its temporary image tags
+restored. Read the stream report before integration.
+
+The `feat/suite-health` stream verifies the merged suites on a private Supabase stack at
+`E:/mellodifai/stacks/suite-health` (API 47621, DB 47622, Studio 47623, Mailpit 47624,
+Next 3230). Copy `supabase/` there and give it a unique `project_id` and ports before
+`npx supabase start --workdir E:/mellodifai/stacks/suite-health`. The CLI v3.0.0 defaults
+to newer service image tags. Before starting, use `docker tag <cached source> <CLI tag>`
+for these pairs, then verify each target resolves to the source image ID:
+
+| Cached source | CLI tag |
+| --- | --- |
+| `public.ecr.aws/supabase/storage-api:v1.84.19` | `public.ecr.aws/supabase/storage-api:v1.88.0` |
+| `public.ecr.aws/supabase/postgres:17.11.0.006` | `public.ecr.aws/supabase/postgres:17.11.0.011` |
+| `public.ecr.aws/supabase/studio:2026.10.19-sha-b375769` | `public.ecr.aws/supabase/studio:2026.11.02-sha-a05e7ec` |
+| `public.ecr.aws/supabase/edge-runtime:v1.77.8` | `public.ecr.aws/supabase/edge-runtime:v1.77.9` |
+| `public.ecr.aws/supabase/realtime:v2.147.1` | `supabase/realtime:v2.151.3` |
+
+Record the existing target IDs first, restore existing tags and remove only newly created
+tags after startup. Do not prune Docker images: unrelated stacks share the daemon.
+Keep `SUPABASE_HOME`,
+`TEMP`, and `TMP` on E: and the npm cache on G:. Write `supabase status -o env` to a private
+file under the stack folder, then map its `API_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`, and
+`MAILPIT_URL` to `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and
+`MAILPIT_URL` for the test process. Set `E2E_PORT=3230` and `WORKER_FAKE=1`. Never print or
+commit the status or test env files. `supabase start` prints development credentials, so
+discard its output instead of saving an unfiltered startup log. For suite evidence, record
+command exit codes and test summary lines without saving raw output.
+`supabase/tests/song-assets.test.ts` now accepts any local non-live stack through the same
+URL guard as Playwright.
+
+The `feat/e2e-coverage` stream adds browser journeys for AI lyrics through private publication,
+remake section regeneration, library controls, karaoke, audio trim export, and the existing
+published re-render. It fixes the song-assets test's fixed browser port. Its private
+`mellodifai_cov` stack (API 49621, Next 3231) passed the database suite (144 tests) and browser
+suite (17 tests) twice in a row with fake providers. The stack was stopped and its temporary
+image tags restored. Report and screenshots: `E:/mellodifai/codex-streams/e2e-coverage/`.
+Review round 1 strengthened filter inclusion and exclusion, automatic karaoke playback timing,
+Verse 2 regeneration persistence, exact take selection, and uploaded logo storage checks. The
+private database and browser suites each passed twice again; the stack is stopped.
+Review round 2 verifies the visible private publication title and visibility, the playlist item's
+song ID, and the actual 2-8 second WAV segment. The private database and browser suites each
+passed twice again; the stack is stopped.
+Review round 3 preserves submitted AI lyrics in the fake draft and lets the approved project's
+publish kit select a completed 16:9 Video Studio render. Migration
+`20261103070001_publish_visualizer.sql` allows that render only after master approval; the worker
+uploads the selected render from the job payload. The migration is applied to the private coverage
+stack only. The branch's report has the latest tests and screenshots.
+Review round 4 adds `20261103070002_publish_attempt_guard.sql`. Authenticated users cannot
+insert publish jobs directly, enqueue and reservation allow one active or completed upload per
+render attempt, and both worker paths recheck approval before upload. The private stack has
+passed two database runs; see the branch report for the final browser verification.
+
 ## 5. Later work (after M1)
 
-1080p minimum and 4K with an upscaler; per-song storyboard, thumbnail and metadata; Spotify-
-like karaoke; per-language publishing hub (11 languages); CTR thumbnails (not clickbait);
-milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
+Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design
+(plans in docs/superpowers/plans/2026-11-03-*);
+cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 

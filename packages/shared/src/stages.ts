@@ -42,6 +42,8 @@ export const STAGES = [
   "remake_rewrite",
   // The create panel's AI lyric buttons: a job without a song (jobs.version_id is null).
   "lyrics_assist",
+  // On demand: local Whisper word timing for a playable take.
+  "align_lyrics",
 ] as const;
 
 export type Stage = (typeof STAGES)[number];
@@ -83,6 +85,7 @@ export const ON_DEMAND_STAGES: readonly Stage[] = [
   "stems",
   "visualizer",
   "replace_section",
+  "align_lyrics",
 ];
 export function isOnDemandStage(stage: Stage): boolean {
   return ON_DEMAND_STAGES.includes(stage);
