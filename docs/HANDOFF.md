@@ -4,7 +4,7 @@ Read this first if you are picking up the work without the previous Claude sessi
 the single source for where things stand, the rules, and how to continue. Keep it current:
 when you finish or change something listed here, edit this file and commit it.
 
-Last updated: 2026-11-02.
+Last updated: 2026-11-03.
 
 ## 1. What the product is
 
@@ -77,6 +77,7 @@ In progress:
 | Work | Branch / worktree | Brief | What is left |
 | --- | --- | --- | --- |
 | M1 agent access (47 tasks) | `build/m1-agent-access`, `.claude/worktrees/m1-agent-access` | `docs/superpowers/plans/2026-11-02-m1-agent-access.md` | Run the Codex driver (section 4). |
+| Karaoke lyrics | `feat/karaoke`, `E:/mellodifai/wt/karaoke` | `E:/mellodifai/codex-streams/karaoke/brief.md` | Implemented with local Whisper alignment, awaiting integration. Report and screenshots: `E:/mellodifai/codex-streams/karaoke/`. |
 
 Leftover worktrees to clean up when their branches are merged: `agent-aeb276f7c9d48b97b`
 (T28, merged), `agent-ab7634b26f5114742` (T27, merged). Remove with
@@ -125,7 +126,7 @@ eyes before starting the next one.
 ## 5. Later work (after M1)
 
 1080p minimum and 4K with an upscaler; per-song storyboard, thumbnail and metadata; Spotify-
-like karaoke; per-language publishing hub (11 languages); CTR thumbnails (not clickbait);
+per-language publishing hub (11 languages); CTR thumbnails (not clickbait);
 milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
