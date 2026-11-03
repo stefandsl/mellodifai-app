@@ -39,7 +39,12 @@ async function setup(
   params: VisualizerParams,
   { renderCode = 0, cover = true, imageSize = "4000x4000" } = {},
 ) {
-  const root = await mkdtemp(join(tmpdir(), "visualizer-tests-"));
+  const scratch =
+    process.platform === "win32"
+      ? "E:/mellodifai/codex-streams/rerender/tmp"
+      : tmpdir();
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "visualizer-tests-"));
   roots.push(root);
   const ws = {
     root,

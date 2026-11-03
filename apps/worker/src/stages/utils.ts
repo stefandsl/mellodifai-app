@@ -33,7 +33,14 @@ export function renderAssetPath(
   file: RegExp,
 ): boolean {
   const prefix = `previews/${context.version.owner_id}/${context.project.id}/${context.version.lang}/${context.version.id}/${renderAttempt}/`;
-  return path.startsWith(prefix) && file.test(path.slice(prefix.length));
+  const legacyPrefix = `previews/${context.version.owner_id}/${context.project.id}/${context.version.lang}/`;
+  if (path.startsWith(prefix)) return file.test(path.slice(prefix.length));
+  const legacyName = path.slice(legacyPrefix.length);
+  return (
+    path.startsWith(legacyPrefix) &&
+    !legacyName.includes("/") &&
+    file.test(legacyName)
+  );
 }
 export function versionFile(context: StageContext, file: string): string {
   return join(context.ws.versionsDir, file);

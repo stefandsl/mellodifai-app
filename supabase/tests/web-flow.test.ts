@@ -13,7 +13,15 @@ function env(k: string) {
   return v;
 }
 beforeAll(async () => {
-  service = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
+  const url = new URL(env("SUPABASE_URL"));
+  if (
+    !["127.0.0.1", "localhost"].includes(url.hostname) ||
+    url.port !== "45621"
+  )
+    throw new Error(
+      "web-flow tests require the e2e Supabase API on port 45621",
+    );
+  service = createClient(url.href, env("SUPABASE_SERVICE_ROLE_KEY"));
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
     await service.from("admin_allowlist").insert({ email });
