@@ -35,7 +35,7 @@ type Call = { cmd: string; args: string[]; props?: Record<string, unknown> };
 // ffmpeg, ffprobe and the Remotion render would.
 async function setup(
   params: VisualizerParams,
-  { renderCode = 0, cover = true } = {},
+  { renderCode = 0, cover = true, imageSize = "4000x4000" } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "visualizer-tests-"));
   roots.push(root);
@@ -60,7 +60,10 @@ async function setup(
     setImmediate(() => {
       void (async () => {
         if (cmd === "ffprobe") {
-          child.stdout.emit("data", "4.5\n");
+          child.stdout.emit(
+            "data",
+            args.includes("format=duration") ? "4.5\n" : `${imageSize}\n`,
+          );
         } else if (cmd === process.execPath) {
           call.props = JSON.parse(await readFile(args[1] as string, "utf8"));
           for (const n of [0, 30, 60, 90])
@@ -242,6 +245,26 @@ describe("visualizer stage", () => {
     expect(storage.upload.mock.calls[0]?.[0]).toBe(
       "previews/owner/project/it/visualizer-9x16.mp4",
     );
+  });
+
+  it("upscales small background and centre images for a 4K frame without changing their aspect", async () => {
+    const params = defaultVisualizerParams();
+    params.quality = "4K";
+    const { ctx, calls } = await setup(params, { imageSize: "800x400" });
+    await stages.visualizer?.(ctx);
+    const props = calls.find((c) => c.cmd === process.execPath)?.props;
+    expect(props).toMatchObject({
+      background: { file: "background-upscaled.png", kind: "image" },
+      center: "cover-upscaled.png",
+    });
+    const scales = calls.filter(
+      (c) =>
+        c.cmd === "ffmpeg" && c.args.some((a) => a.includes("flags=lanczos")),
+    );
+    expect(scales.map((c) => c.args[c.args.indexOf("-vf") + 1])).toEqual([
+      "scale=4320:2160:flags=lanczos",
+      "scale=4320:2160:flags=lanczos",
+    ]);
   });
 
   it("fetches the logos like the centre upload, leaving out a missing one", async () => {
