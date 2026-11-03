@@ -1,5 +1,5 @@
 import type { ChildProcess } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
@@ -125,7 +125,7 @@ test("published song starts a new render and keeps its original publication", as
 
   const { data: version } = await db
     .from("versions")
-    .select("id,render_attempt,storyboard_path")
+    .select("id,owner_id,render_attempt,storyboard_path")
     .eq("project_id", projectId)
     .eq("lang", "fr")
     .single();
@@ -144,11 +144,56 @@ test("published song starts a new render and keeps its original publication", as
     .eq("render_id", original.id)
     .single();
   if (!publication) throw new Error("Publication missing");
+  if (!version.storyboard_path) throw new Error("Storyboard missing");
+  const storyboard = JSON.parse(
+    await readFile(version.storyboard_path, "utf8"),
+  );
+  storyboard.shots[0].props.emphasis = ["Edited scene"];
+  await writeFile(version.storyboard_path, JSON.stringify(storyboard));
+  const look = {
+    preset: "circle",
+    aspect: "16:9",
+    background: { mode: "random", seed: 3, assetUrl: null, dimming: 60 },
+    colors: { primary: "#f2333d", secondary: "#2ee6d6" },
+    particles: 30,
+    centerImage: { mode: "cover", assetUrl: null },
+    textLayers: [],
+    effects: [],
+    classico: { artist: "", website: "", album: "", cards: true },
+    logos: [],
+  };
+  expect(
+    (
+      await serviceClient().from("renders").insert({
+        owner_id: version.owner_id,
+        version_id: version.id,
+        kind: "visualizer",
+        aspect: "16:9",
+        visualizer_params: look,
+      })
+    ).error,
+  ).toBeNull();
 
   await page.getByRole("button", { name: "Nuovo render" }).click();
   await expect(page.getByText("FR Revisione video")).toBeVisible({
     timeout: 60_000,
   });
+  await expect
+    .poll(
+      async () => {
+        const { data } = await db
+          .from("versions")
+          .select("render_attempt,status")
+          .eq("id", version.id)
+          .single();
+        return data;
+      },
+      { timeout: 60_000 },
+    )
+    .toMatchObject({
+      render_attempt: version.render_attempt + 1,
+      status: "video_review",
+    });
   const { data: newVersion } = await db
     .from("versions")
     .select("render_attempt,storyboard_path")
@@ -171,8 +216,28 @@ test("published song starts a new render and keeps its original publication", as
       storyboard_path: newVersion?.storyboard_path,
       lyric_pack: (original.qa_results as { assets: { lyric_pack: unknown } })
         .assets.lyric_pack,
+      metadata: publication.metadata,
+      visualizer_params: look,
     },
   });
+  if (!newVersion?.storyboard_path) throw new Error("New storyboard missing");
+  expect(
+    JSON.parse(await readFile(newVersion.storyboard_path, "utf8")),
+  ).toEqual(storyboard);
+  const newThumbnail = (
+    fresh.qa_results as { assets: { thumbnail_path: string } }
+  ).assets.thumbnail_path;
+  const oldThumbnailPath = (
+    original.qa_results as { assets: { thumbnail_path: string } }
+  ).assets.thumbnail_path;
+  const oldBytes = await db.storage.from("previews").download(oldThumbnailPath);
+  const newBytes = await db.storage.from("previews").download(newThumbnail);
+  expect(oldBytes.error).toBeNull();
+  expect(newBytes.error).toBeNull();
+  if (!oldBytes.data || !newBytes.data) throw new Error("Thumbnail missing");
+  expect(Buffer.from(await newBytes.data.arrayBuffer())).toEqual(
+    Buffer.from(await oldBytes.data.arrayBuffer()),
+  );
   await expect(page.locator("video").first()).toHaveAttribute(
     "src",
     /\/media\/previews\//u,
@@ -181,6 +246,10 @@ test("published song starts a new render and keeps its original publication", as
   await expect(
     page.getByRole("button", { name: "Nuovo render" }),
   ).toBeVisible();
+  expect(publication.metadata).toMatchObject({ title: expect.any(String) });
+  await expect(page.locator("#publish-title")).toHaveValue(
+    (publication.metadata as { title: string }).title,
+  );
   for (const [width, height] of [
     [1440, 900],
     [1360, 600],

@@ -45,6 +45,8 @@ export type RenderPreview = {
       lang?: string;
       mood?: string;
       storyboard_sections?: unknown;
+      metadata?: Partial<ReturnType<typeof publicationDefaults>>;
+      visualizer_params?: unknown;
     };
   };
 };
@@ -160,13 +162,16 @@ export function ProjectWorkspace({
   const rendered = master?.qa_results.assets;
   const pack = rendered?.lyric_pack ?? version.lyric_pack;
   const sections = rendered?.storyboard_sections ?? version.storyboard_sections;
-  const defaults = publicationDefaults(
-    pack?.title ?? "",
-    pack?.lyrics ?? "",
-    rendered?.lang ?? version.lang,
-    sections,
-    rendered?.mood ?? "",
-  );
+  const defaults = {
+    ...publicationDefaults(
+      pack?.title ?? "",
+      pack?.lyrics ?? "",
+      rendered?.lang ?? version.lang,
+      sections,
+      rendered?.mood ?? "",
+    ),
+    ...rendered?.metadata,
+  };
   if (version.status === "lyrics_review" && version.lyric_pack)
     return (
       <LyricEditor
