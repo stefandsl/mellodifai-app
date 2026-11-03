@@ -2,6 +2,7 @@ export * from "./i18n.js";
 export * from "./lyric-pack.js";
 export * from "./lyrics-assist.js";
 export * from "./ops/index.js";
+export { JobStatus } from "./ops/index.js";
 export * from "./remake/index.js";
 export * from "./rewrite.js";
 export * from "./song-settings.js";

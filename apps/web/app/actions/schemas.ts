@@ -1,9 +1,7 @@
 import {
   LANGS,
   LyricPackSchema,
-  MAX_SONGS_PER_CLICK,
   REWRITE_ENGINES,
-  SongSettingsSchema,
   SongSourceSchema,
 } from "@mellodifai/shared";
 import { z } from "zod";
@@ -19,31 +17,7 @@ export const CreateProjectInput = z.object({
   vocalGender: z.enum(["m", "f"]),
 });
 
-export const CreateSongInput = z
-  .object({
-    mode: z.enum(["simple", "advanced"]),
-    prompt: z.string().trim().max(500),
-    lyrics: z.string().trim().max(5000),
-    styles: z.string().trim().max(1000),
-    languages: z.array(z.enum(LANGS)).min(1),
-    vocalGender: z.enum(["m", "f"]).nullable(),
-    settings: SongSettingsSchema,
-    // Songs made by one click: each is its own project (and one song per language).
-    count: z.number().int().min(1).max(MAX_SONGS_PER_CLICK).default(1),
-  })
-  .refine(
-    (v) =>
-      v.mode === "simple"
-        ? v.prompt.length > 0
-        : Boolean(
-            v.prompt ||
-              v.lyrics ||
-              v.styles ||
-              v.settings.title ||
-              v.settings.source,
-          ),
-    { message: "Describe the song or add lyrics, styles or a title" },
-  );
+export { CookieCreateSongInput as CreateSongInput } from "@mellodifai/shared";
 
 export const FormatStyleInput = z.object({
   styles: z.string().trim().min(1).max(1000),

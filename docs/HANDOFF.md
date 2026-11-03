@@ -342,3 +342,15 @@ Purges retain the specified boundary rows, revoke abandoned unbound OAuth
 tokens, and cancel active jobs before trashing test versions older than seven
 days. Task 26 still owns the worker scheduler loop. Only e2e was migrated;
 production and paid providers were not used.
+
+M1 Task 19 adds `20261102000033_ops_wrappers.sql`: the fifteen remaining
+token operations, with actor-filtered reads, scope and test-run checks,
+idempotency completion, audit, and atomic job reservations. Task 17's
+`costs_get` remains the sixteenth token operation. The job stamp trigger
+preserves test/token flags and handles reused stems/visualizer jobs; inserted
+test-token versions are marked `test_run`. Shared read/input schemas are
+exported through `packages/shared/src/ops`; the cookie create schema preserves
+upload support while token create rejects upload sources. The existing
+`JobStatus` string type remains compatible alongside the new Zod read schema.
+Only the e2e stack was migrated. Task 20 owns cookie-only wrappers, and Task 29
+still owns routing the existing server actions through the operations layer.

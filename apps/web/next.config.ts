@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     // Shared sources retain NodeNext .js specifiers for the worker's emitted ESM.
     resolveAlias: {
+      "../status.js": "../../packages/shared/src/status.ts",
+      "./reads.js": "../../packages/shared/src/ops/reads.ts",
+      "./inputs.js": "../../packages/shared/src/ops/inputs.ts",
+      "../stages.js": "../../packages/shared/src/stages.ts",
+      "../lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
+      "../song-settings.js": "../../packages/shared/src/song-settings.ts",
+      "../visualizer/viz-params.js":
+        "../../packages/shared/src/visualizer/viz-params.ts",
+
       "./ops/index.js": "../../packages/shared/src/ops/index.ts",
       "../ops/errors.js": "../../packages/shared/src/ops/errors.ts",
       "./i18n.js": "../../packages/shared/src/i18n.ts",
