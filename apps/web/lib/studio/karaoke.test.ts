@@ -46,3 +46,24 @@ describe("karaoke selection", () => {
     expect(sectionLabel("[Verse 2]", "en")).toBe("Verse 2");
   });
 });
+
+it("preserves word timings across punctuation and rejects different words", () => {
+  const timing = {
+    source: "whisper" as const,
+    lines: [
+      {
+        text: "Hello world",
+        start: 0,
+        end: 2,
+        words: [
+          { word: "Hello", start: 0, end: 1 },
+          { word: "world", start: 1, end: 2 },
+        ],
+      },
+    ],
+  };
+  expect(karaokeLines("Hello, world!", timing)[0]?.words).toEqual(
+    timing.lines[0]?.words,
+  );
+  expect(karaokeLines("Goodbye world", timing)[0]?.words).toBeNull();
+});

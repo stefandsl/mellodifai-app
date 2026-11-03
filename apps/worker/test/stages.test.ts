@@ -1907,3 +1907,61 @@ describe("exact stage subprocess contracts", () => {
       ).toMatchObject({ model: "V6", vocal_gender: "f", style_weight: 0.7 });
   });
 });
+
+describe("local lyric alignment", () => {
+  it.each(["success", "engine failure", "unmatched"])(
+    "handles %s and cleans its workspace",
+    async (result) => {
+      const { ctx, db } = await setup();
+      ctx.job.payload = { take_id: "alignment-take" };
+      db.takes.push({
+        id: "alignment-take",
+        version_id: ctx.version.id,
+        take_number: 1,
+        lyrics: "Hello world",
+      });
+      await writeFile(join(ctx.ws.outDir, "take-1.mp3"), "fake audio");
+      const run = vi
+        .spyOn(ctx.engine, "run")
+        .mockImplementation(async (_cmd, args) => {
+          if (result === "engine failure")
+            throw new Error("local engine failed");
+          if (!args[3]) throw new Error("Missing output path");
+          await writeFile(
+            args[3],
+            JSON.stringify(
+              result === "unmatched"
+                ? []
+                : [
+                    { word: "Hello", start: 0, end: 1 },
+                    { word: "world", start: 1, end: 2 },
+                  ],
+            ),
+          );
+          return { code: 0, stdout: "", stderr: "" };
+        });
+      const status = ctx.version.status;
+      if (result === "success") {
+        await expect(stages.align_lyrics?.(ctx)).resolves.toEqual({});
+        expect(
+          db.takes.find((t) => t.id === "alignment-take")?.lyric_timing,
+        ).toMatchObject({
+          source: "whisper",
+          lines: [{ words: [{ word: "Hello" }, { word: "world" }] }],
+        });
+      } else {
+        await expect(stages.align_lyrics?.(ctx)).rejects.toThrow();
+        expect(
+          db.takes.find((t) => t.id === "alignment-take")?.lyric_timing,
+        ).toBeUndefined();
+      }
+      expect(ctx.version.status).toBe(status);
+      expect(run).toHaveBeenCalledTimes(1);
+      await expect(
+        readFile(
+          join(ctx.ws.root, "align-lyrics", "alignment-take", "words.json"),
+        ),
+      ).rejects.toThrow();
+    },
+  );
+});

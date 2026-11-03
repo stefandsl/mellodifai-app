@@ -264,10 +264,17 @@ export function alignWordsToLines(
 export function timedLyrics(
   lyrics: string,
   timing: LyricTiming | null,
-): (LyricLine & { start: number | null; end: number | null })[] {
+): (LyricLine & {
+  start: number | null;
+  end: number | null;
+  words?: TimedWord[] | undefined;
+})[] {
   const lines = lyricLines(lyrics);
   const sung = lines.filter((line) => line.sung);
-  const times = new Map<number, { start: number; end: number }>();
+  const times = new Map<
+    number,
+    { start: number; end: number; words?: TimedWord[] | undefined }
+  >();
   if (timing) {
     if (timing.lines.length === sung.length)
       sung.forEach((line, i) => {
@@ -296,7 +303,12 @@ export function timedLyrics(
   }
   return lines.map((line) => {
     const time = times.get(line.index);
-    return { ...line, start: time?.start ?? null, end: time?.end ?? null };
+    return {
+      ...line,
+      start: time?.start ?? null,
+      end: time?.end ?? null,
+      ...(time?.words ? { words: time.words } : {}),
+    };
   });
 }
 

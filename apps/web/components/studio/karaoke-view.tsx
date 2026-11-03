@@ -14,12 +14,10 @@ import {
   sectionLabel,
 } from "@/lib/studio/karaoke";
 import { createClient } from "@/lib/supabase/browser";
-import { formatTime, usePlayer } from "@/store/player";
+import { formatTime, type TrackDetail, usePlayer } from "@/store/player";
 
 export function KaraokeView() {
-  const lang = useLocale();
-  const p = usePlayer();
-  const track = p.queue[p.index];
+  const track = usePlayer((state) => state.queue[state.index]);
   const detail = track?.detail;
   const take = detail?.takes.find(
     (item) =>
@@ -28,12 +26,25 @@ export function KaraokeView() {
         detail.takes.find((item) => item.id === detail.chosenTakeId)?.number ??
         detail.takes[0]?.number),
   );
+  return <KaraokeSession key={`${detail?.songId}:${take?.id}`} take={take} />;
+}
+
+function KaraokeSession({
+  take,
+}: {
+  take: TrackDetail["takes"][number] | undefined;
+}) {
+  const lang = useLocale();
+  const p = usePlayer();
+  const track = p.queue[p.index];
+  const detail = track?.detail;
   const lyrics = take?.lyrics || detail?.lyrics || "";
   const lines = useMemo(
     () => karaokeLines(lyrics, take?.timing ?? null),
     [lyrics, take?.timing],
   );
   const active = activeLine(lines, p.time);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<(HTMLLIElement | null)[]>([]);
   const [job, setJob] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -48,58 +59,89 @@ export function KaraokeView() {
           ? "instant"
           : "smooth",
       });
-    center();
-    window.addEventListener("resize", center);
-    return () => window.removeEventListener("resize", center);
+    const resize = () => {
+      const container = scrollRef.current;
+      const content = container?.firstElementChild as HTMLElement | null;
+      if (container && content)
+        content.style.paddingBlock = `${container.clientHeight / 2}px`;
+      center();
+    };
+    const observer = new ResizeObserver(resize);
+    if (scrollRef.current) observer.observe(scrollRef.current);
+    resize();
+    return () => observer.disconnect();
   }, [active, p.showLyrics]);
 
   useEffect(() => {
     if (!job || !take) return;
     const db = createClient();
+    let cancelled = false;
     const poll = async () => {
-      const [{ data: updated }, { data: status }] = await Promise.all([
-        db.from("takes").select("lyric_timing").eq("id", take.id).single(),
-        db.from("jobs").select("status").eq("id", job).single(),
-      ]);
-      const timing = parseLyricTiming(updated?.lyric_timing);
-      if (timing) {
-        usePlayer.setState((state) => ({
-          queue: state.queue.map((item) => {
-            if (!item.detail || item.detail.songId !== detail?.songId)
-              return item;
-            return {
-              ...item,
-              detail: {
-                ...item.detail,
-                takes: item.detail.takes.map((entry) =>
-                  entry.id === take.id ? { ...entry, timing } : entry,
-                ),
-              },
-            };
-          }),
-        }));
-        setJob(null);
-      } else if (status?.status === "failed") {
-        setError(true);
-        setJob(null);
+      try {
+        const [updatedResult, statusResult] = await Promise.all([
+          db.from("takes").select("lyric_timing").eq("id", take.id).single(),
+          db.from("jobs").select("status").eq("id", job).single(),
+        ]);
+        if (cancelled) return;
+        if (updatedResult.error || statusResult.error)
+          throw new Error("Alignment polling failed");
+        const updated = updatedResult.data;
+        const status = statusResult.data;
+        const timing = parseLyricTiming(updated?.lyric_timing);
+        if (timing) {
+          usePlayer.setState((state) => ({
+            queue: state.queue.map((item) => {
+              if (!item.detail || item.detail.songId !== detail?.songId)
+                return item;
+              return {
+                ...item,
+                detail: {
+                  ...item.detail,
+                  takes: item.detail.takes.map((entry) =>
+                    entry.id === take.id ? { ...entry, timing } : entry,
+                  ),
+                },
+              };
+            }),
+          }));
+          setJob(null);
+        } else if (
+          ["failed", "cancelled", "done"].includes(status?.status ?? "")
+        ) {
+          setError(true);
+          setJob(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setError(true);
+          setJob(null);
+        }
       }
     };
     void poll();
     const timer = setInterval(() => void poll(), 3000);
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [job, take, detail]);
 
   const request = async () => {
     if (!detail || !take) return;
     setRequesting(true);
     setError(false);
-    const result = await requestLyricAlignment({
-      versionId: detail.songId,
-      takeId: take.id,
-    });
-    setRequesting(false);
-    if (result.ok && result.id) setJob(result.id);
-    else setError(true);
+    try {
+      const result = await requestLyricAlignment({
+        versionId: detail.songId,
+        takeId: take.id,
+      });
+      if (result.ok && result.id) setJob(result.id);
+      else setError(true);
+    } catch {
+      setError(true);
+    } finally {
+      setRequesting(false);
+    }
   };
 
   return (
@@ -129,8 +171,12 @@ export function KaraokeView() {
               <X className="size-5" />
             </DialogPrimitive.Close>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-[24vh] scrollbar-thin sm:px-10">
-            <div className="mx-auto max-w-4xl">
+          <div
+            ref={scrollRef}
+            data-slot="karaoke-scroll"
+            className="min-h-0 flex-1 overflow-y-auto px-5 scrollbar-thin sm:px-10"
+          >
+            <div className="mx-auto max-w-4xl py-10">
               {lyrics.trim() && !take?.timing ? (
                 <div className="mb-8 rounded-xl border border-[var(--hairline)] bg-[var(--surface-1)] p-4">
                   <p className="mb-3 text-sm text-[var(--fg-muted)]">

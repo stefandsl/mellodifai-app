@@ -26,7 +26,9 @@ function wav(seconds: number) {
 
 test("timed lyrics follow playback, seek by line, and fit two desktop sizes", async ({
   page,
+  baseURL,
 }) => {
+  if (!baseURL) throw new Error("E2E base URL required");
   const db = serviceClient();
   const email = `karaoke-e2e-${Date.now()}@mellodifai.test`;
   const allowlist = await db.from("admin_allowlist").insert({ email });
@@ -63,7 +65,7 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
     cookies.map(({ name, value }) => ({
       name,
       value,
-      url: "http://127.0.0.1:3222",
+      url: baseURL,
     })),
   );
   const project = await db
@@ -148,6 +150,12 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
   await expect(
     dialog.getByRole("button", { name: "La luna splende" }),
   ).toHaveAttribute("aria-current", "true");
+  await expect(dialog.getByText("luna", { exact: true })).toHaveClass(
+    /text-\[var\(--brand\)\]/,
+  );
+  await expect(
+    dialog.getByRole("button", { name: "Cammino nella notte" }),
+  ).toHaveAttribute("aria-current", "true");
   await dialog.getByRole("button", { name: "Pausa" }).click();
   await dialog.getByRole("button", { name: "Cammino nella notte" }).click();
   await expect(
@@ -173,7 +181,16 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
           .getByRole("button", { name: /Questa è una frase lunga/u })
           .evaluate((element) => {
             const rect = element.getBoundingClientRect();
-            return rect.top >= 70 && rect.bottom <= window.innerHeight - 65;
+            const container = element
+              .closest('[data-slot="karaoke-scroll"]')
+              ?.getBoundingClientRect();
+            if (!container) return false;
+            return (
+              Math.abs(
+                (rect.top + rect.bottom) / 2 -
+                  (container.top + container.bottom) / 2,
+              ) < 5
+            );
           }),
       )
       .toBe(true);
@@ -184,6 +201,48 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
   }
   await dialog.getByRole("button", { name: "Chiudi il testo" }).click();
   await expect(dialog).not.toBeVisible();
+  // Fake only the local worker output; the browser uses the real action, RPC and polling.
+  const original = await db
+    .from("takes")
+    .select("lyric_timing")
+    .eq("id", take.data.id)
+    .single();
+  const cleared = await db
+    .from("takes")
+    .update({ lyric_timing: null })
+    .eq("id", take.data.id);
+  if (cleared.error) throw cleared.error;
+  await page.reload();
+  await page.getByRole("button", { name: `Riproduci: ${title}` }).click();
+  await page.getByRole("button", { name: "Testo" }).click();
+  await dialog.getByRole("button", { name: "Sincronizza testo" }).click();
+  await expect
+    .poll(async () => {
+      const { data } = await db
+        .from("jobs")
+        .select("id")
+        .eq("version_id", version.data.id)
+        .eq("stage", "align_lyrics");
+      return data?.length;
+    })
+    .toBe(1);
+  const aligned = await db
+    .from("takes")
+    .update({ lyric_timing: original.data?.lyric_timing })
+    .eq("id", take.data.id);
+  if (aligned.error) throw aligned.error;
+  const completed = await db
+    .from("jobs")
+    .update({ status: "done" })
+    .eq("version_id", version.data.id)
+    .eq("stage", "align_lyrics");
+  if (completed.error) throw completed.error;
+  await expect(
+    dialog.getByRole("button", { name: "Sincronizzazione in corso..." }),
+  ).toHaveCount(0);
+  await expect(
+    dialog.getByRole("button", { name: "La luna splende" }),
+  ).toBeEnabled();
   await db.storage.from("previews").remove([path]);
   await db.auth.admin.deleteUser(owner);
   await db.from("admin_allowlist").delete().eq("email", email);

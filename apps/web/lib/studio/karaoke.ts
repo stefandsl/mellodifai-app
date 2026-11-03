@@ -1,4 +1,4 @@
-import { type LyricTiming, timedLyrics } from "@mellodifai/shared";
+import { type LyricTiming, timedLyrics, words } from "@mellodifai/shared";
 
 export function sectionLabel(text: string, lang: "it" | "en"): string {
   const label = text.trim().replace(/^\[|\]$/gu, "");
@@ -20,14 +20,17 @@ export function karaokeLines(lyrics: string, timing: LyricTiming | null) {
   const lines = timedLyrics(lyrics, timing);
   return lines.map((line) => ({
     ...line,
-    words: line.sung
-      ? (timing?.lines.find(
-          (item) =>
-            item.text === line.text &&
-            item.start === line.start &&
-            item.end === line.end,
-        )?.words ?? null)
-      : null,
+    words:
+      line.sung &&
+      line.words &&
+      line.words.length === (line.text.match(/\S+/gu)?.length ?? 0) &&
+      line.words.every(
+        (word, index) =>
+          words(word.word).join(" ") ===
+          words(line.text.match(/\S+/gu)?.[index] ?? "").join(" "),
+      )
+        ? line.words
+        : null,
   }));
 }
 
