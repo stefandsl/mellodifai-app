@@ -274,7 +274,7 @@ describe("songs from audio on kie", () => {
         );
       if (url.includes("createTask"))
         return new Response(
-          JSON.stringify({ code: 200, data: { taskId: "cover-1" } }),
+          JSON.stringify({ code: "200", data: { taskId: "cover-1" } }),
         );
       return new Response("", { status: 404 });
     }) as typeof fetch;
@@ -297,6 +297,50 @@ describe("songs from audio on kie", () => {
       "POST https://api.kie.ai/api/v1/jobs/createTask",
     ]);
   });
+  it.each([
+    [400, '{"code":500,"msg":"truncated'],
+    [400, "not JSON"],
+    [400, "null"],
+    [400, '{"msg":"missing code"}'],
+    [200, '{"code":"invalid","data":{"taskId":"accepted"}}'],
+    [200, '{"code":201,"data":{"taskId":"accepted"}}'],
+  ])(
+    "keeps source submission guards after an ambiguous HTTP %i response: %s",
+    async (status, body) => {
+      const { ctx, db } = await setup({
+        source: { mode: "cover", upload: UPLOAD },
+      });
+      db.profiles[0] = { id: OWNER, role: "admin", email: "owner@example.com" };
+      let submissions = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL) => {
+          const url = String(input);
+          if (url.includes("credit"))
+            return new Response(JSON.stringify({ code: 200, data: 50 }));
+          if (url.includes("file-stream-upload"))
+            return new Response(
+              JSON.stringify({
+                code: 200,
+                data: { downloadUrl: "https://kie/f.mp3" },
+              }),
+            );
+          if (url.includes("createTask")) {
+            submissions++;
+            return new Response(body, { status });
+          }
+          throw new Error("Unexpected fake request");
+        }),
+      );
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("unknown");
+      expect(db.versions[0]?.kie_submit_state).toBe("submitting");
+      await expect(
+        readFile(join(ctx.ws.outDir, "submitting-1.json"), "utf8"),
+      ).resolves.toContain('"state":"submitting"');
+      await expect(stages.generate_song?.(ctx)).rejects.toThrow("unknown");
+      expect(submissions).toBe(1);
+    },
+  );
   it("is not charged when the balance is short or the source too long", async () => {
     const { ctx } = await setup({}, 200);
     const poor = new KieClient(
