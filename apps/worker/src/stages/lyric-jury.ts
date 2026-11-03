@@ -3,9 +3,9 @@
 // left out, so a provider outage slows nothing down and never blocks a song.
 
 import {
-  OPENROUTER_CHAT_URL as CHAT_URL,
-  OPENROUTER_DECISIONS_URL as DECISIONS_URL,
-} from "../providers/paid.js";
+  type OpenRouterCall as Call,
+  openRouterPost as post,
+} from "../providers/openrouter.js";
 export const JEV = "typesafe/jev-1.14";
 
 export type Writer = "strong" | "fast";
@@ -82,29 +82,6 @@ const TONES = {
   story: "Song that tells a story with characters and a plot.",
 } as const;
 
-type Fetch = typeof globalThis.fetch;
-type Call = { key: string; signal?: AbortSignal; fetchFn?: Fetch };
-
-async function post(
-  url: string,
-  body: unknown,
-  { key, signal, fetchFn = globalThis.fetch }: Call,
-  timeoutMs: number,
-): Promise<unknown> {
-  const timeout = AbortSignal.timeout(timeoutMs);
-  const response = await fetchFn(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-  });
-  if (!response.ok) throw new Error(`OpenRouter ${response.status}`);
-  return response.json();
-}
-
 type Answer = {
   choice?: string;
   confidence?: number;
@@ -135,7 +112,7 @@ export async function route(
   try {
     const result = answers(
       await post(
-        DECISIONS_URL,
+        "decisions",
         {
           model: JEV,
           state: {
@@ -248,7 +225,7 @@ async function jevVerdict(
   };
   const result = answers(
     await post(
-      DECISIONS_URL,
+      "decisions",
       {
         model: JEV,
         state: {
@@ -306,7 +283,7 @@ async function chatVerdict(
   call: Call,
 ): Promise<Omit<Verdict, "model" | "ms">> {
   const json = (await post(
-    CHAT_URL,
+    "chat",
     {
       model,
       response_format: { type: "json_object" },

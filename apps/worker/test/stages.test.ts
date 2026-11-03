@@ -15,6 +15,7 @@ import { refreshBalance } from "../src/stages/generate-song.js";
 import { stages } from "../src/stages/index.js";
 import { nextPacificQuotaTime } from "../src/stages/quota.js";
 import { ENGINE_ROOT, writePack } from "../src/stages/utils.js";
+import { recordingLedger } from "./support/ledger.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
@@ -1178,6 +1179,7 @@ async function setup() {
   };
   const db = new InMemoryDb();
   const ctx: StageContext = {
+    providerLedger: () => recordingLedger(),
     job: {
       owner_id: "owner",
       id: "job",

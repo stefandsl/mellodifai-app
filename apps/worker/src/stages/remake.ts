@@ -12,12 +12,10 @@ import {
   type Client,
   checkLyrics,
   costLine,
-  createClient,
   type Env,
   envFromValues,
   ingest,
   LabseEmbedder,
-  Ledger,
   type Models,
   modelsFromEnv,
   RedactionError,
@@ -39,13 +37,13 @@ import {
 } from "@mellodifai/shared";
 import type { Remake } from "../db.js";
 import type { StageContext, StageHandler, StageRegistry } from "../loop.js";
-import { openRouterKeyFromEnv } from "../providers/paid.js";
+import { remakeProviderClient } from "../providers/openrouter.js";
 
 type Embedder = { name: string; embed: RewriteDeps["embed"]; close(): void };
 
 // What the stages use of packages/remake; the e2e worker and the tests pass fakes.
 export type RemakeEngine = {
-  client(env: Env, signal: AbortSignal): Client;
+  client(env: Env, signal: AbortSignal, context: StageContext): Client;
   embedder(): Embedder;
   ingest(
     url: string,
@@ -88,14 +86,7 @@ export type RemakeEngine = {
 };
 
 export const packageEngine: RemakeEngine = {
-  client: (env, signal) =>
-    createClient({
-      // As in the lyric pipeline (draft-lyrics.ts): a key without OpenRouter's privacy
-      // guardrail keeps lyrics intact.
-      key: openRouterKeyFromEnv(env),
-      ledger: new Ledger(),
-      signal,
-    }),
+  client: remakeProviderClient,
   embedder() {
     if (!LabseEmbedder.available())
       throw new Error(
@@ -272,7 +263,7 @@ export function remakeStages(
     if (analysis) report("analyse: analysis already on file");
     else {
       await context.progress(3, "analyse.stems");
-      const client = engine.client(env, context.signal);
+      const client = engine.client(env, context.signal, context);
       analysis = await engine.analyse(dirOf(remake), {
         env,
         client,
@@ -328,7 +319,7 @@ export function remakeStages(
         costCapUsd: COST_CAP_USD,
         log: report,
       };
-      const client = engine.client(env, context.signal);
+      const client = engine.client(env, context.signal, context);
       const embedder = engine.embedder();
       const deps: RewriteDeps = {
         client,

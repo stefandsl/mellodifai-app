@@ -11,6 +11,7 @@ import {
 import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
+import type { LedgerForModel } from "./providers/openrouter.js";
 import type { Secrets } from "./secrets.js";
 import type { Storage } from "./storage.js";
 import type { Workspace } from "./workspace.js";
@@ -30,6 +31,7 @@ export type StageContext = {
   signal: AbortSignal;
   // The ComfyUI server of this PC, owned by main.ts; absent on workers without local engines.
   comfy?: LocalRuntime;
+  providerLedger?: LedgerForModel;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
@@ -46,7 +48,7 @@ export type StageRegistry = Partial<Record<Stage, StageHandler>>;
 // A job that belongs to no song (lyrics_assist): no version, project or workspace.
 export type SonglessContext = Pick<
   StageContext,
-  "job" | "db" | "secrets" | "signal" | "log" | "progress"
+  "job" | "db" | "secrets" | "signal" | "log" | "progress" | "providerLedger"
 >;
 export type SonglessHandler = (
   context: SonglessContext,
@@ -96,6 +98,7 @@ export class WorkerLoop {
       engineVersion?: string;
       report?: (message: string) => void;
       comfy?: LocalRuntime;
+      providerLedger?: LedgerForModel;
     },
   ) {}
   private redact(message: string) {
@@ -271,7 +274,17 @@ export class WorkerLoop {
       authorized = true;
       const { secrets } = this.options;
       if (!secrets) throw new Error("Worker dependencies are not configured");
-      return handler({ job, db, secrets, signal, log, progress });
+      return handler({
+        job,
+        db,
+        secrets,
+        signal,
+        log,
+        progress,
+        ...(this.options.providerLedger
+          ? { providerLedger: this.options.providerLedger }
+          : {}),
+      });
     };
     const execute = async (): Promise<StageResult> => {
       signal.throwIfAborted();
@@ -308,6 +321,9 @@ export class WorkerLoop {
         signal,
         log,
         progress,
+        ...(this.options.providerLedger
+          ? { providerLedger: this.options.providerLedger }
+          : {}),
         ...(this.options.comfy ? { comfy: this.options.comfy } : {}),
       });
     };

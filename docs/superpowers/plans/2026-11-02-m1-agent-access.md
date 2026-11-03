@@ -594,8 +594,11 @@ it("kie/guard.ts still refuses .test owners without ALLOW_TEST_KIE (Major 25)", 
 
 ### Task 24: Stage wiring, on-demand reservations and `mark_ambiguous`
 
+Task 22 review R1 coverage correction: include `lyrics-assist.ts` (writer, router and every judge) and `remake.ts` (analysis, rewrite, section rewrite, check, decisions and any client retry). These OpenRouter paths now use the database-backed provider transport; a null reservation refuses HTTP. Add additive database reservation rules for `lyrics_assist`, `remake_analyse` and `remake_rewrite`, and verified prices for their configured models, before enabling real requests. Until those rules exist these stages deliberately fail closed. Do not restore a raw fetch or the remake package's cost-only ledger as authorization. Extend the stage and ledger integration tests to cover these paths, refusal before HTTP, actual settlement and attempt keys.
+
 **Files:**
-- Modify: `apps/worker/src/stages/generate-song.ts`, `replace-section.ts`, `draft-lyrics.ts`, `lyric-jury.ts`, `import-audio.ts`, `score-takes.ts`, `timing.ts`, `local-engine.ts`, `source-audio.ts`, `apps/worker/src/loop.ts`, `apps/worker/test/stages.test.ts`, `apps/worker/test/lyric-jury.test.ts`
+- Modify: `apps/worker/src/stages/generate-song.ts`, `replace-section.ts`, `draft-lyrics.ts`, `lyric-jury.ts`, `lyrics-assist.ts`, `remake.ts`, `import-audio.ts`, `score-takes.ts`, `timing.ts`, `local-engine.ts`, `source-audio.ts`, `apps/worker/src/loop.ts`, `apps/worker/src/providers/openrouter.ts`, `apps/worker/test/stages.test.ts`, `apps/worker/test/lyric-jury.test.ts`, `apps/worker/test/remake.test.ts`, `apps/worker/test/openrouter-ledger.test.ts`
+- Create: additive migration and database tests for the additional OpenRouter job reservation rules described above, using the next free migration number.
 
 **Interfaces:**
 - Consumes: Task 22 `paidCall`, `callKey`, `Ledger`; Task 23 `engine.run`.

@@ -8,7 +8,7 @@ import {
 } from "@mellodifai/shared";
 import { optionalText } from "../legacy-import.js";
 import type { StageHandler } from "../loop.js";
-import { OPENROUTER_CHAT_URL, openRouterKey } from "../providers/paid.js";
+import { openRouterCall, openRouterRequest } from "../providers/openrouter.js";
 import {
   combine,
   DEFAULT_JUDGES,
@@ -185,11 +185,7 @@ export const draftLyrics: StageHandler = async (context) => {
       "",
     )
   ).trim();
-  const call = {
-    // A key without the privacy guardrail keeps lyrics intact; see REDACTION_NOTE.
-    key: openRouterKey(secrets),
-    signal: context.signal,
-  };
+  const call = openRouterCall(context);
   const writers = {
     strong: secrets.LYRICS_MODEL_STRONG ?? DEFAULT_WRITERS.strong,
     fast: secrets.LYRICS_MODEL_FAST ?? DEFAULT_WRITERS.fast,
@@ -227,13 +223,9 @@ export const draftLyrics: StageHandler = async (context) => {
   for (let calls = 0; calls < MAX_WRITER_CALLS; calls += 1) {
     // Reserve before making the request, including requests that fail in transit.
     await budget.reserve();
-    const response = await fetch(OPENROUTER_CHAT_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${call.key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const response = await openRouterRequest(
+      "chat",
+      {
         model: writers[writer],
         response_format: { type: "json_object" },
         messages: [
@@ -246,9 +238,9 @@ export const draftLyrics: StageHandler = async (context) => {
             content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\n${toneLine(plan.tone)}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
           },
         ],
-      }),
-      signal: context.signal,
-    });
+      },
+      call,
+    );
     if (!response.ok)
       throw new Error(`OpenRouter request failed: ${response.status}`);
     const body = (await response.json()) as {

@@ -11,7 +11,7 @@ import {
   spliceSection,
 } from "@mellodifai/shared";
 import type { SonglessHandler } from "../loop.js";
-import { OPENROUTER_CHAT_URL, openRouterKey } from "../providers/paid.js";
+import { openRouterCall, openRouterRequest } from "../providers/openrouter.js";
 import {
   DEFAULT_JUDGES,
   DEFAULT_WRITERS,
@@ -141,12 +141,7 @@ export const lyricsAssist: SonglessHandler = async (context) => {
     });
     const secrets = context.secrets.values;
     const budget = await lyricsBudget(secrets);
-    const call = {
-      // A key without the privacy guardrail keeps lyrics intact; see REDACTION_NOTE.
-      key: openRouterKey(secrets),
-      signal: context.signal,
-    };
-    if (!call.key) throw new Error("OPENROUTER_API_KEY is not set");
+    const call = openRouterCall(context);
     const writers = {
       strong: secrets.LYRICS_MODEL_STRONG ?? DEFAULT_WRITERS.strong,
       fast: secrets.LYRICS_MODEL_FAST ?? DEFAULT_WRITERS.fast,
@@ -188,13 +183,9 @@ export const lyricsAssist: SonglessHandler = async (context) => {
         calls === 0 ? 20 : 60,
         calls === 0 ? "assist.write" : "assist.revise",
       );
-      const response = await fetch(OPENROUTER_CHAT_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${call.key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const response = await openRouterRequest(
+        "chat",
+        {
           model: writers[writer],
           response_format: { type: "json_object" },
           messages: [
@@ -204,9 +195,9 @@ export const lyricsAssist: SonglessHandler = async (context) => {
               content: assistUser(input, toneLine(plan.tone), correction),
             },
           ],
-        }),
-        signal: context.signal,
-      });
+        },
+        call,
+      );
       if (!response.ok)
         throw new Error(`OpenRouter request failed: ${response.status}`);
       const body = (await response.json()) as {

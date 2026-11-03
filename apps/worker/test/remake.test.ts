@@ -9,6 +9,7 @@ import { fakeRemakeEngine } from "../src/fake/remake.js";
 import { WorkerLoop } from "../src/loop.js";
 import { lyricsAssist } from "../src/stages/lyrics-assist.js";
 import { type RemakeEngine, remakeStages } from "../src/stages/remake.js";
+import { recordingLedger } from "./support/ledger.js";
 
 // Task 27: R1 to R3 as jobs of the remake's version (fake engine, real stage code and gates) and
 // the songless lyrics_assist job of the create panel.
@@ -66,7 +67,9 @@ const job = (stage: Job["stage"], payload: Record<string, unknown> = {}) => ({
   idempotency_key: `${stage}:${Math.random()}`,
   payload,
 });
+let providerLedger = recordingLedger();
 const dependencies = {
+  providerLedger: () => providerLedger,
   workspace: {
     forVersion: async () => ({
       root: "",
@@ -93,6 +96,7 @@ function scratch() {
   return dir;
 }
 beforeEach(() => {
+  providerLedger = recordingLedger();
   dependencies.secrets.values.LYRICS_STATE_FILE = join(
     scratch(),
     "lyrics.json",
@@ -447,6 +451,8 @@ describe("lyrics_assist (songless job)", () => {
       ),
     ).toContain("Brief: una gita al lago");
     expect(writer?.body.model).toBe("anthropic/claude-sonnet-5.5");
+    expect(providerLedger.open).toHaveBeenCalledTimes(calls.length);
+    expect(providerLedger.settle).toHaveBeenCalledTimes(calls.length);
     // A songless job never touches a song.
     expect(db.versions).toHaveLength(0);
   });
@@ -474,6 +480,19 @@ describe("lyrics_assist (songless job)", () => {
     ).toBe(
       "[Verse 1]\nuno\ndue\n\n[Chorus]\nnuova riga\naltra riga\n\n[Outro]\ncinque",
     );
+  });
+
+  it("refuses lyrics assistance without a database reservation before any provider request", async () => {
+    const calls = openRouter("unused");
+    vi.mocked(providerLedger.reservationFor).mockResolvedValue(null);
+    const db = new InMemoryDb([
+      songless({ request_id: request("write", {}).id }),
+    ]);
+    db.lyricRequests.push(request("write", { brief: "a lake", style: "folk" }));
+    await loop(db).runOnce();
+    expect(db.jobs[0]?.status).toBe("failed");
+    expect(calls).toEqual([]);
+    expect(providerLedger.open).not.toHaveBeenCalled();
   });
 
   it("never hands back lyrics the privacy filter altered", async () => {
