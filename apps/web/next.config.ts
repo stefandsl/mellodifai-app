@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     // Shared sources retain NodeNext .js specifiers for the worker's emitted ESM.
     resolveAlias: {
       "./i18n.js": "../../packages/shared/src/i18n.ts",
+      "./local-engine.js": "../../packages/shared/src/local-engine.ts",
       "./lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
       "./publication-defaults.js":
         "../../packages/shared/src/publication-defaults.ts",
