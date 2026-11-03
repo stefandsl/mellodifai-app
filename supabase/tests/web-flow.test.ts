@@ -637,6 +637,7 @@ it("lets only the admin choose a local song engine and rejects unknown engines",
 });
 it("records failed-QA override and approver, uses current attempt and rerenders atomically", async () => {
   const v = await fixture("video_review");
+  await service.from("jobs").update({ status: "done" }).eq("version_id", v);
   const r = await service
     .from("renders")
     .insert({
@@ -701,6 +702,106 @@ it("records failed-QA override and approver, uses current attempt and rerenders 
       })
     ).error,
   ).not.toBeNull();
+});
+it.each(["approved", "published"])(
+  "starts a new render from %s without changing the publication",
+  async (status) => {
+    const v = await fixture(status);
+    await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+    const old = await service
+      .from("renders")
+      .insert({
+        owner_id: owner,
+        version_id: v,
+        kind: "master",
+        preview_path: `old-${v}.mp4`,
+        approved_at: new Date().toISOString(),
+        qa_results: { assets: { thumbnail_path: `old-${v}.png` } },
+      })
+      .select()
+      .single();
+    expect(old.error).toBeNull();
+    const publication = await service
+      .from("publications")
+      .insert({
+        owner_id: owner,
+        render_id: old.data.id,
+        privacy: "private",
+        metadata: { title: "Old video" },
+      })
+      .select()
+      .single();
+    expect(publication.error).toBeNull();
+    expect(
+      (await other.rpc("render_again", { p_version: v })).error,
+    ).not.toBeNull();
+    expect(
+      (await client.rpc("render_again", { p_version: v })).error,
+    ).toBeNull();
+    expect(
+      (
+        await service
+          .from("versions")
+          .select("status,render_attempt")
+          .eq("id", v)
+          .single()
+      ).data,
+    ).toMatchObject({ status: "producing", render_attempt: 2 });
+    expect(
+      (
+        await service
+          .from("renders")
+          .select("preview_path,approved_at,qa_results")
+          .eq("id", old.data.id)
+          .single()
+      ).data,
+    ).toMatchObject({
+      preview_path: `old-${v}.mp4`,
+      qa_results: { assets: { thumbnail_path: `old-${v}.png` } },
+    });
+    expect(
+      (
+        await service
+          .from("publications")
+          .select("render_id,metadata")
+          .eq("id", publication.data.id)
+          .single()
+      ).data,
+    ).toMatchObject({
+      render_id: old.data.id,
+      metadata: { title: "Old video" },
+    });
+  },
+);
+it("refuses a trashed song and an active render", async () => {
+  const v = await fixture("approved");
+  await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+  await service
+    .from("versions")
+    .update({ trashed_at: new Date().toISOString() })
+    .eq("id", v);
+  expect(
+    (await client.rpc("render_again", { p_version: v })).error,
+  ).not.toBeNull();
+  await service.from("versions").update({ trashed_at: null }).eq("id", v);
+  await service.from("jobs").insert({
+    owner_id: owner,
+    version_id: v,
+    stage: "timing",
+    idempotency_key: `active-render:${v}`,
+  });
+  expect(
+    (await client.rpc("render_again", { p_version: v })).error?.message,
+  ).toContain("job already active");
+  expect(
+    (
+      await service
+        .from("versions")
+        .select("status,render_attempt")
+        .eq("id", v)
+        .single()
+    ).data,
+  ).toMatchObject({ status: "approved", render_attempt: 1 });
 });
 it("publishes only approved current masters, deduplicates pending requests and permits failed retries", async () => {
   const v = await fixture("approved");

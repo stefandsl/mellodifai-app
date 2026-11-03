@@ -321,6 +321,7 @@ it("claim skips future jobs and explicit transitions are owner-checked", async (
   expect(claim.data.some((j: { id: string }) => j.id === job.data.id)).toBe(
     false,
   );
+  await service.from("jobs").update({ status: "done" }).eq("id", job.data.id);
   expect(
     (
       await other.rpc("render_again", {
