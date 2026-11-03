@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import type { VisualizerAspect } from "@mellodifai/shared";
+import type { VisualizerAspect, VisualizerQuality } from "@mellodifai/shared";
 import { cn } from "cn";
 import {
   Check,
@@ -118,6 +118,24 @@ function AspectSwitch() {
       options={[
         { value: "16:9", label: st(lang, "vs.wide"), icon: <Monitor /> },
         { value: "9:16", label: st(lang, "vs.tall"), icon: <Smartphone /> },
+      ]}
+    />
+  );
+}
+
+function QualitySwitch() {
+  const lang = useLocale();
+  const quality = useVideoStudio((s) => s.params.quality);
+  const update = useVideoStudio((s) => s.update);
+  return (
+    <Segmented<VisualizerQuality>
+      label={st(lang, "vs.quality")}
+      value={quality}
+      onChange={(value) => value && update((p) => ({ ...p, quality: value }))}
+      size="sm"
+      options={[
+        { value: "1080p", label: "1080p" },
+        { value: "4K", label: "4K" },
       ]}
     />
   );
@@ -339,8 +357,9 @@ export function VideoStudio() {
 
           <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse">
             <div className="flex h-[36dvh] shrink-0 flex-col gap-2 bg-[color-mix(in_oklab,var(--bg),black_25%)] p-3 sm:h-[40dvh] lg:h-auto lg:min-w-0 lg:flex-1 lg:gap-3 lg:p-5">
-              <div className="flex shrink-0 justify-center">
+              <div className="flex shrink-0 flex-wrap justify-center gap-2">
                 <AspectSwitch />
+                <QualitySwitch />
               </div>
               <VisualizerPreview
                 params={params}
