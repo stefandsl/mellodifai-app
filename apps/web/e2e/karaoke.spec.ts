@@ -85,7 +85,7 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
       lyric_pack: {
         title,
         lyrics:
-          "[Strofa]\nLa luna splende\nCammino nella notte\n[Ritornello]\nQuesta è una frase lunga che deve andare a capo senza uscire dalla finestra",
+          "[Strofa]\n  La luna splende  \nCammino nella notte\n[Ritornello]\nQuesta è una frase lunga che deve andare a capo senza uscire dalla finestra",
       },
     })
     .select("id")
@@ -117,7 +117,6 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
               { word: "splende", start: 2, end: 3 },
             ],
           },
-          { text: "Cammino nella notte", start: 3, end: 6 },
           {
             text: "Questa è una frase lunga che deve andare a capo senza uscire dalla finestra",
             start: 6,

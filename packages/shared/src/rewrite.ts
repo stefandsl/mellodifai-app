@@ -282,8 +282,10 @@ export function timedLyrics(
         if (timed) times.set(line.index, timed);
       });
     else {
-      // Align by words: each timed line becomes words spread across its time.
+      // Prefer measured words; spread line-only timings for alignment fallback.
+      const measured = timing.lines.flatMap((line) => line.words ?? []);
       const heard: TimedWord[] = timing.lines.flatMap((line) => {
+        if (line.words?.length) return line.words;
         const parts = words(line.text);
         const step = parts.length ? (line.end - line.start) / parts.length : 0;
         return parts.map((word, k) => ({
@@ -297,7 +299,18 @@ export function timedLyrics(
         heard,
       ).forEach((time, i) => {
         const line = sung[i];
-        if (time && line) times.set(line.index, time);
+        if (!time || !line) return;
+        const matched = measured.filter(
+          (word) => word.start >= time.start && word.end <= time.end,
+        );
+        const exact =
+          matched.length > 0 &&
+          words(matched.map((word) => word.word).join(" ")).join(" ") ===
+            words(line.text).join(" ");
+        times.set(line.index, {
+          ...time,
+          ...(exact ? { words: matched } : {}),
+        });
       });
     }
   }

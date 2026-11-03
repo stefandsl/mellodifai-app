@@ -237,3 +237,34 @@ describe("rewriting the block", () => {
     );
   });
 });
+
+it("keeps measured words on matched lines when a middle lyric line is missing", () => {
+  const first = [
+    { word: "Hello", start: 1, end: 1.2 },
+    { word: "world", start: 1.8, end: 2 },
+  ];
+  const last = [
+    { word: "Good", start: 5, end: 5.1 },
+    { word: "night", start: 5.7, end: 6 },
+  ];
+  const result = timedLyrics("Hello, world!\nMissing lyric\nGood night", {
+    source: "whisper",
+    lines: [
+      { text: "Hello world", start: 1, end: 2, words: first },
+      { text: "Good night", start: 5, end: 6, words: last },
+    ],
+  });
+  expect(result[0]).toMatchObject({ start: 1, end: 2, words: first });
+  expect(result[1]).toMatchObject({ start: 2, end: 5 });
+  expect(result[1]?.words).toBeUndefined();
+  expect(result[2]).toMatchObject({ start: 5, end: 6, words: last });
+});
+it("keeps line-only alignment inferred instead of inventing measured words", () => {
+  const result = timedLyrics("Hello world\nUnheard ending", {
+    source: "whisper",
+    lines: [{ text: "Hello world", start: 1, end: 3 }],
+  });
+  expect(result[0]).toMatchObject({ start: 1, end: 3 });
+  expect(result[0]?.words).toBeUndefined();
+  expect(result[1]?.words).toBeUndefined();
+});

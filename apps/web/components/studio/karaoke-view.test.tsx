@@ -175,3 +175,62 @@ it("ignores a request response after changing takes", async () => {
     screen.getByRole("button", { name: "Sincronizza testo" }),
   ).toBeEnabled();
 });
+
+it("highlights the first measured word despite leading whitespace and missing lines", () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  Element.prototype.scrollIntoView = vi.fn();
+  const item = track("spaced");
+  usePlayer.setState({
+    queue: [
+      {
+        ...item,
+        detail: {
+          ...item.detail,
+          lyrics: "  Hello world  \nMissing lyric",
+          takes: [
+            {
+              ...item.detail.takes[0],
+              id: "spaced-take",
+              number: 1,
+              audioUrl: "audio.wav",
+              timing: {
+                source: "whisper",
+                lines: [
+                  {
+                    text: "Hello world",
+                    start: 0,
+                    end: 2,
+                    words: [
+                      { word: "Hello", start: 0, end: 0.5 },
+                      { word: "world", start: 1, end: 2 },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    ],
+    index: 0,
+    time: 0.2,
+  });
+  mount();
+  expect(screen.getByText("Hello", { exact: true })).toHaveClass(
+    "text-[var(--brand)]",
+  );
+  expect(screen.getByText("world", { exact: true })).not.toHaveClass(
+    "text-[var(--brand)]",
+  );
+  act(() => usePlayer.setState({ time: 1.2 }));
+  expect(screen.getByText("world", { exact: true })).toHaveClass(
+    "text-[var(--brand)]",
+  );
+  vi.unstubAllGlobals();
+});

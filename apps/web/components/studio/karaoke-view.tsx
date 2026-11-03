@@ -235,6 +235,7 @@ function KaraokeSession({
                           line.words.length ===
                             (line.text.match(/\S+/gu)?.length ?? 0)
                             ? line.text
+                                .trim()
                                 .split(/(\s+)/u)
                                 .map((part, partIndex) => {
                                   const wordIndex = Math.floor(partIndex / 2);
