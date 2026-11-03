@@ -1,16 +1,27 @@
-import type { ChildProcess } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, expect, it, vi } from "vitest";
 import { realRunner } from "../lib/run.js";
 import { runtimeRoot } from "../lib/runtime.js";
-import { trackServiceProcess } from "../services.js";
+import { launchHostedService } from "../services.js";
 
 vi.mock("node:fs", async (original) => ({
   ...(await original<typeof import("node:fs")>()),
+  mkdirSync: vi.fn(),
+  existsSync: vi.fn(),
+  readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
 }));
 vi.mock("../lib/run.js", () => ({ realRunner: vi.fn() }));
+
+const options = {
+  root: runtimeRoot(),
+  service: "web" as const,
+  cmd: process.execPath,
+  args: ["fake.cjs"],
+  cwd: runtimeRoot(),
+  stateFile: join(runtimeRoot(), "logs/web.pid.json"),
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -19,73 +30,72 @@ beforeEach(() => {
     stdout: "creation-time",
     stderr: "",
   });
-});
-
-it.each(["identity", "persistence"])(
-  "terminates the new process tree when %s fails",
-  async (failure) => {
-    const child = {
-      pid: 12345,
-      exitCode: null,
-      signalCode: null,
-    } as ChildProcess;
-    if (failure === "identity")
-      vi.mocked(realRunner).mockResolvedValueOnce({
-        code: 1,
-        stdout: "",
-        stderr: "",
-      });
-    else
-      vi.mocked(writeFileSync).mockImplementationOnce(() => {
-        throw new Error("PID persistence failed");
-      });
-    await expect(
-      trackServiceProcess(child, join(runtimeRoot(), "logs/worker.pid.json")),
-    ).rejects.toThrow();
-    expect(realRunner).toHaveBeenLastCalledWith("taskkill.exe", [
-      "/PID",
-      "12345",
-      "/T",
-      "/F",
-    ]);
-    if (failure === "identity") expect(writeFileSync).not.toHaveBeenCalled();
-  },
-);
-
-it("records a successful start without terminating it", async () => {
-  const child = {
-    pid: 12345,
-    exitCode: null,
-    signalCode: null,
-  } as ChildProcess;
-  const file = join(runtimeRoot(), "logs/worker.pid.json");
-  await trackServiceProcess(child, file);
-  expect(writeFileSync).toHaveBeenCalledWith(
-    file,
-    JSON.stringify({ pid: 12345, identity: "creation-time" }),
-  );
-  expect(realRunner).toHaveBeenCalledTimes(1);
-});
-
-it("does not kill a reused PID when the spawned child already exited", async () => {
-  vi.mocked(writeFileSync).mockImplementationOnce(() => {
-    throw new Error("PID persistence failed");
+  vi.mocked(realRunner).mockResolvedValueOnce({
+    code: 0,
+    stdout: "12345",
+    stderr: "",
   });
-  const child = { pid: 12345, exitCode: 0, signalCode: null } as ChildProcess;
-  await expect(
-    trackServiceProcess(child, join(runtimeRoot(), "logs/worker.pid.json")),
-  ).rejects.toThrow("persistence");
-  expect(realRunner).toHaveBeenCalledTimes(1);
+  vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(readFileSync).mockReturnValue(
+    JSON.stringify({ supervisorPid: 12345 }),
+  );
 });
 
-it("reports unsuccessful process-tree cleanup", async () => {
-  vi.mocked(realRunner).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
-  const child = {
-    pid: 12345,
-    exitCode: null,
-    signalCode: null,
-  } as ChildProcess;
-  await expect(
-    trackServiceProcess(child, join(runtimeRoot(), "logs/worker.pid.json")),
-  ).rejects.toThrow("Startup cleanup failed; stop process tree 12345");
+it("starts the assigned account and waits for its supervisor readiness", async () => {
+  await launchHostedService(options);
+  const manifest = JSON.parse(
+    String(vi.mocked(writeFileSync).mock.calls[0]?.[1]),
+  );
+  expect(manifest.account).toBe("mdf-web");
+  expect(manifest.command).toBe(process.execPath);
+  expect(readFileSync).toHaveBeenCalledWith(options.stateFile, "utf8");
+  expect(realRunner).not.toHaveBeenCalledWith(
+    "taskkill.exe",
+    expect.anything(),
+  );
+});
+
+it("refuses a supervisor that exits before readiness", async () => {
+  vi.mocked(realRunner).mockResolvedValueOnce({
+    code: 0,
+    stdout: "",
+    stderr: "",
+  });
+  await expect(launchHostedService(options)).rejects.toThrow(
+    "before readiness",
+  );
+  expect(readFileSync).not.toHaveBeenCalled();
+});
+
+it("terminates the supervisor tree when reading readiness fails", async () => {
+  vi.mocked(readFileSync).mockImplementation(() => {
+    throw new Error("readiness failed");
+  });
+  await expect(launchHostedService(options)).rejects.toThrow(
+    "readiness failed",
+  );
+  expect(realRunner).toHaveBeenLastCalledWith("taskkill.exe", [
+    "/PID",
+    "12345",
+    "/T",
+    "/F",
+  ]);
+});
+
+it("does not kill a reused supervisor PID after readiness fails", async () => {
+  vi.mocked(readFileSync).mockImplementation(() => {
+    vi.mocked(realRunner).mockResolvedValue({
+      code: 0,
+      stdout: "different-creation-time",
+      stderr: "",
+    });
+    throw new Error("readiness failed");
+  });
+  await expect(launchHostedService(options)).rejects.toThrow(
+    "readiness failed",
+  );
+  expect(realRunner).not.toHaveBeenCalledWith(
+    "taskkill.exe",
+    expect.anything(),
+  );
 });

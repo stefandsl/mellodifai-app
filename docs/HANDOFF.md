@@ -441,13 +441,23 @@ e2e environment loaded. The owner's launcher still holds 3210 and must not be
 stopped by an agent.
 
 M1 Task 35 adds a preview and administrator apply path for local service
-accounts, ACLs and the LAN firewall rule. Tunnel startup checks the owners of
-ports 3000, 3010 and 3080 after password reapplication and the database probe;
-a separate watcher repeats the check every 60 seconds and stops the tunnel on
-drift. `install --apply` remains an owner action. Until account launch is
-configured, services run as the owner and the tunnel cannot start once the
-dedicated accounts exist. The e2e stack runs, and the browser gate passed on
-3219. A separate restore integration test reset the e2e database and left
-four functions from the ACL allowlist absent; ordinary `stack.ts migrate` does
-not recreate them because no migration in this branch defines them. The final
-database gate is 274 passed, 1 failed for that allowlist mismatch.
+accounts, ACLs and the LAN firewall rule. Review R1 fixes launch web and edge
+as mdf-web, auth as mdf-auth, and cloudflared as mdf-tunnel once those accounts
+exist. The installer stores DPAPI credentials under owner-only
+secrets/services; installation and later startup must use the same Windows
+owner in an elevated console on the same machine. Until installation, the documented owner fallback
+applies. The host verifies the actual child identity before reporting ready.
+A Windows Job Object kills the child process tree if its supervisor exits,
+including a crash or forced termination. The tunnel supervisor checks upstream
+port owners before readiness and every 60 seconds. The ACL probe enumerates
+exact protected files and nested executable paths as the owner, then tests
+those paths under each service account.
+
+The R1 database gate is green again: 275 passed. The four missing historical
+functions and their dependencies were restored on the guarded e2e database
+from git history, with the reviewed service_role-only execute grants. No live
+database was changed. This branch still lacks the source migrations for these
+historical functions; a future e2e reset requires the recovery documented in
+.superpowers/sdd/2026-11-02-m1-agent-access/task-35-report.md. Administrator
+account/ACL/firewall setup and testing under the actual dedicated accounts
+remain owner actions, together with DNS and tunnel credentials.

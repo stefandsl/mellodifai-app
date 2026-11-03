@@ -15,6 +15,7 @@ import { realRunner, recordingRunner } from "../lib/run.js";
 import { runtimeRoot } from "../lib/runtime.js";
 import {
   aclCommands,
+  aclProbePaths,
   icaclsProbe,
   installCommands,
   planStart,
@@ -26,7 +27,12 @@ import {
 } from "../lib/services.js";
 import { probe } from "../probe.js";
 import { reapplyDbPasswords } from "../rotate-db-passwords.js";
-import { assertTunnelConfig, main, presentServices } from "../services.js";
+import {
+  main,
+  managedService,
+  presentServices,
+  SERVICE_ACCOUNTS,
+} from "../services.js";
 
 vi.mock("../rotate-db-passwords.js", () => ({ reapplyDbPasswords: vi.fn() }));
 vi.mock("../probe.js", () => ({ probe: vi.fn() }));
@@ -49,8 +55,16 @@ describe("services", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await main(["install"]);
-      expect(write).toHaveBeenCalled();
+      const runner = recordingRunner();
+      const check = vi.fn();
+      await main(["install"], runner, check);
+      expect(write.mock.calls.map(([line]) => line).join("")).toBe(
+        commands
+          .map((command) => `${command.map((part) => `"${part}"`).join(" ")}\n`)
+          .join(""),
+      );
+      expect(runner.calls).toEqual([]);
+      expect(check).not.toHaveBeenCalled();
     } finally {
       write.mockRestore();
     }
@@ -60,9 +74,15 @@ describe("services", () => {
     const runner = recordingRunner([
       { code: 0, stdout: "read:secrets\\auth\nwrite:deploy\n", stderr: "" },
     ]);
-    await expect(
-      icaclsProbe("mdf-web", runtimeRoot(), runner),
-    ).resolves.toEqual(["read:secrets\\auth", "write:deploy"]);
+    const empty = mkdtempSync(join(runtimeRoot(), "tmp", "acl-probe-"));
+    try {
+      await expect(icaclsProbe("mdf-web", empty, runner)).resolves.toEqual([
+        "read:secrets\\auth",
+        "write:deploy",
+      ]);
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
     const installRunner = recordingRunner();
     const checkAcl = vi.fn(async () => ["read:secrets/auth", "write:deploy"]);
     const write = vi
@@ -97,6 +117,15 @@ describe("services", () => {
       3000: "mdf-web",
       3010: "mdf-auth",
       3080: "mdf-web",
+    });
+  });
+
+  it("assigns every exposed process to its dedicated account", () => {
+    expect(SERVICE_ACCOUNTS).toEqual({
+      web: "mdf-web",
+      edge: "mdf-web",
+      auth: "mdf-auth",
+      cloudflared: "mdf-tunnel",
     });
   });
 
@@ -189,12 +218,14 @@ describe("services", () => {
     }
   });
 
-  it("tunnel drift: a live config differing from the template refuses start", () => {
+  it("tunnel drift: a live config differing from the template refuses start", async () => {
     mkdirSync(join(runtimeRoot(), "tmp"), { recursive: true });
     const base = mkdtempSync(join(runtimeRoot(), "tmp", "tunnel-drift-"));
     try {
-      const template = join(base, "template.yml");
-      const config = join(base, "config.yml");
+      mkdirSync(join(base, "deploy/ops/cloudflared"), { recursive: true });
+      mkdirSync(join(base, "secrets/cloudflared"), { recursive: true });
+      const template = join(base, "deploy/ops/cloudflared/config.template.yml");
+      const config = join(base, "secrets/cloudflared/config.yml");
       writeFileSync(
         template,
         "ingress:\n  - service: http://127.0.0.1:3080\n  - service: http_status:404\n",
@@ -203,9 +234,46 @@ describe("services", () => {
         config,
         "ingress:\n  - service: http://127.0.0.1:54321\n  - service: http_status:404\n",
       );
-      expect(() => assertTunnelConfig(config, template)).toThrow(/drift/);
+      await expect(
+        managedService("start", "cloudflared", base),
+      ).rejects.toThrow(/drift/);
+      expect(existsSync(join(base, "logs/cloudflared.pid.json"))).toBe(false);
     } finally {
       rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("enumerates exact nested secret and executable paths as the owner", () => {
+    const root = mkdtempSync(join(runtimeRoot(), "tmp", "acl-paths-"));
+    try {
+      for (const path of [
+        "secrets/auth/nested/key.json",
+        "stacks/e2e/config.json",
+        "backups/day/db.sql",
+        "deploy/apps/worker/bin/run.js",
+        "tmp/nested/run.exe",
+        "wt/branch/run.js",
+      ]) {
+        mkdirSync(join(root, path, ".."), { recursive: true });
+        writeFileSync(join(root, path), "fixture");
+      }
+      const paths = aclProbePaths("mdf-web", root);
+      expect(paths.reads).toContain(join(root, "secrets/auth/nested/key.json"));
+      expect(paths.reads).toContain(join(root, "stacks/e2e/config.json"));
+      expect(paths.writes).toContainEqual({
+        path: join(root, "deploy/apps/worker/bin/run.js"),
+        directory: false,
+      });
+      expect(paths.writes).toContainEqual({
+        path: join(root, "tmp/nested"),
+        directory: true,
+      });
+      expect(paths.writes).toContainEqual({
+        path: join(root, "wt/branch/run.js"),
+        directory: false,
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
@@ -442,9 +510,42 @@ it.skipIf(process.platform !== "win32")(
           ),
         { timeout: 15000 },
       );
-      expect(readFileSync(join(root, "logs/web.log"), "utf8")).toContain(
+      expect(readFileSync(join(root, "logs/web.error.log"), "utf8")).toContain(
         "fake stderr",
       );
+      const state = JSON.parse(
+        readFileSync(join(root, "logs/web.pid.json"), "utf8").replace(
+          /^\uFEFF/,
+          "",
+        ),
+      );
+      expect(
+        state.owner
+          .toLowerCase()
+          .endsWith(`\\${userInfo().username.toLowerCase()}`),
+      ).toBe(true);
+      expect(
+        (
+          await realRunner("taskkill.exe", [
+            "/PID",
+            String(state.supervisorPid),
+            "/F",
+          ])
+        ).code,
+      ).toBe(0);
+      await vi.waitFor(
+        async () => {
+          const result = await realRunner("powershell.exe", [
+            "-NoProfile",
+            "-Command",
+            `if (Get-Process -Id ${state.pid} -ErrorAction SilentlyContinue) { exit 1 }`,
+          ]);
+          expect(result.code).toBe(0);
+        },
+        { timeout: 10000 },
+      );
+      expect((await cli(["stop"])).code).toBe(0);
+      expect((await cli(["start"])).code).toBe(0);
       expect((await cli(["start"])).code).toBe(1);
       expect((await cli(["stop"])).code).toBe(0);
       expect((await cli(["status"])).stdout.trim()).toBe("web: stopped");

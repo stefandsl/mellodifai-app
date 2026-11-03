@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -51,13 +51,21 @@ export function installCommands(opts: { root: string }): string[][] {
       "-Command",
       "if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 1 }",
     ],
+    ...aclCommands(root),
+    [
+      "powershell.exe",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `New-Item -ItemType Directory -Force -Path '${join(root, "secrets/services").replaceAll("'", "''")}' | Out-Null`,
+    ],
+    ...aclCommands(join(root, "secrets/services")),
     ...["mdf-web", "mdf-auth", "mdf-tunnel"].map((account) => [
       "powershell.exe",
       "-NoProfile",
       "-Command",
-      `$ErrorActionPreference='Stop'; if (-not (Get-LocalUser -Name '${account}' -ErrorAction SilentlyContinue)) { New-LocalUser -Name '${account}' -Password (Read-Host 'Password for ${account}' -AsSecureString) -PasswordNeverExpires }`,
+      `$ErrorActionPreference='Stop'; $dir='${join(root, "secrets/services").replaceAll("'", "''")}'; New-Item -ItemType Directory -Force -Path $dir | Out-Null; $credential=Get-Credential -UserName ($env:COMPUTERNAME+'\\${account}') -Message 'MellodifAI service account'; if ($credential.UserName -ine ($env:COMPUTERNAME+'\\${account}')) { throw 'Credential identity mismatch' }; if (-not (Get-LocalUser -Name '${account}' -ErrorAction SilentlyContinue)) { New-LocalUser -Name '${account}' -Password $credential.Password -PasswordNeverExpires | Out-Null }; $credential | Export-Clixml -LiteralPath (Join-Path $dir '${account}.xml')`,
     ]),
-    ...aclCommands(root),
     ["icacls", root, "/grant", "mdf-web:X", "mdf-auth:X", "mdf-tunnel:X"],
     grant(deploy, "mdf-web", "RX"),
     ["icacls", deploy, "/grant", "mdf-auth:(OI)(CI)RX"],
@@ -95,41 +103,101 @@ export function installCommands(opts: { root: string }): string[][] {
   ];
 }
 
-export async function icaclsProbe(
-  account: string,
-  root = runtimeRoot(),
-  runner: Runner = realRunner,
-): Promise<string[]> {
+export function aclProbePaths(account: string, root: string) {
   if (!["mdf-web", "mdf-auth", "mdf-tunnel"].includes(account))
     throw new Error("Unknown service account");
-  const path = runtimePath(root).replaceAll("'", "''");
+  runtimePath(root);
+  const walk = (
+    path: string,
+    excluded = "",
+    seen = new Set<string>(),
+  ): Array<{ path: string; directory: boolean }> => {
+    if (!existsSync(path) || path === excluded) return [];
+    const resolved = realpathSync(path);
+    runtimePath(resolved);
+    if (seen.has(resolved)) return [];
+    seen.add(resolved);
+    const directory = lstatSync(resolved).isDirectory();
+    return [
+      { path: resolved, directory },
+      ...(directory
+        ? readdirSync(resolved).flatMap((name) =>
+            walk(join(resolved, name), excluded, seen),
+          )
+        : []),
+    ];
+  };
   const secretRoot = join(root, "secrets");
-  const ownSecret =
+  const own =
     account === "mdf-auth"
       ? "auth"
       : account === "mdf-tunnel"
         ? "cloudflared"
         : "";
-  const secretDirs = existsSync(secretRoot)
-    ? readdirSync(secretRoot, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && entry.name !== ownSecret)
-        .map((entry) => `secrets/${entry.name}`)
+  const secrets = existsSync(secretRoot)
+    ? readdirSync(secretRoot)
+        .filter((name) => name !== own)
+        .map((name) => join(secretRoot, name))
     : [];
   const reads = [
-    ...secretDirs,
-    "stacks",
-    "backups",
-    "deploy/apps/worker/.env.local",
-  ];
-  if (account !== "mdf-web") reads.push("deploy/apps/web/.env.local");
-  if (account !== "mdf-auth") reads.push("deploy/apps/auth/.env.local");
-  const readsJson = JSON.stringify(reads).replaceAll("'", "''");
-  const script = `$ErrorActionPreference='Stop'; $root='${path}'; $account='${account}'; $reads=ConvertFrom-Json '${readsJson}'; $job=Start-Job -Credential (Get-Credential -UserName $account -Message 'MellodifAI ACL probe') -ArgumentList $root,$reads -ScriptBlock { param($r,$reads) $writes=@('deploy','ComfyUI_windows_portable','tmp','wt'); foreach($p in $reads) { $full=Join-Path $r $p; if(Test-Path -LiteralPath $full) { try { if((Get-Item -LiteralPath $full).PSIsContainer) { Get-ChildItem -LiteralPath $full -Force -ErrorAction Stop | Out-Null } else { Get-Content -LiteralPath $full -ErrorAction Stop | Out-Null }; 'read:'+$p } catch [System.UnauthorizedAccessException] {} } }; foreach($p in $writes) { $full=Join-Path $r $p; if(Test-Path -LiteralPath $full) { $file=Join-Path $full ('.mdf-acl-probe-'+[guid]::NewGuid().ToString('N')); try { [IO.File]::WriteAllText($file,''); 'write:'+$p } catch [System.UnauthorizedAccessException] {} finally { if(Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force } } } } }; $job | Wait-Job | Out-Null; if($job.State -ne 'Completed') { throw 'ACL probe failed' }; Receive-Job $job`;
-  const result = await runner("powershell.exe", [
-    "-NoProfile",
-    "-Command",
-    script,
-  ]);
+    ...secrets,
+    join(root, "stacks"),
+    join(root, "backups"),
+    ...["web", "auth", "worker"]
+      .filter((app) => account !== `mdf-${app}`)
+      .map((app) => join(root, "deploy/apps", app, ".env.local")),
+  ]
+    .flatMap((path) => walk(path))
+    .filter((entry) => !entry.directory)
+    .map((entry) => entry.path);
+  const cache =
+    account === "mdf-web"
+      ? realpathSafe(join(root, "deploy/apps/web/.next/cache"))
+      : "";
+  const writes = ["deploy", "ComfyUI_windows_portable", "tmp", "wt"].flatMap(
+    (name) => walk(join(root, name), cache),
+  );
+  return { reads, writes };
+}
+
+function realpathSafe(path: string) {
+  return existsSync(path) ? realpathSync(path) : path;
+}
+
+export async function icaclsProbe(
+  account: string,
+  root = runtimeRoot(),
+  runner: Runner = realRunner,
+): Promise<string[]> {
+  const paths = aclProbePaths(account, root);
+  const credential = join(
+    root,
+    "secrets/services",
+    `${account}.xml`,
+  ).replaceAll("'", "''");
+  const script = `$ErrorActionPreference='Stop'; $payload=[Console]::In.ReadToEnd(); $credential=Import-Clixml -LiteralPath '${credential}'; if ($credential.UserName -ine ($env:COMPUTERNAME+'\\${account}')) { throw 'Credential identity mismatch' }; $job=Start-Job -Credential $credential -ArgumentList $payload -ScriptBlock {
+    param($json)
+    $ErrorActionPreference='Stop'
+    $paths=ConvertFrom-Json $json
+    foreach($path in $paths.reads) {
+      try { $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite); $stream.Dispose(); 'read:'+$path }
+      catch [System.UnauthorizedAccessException] {}
+    }
+    foreach($entry in $paths.writes) {
+      $path=$entry.path; $created=$false
+      try {
+        if($entry.directory) { $path=Join-Path $path ('.mdf-acl-probe-'+[guid]::NewGuid().ToString('N')); $stream=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write); $created=$true }
+        else { $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite) }
+        $stream.Dispose(); 'write:'+$entry.path
+      } catch [System.UnauthorizedAccessException] {}
+      finally { if($created) { Remove-Item -LiteralPath $path -Force } }
+    }
+  }; $job | Wait-Job | Out-Null; if($job.State -ne 'Completed' -or $job.ChildJobs[0].Error.Count) { throw 'ACL probe failed' }; Receive-Job $job; Remove-Job $job`;
+  const result = await runner(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { input: JSON.stringify(paths) },
+  );
   if (result.code !== 0)
     throw new Error(`ACL probe could not run as ${account}`);
   return result.stdout.trim().split(/\r?\n/).filter(Boolean);
