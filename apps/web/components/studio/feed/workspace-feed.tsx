@@ -105,7 +105,7 @@ function usePersisted<T extends string>(key: string, initial: T) {
 }
 
 const PILL =
-  "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)]";
+  "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)]";
 
 export function WorkspaceFeed({
   clips,
@@ -228,7 +228,7 @@ export function WorkspaceFeed({
     >
       <header className="shrink-0 space-y-3 px-4 pt-4 pb-2 sm:px-6">
         <nav
-          aria-label="Breadcrumb"
+          aria-label={st(lang, "feed.breadcrumb")}
           className="flex items-center gap-1.5 text-[15px]"
         >
           <span className="text-[var(--fg-muted)]">
@@ -241,6 +241,7 @@ export function WorkspaceFeed({
           {trash ? null : (
             <button
               type="button"
+              aria-label={st(lang, "imp.open")}
               onClick={() => useImportDialog.getState().show()}
               className={cn(
                 PILL,
@@ -248,7 +249,8 @@ export function WorkspaceFeed({
               )}
             >
               <FileUp className="size-3.5" />
-              {st(lang, "imp.open")}
+              <span className="sm:hidden">{st(lang, "imp.openShort")}</span>
+              <span className="hidden sm:inline">{st(lang, "imp.open")}</span>
             </button>
           )}
           {trashLink ? (
@@ -383,7 +385,7 @@ export function WorkspaceFeed({
             ))}
           </div>
         </div>
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+        <div className="hidden gap-1.5 overflow-x-auto scrollbar-none sm:flex">
           {FILTERS.map((filter) => (
             <button
               key={filter}

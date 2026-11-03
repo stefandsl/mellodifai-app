@@ -50,7 +50,10 @@ function sidebar(state: PlaylistsState = STATE, lang: "it" | "en" = "it") {
     </LocaleProvider>,
   );
 }
-const main = () => screen.getAllByRole("navigation", { name: "Main" });
+const main = (lang: "it" | "en" = "it") =>
+  screen.getAllByRole("navigation", {
+    name: lang === "it" ? "Navigazione principale" : "Main navigation",
+  });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -95,7 +98,9 @@ describe("navigation", () => {
   it("is English when the interface is", () => {
     sidebar(STATE, "en");
     expect(
-      within(main()[0] as HTMLElement).getByRole("link", { name: /Search/u }),
+      within(main("en")[0] as HTMLElement).getByRole("link", {
+        name: /Search/u,
+      }),
     ).toHaveAttribute("href", "/search");
   });
 });

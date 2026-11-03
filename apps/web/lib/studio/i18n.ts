@@ -1,6 +1,7 @@
 // Studio interface strings. Kept apart from the v1 dictionary in @mellodifai/shared,
 // which the worker and the v1 screens also use.
 const it = {
+  "nav.main": "Navigazione principale",
   "nav.create": "Crea",
   "nav.library": "Libreria",
   "nav.videos": "Video",
@@ -107,6 +108,7 @@ const it = {
   "create.open": "Crea",
   "create.close": "Chiudi",
   "feed.workspace": "Il mio spazio",
+  "feed.breadcrumb": "Percorso di navigazione",
   "feed.workspaces": "Spazi",
   "feed.search": "Cerca",
   "feed.sort": "Ordina",
@@ -887,6 +889,7 @@ const it = {
   "lic.licensed": "Ho la licenza dell'autore",
   "lic.unknown": "Da verificare",
   "imp.open": "Importa da Suno",
+  "imp.openShort": "Importa",
   "imp.title": "Importa da Suno",
   "imp.subtitle":
     "Scarica i brani dal tuo account suno.com e trascinali qui, oppure incolla il link di condivisione di un brano.",
@@ -1125,6 +1128,7 @@ const it = {
 export type StudioKey = keyof typeof it;
 
 const en: Record<StudioKey, string> = {
+  "nav.main": "Main navigation",
   "nav.create": "Create",
   "nav.library": "Library",
   "nav.videos": "Videos",
@@ -1230,6 +1234,7 @@ const en: Record<StudioKey, string> = {
   "create.open": "Create",
   "create.close": "Close",
   "feed.workspace": "My Workspace",
+  "feed.breadcrumb": "Breadcrumb",
   "feed.workspaces": "Workspaces",
   "feed.search": "Search",
   "feed.sort": "Sort",
@@ -2006,6 +2011,7 @@ const en: Record<StudioKey, string> = {
   "lic.licensed": "Licensed from the author",
   "lic.unknown": "To be checked",
   "imp.open": "Import from Suno",
+  "imp.openShort": "Import",
   "imp.title": "Import from Suno",
   "imp.subtitle":
     "Download the tracks from your suno.com account and drop them here, or paste a track's share link.",

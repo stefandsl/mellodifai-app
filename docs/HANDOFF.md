@@ -142,6 +142,11 @@ ends with "DONE branch ..." in its status.log; then review its report, merge the
 `build/studio-ui` (renumber migrations to the next free number if needed), run all gates, push.
 Launch detached on Windows with PowerShell `Start-Process` so it outlives the agent session.
 
+The `feat/ui-polish` stream has a visual audit, UI fixes, and before/after screenshots at
+`E:/mellodifai/codex-streams/ui-polish/report.md`. Its final style-card evidence covers
+1440x900, 1360x600, and 390x844. The focused browser suite and unit gates pass; the shared
+database and full e2e stack had unrelated failures in its review-round-2 run.
+
 ## 5. Later work (after M1)
 
 Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design

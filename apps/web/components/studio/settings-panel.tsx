@@ -66,7 +66,7 @@ export function SettingsPanel({ email }: { email: string }) {
               router.push("/login");
               router.refresh();
             }}
-            className="h-8 rounded-full bg-[var(--surface-2)] px-3 text-[13px] hover:text-[var(--danger)]"
+            className="h-8 rounded-full bg-[var(--surface-2)] px-3 text-[13px] outline-none hover:text-[var(--danger)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
           >
             {st(lang, "nav.signOut")}
           </button>

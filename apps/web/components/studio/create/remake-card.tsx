@@ -203,7 +203,7 @@ function StartForm({ onStarted }: { onStarted: () => Promise<void> }) {
           disabled={pending || !url.trim()}
           className={cn(
             PILL,
-            "h-9 bg-[var(--fg)] px-4 text-[var(--bg)] hover:opacity-90",
+            "h-9 w-full justify-center bg-[var(--fg)] px-4 text-[var(--bg)] hover:opacity-90 min-[420px]:w-auto",
           )}
         >
           {pending ? <Loader2 className="size-3.5 animate-spin" /> : null}

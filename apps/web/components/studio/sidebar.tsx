@@ -242,7 +242,7 @@ export function StudioSidebar({ email }: { email: string }) {
         </button>
       ) : null}
 
-      <nav aria-label="Main" className="flex flex-col gap-0.5">
+      <nav aria-label={st(lang, "nav.main")} className="flex flex-col gap-0.5">
         {NAV.map((item) => {
           const active = isActive(item.href, pathname, tab);
           const label = st(lang, item.key);
@@ -387,7 +387,10 @@ export function MobileTopBar() {
           <Logo />
         </span>
       </Link>
-      <nav aria-label="Main" className="flex items-center gap-1">
+      <nav
+        aria-label={st(lang, "nav.main")}
+        className="flex items-center gap-1"
+      >
         {NAV.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href, pathname, tab);
