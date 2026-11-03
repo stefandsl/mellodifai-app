@@ -271,3 +271,17 @@ describe("parseMigrationList", () => {
     expect(parseMigrationList("error: no db")).toBeNull();
   });
 });
+
+it("moves an e2e stack to another port block and project", () => {
+  const config = rewriteE2eConfig(
+    'project_id = "mellodifai"\nport = 54321\n[inbucket]\nport = 54324',
+    3310,
+    { base: 45720, project: "mellodifai_l2" },
+  );
+  expect(config).toContain('project_id = "mellodifai_l2"');
+  expect(config).toContain("port = 45721");
+  expect(config).toContain("port = 45724");
+  expect(assertIsolatedConfig(config)).toBe(true);
+  expect(() => rewriteE2eConfig("", 3310, { project: "mellodifai" })).toThrow();
+  expect(() => rewriteE2eConfig("", 3310, { base: 45725 })).toThrow();
+});

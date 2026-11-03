@@ -13,6 +13,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assertIsolatedConfig,
+  DEFAULT_E2E_PROJECT,
+  DEFAULT_PORT_BASE,
+  e2ePortMap,
   redactE2eStderr,
   rewriteE2eConfig,
 } from "./e2e-isolated-lib.mjs";
@@ -21,6 +24,12 @@ const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const stack = process.env.MELLODIFAI_E2E_DIR ?? "E:\\mellodifai\\e2e-stack";
 const logs = process.env.MELLODIFAI_LOGS ?? "E:\\mellodifai\\logs";
 const webPort = Number(process.env.E2E_PORT ?? 3310);
+// Another session can keep its own stack: MELLODIFAI_E2E_PORT_BASE=45720 puts the API on 45721.
+const portBase = Number(
+  process.env.MELLODIFAI_E2E_PORT_BASE ?? DEFAULT_PORT_BASE,
+);
+const project = process.env.MELLODIFAI_E2E_PROJECT ?? DEFAULT_E2E_PROJECT;
+const stackPorts = e2ePortMap(portBase);
 const logFile = join(logs, "e2e-isolated.log");
 mkdirSync(logs, { recursive: true });
 const log = (text) =>
@@ -80,11 +89,26 @@ if (process.argv.includes("--stop")) {
 if (!Number.isInteger(webPort) || webPort < 1 || webPort > 65535)
   fail("E2E_PORT non valido.");
 if (await busy(webPort)) fail(`La porta e2e ${webPort} e' gia' in uso.`);
+// A stack already on the API port may be someone else's: never reset it from here.
+const apiPort = Number(stackPorts.get("54321"));
+if (await busy(apiPort)) {
+  const ours = await run("docker", [
+    "ps",
+    "-q",
+    "--filter",
+    `name=^supabase_kong_${project}$`,
+  ]);
+  if (ours.code || !ours.out.trim())
+    fail(
+      `La porta Supabase e2e ${apiPort} e' gia' in uso da un altro stack: scegli MELLODIFAI_E2E_PORT_BASE.`,
+    );
+}
 rmSync(join(stack, "supabase"), { recursive: true, force: true });
 mkdirSync(join(stack, "supabase"), { recursive: true });
 const config = rewriteE2eConfig(
   readFileSync(join(repo, "supabase", "config.toml"), "utf8"),
   webPort,
+  { base: portBase, project },
 );
 assertIsolatedConfig(config);
 writeFileSync(join(stack, "supabase", "config.toml"), config);
@@ -121,7 +145,7 @@ result = await run("pnpm.cmd", args, {
     SUPABASE_URL: values.API_URL,
     SUPABASE_ANON_KEY: anon,
     SUPABASE_SERVICE_ROLE_KEY: service,
-    MAILPIT_URL: "http://127.0.0.1:45624",
+    MAILPIT_URL: `http://127.0.0.1:${stackPorts.get("54324")}`,
     E2E_PORT: String(webPort),
     E2E_ISOLATED: "1",
   },

@@ -32,7 +32,17 @@ Gemini) drive the app through a CLI and MCP on the owner's own subscriptions.
 - Disk: never write databases, caches, logs, transcripts, model weights or test data on C:.
   Use `E:/mellodifai/...` (runtime, reports, render-tmp, logs) or `G:\caches`. If C: has
   less than 20 GB free, stop and report. Never delete files you did not create.
-- Playwright / e2e only on an isolated test stack (normally Next on 3210, Supabase API 45621).
+- Playwright / e2e only on an isolated test stack, never on the live stack (Supabase API 54321).
+  Port map (2026-11-03):
+  - Owner's app: the launcher (`Mellodifai.cmd`) serves it on 127.0.0.1:3210 against the live
+    stack. Never stop it, never test on it.
+  - The other session's e2e: web 3219, Supabase API 45621 (`mellodifai_e2e`). Do not use or stop.
+  - `pnpm e2e:isolated`: web 3310 (Playwright's default port now), Supabase block chosen with
+    `MELLODIFAI_E2E_PORT_BASE` (default 45620, so API 45621) and `MELLODIFAI_E2E_PROJECT`; while
+    the other session holds 45621, run it with e.g. base 45720, project `mellodifai_l2` and
+    `MELLODIFAI_E2E_DIR=E:/mellodifai/e2e-stack-l2`. It refuses an API port held by another stack.
+- Owner decision 2026-11-01: the app stays local on his PC for now (no Vercel, no public domain);
+  see `docs/superpowers/plans/2026-11-01-local-first.md`. ACE-Step runs natively, no ComfyUI.
   Never on the live stack (Supabase API 54321).
 - The Supabase CLI is `npx supabase` (cached v3.0.0). Never factory-reset Docker. Migrations are additive only, each with database tests.
 - No em dash characters anywhere (use "-"). Plain commit messages, no co-author lines.
@@ -75,6 +85,11 @@ Merged into `build/studio-ui` and pushed:
 - Video Studio 1080p/4K quality selection and local image upscaler, merged from `feat/render-4k`.
 
 In progress:
+
+- L2 integration (2026-11-03): branch `integrate/l2` (worktree `E:/mellodifai/wt/integrate-l2`, not
+  pushed) = `build/studio-ui` + `feat/ace-step-native` + `feat/local-launcher`. Report
+  `E:/mellodifai/reports/l2-report.md`. Its new migration `20261103070003_ace_step.sql` is a
+  no-op where `20261101000016` already ran.
 
 | Work | Branch / worktree | Brief | What is left |
 | --- | --- | --- | --- |
