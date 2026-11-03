@@ -113,20 +113,43 @@ test("remake: a private video stops with a clear reason", async ({ page }) => {
 });
 
 test("lyrics editor: write with AI, then improve", async ({ page }) => {
-  await signIn(page, E2E_ADMIN_EMAIL);
-  await page.getByRole("radio", { name: "Avanzato" }).click();
-  const lyrics = page.getByRole("textbox", { name: "Testo", exact: true });
-  await page.getByRole("button", { name: "Scrivi con AI" }).click();
-  await page
-    .getByLabel("Di cosa parla la canzone?")
-    .fill("una mattina di sole in città");
-  await page.getByRole("button", { name: "Scrivi", exact: true }).click();
-  await expect(lyrics).toHaveValue(/Apro la finestra sul mattino/u, {
-    timeout: 60_000,
-  });
-  await expect(page.getByText("Testo pronto")).toBeVisible();
-  await page.getByRole("button", { name: "Migliora" }).click();
-  await expect(lyrics).toHaveValue(/Apro la finestra sul mattino, sì/u, {
-    timeout: 60_000,
-  });
+  // A fresh owner keeps repeated runs independent of the daily lyrics limit.
+  const db = serviceClient();
+  const email = `e2e-lyrics-${crypto.randomUUID()}@mellodifai.test`;
+  let userId: string | undefined;
+  try {
+    expect(
+      (await db.from("admin_allowlist").insert({ email, role: "customer" }))
+        .error,
+    ).toBeNull();
+    const created = await db.auth.admin.createUser({
+      email,
+      email_confirm: true,
+    });
+    expect(created.error).toBeNull();
+    userId = created.data.user?.id;
+    if (!userId) throw new Error("Lyrics fixture user was not created");
+    await signIn(page, email);
+    await page.getByRole("radio", { name: "Avanzato" }).click();
+    const lyrics = page.getByRole("textbox", { name: "Testo", exact: true });
+    await page.getByRole("button", { name: "Scrivi con AI" }).click();
+    await page
+      .getByLabel("Di cosa parla la canzone?")
+      .fill("una mattina di sole in città");
+    await page.getByRole("button", { name: "Scrivi", exact: true }).click();
+    await expect(lyrics).toHaveValue(/Apro la finestra sul mattino/u, {
+      timeout: 60_000,
+    });
+    await expect(page.getByText("Testo pronto")).toBeVisible();
+    await page.getByRole("button", { name: "Migliora" }).click();
+    await expect(lyrics).toHaveValue(/Apro la finestra sul mattino, sì/u, {
+      timeout: 60_000,
+    });
+  } finally {
+    if (userId)
+      expect((await db.auth.admin.deleteUser(userId)).error).toBeNull();
+    expect(
+      (await db.from("admin_allowlist").delete().eq("email", email)).error,
+    ).toBeNull();
+  }
 });

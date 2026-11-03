@@ -322,6 +322,15 @@ it("claim skips future jobs and explicit transitions are owner-checked", async (
   expect(claim.data.some((j: { id: string }) => j.id === job.data.id)).toBe(
     false,
   );
+  // End the future-job fixture before testing an independent rerender.
+  expect(
+    (
+      await service
+        .from("jobs")
+        .update({ status: "cancelled" })
+        .eq("id", job.data.id)
+    ).error,
+  ).toBeNull();
   expect(
     (
       await other.rpc("render_again", {

@@ -637,6 +637,11 @@ it("lets only the admin choose a local song engine and rejects unknown engines",
 });
 it("records failed-QA override and approver, uses current attempt and rerenders atomically", async () => {
   const v = await fixture("video_review");
+  // Reaching video review means the preceding pipeline jobs have finished.
+  expect(
+    (await service.from("jobs").update({ status: "done" }).eq("version_id", v))
+      .error,
+  ).toBeNull();
   const r = await service
     .from("renders")
     .insert({
