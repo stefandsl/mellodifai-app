@@ -82,7 +82,7 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
     cookies.map((cookie) => ({
       name: cookie.name,
       value: cookie.value,
-      url: "http://127.0.0.1:3223",
+      url: `http://127.0.0.1:${process.env.E2E_PORT ?? 3210}`,
       httpOnly: cookie.options.httpOnly ?? false,
       sameSite:
         cookie.options.sameSite === "strict"

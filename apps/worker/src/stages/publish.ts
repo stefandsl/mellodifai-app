@@ -6,18 +6,50 @@ import {
   publicationDefaults,
   songMood,
 } from "@mellodifai/shared";
-import type { StageHandler } from "../loop.js";
+import type { Render } from "../db.js";
+import type { StageContext, StageHandler } from "../loop.js";
 import { nextPacificQuotaTime } from "./quota.js";
 import { ENGINE_ROOT, language } from "./utils.js";
+
+export async function assertPublishRender(
+  context: StageContext,
+  render: Render | null,
+): Promise<Render & { path: string }> {
+  if (!render?.path)
+    throw new Error("approved current publish render required");
+  if (
+    render.version_id !== context.version.id ||
+    render.owner_id !== context.job.owner_id ||
+    render.render_attempt !== context.version.render_attempt ||
+    !["approved", "publishing"].includes(context.version.status)
+  )
+    throw new Error("approved current publish render required");
+  if (render.kind === "master") {
+    if (!render.approved_at) throw new Error("approved master required");
+  } else if (render.kind === "visualizer") {
+    const master = await context.db.getRender(context.version.id, "master");
+    if (
+      render.aspect !== "16:9" ||
+      !render.preview_path ||
+      master?.render_attempt !== context.version.render_attempt ||
+      !master?.approved_at
+    )
+      throw new Error("approved landscape visualizer required");
+  } else throw new Error("publish render kind is not allowed");
+  return { ...render, path: render.path };
+}
 
 export const publish: StageHandler = async (context) => {
   const workerId =
     context.secrets.values.WORKER_ID ??
     `worker-${process.env.COMPUTERNAME ?? "pc"}`;
-  const render = await context.db.getRender(context.version.id, "master");
-  if (!render?.path)
-    throw new Error("master render is required before publishing");
-  const prior = await context.db.getPublicationForVersion(context.version.id);
+  const renderId = (context.job.payload as { render_id?: string } | null)
+    ?.render_id;
+  const selected = renderId
+    ? await context.db.getRenderById(renderId)
+    : await context.db.getRender(context.version.id, "master");
+  const render = await assertPublishRender(context, selected);
+  const prior = await context.db.getPublicationForRender(render.id);
   if (prior?.render_id === render.id && prior.upload_state === "uploading")
     throw new Error("upload state unknown, check YouTube Studio");
   if (prior?.render_id === render.id && prior.upload_state === "uploaded")

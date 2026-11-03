@@ -188,6 +188,28 @@ command exit codes and test summary lines without saving raw output.
 `supabase/tests/song-assets.test.ts` now accepts any local non-live stack through the same
 URL guard as Playwright.
 
+The `feat/e2e-coverage` stream adds browser journeys for AI lyrics through private publication,
+remake section regeneration, library controls, karaoke, audio trim export, and the existing
+published re-render. It fixes the song-assets test's fixed browser port. Its private
+`mellodifai_cov` stack (API 49621, Next 3231) passed the database suite (144 tests) and browser
+suite (17 tests) twice in a row with fake providers. The stack was stopped and its temporary
+image tags restored. Report and screenshots: `E:/mellodifai/codex-streams/e2e-coverage/`.
+Review round 1 strengthened filter inclusion and exclusion, automatic karaoke playback timing,
+Verse 2 regeneration persistence, exact take selection, and uploaded logo storage checks. The
+private database and browser suites each passed twice again; the stack is stopped.
+Review round 2 verifies the visible private publication title and visibility, the playlist item's
+song ID, and the actual 2-8 second WAV segment. The private database and browser suites each
+passed twice again; the stack is stopped.
+Review round 3 preserves submitted AI lyrics in the fake draft and lets the approved project's
+publish kit select a completed 16:9 Video Studio render. Migration
+`20261103070001_publish_visualizer.sql` allows that render only after master approval; the worker
+uploads the selected render from the job payload. The migration is applied to the private coverage
+stack only. The branch's report has the latest tests and screenshots.
+Review round 4 adds `20261103070002_publish_attempt_guard.sql`. Authenticated users cannot
+insert publish jobs directly, enqueue and reservation allow one active or completed upload per
+render attempt, and both worker paths recheck approval before upload. The private stack has
+passed two database runs; see the branch report for the final browser verification.
+
 ## 5. Later work (after M1)
 
 Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design

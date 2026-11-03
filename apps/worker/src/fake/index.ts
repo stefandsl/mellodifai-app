@@ -15,9 +15,11 @@ import {
   STAGE_STATUS,
   type Stage,
   songMood,
+  sungLineCount,
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { makeThumbnail } from "../stages/art.js";
+import { assertPublishRender } from "../stages/publish.js";
 import { songStoryboard } from "../stages/storyboard.js";
 import { key, renderAssetPath, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
@@ -199,13 +201,15 @@ export function createFakeStages(
           const title =
             ((ctx.project.song_settings ?? {}) as { title?: string }).title ||
             ctx.project.topic;
+          const brief = ctx.project.brief?.trim() ?? "";
           const pack = {
             ...fakePack,
             title,
             lyrics: [
+              ...(brief ? [brief] : []),
               "[Verse 1]",
               ...Array.from(
-                { length: 80 },
+                { length: Math.max(0, 80 - sungLineCount(brief)) },
                 (_, i) => `${title}, line ${i + 1}`,
               ),
             ].join("\n"),
@@ -472,8 +476,14 @@ export function createFakeStages(
           break;
         }
         case "publish": {
-          const render = await ctx.db.getRender(ctx.version.id, "master");
-          if (!render) throw new Error("Fake master is missing");
+          const renderId = (ctx.job.payload as { render_id?: string } | null)
+            ?.render_id;
+          const render = renderId
+            ? await ctx.db.getRenderById(renderId)
+            : await ctx.db.getRender(ctx.version.id, "master");
+          await assertPublishRender(ctx, render);
+          if (!render)
+            throw new Error("approved current publish render required");
           if (!(await ctx.db.getPublicationForRender(render.id))) {
             const assets = (
               render.qa_results as {

@@ -121,7 +121,7 @@ export default async function ProjectPage({
         .order("take_number"),
       supabase
         .from("renders")
-        .select("id,kind,preview_path,qa_results")
+        .select("id,kind,aspect,preview_path,qa_results")
         .eq("version_id", current.id)
         .eq("render_attempt", current.render_attempt)
         .order("created_at", { ascending: false }),
@@ -176,12 +176,12 @@ export default async function ProjectPage({
       audioUrl: await signed(take.audio_preview_path),
     })),
   );
-  const master = renders.find((r) => r.kind === "master");
-  const { data: publication } = master
+  const renderIds = renders.map((render) => render.id);
+  const { data: publication } = renderIds.length
     ? await supabase
         .from("publications")
         .select("id,youtube_video_id,privacy,metadata,upload_state")
-        .eq("render_id", master.id)
+        .in("render_id", renderIds)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()

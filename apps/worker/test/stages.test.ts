@@ -758,6 +758,7 @@ describe("round 2 hardening", () => {
     "never repeats an upload in state %s",
     async (state) => {
       const { ctx, db, calls } = await setup();
+      approvePublish(ctx, db);
       await db.createPublication({
         render_id: db.renders[0]?.id ?? "",
         privacy: "private",
@@ -774,6 +775,7 @@ describe("round 2 hardening", () => {
   );
   it("reserves publication and quota before upload, even when the response is lost", async () => {
     const { ctx, db } = await setup();
+    approvePublish(ctx, db);
     const original = ctx.engine.withWorkspace.bind(ctx.engine);
     vi.spyOn(ctx.engine, "withWorkspace").mockImplementation((...args) => {
       const e = original(...args);
@@ -789,6 +791,7 @@ describe("round 2 hardening", () => {
   });
   it("rejects publishing paths outside workspace", async () => {
     const { ctx, db, calls } = await setup();
+    approvePublish(ctx, db);
     if (!db.renders[0]) throw new Error("missing fixture");
     db.renders[0].path = "C:\\private\\video.mp4";
     await expect(stages.publish?.(ctx)).rejects.toThrow("workspace");
@@ -1426,6 +1429,17 @@ async function setup() {
   });
   return { ctx, calls, output, db };
 }
+function approvePublish(ctx: StageContext, db: InMemoryDb) {
+  ctx.version.status = "approved";
+  const master = db.renders.find(
+    (r) =>
+      r.version_id === ctx.version.id &&
+      r.kind === "master" &&
+      r.render_attempt === ctx.version.render_attempt,
+  );
+  if (!master) throw new Error("master fixture missing");
+  master.approved_at = new Date().toISOString();
+}
 function command(cmd: string, args: string[], cwd: string = ENGINE_ROOT) {
   return { cmd, args, cwd };
 }
@@ -1455,7 +1469,8 @@ describe("stage safety and behavior", () => {
     expect((await db.getRender(ctx.version.id, "master"))?.id).not.toBe(oldId);
   });
   it("uses the reviewed publication metadata in the upload file", async () => {
-    const { ctx } = await setup();
+    const { ctx, db } = await setup();
+    approvePublish(ctx, db);
     ctx.job.payload = {
       metadata: {
         title: "Reviewed title",
@@ -1475,8 +1490,43 @@ describe("stage safety and behavior", () => {
       privacyStatus: "private",
     });
   });
+  it("uploads the selected Video Studio render", async () => {
+    const { ctx, db } = await setup();
+    approvePublish(ctx, db);
+    const video = join(ctx.ws.renderDir, "visualizer-16x9.mp4");
+    await writeFile(video, "branded fixture");
+    db.renders.push({
+      id: "branded",
+      version_id: ctx.version.id,
+      kind: "visualizer",
+      aspect: "16:9",
+      path: video,
+      preview_path: video,
+      owner_id: "owner",
+      render_attempt: ctx.version.render_attempt ?? 1,
+    });
+    ctx.job.payload = { render_id: "branded", metadata: { title: "Branded" } };
+    await stages.publish?.(ctx);
+    const meta = JSON.parse(
+      await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+    );
+    expect(meta.video).toBe(video);
+    expect(db.publications[0]?.render_id).toBe("branded");
+  });
+  it("refuses a payload render before approval without reserving quota", async () => {
+    const { ctx, db, calls } = await setup();
+    ctx.job.payload = { render_id: db.renders[0]?.id };
+    await expect(stages.publish?.(ctx)).rejects.toThrow("approved current");
+    expect(db.publications).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+    approvePublish(ctx, db);
+    ctx.version.render_attempt = 8;
+    await expect(stages.publish?.(ctx)).rejects.toThrow("approved current");
+    expect(db.publications).toHaveLength(0);
+  });
   it("fills a title-only publish job from its render snapshot", async () => {
     const { ctx, db } = await setup();
+    approvePublish(ctx, db);
     ctx.project.brief = "Old project brief";
     ctx.version.lyric_pack = {
       ...pack,
@@ -1673,6 +1723,7 @@ describe("stage safety and behavior", () => {
   );
   it("holds the fifth Pacific-day upload queued, then allows the next day", async () => {
     const { ctx, db, calls } = await setup();
+    approvePublish(ctx, db);
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-31T06:30:00Z"));
     await db.upsertWorker({
@@ -1721,6 +1772,7 @@ describe("stage safety and behavior", () => {
   );
   it("increments the current Pacific-day counter after a private upload", async () => {
     const { ctx, db } = await setup();
+    approvePublish(ctx, db);
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-31T18:00:00Z"));
     await db.upsertWorker({
@@ -1986,6 +2038,7 @@ it("fake stages generate playable temporary media, persist rows and advance the 
     if (codec !== "png")
       expect(Number(info.format.duration)).toBeCloseTo(10, 0);
   }
+  approvePublish(ctx, db);
   await run("publish");
   expect(db.publications[0]?.privacy).toBe("private");
   await expect(run("set_privacy")).rejects.toThrow("confirmed");
@@ -1999,10 +2052,12 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   ctx.version.render_attempt = 8;
   const replacement = await db.upsertRender({
     version_id: ctx.version.id,
+    owner_id: "owner",
     kind: "master",
     render_attempt: 8,
     path: join(ctx.ws.renderDir, "video.mp4"),
   });
+  approvePublish(ctx, db);
   await run("publish");
   expect(db.publications).toHaveLength(2);
   expect(db.publications[1]?.render_id).toBe(replacement.id);
@@ -2058,6 +2113,7 @@ describe("exact stage subprocess contracts", () => {
     "set_privacy",
   ] as Stage[])("%s arguments, cwd, environment", async (stage) => {
     const { ctx, calls, db } = await setup();
+    if (stage === "publish") approvePublish(ctx, db);
     if (stage === "art") ctx.version.lyric_pack = { ...pack, title: "--Night" };
     if (stage === "set_privacy")
       await db.createPublication({
