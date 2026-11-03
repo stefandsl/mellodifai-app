@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { OpsResult } from "@mellodifai/shared";
 import { revalidatePath } from "next/cache";
 import { callOps } from "@/lib/db/ops-client";
-import type { OpDef, OpsCtx } from "./types";
+import type { OpDef, OpRunResult, OpsCtx } from "./types";
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -26,8 +26,18 @@ export async function runOp<I, O>(
   def: OpDef<I, O>,
   ctx: OpsCtx,
   input: unknown,
-): Promise<OpsResult<O>> {
+): Promise<OpRunResult<O>> {
   let result: OpsResult<O>;
+  let key: string | undefined;
+  let dispatched = false;
+  const uncertain = (): OpRunResult<O> => ({
+    ok: false,
+    code:
+      def.mutating && def.scope === "spend" ? "ambiguous_spend" : "internal",
+    message:
+      "Completion unknown. Do not automatically retry. Retain the original idempotency key.",
+    ...(key ? { idempotency_key: key } : {}),
+  });
   try {
     const parsed = def.input.safeParse(input);
     if (!parsed.success)
@@ -38,7 +48,7 @@ export async function runOp<I, O>(
     };
     const args = def.args(parsed.data);
     if (def.key) {
-      const key =
+      key =
         ctx.idempotency_key ??
         (ctx.actor_kind === "session" ? randomUUID() : undefined);
       if (!key || key.length < 8 || key.length > 100)
@@ -52,7 +62,7 @@ export async function runOp<I, O>(
       const begin = await callOps<
         { status: "new" } | { status: "replay"; response: OpsResult<O> }
       >("idem_begin", [requestCtx, key, requestCtx.request_hash]);
-      if (!begin.ok) return begin;
+      if (!begin.ok) return { ...begin, idempotency_key: key };
       if (begin.data?.status === "replay") {
         result = begin.data.response;
         if (!result || typeof result.ok !== "boolean")
@@ -62,6 +72,7 @@ export async function runOp<I, O>(
             message: "Invalid idempotency response",
           };
       } else if (begin.data?.status === "new") {
+        dispatched = true;
         result = await callOps<O>(def.fn, [requestCtx, ...args]);
       } else {
         return {
@@ -71,19 +82,30 @@ export async function runOp<I, O>(
         };
       }
     } else {
+      dispatched = true;
       result = await callOps<O>(def.fn, [requestCtx, ...args]);
     }
   } catch {
+    if (dispatched) return uncertain();
     return { ok: false, code: "internal", message: "Internal error" };
   }
-  if (!result.ok) return result;
+  if (!result.ok) {
+    if (
+      dispatched &&
+      result.details &&
+      typeof result.details === "object" &&
+      "reason" in result.details &&
+      result.details.reason === "completion_unknown"
+    )
+      return uncertain();
+    return { ...result, ...(key ? { idempotency_key: key } : {}) };
+  }
   let data: O;
   try {
     data = def.output.parse(result.data);
   } catch {
     console.error("Operation output contract validation failed");
-    // Preserve the committed outcome even if its payload no longer matches the TS contract.
-    if (def.mutating) return result;
+    if (def.mutating) return { ok: true, committed: true };
     return {
       ok: false,
       code: "internal",

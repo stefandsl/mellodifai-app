@@ -282,7 +282,7 @@ it.each(["in_progress", "idempotency_mismatch", "unauthorized", "internal"])(
     mocks.callOps.mockResolvedValueOnce(error);
     expect(
       await runOp({ ...def, key: true }, keyedCtx, { value: "ok" }),
-    ).toEqual(error);
+    ).toEqual({ ...error, idempotency_key: keyedCtx.idempotency_key });
     expect(mocks.callOps).toHaveBeenCalledOnce();
   },
 );
@@ -329,7 +329,7 @@ it.each([false, true])(
     try {
       expect(
         await runOp({ ...def, output }, keyedCtx, { value: "ok" }),
-      ).toEqual(result);
+      ).toEqual({ ok: true, committed: true });
       expect(log).toHaveBeenCalled();
       expect(JSON.stringify(log.mock.calls)).not.toContain("private detail");
       expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -345,4 +345,125 @@ it("still rejects invalid read output", async () => {
   expect(
     await runOp({ ...def, mutating: false }, keyedCtx, { value: "ok" }),
   ).toMatchObject({ ok: false, code: "internal" });
+});
+
+it("returns only a committed marker for invalid mutation output through actions", async () => {
+  const { remoteAction } = await import("@/lib/run-action");
+  mocks.callOps.mockResolvedValueOnce({
+    ok: true,
+    data: { secret: "private" },
+  });
+  expect(await remoteAction(def, { value: "ok" })).toEqual({
+    ok: true,
+    committed: true,
+  });
+});
+
+it("retains the generated key on uncertain spend and reuses it for replay", async () => {
+  const { remoteAction } = await import("@/lib/run-action");
+  const operation = { ...def, key: true, scope: "spend" as const };
+  mocks.callOps.mockResolvedValueOnce({ ok: true, data: { status: "new" } });
+  mocks.callOps.mockResolvedValueOnce({
+    ok: false,
+    code: "internal",
+    message: "Internal error",
+    details: { reason: "completion_unknown" },
+  });
+  const result = await remoteAction(operation, { value: "ok" });
+  expect(result).toMatchObject({
+    ok: false,
+    code: "ambiguous_spend",
+    idempotencyKey: expect.any(String),
+  });
+  if (result.ok || !result.idempotencyKey)
+    throw new Error("Missing recovery key");
+  const key = result.idempotencyKey;
+  expect(mocks.callOps.mock.calls[1][1][0].idempotency_key).toBe(key);
+  mocks.callOps.mockResolvedValueOnce({
+    ok: true,
+    data: {
+      status: "replay",
+      response: { ok: true, data: { id: "original" } },
+    },
+  });
+  expect(
+    await remoteAction(operation, { value: "ok" }, { idempotencyKey: key }),
+  ).toEqual({ ok: true, id: "original" });
+  expect(mocks.callOps).toHaveBeenCalledTimes(3);
+  expect(mocks.callOps.mock.calls[2][1][1]).toBe(key);
+});
+
+it("does not label a definite database rejection as ambiguous spend", async () => {
+  const { runOp } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({ ok: true, data: { status: "new" } });
+  mocks.callOps.mockResolvedValueOnce({
+    ok: false,
+    code: "cap_exceeded",
+    message: "Limit",
+  });
+  expect(
+    await runOp({ ...def, key: true, scope: "spend" }, keyedCtx, {
+      value: "ok",
+    }),
+  ).toMatchObject({ ok: false, code: "cap_exceeded" });
+});
+
+it("retains the supplied key when a dispatched spend throws", async () => {
+  const { runOp } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({ ok: true, data: { status: "new" } });
+  mocks.callOps.mockRejectedValueOnce(new Error("private transport details"));
+  expect(
+    await runOp({ ...def, key: true, scope: "spend" }, keyedCtx, {
+      value: "ok",
+    }),
+  ).toEqual({
+    ok: false,
+    code: "ambiguous_spend",
+    message:
+      "Completion unknown. Do not automatically retry. Retain the original idempotency key.",
+    idempotency_key: keyedCtx.idempotency_key,
+  });
+});
+
+it("keeps the recovery key on in-progress action responses", async () => {
+  const { runAction } = await import("@/lib/run-action");
+  mocks.callOps.mockResolvedValueOnce({
+    ok: false,
+    code: "in_progress",
+    message: "Wait",
+    retry_after: 2,
+  });
+  expect(
+    await runAction(
+      { ...def, key: true, scope: "spend" },
+      { value: "ok" },
+      { idempotencyKey: keyedCtx.idempotency_key },
+    ),
+  ).toMatchObject({
+    ok: false,
+    code: "in_progress",
+    idempotencyKey: keyedCtx.idempotency_key,
+  });
+  expect(mocks.callOps).toHaveBeenCalledOnce();
+  expect(mocks.callOps.mock.calls[0][1][1]).toBe(keyedCtx.idempotency_key);
+});
+
+it("does not report ambiguous spend when key opening fails before dispatch", async () => {
+  const { runOp } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({
+    ok: false,
+    code: "internal",
+    message: "Internal error",
+    details: { reason: "completion_unknown" },
+  });
+  expect(
+    await runOp({ ...def, key: true, scope: "spend" }, keyedCtx, {
+      value: "ok",
+    }),
+  ).toMatchObject({
+    ok: false,
+    code: "internal",
+    idempotency_key: keyedCtx.idempotency_key,
+  });
+  expect(mocks.callOps).toHaveBeenCalledOnce();
 });

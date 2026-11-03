@@ -1,4 +1,10 @@
+import type { OpsResult } from "@mellodifai/shared";
 import type { ZodType } from "zod";
+
+// A committed mutation can lack a valid public payload. Never cast that payload to O.
+export type OpRunResult<O> = (OpsResult<O> | { ok: true; committed: true }) & {
+  idempotency_key?: string;
+};
 
 export type OpsCtx = {
   actor_kind: "session" | "pat" | "oauth";

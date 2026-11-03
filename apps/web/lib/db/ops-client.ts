@@ -32,6 +32,12 @@ export async function callOps<T>(
     return row.result;
   } catch {
     // SQL/network errors can contain credentials or private arguments.
-    return { ok: false, code: "internal", message: "Internal error" };
+    // Without a structured database result, completion cannot be established safely.
+    return {
+      ok: false,
+      code: "internal",
+      message: "Internal error",
+      details: { reason: "completion_unknown" },
+    };
   }
 }

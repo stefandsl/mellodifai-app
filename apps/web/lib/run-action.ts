@@ -23,17 +23,20 @@ export function runAction(work: LegacyWork): Promise<ActionResult>;
 export function runAction<I, O>(
   def: OpDef<I, O>,
   input: unknown,
+  options?: { idempotencyKey?: string },
 ): Promise<ActionResult>;
 export async function runAction<I, O>(
   defOrWork: OpDef<I, O> | LegacyWork,
   input?: unknown,
+  options?: { idempotencyKey?: string },
 ): Promise<ActionResult> {
   try {
     if (isRemote(await headers())) return opsFailure("forbidden_scope");
   } catch {
     return opsFailure("internal");
   }
-  if (typeof defOrWork !== "function") return remoteAction(defOrWork, input);
+  if (typeof defOrWork !== "function")
+    return remoteAction(defOrWork, input, options);
   return legacyAction(defOrWork);
 }
 
@@ -44,10 +47,23 @@ async function opsFailure(code: OpsErrorCode): Promise<ActionResult> {
 export async function remoteAction<I, O>(
   def: OpDef<I, O>,
   input: unknown,
+  options?: { idempotencyKey?: string },
 ): Promise<ActionResult> {
   try {
-    const result = await runOp(def, await sessionCtx(), input);
-    if (!result.ok) return opsFailure(result.code);
+    const ctx = await sessionCtx();
+    const result = await runOp(
+      def,
+      { ...ctx, idempotency_key: options?.idempotencyKey },
+      input,
+    );
+    if (!result.ok)
+      return {
+        ...(await opsFailure(result.code)),
+        ...(result.idempotency_key
+          ? { idempotencyKey: result.idempotency_key }
+          : {}),
+      };
+    if ("committed" in result) return { ok: true, committed: true };
     const data = result.data;
     const id =
       data && typeof data === "object"

@@ -54,5 +54,6 @@ it("redacts transport and unexpected SQL errors", async () => {
     ok: false,
     code: "internal",
     message: "Internal error",
+    details: { reason: "completion_unknown" },
   });
 });
