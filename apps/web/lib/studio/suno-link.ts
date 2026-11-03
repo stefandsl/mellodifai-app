@@ -13,7 +13,14 @@ export function sunoLink(raw: string): URL | null {
   } catch {
     return null;
   }
-  if (url.protocol !== "https:" || !PAGE_HOSTS.has(url.hostname)) return null;
+  if (
+    url.protocol !== "https:" ||
+    url.port ||
+    url.username ||
+    url.password ||
+    !PAGE_HOSTS.has(url.hostname)
+  )
+    return null;
   if (/^\/s\/[A-Za-z0-9]{4,40}\/?$/u.test(url.pathname)) return url;
   if (/^\/song\/[0-9a-f-]{36}\/?$/u.test(url.pathname)) return url;
   return null;
@@ -25,6 +32,9 @@ export function isSunoAudio(raw: string): boolean {
     const url = new URL(raw);
     return (
       url.protocol === "https:" &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
       /^cdn\d*\.suno\.ai$/u.test(url.hostname) &&
       /\.mp3$/u.test(url.pathname)
     );
