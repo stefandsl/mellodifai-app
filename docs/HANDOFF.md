@@ -154,9 +154,11 @@ published render files and thumbnails during cleanup, and adds the song-page act
 the current storyboard, thumbnail, publication metadata and Video Studio look, and limits render
 row writes to worker and RPC paths. The third keeps saved metadata across later re-renders. Report and
 screenshots: `E:/mellodifai/codex-streams/rerender/`. Review round 3 also covers legacy flat
-preview cleanup and guards its database fixture against non-e2e ports. It awaits integration into
-`build/studio-ui`. The shared e2e database and full browser suites still have role, auth rate-limit,
-and competing-worker failures; read the stream report before integration.
+preview cleanup and guards its database fixture against non-local and live ports. It awaits
+integration into `build/studio-ui`. After merging the latest integration branch, its full database
+suite (144 tests) and browser suite (15 tests) passed on the private `mellodifai_rerender` stack
+(API 48621, Next 3229) with fake workers. That stack was stopped and its temporary image tags
+restored. Read the stream report before integration.
 
 The `feat/suite-health` stream verifies the merged suites on a private Supabase stack at
 `E:/mellodifai/stacks/suite-health` (API 47621, DB 47622, Studio 47623, Mailpit 47624,
