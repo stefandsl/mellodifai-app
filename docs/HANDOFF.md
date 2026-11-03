@@ -334,3 +334,11 @@ reserves the child atomically. `costs_get` returns owner-only spend and each cap
 own current period counter. Functions retain the exact worker/web grants.
 Task 20 still owns administrative resolution of ambiguous submissions; Task 26
 owns the periodic expiry scheduler. No production migration or paid call was made.
+
+M1 Task 18 adds `20261102000032_scheduler.sql`: service-role-only scheduler
+claim/finish functions and the five M1 task rows. Claims skip locked rows and
+recover after ten minutes; daily runs use the Europe/Rome date across DST.
+Purges retain the specified boundary rows, revoke abandoned unbound OAuth
+tokens, and cancel active jobs before trashing test versions older than seven
+days. Task 26 still owns the worker scheduler loop. Only e2e was migrated;
+production and paid providers were not used.
