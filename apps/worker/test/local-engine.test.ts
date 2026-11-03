@@ -9,7 +9,11 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { aceStepSeconds, LyricPackSchema } from "@mellodifai/shared";
+import {
+  ACE_STEP_TEXT,
+  aceStepSeconds,
+  LyricPackSchema,
+} from "@mellodifai/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { toYue2Lyrics } from "../src/comfy/graphs.js";
 import { PROMPT_NAMESPACE, uuidv5 } from "../src/comfy/ids.js";
@@ -542,10 +546,15 @@ describe("local engine safety", () => {
     expect(supervisor.ensureStarted).not.toHaveBeenCalled();
   });
   it("fails without a ComfyUI runtime instead of using kie", async () => {
-    const { ctx, kieCalls } = await setup();
-    delete ctx.comfy;
-    await expect(generate(ctx)).rejects.toThrow(LOCAL_TEXT.unavailable);
-    expect(kieCalls()).toEqual([]);
+    // YuE2 (parked) still needs ComfyUI; ACE-Step without any runtime fails on the native path.
+    const yue = await setup("yue2");
+    delete yue.ctx.comfy;
+    await expect(generate(yue.ctx)).rejects.toThrow(LOCAL_TEXT.unavailable);
+    expect(yue.kieCalls()).toEqual([]);
+    const ace = await setup();
+    delete ace.ctx.comfy;
+    await expect(generate(ace.ctx)).rejects.toThrow(ACE_STEP_TEXT.errorStart);
+    expect(ace.kieCalls()).toEqual([]);
   });
   it("waits instead of starting when a game holds the GPU", async () => {
     const { ctx, runtime, supervisor } = await setup();

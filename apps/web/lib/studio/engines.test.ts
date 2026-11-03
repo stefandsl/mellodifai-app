@@ -205,3 +205,29 @@ describe("engineControls", () => {
     });
   });
 });
+
+describe("native ACE-Step entry", () => {
+  it("keeps the availability and reads the setup state next to it", () => {
+    const entry = {
+      installed: true,
+      passedLangs: ["it"],
+      minutesPerAudioMinute: 0.8,
+      features: [],
+      checkedAt: "2026-11-03T10:00:00Z",
+      state: "installing",
+      step: "download_models",
+      pct: 40,
+    };
+    expect(parseEngines({ "ace-step": entry })["ace-step"]).toEqual({
+      installed: true,
+      passedLangs: ["it"],
+      minutesPerAudioMinute: 0.8,
+      features: [],
+      setup: { state: "installing", step: "download_models", pct: 40 },
+    });
+    const { state: _state, step: _step, pct: _pct, ...plain } = entry;
+    expect(parseEngines({ "ace-step": plain })["ace-step"]).not.toHaveProperty(
+      "setup",
+    );
+  });
+});

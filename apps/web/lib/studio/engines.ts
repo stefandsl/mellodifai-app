@@ -1,6 +1,8 @@
 import {
   LANGS,
   type Lang,
+  type LocalEngineStatus,
+  LocalEngineStatusSchema,
   type LocalSongEngine,
   SONG_ENGINES,
   type SongEngine,
@@ -16,6 +18,8 @@ export type EngineInfo = {
   minutesPerAudioMinute: number;
   // What the engine does with existing audio (T12): rewrite a part, cover a song.
   features?: ("rewrite" | "cover")[];
+  // Native ACE-Step's setup state (installing, starting, ready...), when the worker sends one.
+  setup?: LocalEngineStatus;
 };
 export type EngineMap = Partial<Record<LocalSongEngine, EngineInfo>>;
 
@@ -55,7 +59,13 @@ export function parseEngines(raw: unknown): EngineMap {
     const parsed = EntrySchema.safeParse(
       (raw as Record<string, unknown>)[engine],
     );
-    if (parsed.success) result[engine] = parsed.data;
+    if (!parsed.success) continue;
+    const setup = LocalEngineStatusSchema.safeParse(
+      (raw as Record<string, unknown>)[engine],
+    );
+    result[engine] = setup.success
+      ? { ...parsed.data, setup: setup.data }
+      : parsed.data;
   }
   return result;
 }

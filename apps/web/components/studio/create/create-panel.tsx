@@ -338,7 +338,9 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
             {fallback}
           </p>
         ) : null}
-        {engine === "ace-step" ? <AceStepStatusLine /> : null}
+        {engine === "ace-step" && choice.engines["ace-step"]?.setup ? (
+          <AceStepStatusLine status={choice.engines["ace-step"].setup} />
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-4 scrollbar-thin">

@@ -143,7 +143,8 @@ export const generateSong: StageHandler = async (context) => {
   const songEngineId = songEngine(context.project.song_settings);
   // ACE-Step runs natively on this PC (no ComfyUI, owner decision 2026-11-01): no credits, no kie
   // task state. YuE2 is parked and still goes through the ComfyUI path.
-  if (songEngineId === "ace-step") {
+  // A worker wired only with the parked ComfyUI runtime (tests, an old setup) keeps that path.
+  if (songEngineId === "ace-step" && (context.aceStep || !context.comfy)) {
     // Local engines are for the admin only (design 5.5).
     const ownerId = context.version.owner_id ?? context.project.owner_id;
     const role = ownerId ? await context.db.getOwnerRole(ownerId) : null;
