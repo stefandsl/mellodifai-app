@@ -54,6 +54,7 @@ export const UpdateLyricsInput = z.object({
   pack: LyricPackSchema,
 });
 export const VersionIdInput = z.object({ versionId: Id });
+export const VersionTakeInput = z.object({ versionId: Id, takeId: Id });
 export const ReactionInput = z.object({
   versionId: Id,
   reaction: z.enum(["like", "dislike", "none"]),

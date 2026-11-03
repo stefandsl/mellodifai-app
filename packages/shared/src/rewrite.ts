@@ -91,6 +91,15 @@ export const LyricTimingSchema = z.object({
       text: z.string(),
       start: z.number().nonnegative(),
       end: z.number().nonnegative(),
+      words: z
+        .array(
+          z.object({
+            word: z.string(),
+            start: z.number().nonnegative(),
+            end: z.number().nonnegative(),
+          }),
+        )
+        .optional(),
     }),
   ),
 });

@@ -144,6 +144,7 @@ export type DictKey =
   | "stage.remake_analyse"
   | "stage.remake_rewrite"
   | "stage.lyrics_assist"
+  | "stage.align_lyrics"
   | "job.queued"
   | "job.running"
   | "job.done"
@@ -235,6 +236,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.remake_analyse": "Rifai da YouTube: analisi",
     "stage.remake_rewrite": "Rifai da YouTube: testo nuovo",
     "stage.lyrics_assist": "Testo con AI",
+    "stage.align_lyrics": "Sincronizzazione testo",
     "job.queued": "In coda",
     "job.running": "In corso",
     "job.done": "Completato",
@@ -390,6 +392,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.remake_analyse": "Remake from YouTube: analysis",
     "stage.remake_rewrite": "Remake from YouTube: new lyrics",
     "stage.lyrics_assist": "AI lyrics",
+    "stage.align_lyrics": "Lyrics synchronization",
     "job.queued": "Queued",
     "job.running": "Running",
     "job.done": "Done",

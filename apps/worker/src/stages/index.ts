@@ -1,5 +1,6 @@
 import { STAGE_STATUS, type Stage } from "@mellodifai/shared";
 import type { SonglessRegistry, StageRegistry } from "../loop.js";
+import { alignLyrics } from "./align-lyrics.js";
 import { art } from "./art.js";
 import { draftLyrics } from "./draft-lyrics.js";
 import { generateSong } from "./generate-song.js";
@@ -29,6 +30,7 @@ export const stages: StageRegistry = {
   visualizer,
   replace_section: replaceSection,
   import_audio: importAudio,
+  align_lyrics: alignLyrics,
   ...remakeStages(),
 };
 // Jobs without a song (the create panel's AI lyric buttons).

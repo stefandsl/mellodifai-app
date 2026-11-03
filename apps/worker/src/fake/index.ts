@@ -129,6 +129,7 @@ export function createFakeStages(
     "visualizer",
     "replace_section",
     "import_audio",
+    "align_lyrics",
   ];
   for (const stage of names)
     registry[stage] = async (ctx) => {
@@ -150,6 +151,30 @@ export function createFakeStages(
         return upload(ctx, target, type);
       };
       switch (stage) {
+        case "align_lyrics": {
+          const take = (await ctx.db.getTakes(ctx.version.id)).find(
+            (item) => item.id === ctx.job.payload?.take_id,
+          );
+          if (!take) throw new Error("Take not found");
+          await ctx.db.patchTake(take.id, {
+            lyric_timing: {
+              source: "whisper",
+              lines: [
+                {
+                  text: "A little brighter",
+                  start: 0,
+                  end: 2,
+                  words: [
+                    { word: "A", start: 0, end: 0.5 },
+                    { word: "little", start: 0.5, end: 1 },
+                    { word: "brighter", start: 1, end: 2 },
+                  ],
+                },
+              ],
+            },
+          });
+          break;
+        }
         case "draft_lyrics":
           await writePack(ctx, fakePack);
           result.patch = { ...result.patch, lyric_pack: fakePack };
