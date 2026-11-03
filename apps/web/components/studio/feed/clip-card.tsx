@@ -135,6 +135,7 @@ export function trackFor(clip: Clip): Track | null {
     videoUrl: clip.videoUrl,
     href: clip.href,
     art: clip.art,
+    coverUrl: clip.coverUrl,
     reaction: clip.reaction,
     detail: detailFor(clip),
   };

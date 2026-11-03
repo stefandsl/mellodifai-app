@@ -508,7 +508,7 @@ export function WorkspaceFeed({
           groups.map((group) => (
             <div key={group.key}>
               {group.label ? (
-                <h2 className="sticky top-0 z-10 bg-[var(--bg)]/90 px-3 py-2 text-[13px] font-medium text-[var(--fg-muted)] backdrop-blur">
+                <h2 className="studio-date-heading sticky top-0 z-10 bg-[var(--bg)]/90 px-3 py-2 text-[13px] font-medium text-[var(--fg-muted)] backdrop-blur">
                   {group.label}
                 </h2>
               ) : null}

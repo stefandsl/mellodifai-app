@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AmbientBackdrop } from "./ambient-backdrop";
 import { DetailsPanel } from "./details-panel";
 import { ImportDialog } from "./import/import-dialog";
 import { PlayerBar } from "./player-bar";
@@ -28,8 +29,9 @@ export function StudioShell({
     <TooltipProvider delay={300}>
       <WorkerProvider initial={worker} isAdmin={isAdmin}>
         <PlaylistsProvider value={playlists}>
-          <div className="flex h-dvh flex-col overflow-hidden bg-[var(--bg)] text-[var(--fg)]">
-            <div className="flex min-h-0 flex-1">
+          <div className="relative flex h-dvh flex-col overflow-hidden bg-[var(--bg)] text-[var(--fg)]">
+            <AmbientBackdrop />
+            <div className="relative flex min-h-0 flex-1">
               <Suspense>
                 <StudioSidebar email={email} />
               </Suspense>
