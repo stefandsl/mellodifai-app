@@ -1378,6 +1378,15 @@ Full report: `.superpowers/sdd/2026-11-02-m1-agent-access/task-3-report.md`.
 
 (Filled by Tasks 33 and 47.)
 
+### Task 33 pre-cutover attempt, 2026-11-03
+
+- Owner approval for production steps is recorded in the SDD progress ruling. The dedicated clone was created at `E:/mellodifai/deploy` from `origin/main` (`8e796c3`). `MELLODIFAI_OWNER_EMAIL` was recorded in `E:/mellodifai/config/ops.env` for the confirmed, allowlisted owner account. The clone's initial `main` does not track `pnpm-lock.yaml`; a copy from this branch was made and then removed because an untracked lockfile would block checkout of `m1-floor`.
+- Before any production change, a data-only dump of `public`, `auth` and `storage` was saved at `E:/mellodifai/backups/2026-11-03-task-33-pre-cutover.sql`. It is 3,314,765 bytes, contains the `PostgreSQL database dump complete` marker, and has SHA-256 `6F932B304D90B5AB6A6F5CF0F4031E9768433B9E794B6B63333E1603B2F4CF27`. Counts from 52 tables, totaling 11,145 rows, are in `E:/mellodifai/backups/task-33-counts-preflight.json`.
+- `pnpm ops cutover.ts` exited 1 before its first cutover step. `E:/mellodifai/secrets/supabase/signing_keys.json`, `stack-secrets.json` and `db-passwords.json` do not exist. `cutover.ts` calls `recoveryDatabase("prod")` before rendering, and that call requires the missing store. The production stack directory and cutover marker were not created; all 12 legacy Supabase containers remained running. No production migration, credential rotation, service stop or data restore was performed.
+- The pre-floor refusal was checked with a temporary local tag on `m1-floor^`: `pnpm ops deploy.ts --to m1-pre-floor` exited 1; `git merge-base --is-ancestor m1-floor m1-floor^` also exited 1. The temporary tag was removed. The successful `m1-floor` deploy and local health, owner library read/write and worker heartbeat checks remain pending.
+- Recovery command for the verified backup is **not yet available** through `pnpm ops restore.ts`: the current clone is on a pre-floor revision and `restore.ts` rejects that tag before reset. No restore is needed for this attempt because the live data and services were not changed. Before cutover, the tooling needs a verified legacy credential bootstrap and a recovery procedure for a pre-floor backup. The operator must write the exact restore command here before changing the live stack.
+- The runtime-root ACL and dedicated Windows accounts remain owner administrator actions; this session is not elevated. SMTP remains unconfigured. Per the later owner approval ruling these are recorded as pending, not represented as applied.
+
 ## Major to task
 
 | Round-5 Major | Task(s) and the test that proves it | Deadline in the round-5 report |
