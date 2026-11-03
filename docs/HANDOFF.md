@@ -124,12 +124,16 @@ If you are not using the driver, the same loop by hand: read the task text in th
 implement with tests, commit, push, then review the task's diff against its text with fresh
 eyes before starting the next one.
 
+Migration order note: the live stack already has `20261103020001`/`020002` (karaoke). M1's
+migrations (`20261102000027` onward) sort before them, so applying M1 to the live stack needs
+`npx supabase migration up --include-all`.
+
 ## 4b. Parallel Codex workstreams (started 2026-11-03)
 
 Six independent streams run next to M1, each in its own worktree `E:/mellodifai/wt/<name>` on
-branch `feat/<name>` from `build/studio-ui`: `render-4k` (1080p minimum, 4K, upscaler), `karaoke`
+branch `feat/<name>` from `build/studio-ui`: `render-4k` (merged), `karaoke` (merged)
 (Spotify-like lyrics view), `song-assets` (per-song storyboard/thumbnail/metadata bug, CTR
-thumbnails), `repo-audit` (ponytail audit and fixes), `plan-m2` and `plan-m3m4` (plans only).
+thumbnails), `repo-audit` (merged), `plan-m2` (merged) and `plan-m3m4` (plans only).
 Runner: `bash E:/mellodifai/codex-streams/stream.sh <name> <e2e-port>`; brief, report, reviews
 and `status.log` live in `E:/mellodifai/codex-streams/<name>/`. Builders use `gpt-6-sol`
 (reasoning high). `gpt-6-astra` returns 429 under parallel load, so reviewers and the M1 driver also run on sol: use `E:/mellodifai/codex-streams/stream4.sh` and start M1 with `CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh <from> 47`. `gpt-6.1-sol` is refused on a ChatGPT account. Re-run a parked stream's review loop with `SKIP_IMPL=1 bash E:/mellodifai/codex-streams/stream4.sh <name> <port>`. A stream
