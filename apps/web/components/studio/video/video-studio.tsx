@@ -341,7 +341,7 @@ export function VideoStudio() {
               <DialogPrimitive.Title className="text-[15px] leading-5 font-semibold">
                 {st(lang, "vs.title")}
               </DialogPrimitive.Title>
-              <DialogPrimitive.Description className="truncate text-[12px] leading-4 text-[var(--fg-muted)]">
+              <DialogPrimitive.Description className="text-[12px] leading-4 text-[var(--fg-muted)] sm:truncate">
                 {setup
                   ? st(lang, "vs.setupSubtitle")
                   : `${title} · ${st(lang, "vs.subtitle")}`}

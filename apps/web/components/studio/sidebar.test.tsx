@@ -98,7 +98,9 @@ describe("navigation", () => {
   it("is English when the interface is", () => {
     sidebar(STATE, "en");
     expect(
-      within(main("en")[0] as HTMLElement).getByRole("link", { name: /Search/u }),
+      within(main("en")[0] as HTMLElement).getByRole("link", {
+        name: /Search/u,
+      }),
     ).toHaveAttribute("href", "/search");
   });
 });
