@@ -15,6 +15,7 @@ vi.mock("@/lib/db/ops-client", () => ({ callOps: mocks.callOps }));
 const ID = "00000000-0000-4000-8000-000000000001";
 const OTHER = "00000000-0000-4000-8000-000000000002";
 const DATA: Record<string, unknown> = {
+  stems_request: { jobs: [], job_id: OTHER },
   song_create: { jobs: [], project_id: ID },
   admin_project_create: { jobs: [], project_id: ID },
   song_import: { jobs: [], project_id: ID },
@@ -52,8 +53,11 @@ function called(fn: string, ...args: unknown[]) {
 
 import { requestStems, saveEditedTake } from "./audio-tools";
 
-it("requests stems through the wrapper", async () => {
-  expect(await requestStems({ versionId: ID })).toEqual({ ok: true });
+it("returns the existing stems job ID even when no job was stamped", async () => {
+  expect(await requestStems({ versionId: ID })).toEqual({
+    ok: true,
+    id: OTHER,
+  });
   called("stems_request", ID);
 });
 it("saves an edited take through the wrapper and checks the path", async () => {
