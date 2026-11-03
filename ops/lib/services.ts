@@ -29,6 +29,17 @@ export function installCommands(opts: { root: string }): string[][] {
   const root = runtimePath(opts.root);
   const owner = userInfo().username;
   const deploy = join(root, "deploy");
+  const quote = (path: string) => `'${path.replaceAll("'", "''")}'`;
+  const directories = [
+    join(deploy, "apps/web/.next/cache"),
+    join(root, "secrets/auth"),
+    join(root, "secrets/cloudflared"),
+    join(root, "stacks"),
+    join(root, "backups"),
+  ];
+  const envFiles = ["web", "auth", "worker"].map((app) =>
+    join(deploy, "apps", app, ".env.local"),
+  );
   const grant = (
     path: string,
     account: string,
@@ -61,6 +72,13 @@ export function installCommands(opts: { root: string }): string[][] {
       "-Command",
       `$ErrorActionPreference='Stop'; $path='${join(root, name).replaceAll("'", "''")}'; if (Test-Path -LiteralPath $path) { & icacls $path /reset /T /L /Q | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'Protected ACL reset failed' } }`,
     ]),
+    [
+      "powershell.exe",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$ErrorActionPreference='Stop'; $deploy=${quote(deploy)}; if (-not (Test-Path -LiteralPath $deploy -PathType Container)) { throw 'Deploy clone required' }; foreach ($dir in @(${directories.map(quote).join(",")})) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; foreach ($file in @(${envFiles.map(quote).join(",")})) { if (Test-Path -LiteralPath $file) { if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Expected env file' } } else { New-Item -ItemType File -Path $file | Out-Null } }`,
+    ],
     [
       "powershell.exe",
       "-NoProfile",

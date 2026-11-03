@@ -73,6 +73,48 @@ describe("services", () => {
     }
   });
 
+  it.skipIf(process.platform !== "win32")(
+    "prepares absent ACL targets before granting service access without replacing env files",
+    async () => {
+      const root = mkdtempSync(join(runtimeRoot(), "tmp", "service-paths-"));
+      try {
+        for (const app of ["web", "auth", "worker"])
+          mkdirSync(join(root, "deploy/apps", app), { recursive: true });
+        const existing = join(root, "deploy/apps/web/.env.local");
+        writeFileSync(existing, "existing setting");
+        const commands = installCommands({ root });
+        const prepare = commands.findIndex((parts) =>
+          parts.at(-1)?.includes("Expected env file"),
+        );
+        const firstGrant = commands.findIndex(
+          (parts) => parts[0] === "icacls" && parts[1] === join(root, "deploy"),
+        );
+        expect(prepare).toBeGreaterThan(0);
+        expect(firstGrant).toBeGreaterThan(prepare);
+        const command = commands[prepare];
+        if (!command?.[0]) throw new Error("ACL preparation command missing");
+        const [cmd, ...args] = command;
+        expect((await realRunner(cmd, args)).code).toBe(0);
+        for (const path of [
+          "deploy/apps/web/.next/cache",
+          "secrets/auth",
+          "secrets/cloudflared",
+          "stacks",
+          "backups",
+          "deploy/apps/web/.env.local",
+          "deploy/apps/auth/.env.local",
+          "deploy/apps/worker/.env.local",
+        ])
+          expect(existsSync(join(root, path))).toBe(true);
+        expect(readFileSync(existing, "utf8")).toBe("existing setting");
+        expect((await realRunner(cmd, args)).code).toBe(0);
+        expect(readFileSync(existing, "utf8")).toBe("existing setting");
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("the icacls probe fails install when mdf-web can read secrets or write the deploy clone", async () => {
     const runner = recordingRunner([
       { code: 0, stdout: "read:secrets\\auth\nwrite:deploy\n", stderr: "" },
@@ -624,6 +666,8 @@ it.skipIf(process.platform !== "win32")(
   async () => {
     const root = mkdtempSync(join(runtimeRoot(), "tmp", "acl-reset-"));
     try {
+      for (const app of ["auth", "worker"])
+        mkdirSync(join(root, "deploy/apps", app), { recursive: true });
       const files = [
         "deploy/apps/web/.env.local",
         "deploy/bin/start.js",

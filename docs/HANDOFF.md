@@ -586,3 +586,7 @@ counts matched. The production database and services were not changed.
 installs local service accounts, their private credentials, ACLs and the LAN
 firewall rule. The live cutover, service installation and local owner smoke
 check remain owner actions. See the plan Deploy log for the exact state.
+The review-round-1 installer fix prepares missing cache, secret, stack, backup
+and env-file ACL targets inside the protected runtime root before service
+grants. Existing env-file content is preserved; the owner must still provide
+production env values before starting services.
