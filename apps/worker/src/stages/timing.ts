@@ -2,6 +2,11 @@ import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { LyricPackSchema } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
+import {
+  ensureReservation,
+  extendStageReservation,
+} from "../providers/ledger.js";
+import { callKey, openPaidEntry } from "../providers/paid.js";
 import { materializeEditedTake } from "./take-audio.js";
 import {
   ENGINE_ROOT,
@@ -41,11 +46,27 @@ export const timing: StageHandler = async (context) => {
     lang,
     "vocals.wav",
   );
+  if (!context.groqLedger) throw new Error("Groq ledger is not configured");
+  const ledger = context.groqLedger();
+  await ensureReservation(ledger, context.job);
+  if ((context.job.attempts ?? 1) > 1)
+    await extendStageReservation(ledger, context.job);
+  const estimate = { audio_hour: 0.1 };
+  const entry = await openPaidEntry(
+    ledger,
+    callKey("groq", {
+      takeId: selected.id,
+      attempt: context.job.attempts ?? 1,
+    }),
+    estimate,
+  );
   await context.engine.run(
     "bash",
     ["tools/workspace_pipeline.sh", lang, String(takeNumber)],
     {
       cwd: ENGINE_ROOT,
+      secretEnv: ["GROQ_API_KEY"],
+      entryIds: [entry],
       clearOutputs: [
         timingFile,
         join(context.ws.publicDir, "audio", `${lang}.wav`),
@@ -78,6 +99,12 @@ export const timing: StageHandler = async (context) => {
       lines?: { words?: { start: number; end: number }[] }[];
     }[];
   }>(timingFile);
+  await ledger.settle(entry, {
+    audio_hour:
+      typeof data.duration === "number" && data.duration >= 0
+        ? data.duration / 3600
+        : estimate.audio_hour,
+  });
   // The measured lines become the take's timing for "Riscrivi una parte".
   const timed = (data.lines ?? []).flatMap((line) => {
     const first = line.words?.[0];

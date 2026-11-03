@@ -10,6 +10,7 @@ import {
 } from "@mellodifai/shared";
 import type { StageContext } from "../loop.js";
 import { KieClient, KieRefused, kieKey } from "../providers/kie-client.js";
+import { freeCall } from "../providers/paid.js";
 import { encode, probeSeconds } from "./audio-util.js";
 
 export const SOURCE_TEXT = {
@@ -119,7 +120,7 @@ export async function submitSourceTask(
     const seconds = await probeSeconds(context, file);
     if (seconds > KIE_SOURCE_MAX_SECONDS)
       throw new KieRefused(SOURCE_TEXT.tooLong);
-    const credits = await client.credits();
+    const credits = await freeCall("kie:credit", () => client.credits());
     if (credits < KIE_CREDITS.cover)
       throw new KieRefused(
         `balance ${credits} credits < ${KIE_CREDITS.cover} needed for one call`,
@@ -130,7 +131,7 @@ export async function submitSourceTask(
       await encode(context, file, mp3, { mp3: 320 });
       file = mp3;
     }
-    url = await client.upload(file, "audio/mpeg");
+    url = await freeCall("kie:upload", () => client.upload(file, "audio/mpeg"));
   } catch (error) {
     await context.log(
       context.secrets.redact(`Source not sent: ${String(error)}`),

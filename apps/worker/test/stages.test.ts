@@ -237,6 +237,7 @@ describe("take scoring at the end of generate_song", () => {
       cmd: "python",
       args: [
         "-I",
+        "-B",
         "-X",
         "utf8",
         "tools/score_takes.py",
@@ -306,8 +307,10 @@ describe("take scoring at the end of generate_song", () => {
   it.each(["extendStage", "open"] as const)(
     "propagates %s cap refusal before scoring",
     async (operation) => {
-      const { ctx, calls, groqLedger } = await scoringSetup();
-      vi.mocked(groqLedger[operation]).mockRejectedValue({ code: "MDF02" });
+      const { ctx, calls, groqLedger, kieLedger } = await scoringSetup();
+      vi.mocked(
+        operation === "extendStage" ? kieLedger.extendStage : groqLedger.open,
+      ).mockRejectedValue({ code: "MDF02" });
       await expect(stages.generate_song?.(ctx)).rejects.toThrow("cap_exceeded");
       expect(scoreCalls(calls)).toHaveLength(0);
     },
@@ -562,6 +565,7 @@ describe("round 2 hardening", () => {
     const path = join(ctx.ws.publicDir, "data", "fr", "timing.json");
     ctx.engine = new Engine({
       log: async () => {},
+      validateEntries: async () => true,
       spawn: () => {
         const child = new EventEmitter();
         setImmediate(() => child.emit("close", 3));
@@ -737,6 +741,7 @@ describe("round 2 hardening", () => {
     await stages.set_privacy?.(ctx);
     expect(calls.at(-1)?.args).toEqual([
       "-I",
+      "-B",
       "-X",
       "utf8",
       "publish/yt.py",
@@ -992,6 +997,45 @@ describe("round 2 hardening", () => {
       route: { writer: "strong" },
     });
     expect(result?.patch?.lyric_jury).toHaveProperty("rounds.length", 3);
+  });
+  it("draft_lyrics keeps the best draft, stores the jury incomplete and finishes when extend is refused (Major 10)", async () => {
+    const { ctx } = await setup();
+    ctx.secrets.values = {
+      ...ctx.secrets.values,
+      LYRICS_JURY: "on",
+      LYRICS_JUDGES: "anthropic/claude-haiku-5.5",
+    };
+    const ledger = recordingLedger();
+    ctx.providerLedger = () => ledger;
+    let opened = 0;
+    vi.mocked(ledger.open).mockImplementation(async () => {
+      if (++opened === 4) throw { code: "MDF07" };
+      return `entry-${opened}`;
+    });
+    vi.mocked(ledger.extend).mockRejectedValue({ code: "MDF02" });
+    const http = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/decisions"))
+        return new Response("down", { status: 503 });
+      const body = JSON.parse(String(init?.body)) as { model: string };
+      return body.model.includes("haiku")
+        ? respond({
+            scores: {
+              topic: 0.2,
+              language: 0.9,
+              singable: 0.9,
+              chorus: 0.9,
+              original: 0.9,
+            },
+            issues: ["off topic"],
+          })
+        : respond(pack);
+    });
+    vi.stubGlobal("fetch", http);
+    const result = await stages.draft_lyrics?.(ctx);
+    expect(result?.versionStatus).toBe("lyrics_review");
+    expect(result?.patch?.lyric_pack).toMatchObject({ title: pack.title });
+    expect(result?.patch?.lyric_jury).toMatchObject({ incomplete: true });
+    expect(http).toHaveBeenCalledTimes(3);
   });
   it("builds a full pack from a realistic reply with only the creative fields", async () => {
     // Real models answer with the creative fields only (observed 2026-10-31);
@@ -1259,9 +1303,11 @@ async function setup() {
   };
   const db = new InMemoryDb();
   const groqLedger = recordingLedger();
+  const kieLedger = recordingLedger();
   const ctx: StageContext = {
     providerLedger: () => recordingLedger(),
     groqLedger: () => groqLedger,
+    kieLedger: () => kieLedger,
     job: {
       owner_id: "owner",
       id: "job",
@@ -1325,10 +1371,83 @@ async function setup() {
     owner_id: "owner",
     path: join(ws.renderDir, "video.mp4"),
   });
-  return { ctx, calls, output, db, groqLedger };
+  return { ctx, calls, output, db, groqLedger, kieLedger };
 }
+
+it("pre-migration job reserves on demand before the first paid call", async () => {
+  const { ctx, calls, kieLedger } = await setup();
+  ctx.job.attempts = 1;
+  await stages.generate_song?.(ctx);
+  expect(kieLedger.reservationFor).toHaveBeenCalledWith(ctx.job.id);
+  expect(kieLedger.open).toHaveBeenCalledWith("kie:generate:1", { credit: 12 });
+  expect(kieLedger.settle).toHaveBeenCalledWith("entry", { credit: 12 });
+  expect(calls.some((call) => call.args[1] === "generate")).toBe(true);
+});
+
+it("a refused on-demand reservation fails with cap_exceeded and makes no provider call", async () => {
+  const { ctx, calls, kieLedger } = await setup();
+  vi.mocked(kieLedger.reservationFor).mockRejectedValue({ code: "MDF06" });
+  await expect(stages.generate_song?.(ctx)).rejects.toThrow("cap_exceeded");
+  expect(calls).toHaveLength(0);
+  expect(kieLedger.open).not.toHaveBeenCalled();
+});
+
+it("attempt 2 extends the reservation before its first paid call (Major 7)", async () => {
+  const { ctx, kieLedger } = await setup();
+  ctx.job.attempts = 2;
+  vi.mocked(kieLedger.open).mockImplementation(async () => {
+    expect(kieLedger.extendStage).toHaveBeenCalledWith(ctx.job.id);
+    return "entry";
+  });
+  await stages.generate_song?.(ctx);
+  expect(kieLedger.open).toHaveBeenCalledWith("kie:generate:2", { credit: 12 });
+});
+
+it("timing.ts is treated as paid Groq (the 11.5 default)", async () => {
+  const { ctx, calls, groqLedger } = await setup();
+  ctx.job.attempts = 1;
+  await stages.timing?.(ctx);
+  expect(groqLedger.reservationFor).toHaveBeenCalledWith(ctx.job.id);
+  expect(groqLedger.open).toHaveBeenCalledWith(
+    expect.stringMatching(/^groq:.*:a1$/u),
+    { audio_hour: 0.1 },
+  );
+  expect(
+    calls.find((call) => call.args[0] === "tools/workspace_pipeline.sh")?.env
+      .GROQ_API_KEY,
+  ).toBeUndefined();
+  expect(groqLedger.settle).toHaveBeenCalled();
+});
+
+it("a kie submit timeout marks the reservation ambiguous before failing the stage", async () => {
+  const { ctx, db, kieLedger } = await setup();
+  ctx.job.stage = "generate_song";
+  ctx.version.status = "song_queued";
+  ctx.version.kie_submit_state = "submitting";
+  db.jobs.push(ctx.job);
+  const loop = new WorkerLoop({
+    db,
+    workerId: "worker",
+    stages,
+    engine: ctx.engine,
+    storage: ctx.storage,
+    secrets: ctx.secrets,
+    workspace: { forVersion: async () => ctx.ws },
+    kieLedger: () => kieLedger,
+  });
+  await loop.runOnce();
+  expect(kieLedger.markAmbiguous).toHaveBeenCalledOnce();
+  expect(db.jobs[0]?.status).toBe("failed");
+});
 function command(cmd: string, args: string[], cwd: string = ENGINE_ROOT) {
-  return { cmd, args, cwd };
+  return {
+    cmd,
+    args:
+      cmd === "python" && args[0] === "-I"
+        ? ["-I", "-B", ...args.slice(1)]
+        : args,
+    cwd,
+  };
 }
 function commands(calls: Awaited<ReturnType<typeof setup>>["calls"]) {
   return calls.map(({ cmd, args, cwd }) => ({ cmd, args, cwd }));
@@ -1652,7 +1771,7 @@ describe("stage safety and behavior", () => {
     expect(ctx.storage.upload).not.toHaveBeenCalled();
   });
   it("runs the producing chain using the version render attempt", async () => {
-    const { ctx, db } = await setup();
+    const { ctx, db, groqLedger } = await setup();
     db.jobs.push(ctx.job);
     const loop = new WorkerLoop({
       db,
@@ -1661,6 +1780,7 @@ describe("stage safety and behavior", () => {
       engine: ctx.engine,
       storage: ctx.storage,
       secrets: ctx.secrets,
+      groqLedger: () => groqLedger,
       workspace: { forVersion: async () => ctx.ws },
     });
     for (let i = 0; i < 6; i++) await loop.runOnce();

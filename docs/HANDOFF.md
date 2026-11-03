@@ -398,6 +398,17 @@ zero and the ledger failure still propagates.
 Task 22 review R2 adds migration `20261102000035_fast_writer_price.sql`
 for the default Sonnet 5.5 fast writer (verified OpenRouter prices: 2 USD input
 and 10 USD output per million tokens). The planned lockdown migration now takes
-037 or the next free number (Task 23 review R1 uses 036 for engine entry authorization). OpenRouter job retries extend every rule in the
+038 or the next free number (Task 23 review R1 uses 036 for engine entry authorization). OpenRouter job retries extend every rule in the
 database stage estimate before their first request, once per transport; refusal
 blocks all requests. Partial extensions remain reserved until normal job close.
+
+M1 Task 24 adds migration `20261102000037_openrouter_stage_rules.sql` for
+`lyrics_assist`, `remake_analyse` and `remake_rewrite`, including the verified
+OpenRouter bge-m3 embedding price. Engine spend entries are claimed once, so
+one entry cannot authorize repeated subprocess calls. The worker reserves on
+demand before Kie, OpenRouter or Groq work, extends the stage estimate on extra
+attempts, settles submissions and timing, and marks unknown Kie submissions
+ambiguous before failing their jobs. A refused lyric draft extension keeps the
+best draft and records an incomplete jury. Only the e2e database was migrated;
+production remains at the owner gate. Kie credit USD price remains unverified
+until the owner confirms it.

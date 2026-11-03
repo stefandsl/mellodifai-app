@@ -1,7 +1,12 @@
 import { type Env, createClient as remakeClient } from "@mellodifai/remake";
 import { createClient } from "@supabase/supabase-js";
 import type { StageContext } from "../loop.js";
-import { type Ledger, serviceLedger } from "./ledger.js";
+import {
+  ensureReservation,
+  extendStageReservation,
+  type Ledger,
+  serviceLedger,
+} from "./ledger.js";
 import {
   callKey,
   OPENROUTER_CHAT_URL,
@@ -40,15 +45,14 @@ export function meteredOpenRouterFetch(
       attempt: job.attempts ?? 1,
     });
     const ledger = ledgerFor(body.model);
-    if (!(await ledger.reservationFor(job.id)))
-      throw new Error("paid call has no reservation");
+    await ensureReservation(ledger, job);
     // One input token per UTF-8 byte is conservative; never assume missing usage is free.
     const est = {
       mtok_in: Math.max(8000, Buffer.byteLength(String(init?.body))) / 1e6,
       mtok_out: (body.max_tokens ?? 4096) / 1e6,
     };
     if ((job.attempts ?? 1) > 1) {
-      retryBudget ??= ledger.extendStage(job.id);
+      retryBudget ??= extendStageReservation(ledger, job);
       await retryBudget;
     }
     let refused: Response | undefined;

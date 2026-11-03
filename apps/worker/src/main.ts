@@ -170,6 +170,7 @@ async function main() {
     storage: new SupabaseStorage(client),
     secrets,
     groqLedger: () => serviceLedger(client, null, "groq", ""),
+    kieLedger: () => serviceLedger(client, null, "kie", ""),
     report,
     comfy,
   });

@@ -205,8 +205,9 @@ export class Engine {
     const staged = args.map((arg) => parts.get(arg) ?? arg);
     if (/^(python|py)(?:\.exe)?$/iu.test(win32.basename(command))) {
       if (staged[0] === "-I") staged.shift();
+      if (staged[0] === "-B") staged.shift();
       if (staged[0] === "-X" && staged[1] === "utf8") staged.splice(0, 2);
-      staged.unshift("-I", "-X", "utf8");
+      staged.unshift("-I", "-B", "-X", "utf8");
     }
     for (const file of [
       ...parts.keys(),

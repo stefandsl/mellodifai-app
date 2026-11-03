@@ -2,6 +2,7 @@
 // models scores each draft. Every call is best effort: a router or judge that fails is
 // left out, so a provider outage slows nothing down and never blocks a song.
 
+import { isCapRefusal } from "../providers/ledger.js";
 import {
   type OpenRouterCall as Call,
   openRouterPost as post,
@@ -153,6 +154,7 @@ export async function route(
       ms: Math.round(performance.now() - started),
     };
   } catch (error) {
+    if (isCapRefusal(error)) throw error;
     return {
       tone: null,
       writer: "strong",
@@ -390,6 +392,7 @@ export async function judge(
             : await chatVerdict(model, draft, context, call);
         return { model, ms: Math.round(performance.now() - t0), ...verdict };
       } catch (error) {
+        if (isCapRefusal(error)) throw error;
         return {
           model,
           ms: Math.round(performance.now() - t0),

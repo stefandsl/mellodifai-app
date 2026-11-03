@@ -31,6 +31,12 @@ import {
   type KieTrack,
   kieKey,
 } from "../providers/kie-client.js";
+import {
+  ensureReservation,
+  extendStageReservation,
+  kieLedger,
+} from "../providers/ledger.js";
+import { callKey, freeCall, openPaidEntry } from "../providers/paid.js";
 import { encode, matchGain, probeSeconds, splice } from "./audio-util.js";
 import { LOCAL_TEXT, LocalGeneration, takeSeeds } from "./local-engine.js";
 import { takeAudio } from "./take-audio.js";
@@ -141,7 +147,11 @@ async function kieAlternatives(
   if (!taskId) {
     if (edit.kie_submit_state === "submitting")
       throw new Error(REWRITE_TEXT.kieUnknown);
-    const balance = await client.credits();
+    const ledger = kieLedger(context);
+    await ensureReservation(ledger, context.job);
+    if ((context.job.attempts ?? 1) > 1)
+      await extendStageReservation(ledger, context.job);
+    const balance = await freeCall("kie:credit", () => client.credits());
     if (balance < KIE_CREDITS.replace)
       throw new Error(REWRITE_TEXT.kieBalance(balance));
     const pack = packOf(context);
@@ -154,7 +164,9 @@ async function kieAlternatives(
       const mp3 = join(dir, "source-for-kie.mp3");
       await encode(context, source, mp3, { mp3: 320 });
       target = {
-        upload_url: await client.upload(mp3, "audio/mpeg"),
+        upload_url: await freeCall("kie:upload", () =>
+          client.upload(mp3, "audio/mpeg"),
+        ),
         model: pack.model,
       };
     }
@@ -170,6 +182,15 @@ async function kieAlternatives(
       infill_start_s: Number(edit.start_s.toFixed(2)),
       infill_end_s: Number(edit.end_s.toFixed(2)),
     };
+    const estimate = { credit: KIE_CREDITS.replace };
+    const entry = await openPaidEntry(
+      ledger,
+      callKey("kie", {
+        op: "replace",
+        attempt: context.job.attempts ?? 1,
+      }),
+      estimate,
+    );
     await context.db.patchSectionEdit(edit.id, {
       kie_submit_state: "submitting",
     });
@@ -180,6 +201,7 @@ async function kieAlternatives(
       });
     } catch (error) {
       if (error instanceof KieRefused) {
+        await ledger.settle(entry, { credit: 0 });
         await context.db.patchSectionEdit(edit.id, { kie_submit_state: null });
         await context.log(context.secrets.redact(error.message));
         throw new Error(REWRITE_TEXT.kieRefused);
@@ -190,15 +212,18 @@ async function kieAlternatives(
       kie_task_id: taskId,
       kie_submit_state: "submitted",
     });
+    await ledger.settle(entry, estimate);
     await context.log(`kie replace-section task ${taskId}`);
   }
   await context.progress(30, "Riscrittura: kie rifà la parte");
   let tracks: KieTrack[];
   try {
-    ({ tracks } = await client.wait(taskId, {
-      signal: context.signal,
-      onState: (state) => void context.log(`kie: ${state}`).catch(() => {}),
-    }));
+    ({ tracks } = await freeCall("kie:wait", () =>
+      client.wait(taskId, {
+        signal: context.signal,
+        onState: (state) => void context.log(`kie: ${state}`).catch(() => {}),
+      }),
+    ));
   } catch (error) {
     if (error instanceof KieFailed) {
       await context.log(context.secrets.redact(error.message));
@@ -214,7 +239,9 @@ async function kieAlternatives(
       `Riscrittura: scarico l'alternativa ${i + 1}`,
     );
     const raw = join(dir, `kie-${i + 1}.mp3`);
-    await client.download(track.url, raw, context.signal);
+    await freeCall("kie:download", () =>
+      client.download(track.url, raw, context.signal),
+    );
     const seconds = track.duration ?? (await probeSeconds(context, raw));
     let file = raw;
     if (Math.abs(seconds - duration) > FULL_SONG_SLACK) {

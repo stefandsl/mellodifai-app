@@ -9,7 +9,11 @@ import {
 import type { Take } from "../db.js";
 import { EngineAuthorizationError } from "../engine.js";
 import type { StageContext } from "../loop.js";
-import type { Ledger } from "../providers/ledger.js";
+import {
+  ensureReservation,
+  extendStageReservation,
+  type Ledger,
+} from "../providers/ledger.js";
 import { callKey, groqAvailable } from "../providers/paid.js";
 import { ENGINE_ROOT, language } from "./utils.js";
 
@@ -101,10 +105,11 @@ export async function scoreTakes(
       ledgerOperation = true;
       if (!context.groqLedger) throw new Error("Groq ledger is not configured");
       ledger = context.groqLedger();
-      if (!(await ledger.reservationFor(context.job.id)))
-        throw new Error("cap_exceeded: Groq scoring has no reservation");
-      if ((context.job.attempts ?? 1) > 1)
-        await ledger.extendStage(context.job.id);
+      await ensureReservation(ledger, context.job);
+      if ((context.job.attempts ?? 1) > 1 && !context.retryExtended) {
+        await extendStageReservation(ledger, context.job);
+        context.retryExtended = true;
+      }
       for (const take of uncached) {
         const key = callKey("groq", {
           takeId: take.id,

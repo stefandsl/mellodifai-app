@@ -34,6 +34,7 @@ import {
 } from "../src/stages/replace-section.js";
 import { materializeEditedTake, takeAudio } from "../src/stages/take-audio.js";
 import { type FakeComfy, fakeComfy } from "./fake-comfy.js";
+import { recordingLedger } from "./support/ledger.js";
 
 const roots: string[] = [];
 const servers: FakeComfy[] = [];
@@ -230,6 +231,7 @@ async function setup(
     }),
   };
   const ctx: StageContext = {
+    kieLedger: () => recordingLedger(),
     job: {
       id: "job",
       owner_id: "owner",
@@ -429,6 +431,15 @@ describe("kie replace-section", () => {
       "alt-b",
     ]);
     expect(saved?.alternatives[0]?.kie_task_id).toBe("replace-1");
+  });
+  it("refuses a Kie replacement before any provider request when reservation is capped", async () => {
+    const { ctx } = await setup({ engine: "kie" });
+    const ledger = recordingLedger();
+    ctx.kieLedger = () => ledger;
+    vi.mocked(ledger.reservationFor).mockRejectedValue({ code: "MDF02" });
+    const requests = stubKie({});
+    await expect(rewrite(ctx)).rejects.toThrow("cap_exceeded");
+    expect(requests).toHaveLength(0);
   });
   it("sends any other take as a file and splices a part that comes back alone", async () => {
     const { ctx, calls } = await setup({ engine: "kie" });

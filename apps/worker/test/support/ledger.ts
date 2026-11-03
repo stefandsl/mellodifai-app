@@ -8,5 +8,6 @@ export function recordingLedger(): Ledger {
     open: vi.fn(async () => "entry"),
     extend: vi.fn(async () => {}),
     settle: vi.fn(async () => {}),
+    markAmbiguous: vi.fn(async () => {}),
   };
 }

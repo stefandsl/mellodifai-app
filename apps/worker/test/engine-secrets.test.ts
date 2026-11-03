@@ -45,7 +45,13 @@ it.each(["python", "python.exe", "py", "C:\\Python\\python.exe"])(
       .run(command, ["-I", "script.py"], {
         env: { TMP: "wrong", PYTHONIOENCODING: "wrong" },
       });
-    expect(spawn.mock.calls[0]?.[1]).toEqual(["-I", "-X", "utf8", "script.py"]);
+    expect(spawn.mock.calls[0]?.[1]).toEqual([
+      "-I",
+      "-B",
+      "-X",
+      "utf8",
+      "script.py",
+    ]);
     expect(spawn.mock.calls[0]?.[2]).toMatchObject({
       shell: false,
       env: {

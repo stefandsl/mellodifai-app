@@ -1,4 +1,4 @@
-import type { Items, Ledger } from "./ledger.js";
+import { type Items, isCapRefusal, type Ledger } from "./ledger.js";
 
 // Checked 2026-11-03 against https://kie.ai/pricing.html and the Kie common API docs:
 // prices attach to model generation, while balance, status, upload and result retrieval are utility calls.
@@ -68,17 +68,30 @@ export async function paidCall<T>(
   est: Items,
   run: () => Promise<{ result: T; items: Items; usd?: number }>,
 ): Promise<T> {
-  let entry: string;
-  try {
-    entry = await ledger.open(key, est);
-  } catch (error) {
-    if ((error as { code?: string } | null)?.code !== "MDF07") throw error;
-    await ledger.extend(est);
-    entry = await ledger.open(key, est);
-  }
+  const entry = await openPaidEntry(ledger, key, est);
   const { result, items, usd } = await run();
   await ledger.settle(entry, items, usd);
   return result;
+}
+
+export async function openPaidEntry(
+  ledger: Ledger,
+  key: string,
+  est: Items,
+): Promise<string> {
+  try {
+    return await ledger.open(key, est);
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code !== "MDF07") throw error;
+    try {
+      await ledger.extend(est);
+    } catch (refusal) {
+      if (isCapRefusal(refusal))
+        throw new Error("cap_exceeded", { cause: refusal });
+      throw refusal;
+    }
+    return ledger.open(key, est);
+  }
 }
 
 export async function freeCall<T>(

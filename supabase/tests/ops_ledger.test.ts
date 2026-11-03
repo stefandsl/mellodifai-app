@@ -66,7 +66,16 @@ it("authorizes only existing open entries on open reservations for every request
     expect(await authorized([entry.id], ["groq"])).toBe(true);
     const [second] =
       await tx`select ops.spend_entry_open(${reservation}, 'groq:second:a1', 'groq', '', '{"audio_hour":0.1}') as id`;
-    expect(await authorized([entry.id, second.id], ["groq"])).toBe(true);
+    expect(await authorized([second.id], ["groq"])).toBe(true);
+    expect(await authorized([second.id, second.id], ["groq"])).toBe(false);
+    expect(await authorized([entry.id], ["groq"])).toBe(false);
+    await tx`select ops.extend_reservation(${reservation}, 'groq', '', '{"audio_hour":0.2}')`;
+    const [third] =
+      await tx`select ops.spend_entry_open(${reservation}, 'groq:third:a1', 'groq', '', '{"audio_hour":0.1}') as id`;
+    const [fourth] =
+      await tx`select ops.spend_entry_open(${reservation}, 'groq:fourth:a1', 'groq', '', '{"audio_hour":0.1}') as id`;
+    expect(await authorized([third.id, fourth.id], ["groq"])).toBe(true);
+    expect(await authorized([third.id, fourth.id], ["groq"])).toBe(false);
     expect(await authorized([entry.id, randomUUID()], ["groq"])).toBe(false);
     expect(await authorized([entry.id], ["kie"])).toBe(false);
     expect(await authorized([entry.id], ["groq", "kie"])).toBe(false);
@@ -106,6 +115,28 @@ it("empty spend_caps: every paid path refuses with cap_exceeded reason no_cap", 
       await tx`select ops.map_error('MDF06', 'no_cap') as result`;
     expect(mapped.result).toEqual({ code: "cap_exceeded", reason: "no_cap" });
     expect(await tx`select id from public.reservations`).toHaveLength(0);
+  });
+});
+it("additional OpenRouter stages reserve under their own priced rules", async () => {
+  await fixture(async (tx) => {
+    const [price] =
+      await tx`select usd_per_unit, verified from public.price_book where provider='openrouter' and model='baai/bge-m3' and unit='mtok_in'`;
+    expect(price).toMatchObject({ usd_per_unit: "0.010000", verified: true });
+    const [unverified] = await tx`select count(*)::integer as n
+      from public.provider_operations p
+      cross join lateral jsonb_object_keys(p.items) as item(unit)
+      left join public.price_book b on b.provider=p.provider and b.model=p.model and b.unit=item.unit
+      where p.operation in ('lyrics_assist','remake_analyse','remake_rewrite')
+        and b.verified is distinct from true`;
+    expect(unverified.n).toBe(0);
+    for (const stage of ["lyrics_assist", "remake_analyse", "remake_rewrite"]) {
+      const j = await job(tx, stage);
+      const rules = await tx`select model from ops.job_spend_rule(${j.id})`;
+      expect(rules.length).toBeGreaterThan(0);
+      const reservation = await reserve(tx, j.id);
+      expect(reservation).toMatch(/^[0-9a-f-]{36}$/iu);
+      expect(await reserve(tx, j.id)).toBe(reservation);
+    }
   });
 });
 it("20 parallel reservations on a fresh window stay within the cap", async () => {

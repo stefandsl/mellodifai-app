@@ -9,23 +9,23 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  KIE_CREDITS,
   LyricPackSchema,
   readControls,
   withMusicTags,
 } from "@mellodifai/shared";
 import { assertKieAllowed } from "../kie/guard.js";
 import type { StageContext, StageHandler } from "../loop.js";
+import {
+  ensureReservation,
+  extendStageReservation,
+  kieLedger,
+} from "../providers/ledger.js";
+import { callKey, openPaidEntry } from "../providers/paid.js";
 import { generateLocal, songEngine } from "./local-engine.js";
 import { scoreTakes } from "./score-takes.js";
 import { songSource, submitSourceTask } from "./source-audio.js";
-import {
-  ENGINE_ROOT,
-  engine,
-  key,
-  language,
-  upload,
-  writePack,
-} from "./utils.js";
+import { ENGINE_ROOT, key, language, upload, writePack } from "./utils.js";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -107,6 +107,8 @@ export async function refreshBalance(
     );
     await balanceEngine.run("node", ["tools/kie.mjs", "credit"], {
       cwd: ENGINE_ROOT,
+      secretEnv: ["KIE_API_KEY"],
+      freeCall: "kie:credit",
     });
     // kie.mjs prints one JSON line: {"credits":N,"usd":..,"generate_calls_affordable":..}.
     const value = output
@@ -186,6 +188,11 @@ export const generateSong: StageHandler = async (context) => {
     });
   }
   let taskId = context.version.kie_task_id ?? null;
+  let submittedEntry: {
+    ledger: ReturnType<typeof kieLedger>;
+    entry: string;
+    estimate: { credit: number };
+  } | null = null;
   if (context.version.kie_task_state === "failed")
     throw new Error("kie task failed; create a new generation to try again");
   if (taskId) {
@@ -208,7 +215,30 @@ export const generateSong: StageHandler = async (context) => {
   )
     throw new Error("kie submission state unknown, check the kie dashboard");
   if (!taskId && !(await exists(taskFile))) {
-    await engine(context, "node", ["tools/kie.mjs", "job", lang]);
+    const ledger = kieLedger(context);
+    await ensureReservation(ledger, context.job);
+    if ((context.job.attempts ?? 1) > 1) {
+      await extendStageReservation(ledger, context.job);
+      context.retryExtended = true;
+    }
+    await context.engine.run("node", ["tools/kie.mjs", "job", lang], {
+      cwd: ENGINE_ROOT,
+      secretEnv: ["KIE_API_KEY"],
+      freeCall: "kie:job",
+    });
+    const source = songSource(context.project.song_settings);
+    const operation =
+      source?.mode === "extend" ? "extend" : source ? "cover" : "generate";
+    const estimate = { credit: KIE_CREDITS[operation] };
+    const entry = await openPaidEntry(
+      ledger,
+      callKey("kie", {
+        op: operation,
+        attempt: context.job.attempts ?? 1,
+      }),
+      estimate,
+    );
+    submittedEntry = { ledger, entry, estimate };
     await context.db.patchVersion(context.version.id, {
       kie_submit_state: "submitting",
       kie_generation: generation,
@@ -220,7 +250,6 @@ export const generateSong: StageHandler = async (context) => {
       { flag: "wx" },
     );
     let stderr = "";
-    const source = songSource(context.project.song_settings);
     // A cover, reference or extension starts from audio: kie's upload endpoints instead of
     // `kie.mjs generate`, the same task.json and the same two outcomes on a failure.
     const submit = source
@@ -241,6 +270,8 @@ export const generateSong: StageHandler = async (context) => {
         )
       : await context.engine.run("node", ["tools/kie.mjs", "generate", lang], {
           cwd: ENGINE_ROOT,
+          secretEnv: ["KIE_API_KEY"],
+          entryIds: [entry],
           allowNonZero: true,
           onStderr: (line) => {
             stderr += `${line}\n`;
@@ -256,6 +287,7 @@ export const generateSong: StageHandler = async (context) => {
         throw new Error(
           "kie submission state unknown, check the kie dashboard",
         );
+      await ledger.settle(entry, { credit: 0 });
       await context.db.patchVersion(context.version.id, {
         kie_submit_state: null,
       });
@@ -283,12 +315,20 @@ export const generateSong: StageHandler = async (context) => {
     kie_submit_state: "submitted",
     kie_generation: generation,
   });
+  // The submit is charged only after the durable task id has been written.
+  if (submittedEntry)
+    await submittedEntry.ledger.settle(
+      submittedEntry.entry,
+      submittedEntry.estimate,
+    );
   let waitError = "";
   const waited = await context.engine.run(
     "node",
     ["tools/kie.mjs", "wait", lang],
     {
       cwd: ENGINE_ROOT,
+      secretEnv: ["KIE_API_KEY"],
+      freeCall: "kie:wait",
       allowNonZero: true,
       onStderr: (line) => {
         waitError += `${line}\n`;
@@ -314,7 +354,12 @@ export const generateSong: StageHandler = async (context) => {
     await context.engine.run(
       "node",
       ["tools/kie.mjs", "lyrics-ts", lang, String(take)],
-      { cwd: ENGINE_ROOT, ...(fromAudio ? { allowNonZero: true } : {}) },
+      {
+        cwd: ENGINE_ROOT,
+        secretEnv: ["KIE_API_KEY"],
+        freeCall: "kie:lyrics-ts",
+        ...(fromAudio ? { allowNonZero: true } : {}),
+      },
     );
   const covers = await sunoCoverUrls(context.ws.outDir);
   const audioIds = await kieTrackIds(context.ws.outDir);

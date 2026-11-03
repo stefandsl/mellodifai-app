@@ -8,6 +8,7 @@ import {
 } from "@mellodifai/shared";
 import { optionalText } from "../legacy-import.js";
 import type { StageHandler } from "../loop.js";
+import { isCapRefusal } from "../providers/ledger.js";
 import { openRouterCall, openRouterRequest } from "../providers/openrouter.js";
 import {
   combine,
@@ -214,6 +215,7 @@ export const draftLyrics: StageHandler = async (context) => {
   let revisions = 0;
   let formatFailures = 0;
   let best: Candidate | undefined;
+  let incomplete = false;
   const rounds: {
     writer: string;
     passed: boolean;
@@ -240,7 +242,14 @@ export const draftLyrics: StageHandler = async (context) => {
         ],
       },
       call,
-    );
+    ).catch((error: unknown) => {
+      if (best && isCapRefusal(error)) {
+        incomplete = true;
+        return null;
+      }
+      throw error;
+    });
+    if (!response) break;
     if (!response.ok)
       throw new Error(`OpenRouter request failed: ${response.status}`);
     const body = (await response.json()) as {
@@ -275,7 +284,11 @@ export const draftLyrics: StageHandler = async (context) => {
           judges,
           call,
           passScore,
-        )
+        ).catch((error: unknown) => {
+          if (!isCapRefusal(error)) throw error;
+          incomplete = true;
+          return { ...combine([], 0, passScore), passed: false };
+        })
       : combine([], 0, passScore);
     rounds.push({
       writer: writers[writer],
@@ -284,7 +297,7 @@ export const draftLyrics: StageHandler = async (context) => {
     });
     if (!best || jury.passed || worst(jury) > worst(best.jury))
       best = { pack: parsed.data, jury };
-    if (jury.passed || revisions >= MAX_REVISIONS) break;
+    if (incomplete || jury.passed || revisions >= MAX_REVISIONS) break;
     revisions += 1;
     writer = jury.improver;
     correction = `${revisionBrief(jury)}\nPrevious draft:\n${JSON.stringify({ title: parsed.data.title, lyrics: parsed.data.lyrics, style: parsed.data.style })}`;
@@ -312,6 +325,7 @@ export const draftLyrics: StageHandler = async (context) => {
           best.jury.redacted ||
           looksRedacted(context.project.topic, best.pack.lyrics),
         ms: Math.round(performance.now() - started),
+        incomplete,
       },
     },
   };

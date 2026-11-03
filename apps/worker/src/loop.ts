@@ -11,7 +11,12 @@ import {
 import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
-import type { Ledger } from "./providers/ledger.js";
+import {
+  ensureReservation,
+  isCapRefusal,
+  kieLedger,
+  type Ledger,
+} from "./providers/ledger.js";
 import type { LedgerForModel } from "./providers/openrouter.js";
 import type { Secrets } from "./secrets.js";
 import type { Storage } from "./storage.js";
@@ -34,6 +39,8 @@ export type StageContext = {
   comfy?: LocalRuntime;
   providerLedger?: LedgerForModel;
   groqLedger?: () => Ledger;
+  kieLedger?: () => Ledger;
+  retryExtended?: boolean;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
@@ -102,6 +109,7 @@ export class WorkerLoop {
       comfy?: LocalRuntime;
       providerLedger?: LedgerForModel;
       groqLedger?: () => Ledger;
+      kieLedger?: () => Ledger;
     },
   ) {}
   private redact(message: string) {
@@ -330,6 +338,9 @@ export class WorkerLoop {
         ...(this.options.groqLedger
           ? { groqLedger: this.options.groqLedger }
           : {}),
+        ...(this.options.kieLedger
+          ? { kieLedger: this.options.kieLedger }
+          : {}),
         ...(this.options.comfy ? { comfy: this.options.comfy } : {}),
       });
     };
@@ -388,9 +399,9 @@ export class WorkerLoop {
       await db.finishJob(job.id, result, workerId);
     } catch (error) {
       if (!this.stopping && !active.lost) {
-        const message = this.redact(
-          error instanceof Error ? error.message : String(error),
-        );
+        const message = isCapRefusal(error)
+          ? "cap_exceeded"
+          : this.redact(error instanceof Error ? error.message : String(error));
         // Reads and authorization lookups can fail while Supabase/network is
         // transiently unavailable. Only a definite authorization denial is terminal.
         if (
@@ -409,6 +420,49 @@ export class WorkerLoop {
         }
         this.report(message);
         await log(message);
+        if (job.stage === "generate_song" || job.stage === "replace_section") {
+          try {
+            const submitting =
+              job.stage === "generate_song"
+                ? job.version_id &&
+                  (await db.getVersion(job.version_id))?.kie_submit_state ===
+                    "submitting"
+                : typeof job.payload?.edit_id === "string" &&
+                  (await db.getSectionEdit(job.payload.edit_id))
+                    ?.kie_submit_state === "submitting";
+            if (submitting) {
+              if (!this.options.secrets)
+                throw new Error("Worker secrets are not configured");
+              const ledger = kieLedger({
+                secrets: this.options.secrets,
+                ...(this.options.kieLedger
+                  ? { kieLedger: this.options.kieLedger }
+                  : {}),
+              });
+              try {
+                await ensureReservation(ledger, job);
+                await ledger.markAmbiguous();
+              } catch (failure) {
+                // A previous attempt may already have marked it before failJob lost its lease.
+                if (
+                  !String((failure as Error).message).includes(
+                    "reservation already closed or ambiguous",
+                  )
+                )
+                  throw failure;
+              }
+            }
+          } catch (failure) {
+            this.report(failure);
+            await db.requeue(
+              job.id,
+              workerId,
+              new Date(Date.now() + 30_000).toISOString(),
+              "mark_ambiguous pending",
+            );
+            return;
+          }
+        }
         try {
           await db.failJob(job.id, message, workerId);
         } catch (failure) {

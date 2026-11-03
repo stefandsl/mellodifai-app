@@ -37,6 +37,7 @@ describe("paid provider calls", () => {
       settle: vi.fn(async () => {
         calls.push("settle");
       }),
+      markAmbiguous: vi.fn(async () => {}),
     } satisfies Ledger;
     const result = await paidCall(
       ledger,
@@ -111,6 +112,7 @@ describe("paid provider calls", () => {
       open: vi.fn(async () => "entry"),
       extend: vi.fn(),
       settle: vi.fn(),
+      markAmbiguous: vi.fn(async () => {}),
     } satisfies Ledger;
     await expect(
       paidCall(ledger, "kie:generate:1", { credit: 12 }, async () => {

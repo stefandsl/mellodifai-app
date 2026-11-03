@@ -98,6 +98,7 @@ function ledger(): Ledger {
     extend: vi.fn(async () => {}),
     extendStage: vi.fn(async () => {}),
     settle: vi.fn(async () => {}),
+    markAmbiguous: vi.fn(async () => {}),
   };
 }
 const request = {
@@ -162,6 +163,40 @@ it.each(["lyrics_assist", "remake_analyse", "remake_rewrite"])(
   },
 );
 
+it.each(["lyrics_assist", "remake_analyse", "remake_rewrite"])(
+  "%s settles a real response under an attempt 2 call key",
+  async (stage) => {
+    const db = ledger();
+    const http = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            usage: { prompt_tokens: 100, completion_tokens: 20, cost: 0.002 },
+            choices: [],
+          }),
+        ),
+    );
+    const fetch = meteredOpenRouterFetch(
+      { id: "job", stage, attempts: 2 },
+      () => db,
+      http,
+    );
+    await fetch("https://openrouter.ai/api/v1/chat/completions", request);
+    expect(db.reservationFor).toHaveBeenCalledWith("job");
+    expect(db.extendStage).toHaveBeenCalledExactlyOnceWith("job");
+    expect(db.open).toHaveBeenCalledWith(
+      `openrouter:${stage}:0:0:a2`,
+      expect.any(Object),
+    );
+    expect(db.settle).toHaveBeenCalledWith(
+      "entry",
+      { mtok_in: 0.0001, mtok_out: 0.00002 },
+      0.002,
+    );
+    expect(http).toHaveBeenCalledOnce();
+  },
+);
+
 it("reserves, opens and settles each request, including client retries", async () => {
   const db = ledger();
   const http = vi.fn(async () => {
@@ -210,7 +245,7 @@ it("a refused extension never sends the request", async () => {
   );
   await expect(
     fetch("https://openrouter.ai/api/v1/chat/completions", request),
-  ).rejects.toMatchObject({ code: "MDF02" });
+  ).rejects.toThrow("cap_exceeded");
   expect(http).not.toHaveBeenCalled();
 });
 
@@ -249,9 +284,9 @@ it("a refused whole-stage retry budget blocks all provider calls", async () => {
     http,
   );
   for (let i = 0; i < 2; i++)
-    await expect(
-      fetch("https://openrouter.ai/api", request),
-    ).rejects.toMatchObject({ code: "MDF02" });
+    await expect(fetch("https://openrouter.ai/api", request)).rejects.toThrow(
+      "cap_exceeded",
+    );
   expect(db.extendStage).toHaveBeenCalledTimes(1);
   expect(db.open).not.toHaveBeenCalled();
   expect(http).not.toHaveBeenCalled();

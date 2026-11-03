@@ -24,6 +24,7 @@ import {
   stemsComplete,
 } from "../src/stages/stems.js";
 import { stemPaths, upload } from "../src/stages/utils.js";
+import { recordingLedger } from "./support/ledger.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -134,6 +135,7 @@ async function setup({
   };
   const secrets = { values: {}, redact: (line: string) => line };
   const ctx: StageContext = {
+    groqLedger: () => recordingLedger(),
     job: {
       id: "job",
       owner_id: "owner",
@@ -167,6 +169,7 @@ describe("stems stage", () => {
     expect(demucs).toHaveLength(1);
     expect(demucs[0]?.args).toEqual([
       "-I",
+      "-B",
       "-X",
       "utf8",
       "-m",

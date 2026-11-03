@@ -495,6 +495,31 @@ describe("lyrics_assist (songless job)", () => {
     expect(providerLedger.open).not.toHaveBeenCalled();
   });
 
+  it("lyrics assistance extends once and settles calls with attempt 2 keys", async () => {
+    const calls = openRouter(
+      JSON.stringify({
+        title: "Il lago",
+        lyrics:
+          "[Verse 1]\nRemi nell'acqua ferma\n\n[Chorus]\nAl lago si respira",
+      }),
+    );
+    const next = {
+      ...songless({ request_id: request("write", {}).id }),
+      attempts: 1,
+    };
+    const db = new InMemoryDb([next]);
+    db.lyricRequests.push(request("write", { brief: "a lake", style: "folk" }));
+    await loop(db).runOnce();
+    expect(db.jobs[0]?.status).toBe("done");
+    expect(providerLedger.extendStage).toHaveBeenCalledExactlyOnceWith(next.id);
+    expect(
+      vi
+        .mocked(providerLedger.open)
+        .mock.calls.every(([key]) => key.endsWith(":a2")),
+    ).toBe(true);
+    expect(providerLedger.settle).toHaveBeenCalledTimes(calls.length);
+  });
+
   it("never hands back lyrics the privacy filter altered", async () => {
     openRouter(
       JSON.stringify({ title: "x", lyrics: "[Verse]\nresto [PERSON_NAME]" }),
