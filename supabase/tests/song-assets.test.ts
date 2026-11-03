@@ -1,12 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { localSupabaseUrl } from "../../apps/web/e2e/local-env";
 
 let db: SupabaseClient;
 let client: SupabaseClient;
 let owner: string;
 beforeAll(async () => {
-  const url = process.env.SUPABASE_URL ?? "";
-  if (!url.includes(":45621")) throw new Error("E2E stack required");
+  const url = localSupabaseUrl(process.env.SUPABASE_URL, {});
   db = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY ?? "");
   const email = `song-assets-${Date.now()}@example.test`;
   const password = "song-assets-local-test-password";
