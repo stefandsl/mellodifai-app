@@ -181,6 +181,8 @@ test("glass setting changes the shell and karaoke themes without layout overflow
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: "Vetro" }).click();
     await expect(dialog).toHaveClass(/karaoke-theme-glass/u);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForTimeout(600);
     const frames = await page.evaluate(async () => {
       const times: number[] = [];
       await new Promise<void>((resolve) => {

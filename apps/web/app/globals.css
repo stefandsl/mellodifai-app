@@ -237,11 +237,9 @@
 @keyframes karaoke-breathe {
   from {
     opacity: 0.65;
-    transform: scale(1);
   }
   to {
     opacity: 1;
-    transform: scale(1.08);
   }
 }
 @media (prefers-reduced-motion: reduce) {
