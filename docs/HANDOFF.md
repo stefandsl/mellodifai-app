@@ -197,6 +197,9 @@ image tags restored. Report and screenshots: `E:/mellodifai/codex-streams/e2e-co
 Review round 1 strengthened filter inclusion and exclusion, automatic karaoke playback timing,
 Verse 2 regeneration persistence, exact take selection, and uploaded logo storage checks. The
 private database and browser suites each passed twice again; the stack is stopped.
+Review round 2 verifies the visible private publication title and visibility, the playlist item's
+song ID, and the actual 2-8 second WAV segment. The private database and browser suites each
+passed twice again; the stack is stopped.
 
 ## 5. Later work (after M1)
 

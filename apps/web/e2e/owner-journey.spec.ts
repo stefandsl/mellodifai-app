@@ -197,6 +197,8 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
   await expect(
     page.getByRole("button", { name: "Rendi pubblico" }),
   ).toBeVisible();
+  await expect(page.getByText(`Video: ${publishTitle}`)).toBeVisible();
+  await expect(page.getByText("Visibilità: Privato")).toBeVisible();
   const { data: master } = await db
     .from("renders")
     .select("id,preview_path,qa_results")

@@ -17,6 +17,8 @@ function wav(seconds: number) {
   audio.writeUInt16LE(16, 34);
   audio.write("data", 36);
   audio.writeUInt32LE(samples * 2, 40);
+  for (let i = 0; i < samples; i++)
+    audio.writeInt16LE((Math.floor(i / 8000) + 1) * 2000, 44 + i * 2);
   return audio;
 }
 
@@ -68,9 +70,10 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
   });
   if (otherVersion.error) throw otherVersion.error;
   const path = `previews/${owner}/${project.data.id}/it/library-e2e.wav`;
+  const source = wav(12);
   const upload = await db.storage
     .from("previews")
-    .upload(path, wav(12), { contentType: "audio/wav" });
+    .upload(path, source, { contentType: "audio/wav" });
   if (upload.error) throw upload.error;
   const take = await db
     .from("takes")
@@ -184,9 +187,9 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
               .from("playlist_items")
               .select("version_id")
               .eq("playlist_id", playlist.id)
-          ).data?.length,
+          ).data?.[0]?.version_id,
       )
-      .toBe(1);
+      .toBe(version.data.id);
     await page.goto("/library");
     await song.getByRole("button", { name: "Aggiungi a playlist" }).click();
     await dialog
@@ -267,6 +270,13 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
           bytes.readUInt16LE(22) *
           (bytes.readUInt16LE(34) / 8),
     );
+    for (let second = 0; second < 6; second++) {
+      const exportedSample = (second + 0.5) * bytes.readUInt32LE(24);
+      const sourceSample = (second + 2.5) * source.readUInt32LE(24);
+      expect(bytes.readInt16LE(44 + exportedSample * 2)).toBe(
+        source.readInt16LE(44 + sourceSample * 2),
+      );
+    }
     expect(
       (
         await db
