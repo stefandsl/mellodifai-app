@@ -40,7 +40,7 @@
 
 | Modify | Responsibility |
 | --- | --- |
-| `packages/shared/src/stages.ts`, `packages/shared/src/index.ts`, `apps/web/next.config.ts` | Register `compose_timeline`, timeline exports and aliases |
+| `packages/shared/src/stages.ts`, `packages/shared/src/status.ts`, `packages/shared/src/index.ts`, `apps/web/next.config.ts` | Register `compose_timeline`, timeline exports and aliases |
 | `packages/visualizer/src/Root.tsx`, `packages/visualizer/scripts/render.mjs`, `packages/visualizer/package.json` | Register and render `TimelineVideo` without changing `Visualizer` |
 | `apps/worker/src/stages/{index,render,art,qa}.ts`, `apps/worker/src/{db,loop}.ts` | R5/R7 jobs, hook QA and M2a orchestration |
 | `apps/web/lib/ops/registry.ts`, `apps/web/lib/mcp/server.ts`, `packages/cli/src/index.ts`, `packages/cli/skill/SKILL.md`, `packages/shared/src/i18n.ts` | `timeline_get`, `timeline_patch`, image submission and messages |
@@ -48,6 +48,79 @@
 **Baseline and deliberate changes.** The repo already has `packages/visualizer` with saved Video Studio presets and `packages/visualizer/scripts/render.mjs`; `apps/worker/src/stages/render.ts` already has master/hook handlers, `art.ts` makes captions and art, and `qa.ts` checks output. Reuse those paths. The old VBP render calls `scripts/r.mjs` under the engine repo and `apps/worker/src/stages/utils.ts` currently hardcodes `ENGINE_ROOT` on C:. M1 Task 23 changes it to `MELLODIFAI_ENGINE_ROOT`; M2b depends on that and selects the visualizer package renderer only for remake timeline jobs. Video Studio presets stay separate from timeline revisions; their look IDs are reused in the `visualizer` block. The engine repo's `motion/src` lyric files are copied into `packages/visualizer` as 9.3 requires, with license and dependency checks, while VBP scenes remain there. Existing task 27 `remakes` has no timeline; M2a adds R-stage orchestration. M2b adds an append-only table, never overloads `remakes.analysis` or the Video Studio preset JSON.
 
 **Milestone boundary.** M2b includes the `image_submit` part of `artefact_submit` and R6 skip/assets, but the OD5 image-generation routes and visual jury are M3. For the R5-R7 exit fixture, every `imageNeed` is `none` or an agent-submitted, validated image. This is an explicit gap from the full R6 description in 8.4, and it is allowed by 21.4's M2b contents and 8.5's R6 skip. R7 stops at the video-review boundary; publishing waits for M3/M4 gates.
+
+## DDL contract and patch transaction (15.2, 8.5)
+
+Place this DDL in the named migrations after M2a. It is a plan contract, not a migration applied by this documentation change.
+
+```sql
+-- 01_timelines
+create table public.timelines (
+  version_id uuid not null, remake_id uuid not null, owner_id uuid not null,
+  revision integer not null check (revision > 0),
+  document jsonb not null check (jsonb_typeof(document) = 'object' and document->>'schemaVersion' = '1'),
+  author text not null, stage_run_id uuid not null, stage_version integer not null check (stage_version >= 0),
+  created_at timestamptz not null default now(),
+  primary key (version_id,revision), unique (version_id,revision,owner_id),
+  foreign key (stage_run_id,remake_id,version_id,owner_id) references public.stage_runs(id,remake_id,version_id,owner_id)
+);
+
+-- 02_timeline_images
+create table public.timeline_assets (
+  id uuid primary key default gen_random_uuid(), remake_id uuid not null,
+  version_id uuid not null, owner_id uuid not null, shot_id text not null check (shot_id ~ '^h[0-9]{1,3}$'),
+  upload_intent_id uuid not null unique,
+  kind text not null check (kind = 'image'), mime text not null check (mime in ('image/png','image/jpeg','image/webp')),
+  width integer not null check (width between 1 and 8192), height integer not null check (height between 1 and 8192),
+  size_bytes bigint not null check (size_bytes between 1 and 20971520),
+  sha256 text not null check (sha256 ~ '^[0-9a-f]{64}$'), storage_key text not null unique,
+  created_at timestamptz not null default now(), unique (id,version_id,owner_id),
+  foreign key (remake_id,version_id,owner_id) references public.remake_versions(remake_id,version_id,owner_id),
+  foreign key (upload_intent_id,owner_id) references public.upload_intents(id,owner_id)
+);
+create table public.timeline_asset_refs (
+  version_id uuid not null, revision integer not null, owner_id uuid not null, asset_id uuid not null,
+  primary key (version_id,revision,asset_id),
+  foreign key (version_id,revision,owner_id) references public.timelines(version_id,revision,owner_id),
+  foreign key (asset_id,version_id,owner_id) references public.timeline_assets(id,version_id,owner_id)
+);
+```
+
+All three tables are owned by `postgres`, enable RLS and revoke all direct privileges from `public`, `anon`, `authenticated`, `mdf_web` and `mdf_auth`. No client policies grant direct access. Definer ops enforce ownership and M1 test-version isolation. Grant only named worker functions to `service_role`. Install `before update or delete` triggers raising SQLSTATE `23514` on `timelines` and `timeline_asset_refs`; assets are immutable while referenced, with deletion permitted only through retention after proving no references. Append every revision and its complete asset-reference set in one transaction. Validate that JSON asset IDs exactly equal those references, that audio belongs to the same version, and that shot IDs belong to its blueprint. Old Video Studio presets and task 27 rows receive no invented timeline revisions.
+
+`ops.timeline_patch(p_ctx jsonb, p_remake uuid, p_version uuid, p_stage uuid, p_expected_revision integer, p_expected_stage_version integer, p_patch jsonb) returns jsonb` and its TypeScript input both require the two counters. Lock the remake row, then the stage row, then read the latest timeline revision, in that order. Resolve `ops._actor`; verify owner, test mode, stage/run/version membership, and a live lease whose canonical driver equals this actor (token identity, not just the token owner's user ID). Non-holder returns `forbidden_scope`; expired lease or either stale counter returns `conflict`. A holder's successful call renews the lease by 15 minutes. Lease claims/takeovers and stage transitions use the same lock order. A cookie owner can claim an unheld/expired lease explicitly; a patch never silently takes it from an agent.
+
+Accept a patch only during the held R5 authoring wait or an R7 review state (`passed` or `awaiting_approval`) before downstream work starts. Reject a running render or advanced R8/R9. A held R5 waits for the author's edit/approve; without a driver the ordinary mapper can advance. In the same transaction, append the fully validated document, increment `stage_version`, invalidate gates for the previous render, and queue the rerender through the existing M2a/M1 path. Jobs pin `timeline_revision`; a completion for an older revision cannot mark the edited stage passed. Any validation, lease, counter or cap refusal leaves no new revision, jobs, counters or lease renewal. Return `{ revision, stage_version, job }`; `timeline_get` returns `stage_id`, `stage_version` and lease data as well as the document. HTTP, CLI and MCP all carry these fields. Image edits use the same stage/lease checks.
+
+Apply these statements in each table's owning migration; use M2a's trigger function for immutable revisions.
+
+```sql
+-- 01_timelines
+alter table public.timelines owner to postgres;
+alter table public.timelines enable row level security;
+revoke all on public.timelines from public, anon, authenticated, mdf_web, mdf_auth, service_role;
+create trigger timeline_immutable before update or delete on public.timelines
+  for each row execute function ops.reject_immutable_revision();
+-- After defining the wrapper with the Global Constraints definer settings:
+revoke all on function ops.timeline_patch(jsonb,uuid,uuid,uuid,integer,integer,jsonb)
+  from public, anon, authenticated, mdf_web, mdf_auth, service_role;
+grant execute on function ops.timeline_patch(jsonb,uuid,uuid,uuid,integer,integer,jsonb) to mdf_web;
+-- 02_timeline_images
+alter table public.timeline_assets owner to postgres;
+alter table public.timeline_asset_refs owner to postgres;
+alter table public.timeline_assets enable row level security;
+alter table public.timeline_asset_refs enable row level security;
+revoke all on public.timeline_assets, public.timeline_asset_refs
+  from public, anon, authenticated, mdf_web, mdf_auth, service_role;
+create trigger timeline_refs_immutable before update or delete on public.timeline_asset_refs
+  for each row execute function ops.reject_immutable_revision();
+```
+
+### Paid composition and stage authorization (Task 4)
+
+`01_timelines` adds `compose_timeline` to the SQL job-stage constraint and extends `ops.job_spend_rule(p_job uuid)` with an explicit OpenRouter Sonnet 5.5 composition rule. Seed `provider_operations` for a maximum 4,000 input / 1,000 output tokens, converted to the existing M1 price units through `ops.price`; no missing rule or price may resolve as free. Cap the writer request to these token limits and independently enforce the 0.005 USD R5 budget. If the priced maximum exceeds 0.005, use the deterministic mapper without making the optional writer call, recording that outcome. If a required ledger reservation or extension fails, make zero provider calls and stop with `cost_cap`; do not bypass a refusal by a paid fallback. Choose and persist the writer mode before enqueueing: the SQL spend rule explicitly returns no paid items for the deterministic/agent path, and priced items for the writer path. It recomputes eligibility from trusted price rows, never trusts a caller flag to turn a paid job into a free one. Agent-authored parameters and the deterministic mapper use no paid call. All paid composition shares the M2a run cap across languages.
+
+Modify `packages/shared/src/status.ts`: add `compose_timeline` to both `STATUS_STAGES.producing` and `stageAllowed`'s `producing` list, with `STAGE_STATUS.compose_timeline = 'producing'`. Keep it forbidden for all other statuses. R4b completion atomically sets the version to `producing` before enqueueing R5. The orchestrator, not the generic status decorator, controls remake pause points. Preserve existing non-remake mappings.
 
 ## Step 1 - M2b timeline, rendering and exit gates
 
@@ -67,12 +140,12 @@
 
 **Files:** Create `supabase/migrations/20261103020001_timelines.sql`, `supabase/tests/remake_timeline.test.ts`, `apps/web/lib/ops/defs/timeline.ts`, `apps/web/app/api/v1/remakes/[remakeId]/timeline/route.ts`; modify `apps/web/lib/ops/registry.ts`, `apps/web/lib/mcp/server.ts`, `packages/cli/src/index.ts`, `packages/cli/skill/SKILL.md`.
 
-**Interfaces:** `ops.timeline_get(p_ctx jsonb, p_remake uuid, p_version uuid) returns jsonb` to `mdf_web`; `ops.timeline_patch(p_ctx jsonb, p_remake uuid, p_version uuid, p_expected_revision integer, p_patch jsonb) returns jsonb` to `mdf_web`; `ops.worker_timeline_append(p_job uuid, p_document jsonb, p_author text) returns jsonb` to `service_role`; `timelineGetDef: OpDef<{ remake_id: string; version_id: string }, { revision: number; document: Timeline; author: string }>` (`read`, no key); `timelinePatchDef: OpDef<{ remake_id: string; version_id: string; expected_revision: number; patch: TimelinePatch }, { revision: number; job: JobRef }>` (`create`, key). `TimelinePatch` is a discriminated union of replace-scene-text and replace-scene-params for one scene ID; it cannot change audio, owner, asset refs, schemaVersion, fps or duration. Patch materializes a full new document, validates it, and appends a row. Only one latest revision per version. Rerender goes through `ops.worker_enqueue` or an M2a stage action with the same reservation/fake stamp.
+**Interfaces:** `ops.timeline_get(p_ctx jsonb, p_remake uuid, p_version uuid) returns jsonb` to `mdf_web`; `ops.timeline_patch(p_ctx jsonb, p_remake uuid, p_version uuid, p_stage uuid, p_expected_revision integer, p_expected_stage_version integer, p_patch jsonb) returns jsonb` to `mdf_web`; `ops.worker_timeline_append(p_job uuid, p_document jsonb, p_author text) returns jsonb` to `service_role`; `timelineGetDef: OpDef<{ remake_id: string; version_id: string }, { revision: number; document: Timeline; author: string; stage_id: string; stage_version: number; driver: string | null; lease_until: string | null }>` (`read`, no key); `timelinePatchDef: OpDef<{ remake_id: string; version_id: string; stage_id: string; expected_revision: number; expected_stage_version: number; patch: TimelinePatch }, { revision: number; stage_version: number; job: JobRef }>` (`create`, key). `TimelinePatch` is a discriminated union of replace-scene-text and replace-scene-params for one scene ID; it cannot change audio, owner, asset refs, schemaVersion, fps or duration. Patch materializes a full new document, validates it, and appends a row. Only one latest revision per version. Rerender goes through `ops.worker_enqueue` or an M2a stage action with the same reservation/fake stamp.
 
-- [ ] **Step 1: Write failing DB tests** `get sees only actor-owned version`, `worker append starts at revision 1`, `patch creates revision 2 and preserves revision 1`, `two edits from revision 1 yield one conflict`, `unknown scene, code text and URL are rejected`, `test token cannot patch a real version`, `one accepted patch queues one rerender with inherited fake flag`.
+- [ ] **Step 1: Write failing DB tests** `get sees only actor-owned version`, `worker append starts at revision 1`, `patch creates revision 2 and preserves revision 1`, `two edits from revision 1 yield one conflict`, `unknown scene, code text and URL are rejected`, `test token cannot patch a real version`, `one accepted patch queues one rerender with inherited fake flag`, `current timeline revision with stale stage version returns conflict and writes nothing`, `non-holder token of the same owner receives forbidden_scope`, `expired lease requires explicit reclaim`, `lease takeover racing patch has only one authorized winner`, `timeline and reference update/delete fail with 23514`, `cross-owner asset reference FK is rejected`, `legacy preset remains readable without timeline rows`. Each rejection leaves revision count, jobs, counters and lease unchanged.
 - [ ] **Step 2:** `DBTEST supabase/tests/remake_timeline.test.ts`. Expected: FAIL.
-- [ ] **Step 3:** Implement append-only `timelines` (version, revision, document, author, created_at) and exact grants. Because Postgres cannot execute the TypeScript Zod parser, Next validates the assembled document before calling `ops.timeline_patch`, and the SQL function enforces a mirrored closed JSON shape, owner, allowed patch paths, bounds, asset refs and latest revision within one transaction. The worker re-parses before render. Document the mirrored checks in the test cases; do not accept a raw replacement document from a token. Add `timeline_get` and `timeline_patch` to `TOKEN_OPS`, HTTP and MCP through M1's registry.
-- [ ] **Step 4:** Migrate e2e (`pnpm ops stack.ts migrate --env e2e`), rerun DBTEST and `DBTEST supabase/tests/ops_acl.test.ts`. Expected: all eight tests PASS.
+- [ ] **Step 3:** Implement the DDL and atomic stage/driver patch transaction above, including immutable revisions and exact grants. Seed the additive composition spend rule in this migration before any R5 job can be enqueued. Because Postgres cannot execute the TypeScript Zod parser, Next validates the assembled document before calling `ops.timeline_patch`, and the SQL function enforces a mirrored closed JSON shape, owner, allowed patch paths, bounds, asset refs and latest revision within one transaction. The worker re-parses before render. Document the mirrored checks in the test cases; do not accept a raw replacement document from a token. Add `timeline_get` and `timeline_patch` to `TOKEN_OPS`, HTTP and MCP through M1's registry.
+- [ ] **Step 4:** Migrate e2e (`pnpm ops stack.ts migrate --env e2e`), rerun DBTEST and `DBTEST supabase/tests/ops_acl.test.ts`. Expected: every ownership, revision, stage, driver and ACL assertion PASS.
 - [ ] **Step 5:** Commit `feat(timeline): store revisions and patch owned scenes`.
 
 ### Task 3: Move kinetic lyrics and render finite blocks
@@ -89,14 +162,14 @@
 
 ### Task 4: Compose R5 from blueprint and the new take
 
-**Files:** Create `apps/worker/src/remake/retime.ts`, `apps/worker/src/stages/compose-timeline.ts`, `apps/worker/test/remake-compose.test.ts`; modify `apps/worker/src/stages/index.ts`, `apps/worker/src/db.ts`, `packages/shared/src/stages.ts`, `apps/worker/src/orchestrator.ts`.
+**Files:** Create `apps/worker/src/remake/retime.ts`, `apps/worker/src/stages/compose-timeline.ts`, `apps/worker/test/remake-compose.test.ts`; modify `apps/worker/src/stages/index.ts`, `apps/worker/src/db.ts`, `packages/shared/src/stages.ts`, `packages/shared/src/status.ts`, `packages/shared/src/remake/stage-authorization.test.ts`, `apps/worker/src/orchestrator.ts`; create `supabase/tests/remake_composition_spend.test.ts`.
 
 **Interfaces:** `retimeBlueprint(input: { blueprint: Blueprint; takeSections: TimedSection[]; takeId: string; imageAssets: ImageAsset[] }): Timeline`; `composeTimeline: StageHandler`. For every shot, keep section ID and relative position; map start/end into the chosen take section. Select only v1 blocks. The deterministic mapper writes the complete document and the fast writer may fill bounded block parameters for at most 0.005 USD via M1 `paidCall`. A lease-holding agent edits the revision through `timeline_patch`. Start R5 only after R4b.
 
-- [ ] **Step 1: Write failing tests** `shot offset 0.5 stays halfway through a longer take section`, `scene order and non-overlap survive retiming`, `R5 cannot use source media or source line text`, `writer output changing a block kind or adding URL fails validation`, `app writer stays under 0.005 USD`, `R5 appends revision and queues the next stage once`.
-- [ ] **Step 2:** `pnpm --filter @mellodifai/worker exec vitest run test/remake-compose.test.ts`; `DBTEST supabase/tests/remake_timeline.test.ts`. Expected: new cases FAIL.
-- [ ] **Step 3:** Implement the mapper and use M2a `ops.worker_finish_remake_job` for R5 completion. The writer receives only validated enum and short-string data under 6.8, with fake HTTP in tests. Use the existing M2a `stage_runs` version counter for agent takeover and conflict.
-- [ ] **Step 4:** Repeat both commands. Expected: six cases PASS.
+- [ ] **Step 1: Write failing tests** `shot offset 0.5 stays halfway through a longer take section`, `scene order and non-overlap survive retiming`, `R5 cannot use source media or source line text`, `writer output changing a block kind or adding URL fails validation`, `app writer stays under 0.005 USD`, `R5 appends revision and queues the next stage once`, `stageAllowed permits compose_timeline only while producing`, `worker runs authorized R5 and never calls handler for an analysing version`, `real composition on fake HTTP reserves before request`, `withRealCaps refuses composition at exhausted run cap without any HTTP request`, `composition extension refusal prevents the next request`, `unpriced composition model is not treated as free`. Database assertions use M1 `withRealCaps`, shared run IDs across languages and fake HTTP; local mapper-only jobs make zero paid requests.
+- [ ] **Step 2:** `pnpm --filter @mellodifai/worker exec vitest run test/remake-compose.test.ts`; `DBTEST supabase/tests/remake_timeline.test.ts supabase/tests/remake_composition_spend.test.ts`; `pnpm --filter @mellodifai/shared exec vitest run src/remake/stage-authorization.test.ts`. Expected: new cases FAIL.
+- [ ] **Step 3:** Implement the status mappings and paid composition contract above, then the mapper, and use M2a `ops.worker_finish_remake_job` for R5 completion. The writer receives only validated enum and short-string data under 6.8, with fake HTTP in tests. Use the existing M2a `stage_runs` version counter for agent takeover and conflict.
+- [ ] **Step 4:** Repeat all three commands. Expected: all composition, stage-authorization and enforced-cap cases PASS.
 - [ ] **Step 5:** Commit `feat(remake): compose a retimed timeline`.
 
 ### Task 5: Accept safe image assets for a scene
@@ -129,7 +202,7 @@
 
 **Interfaces:** `timeline_get` and `timeline_patch` MCP tools use the same `OpDef`s as HTTP and the UI. The Console shows revision, scenes, output links, master/hook QA and stage state. One scene text edit from the agent produces a new revision and queues one rerender. It does not bypass the future visual jury or publish gate.
 
-- [ ] **Step 1: Write failing e2e tests** `fixture completes R5-R7 with fake providers`, `timeline with code URL or unknown block gets validation error`, `agent gets revision 1, patches scene text, gets revision 2`, `rerender frame contains patched text`, `stale patch returns conflict`, `master and hook QA results are visible`, `Video Studio saved preset still opens`.
+- [ ] **Step 1: Write failing e2e tests** `fixture completes R5-R7 with fake providers`, `timeline with code URL or unknown block gets validation error`, `lease holder gets both counters, patches title-card text, gets revision 2 and incremented stage_version`, `rerender frame contains patched text`, `stale patch returns conflict`, `master and hook QA results are visible`, `Video Studio saved preset still opens`.
 - [ ] **Step 2:** `E2E_PORT=3225 pnpm e2e -- remake-m2b.spec.ts`. Expected: FAIL.
 - [ ] **Step 3:** Complete the e2e fixture through M1 `test_mode` MCP and M2a run. Use a local sanitized image only; all paid calls are faked. Check the visible Console at 1440x900 and 1360x600 in a real browser; save screenshots under `E:/mellodifai/reports/m2b-shots/`. Inspect master and hook render frames at both aspect ratios.
 - [ ] **Step 4:** Repeat e2e. Expected: seven tests PASS. Then run `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm --filter web exec tsc --noEmit`, `pnpm test`, `pnpm test:db`, `E2E_PORT=3225 pnpm e2e`; each exits 0. Run `DBTEST supabase/tests/ops_acl.test.ts` after the new grants.
@@ -139,6 +212,8 @@
 
 | Design requirement | Task and proof |
 | --- | --- |
+| R1 review: timeline patch stage version and driver lease | 2, 7; stale-stage, non-holder and takeover-race assertions |
+| R2 review: DDL, paid composition and stage authorization | 2, 4-5; ownership, immutable revisions, cap-refusal and worker authorization tests |
 | 21.4 M2b fixture R5-R7, rejected unsafe timeline, patch-visible rerender | 1, 4, 6-7; schema and e2e tests |
 | 8.3 R5/R7 jobs, stage transitions and R6 skip | 4-6; orchestrator and video tests |
 | 8.4 R5 section-relative mapping and bounded writer | 4; retime and cost tests |
