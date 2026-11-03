@@ -20,7 +20,15 @@ import {
 import { bundle } from "@remotion/bundler";
 import { renderStill, selectComposition } from "@remotion/renderer";
 import { build } from "esbuild";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import { withSharedSources } from "../webpack-override";
 import {
   testBackground,
@@ -152,8 +160,15 @@ beforeAll(async () => {
   origin = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`;
   // Compare both paths with the same browser binary and headless implementation.
   browser = await chromium.launch({ executablePath: SHELL });
+});
+
+// Each comparison owns its fonts, canvases and suspended Web Audio contexts.
+beforeEach(async () => {
   page = await browser.newPage();
   await page.goto(`${origin}/harness.html`);
+});
+afterEach(async () => {
+  await page?.close();
 });
 
 afterAll(async () => {

@@ -12,10 +12,19 @@ import {
   SongSettingsSchema,
   youtubeVideoId,
 } from "@mellodifai/shared";
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { actionProfile } from "@/lib/auth";
+import { sessionCtx } from "@/lib/ops/context";
+import { remakeAccept } from "@/lib/ops/defs/remake-accept";
+import { remakeCancel } from "@/lib/ops/defs/remake-cancel";
+import { remakeDismiss } from "@/lib/ops/defs/remake-dismiss";
+import { remakeEdit } from "@/lib/ops/defs/remake-edit";
+import { remakeRegenerateSection } from "@/lib/ops/defs/remake-regenerate-section";
+import { remakeRetry } from "@/lib/ops/defs/remake-retry";
+import { remakeStart } from "@/lib/ops/defs/remake-start";
+import { runOp } from "@/lib/ops/run";
+import type { OpDef } from "@/lib/ops/types";
 import { isRemote } from "@/lib/remote";
 
 export type RemakeActionError =
@@ -28,8 +37,8 @@ export type RemakeActionError =
   | "notReady"
   | "failed";
 export type RemakeActionResult =
-  | { ok: true; id?: string; revision?: number }
-  | { ok: false; error: RemakeActionError };
+  | { ok: true; id?: string; revision?: number; committed?: boolean }
+  | { ok: false; error: RemakeActionError; idempotencyKey?: string };
 
 const Id = z.string().uuid();
 const Revision = z.number().int().nonnegative();
@@ -49,28 +58,47 @@ function codeOf(message: string): RemakeActionError {
   return "failed";
 }
 
+async function invoke<I, O>(
+  def: OpDef<I, O>,
+  input: I,
+): Promise<O | { committed: true }> {
+  const result = await runOp(def, await sessionCtx(), input);
+  if (!result.ok) throw result;
+  return "committed" in result ? { committed: true } : result.data;
+}
+
 async function run(
-  work: (
-    db: Awaited<ReturnType<typeof actionProfile>>["supabase"],
-  ) => Promise<{ id?: string; revision?: number }>,
-  // What a malformed input means for this action (a bad link, for startRemake).
+  work: () => Promise<{ id?: string; revision?: number; committed?: boolean }>,
   invalid: RemakeActionError = "failed",
 ): Promise<RemakeActionResult> {
   try {
-    const { supabase } = await actionProfile();
-    const result = await work(supabase);
-    revalidatePath("/create");
-    revalidatePath("/library");
-    return { ok: true, ...result };
+    return { ok: true, ...(await work()) };
   } catch (error) {
-    const message =
-      error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : String(error);
-    const code = error instanceof z.ZodError ? invalid : codeOf(message);
-    if (code === "failed")
-      console.error("Remake action failed:", message.slice(0, 300));
-    return { ok: false, error: code };
+    const failure = error as {
+      message?: string;
+      details?: { action_error?: string };
+      idempotency_key?: string;
+    };
+    const code =
+      error instanceof z.ZodError ? invalid : codeOf(failure.message ?? "");
+    const known = z
+      .enum([
+        "invalidUrl",
+        "busy",
+        "limit",
+        "conflict",
+        "gate",
+        "wait",
+        "notReady",
+      ])
+      .safeParse(failure.details?.action_error);
+    return {
+      ok: false,
+      error: known.success ? known.data : code,
+      ...(failure.idempotency_key
+        ? { idempotencyKey: failure.idempotency_key }
+        : {}),
+    };
   }
 }
 
@@ -83,12 +111,12 @@ const StartInput = z.object({
 export async function startRemake(input: unknown) {
   if (isRemote(await headers()))
     return { ok: false as const, error: "failed" as const };
-  return run(async (db) => {
+  return run(async () => {
     const v = StartInput.parse(input);
     const videoId = youtubeVideoId(v.url);
     if (!videoId) throw new Error("invalid youtube link");
     const url = /^https?:\/\//iu.test(v.url) ? v.url : `https://${v.url}`;
-    const { data, error } = await db.rpc("remake_start", {
+    return invoke(remakeStart, {
       p_url: /^[\w-]{11}$/u.test(v.url)
         ? `https://www.youtube.com/watch?v=${videoId}`
         : url,
@@ -96,8 +124,6 @@ export async function startRemake(input: unknown) {
       p_lang: v.lang,
       p_country: v.country,
     });
-    if (error) throw error;
-    return { id: data as string };
   }, "invalidUrl");
 }
 
@@ -127,16 +153,14 @@ const EditInput = z.object({
 export async function editRemake(input: unknown) {
   if (isRemote(await headers()))
     return { ok: false as const, error: "failed" as const };
-  return run(async (db) => {
+  return run(async () => {
     const v = EditInput.parse(input);
-    const { data, error } = await db.rpc("remake_edit", {
+    return invoke(remakeEdit, {
       p_remake: v.remakeId,
       p_revision: v.revision,
       p_lines: v.lines,
       p_title: v.title,
     });
-    if (error) throw error;
-    return { revision: data as number };
   });
 }
 
@@ -149,15 +173,13 @@ const SectionInput = z.object({
 export async function regenerateRemakeSection(input: unknown) {
   if (isRemote(await headers()))
     return { ok: false as const, error: "failed" as const };
-  return run(async (db) => {
+  return run(async () => {
     const v = SectionInput.parse(input);
-    const { error } = await db.rpc("remake_regenerate_section", {
+    return invoke(remakeRegenerateSection, {
       p_remake: v.remakeId,
       p_revision: v.revision,
       p_section: v.section,
     });
-    if (error) throw error;
-    return {};
   });
 }
 
@@ -175,9 +197,10 @@ const AcceptInput = z.object({
 export async function acceptRemake(input: unknown) {
   if (isRemote(await headers()))
     return { ok: false as const, error: "failed" as const };
-  return run(async (db) => {
+  return run(async () => {
     const v = AcceptInput.parse(input);
-    const { data: row, error: readError } = await db
+    const { supabase } = await actionProfile();
+    const { data: row, error: readError } = await supabase
       .from("remakes")
       .select("lyrics")
       .eq("id", v.remakeId)
@@ -203,15 +226,13 @@ export async function acceptRemake(input: unknown) {
       displayMap: {},
       l10n: {},
     });
-    const { data, error } = await db.rpc("remake_accept", {
+    return invoke(remakeAccept, {
       p_remake: v.remakeId,
       p_revision: v.revision,
       p_pack: pack,
       p_settings: settings,
       p_vocal_gender: v.vocalGender,
     });
-    if (error) throw error;
-    return { id: data as string };
   });
 }
 
@@ -220,35 +241,29 @@ const RemakeIdInput = z.object({ remakeId: Id });
 export async function cancelRemake(input: unknown) {
   if (isRemote(await headers()))
     return { ok: false as const, error: "failed" as const };
-  return run(async (db) => {
-    const { error } = await db.rpc("remake_cancel", {
+  return run(async () => {
+    return invoke(remakeCancel, {
       p_remake: RemakeIdInput.parse(input).remakeId,
     });
-    if (error) throw error;
-    return {};
   });
 }
 
 export async function dismissRemake(input: unknown) {
   if (isRemote(await headers()))
     return { ok: false as const, error: "failed" as const };
-  return run(async (db) => {
-    const { error } = await db.rpc("remake_dismiss", {
+  return run(async () => {
+    return invoke(remakeDismiss, {
       p_remake: RemakeIdInput.parse(input).remakeId,
     });
-    if (error) throw error;
-    return {};
   });
 }
 
 export async function retryRemake(input: unknown) {
   if (isRemote(await headers()))
     return { ok: false as const, error: "failed" as const };
-  return run(async (db) => {
-    const { error } = await db.rpc("remake_retry", {
+  return run(async () => {
+    return invoke(remakeRetry, {
       p_remake: RemakeIdInput.parse(input).remakeId,
     });
-    if (error) throw error;
-    return {};
   });
 }

@@ -4,23 +4,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import FIXTURE from "../../../../packages/remake/test/fixtures/remake-lyrics.it.json";
 
 const mocks = vi.hoisted(() => ({
-  rpc: vi.fn(
-    async (
-      _name: string,
-      _args: Record<string, unknown>,
-    ): Promise<{ data: unknown; error: { message: string } | null }> => ({
-      data: "r1",
-      error: null,
-    }),
-  ),
+  rpc: vi.fn(),
+  ops: vi.fn(),
   lyrics: null as unknown,
 }));
+vi.mock("@/lib/ops/context", () => ({
+  sessionCtx: async () => ({ actor_kind: "session", user_id: "owner" }),
+}));
+vi.mock("@/lib/db/ops-client", () => ({ callOps: mocks.ops }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   actionProfile: async () => ({
     supabase: {
-      rpc: mocks.rpc,
       from: () => ({
         select: () => ({
           eq: () => ({
@@ -38,8 +34,11 @@ vi.mock("@/lib/auth", () => ({
 
 import {
   acceptRemake,
+  cancelRemake,
+  dismissRemake,
   editRemake,
   regenerateRemakeSection,
+  retryRemake,
   startRemake,
 } from "./remake";
 
@@ -49,7 +48,38 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
   mocks.lyrics = structuredClone(FIXTURE);
-  mocks.rpc.mockImplementation(async () => ({ data: "r1", error: null }));
+  mocks.rpc.mockImplementation(async () => ({ data: ID, error: null }));
+  mocks.ops.mockImplementation(async (name: string, args: unknown[]) => {
+    if (name === "idem_begin") return { ok: true, data: { status: "new" } };
+    const names: Record<string, string[]> = {
+      remake_start: ["p_url", "p_video_id", "p_lang", "p_country"],
+      remake_edit: ["p_remake", "p_revision", "p_lines", "p_title"],
+      remake_regenerate_section: ["p_remake", "p_revision", "p_section"],
+      remake_accept: [
+        "p_remake",
+        "p_revision",
+        "p_pack",
+        "p_settings",
+        "p_vocal_gender",
+      ],
+      remake_cancel: ["p_remake"],
+      remake_dismiss: ["p_remake"],
+      remake_retry: ["p_remake"],
+    };
+    const result = await mocks.rpc(
+      name,
+      Object.fromEntries(names[name].map((key, i) => [key, args[i + 1]])),
+    );
+    return result.error
+      ? { ok: false, code: "conflict", message: result.error.message }
+      : {
+          ok: true,
+          data:
+            name === "remake_edit"
+              ? { revision: result.data }
+              : { id: result.data },
+        };
+  });
 });
 
 describe("startRemake", () => {
@@ -72,7 +102,7 @@ describe("startRemake", () => {
         lang: "en",
         country: "GB",
       }),
-    ).toEqual({ ok: true, id: "r1" });
+    ).toEqual({ ok: true, id: ID });
     expect(mocks.rpc).toHaveBeenCalledWith("remake_start", {
       p_url: "https://youtube.com/watch?v=49rDdMbXd_w",
       p_video_id: "49rDdMbXd_w",
@@ -95,7 +125,7 @@ describe("startRemake", () => {
       mocks.rpc.mockResolvedValueOnce({ data: null, error: { message } });
       expect(
         await startRemake({ url: "https://youtu.be/49rDdMbXd_w", lang: "it" }),
-      ).toEqual({ ok: false, error });
+      ).toMatchObject({ ok: false, error });
     }
   });
 });
@@ -126,7 +156,7 @@ describe("review actions", () => {
         revision: 2,
         lines: [{ index: 8, text: "x" }],
       }),
-    ).toEqual({ ok: false, error: "conflict" });
+    ).toMatchObject({ ok: false, error: "conflict" });
     expect(
       await editRemake({
         remakeId: ID,
@@ -147,7 +177,7 @@ describe("review actions", () => {
         revision: 3,
         section: "chorus-1",
       }),
-    ).toEqual({ ok: false, error: "wait" });
+    ).toMatchObject({ ok: false, error: "wait" });
   });
 
   it("accepts with the exact reviewed text and never a source audio", async () => {
@@ -170,7 +200,7 @@ describe("review actions", () => {
           },
         },
       }),
-    ).toEqual({ ok: true, id: "r1" });
+    ).toEqual({ ok: true, id: ID });
     const [name, args] = mocks.rpc.mock.calls[0] ?? [];
     expect(name).toBe("remake_accept");
     expect(args).toMatchObject({
@@ -199,6 +229,21 @@ describe("review actions", () => {
         vocalGender: null,
         settings: { engine: "kie", model: "V6" },
       }),
-    ).toEqual({ ok: false, error: "gate" });
+    ).toMatchObject({ ok: false, error: "gate" });
   });
+});
+
+it.each([
+  [cancelRemake, "remake_cancel"],
+  [dismissRemake, "remake_dismiss"],
+  [retryRemake, "remake_retry"],
+] as const)("routes lifecycle writes through ops: %s", async (action, name) => {
+  expect(await action({ remakeId: ID })).toEqual({ ok: true });
+  expect(mocks.ops).toHaveBeenCalledWith(name, [
+    expect.objectContaining({
+      actor_kind: "session",
+      idempotency_key: expect.any(String),
+    }),
+    ID,
+  ]);
 });

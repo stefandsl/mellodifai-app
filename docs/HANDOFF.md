@@ -370,10 +370,13 @@ Only e2e was migrated. Existing web action routing remains Task 29.
 M1 Task 29 routes the eight planned action modules through 42 operation
 definitions for the Task 19 and 20 wrappers. The old `runAction(work)` path is
 removed. The action scan now checks an effective current-request remote guard.
-`formatStyle`, remake and lyrics-assist have direct remote refusals; their
-remaining public RPC paths need ops wrappers before the M1 lockdown removes
-authenticated write access. The e2e stack passed all eight browser tests with
-Chocolatey FFmpeg first on PATH. Production was untouched.
+Review R1 adds nine local cookie wrappers in migration
+`20261102000038_ops_remake_wrappers.sql` for remake and lyrics-assist writes.
+Their actions use the shared ops runner with verified session context, keeping
+the existing UI result codes. `formatStyle` requires `ops.style_format_check`
+before accessing OpenRouter. The visualizer comparison owns a fresh browser
+context per test so fonts and suspended audio contexts cannot accumulate.
+Only the e2e database was migrated. Production was untouched.
 
 M1 Task 21 lands engine commit `38556c8234519fd04ac3edc2a1351cb6cb034421`
 in `C:/Users/Asus/Documents/suno-remake` (no remote configured). All six engine

@@ -4,13 +4,17 @@
 import { LyricsAssistInputSchema } from "@mellodifai/shared";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { actionProfile } from "@/lib/auth";
+import { sessionCtx } from "@/lib/ops/context";
+import { lyricsAssistCancel } from "@/lib/ops/defs/lyrics-assist-cancel";
+import { lyricsAssistRequest } from "@/lib/ops/defs/lyrics-assist-request";
+import { runOp } from "@/lib/ops/run";
 import { isRemote } from "@/lib/remote";
 
 export type LyricsAssistError = "busy" | "limit" | "invalid" | "failed";
 export type LyricsAssistActionResult =
   | { ok: true; id: string }
-  | { ok: false; error: LyricsAssistError };
+  | { ok: true; committed: true }
+  | { ok: false; error: LyricsAssistError; idempotencyKey?: string };
 
 export async function requestLyricsAssist(
   input: unknown,
@@ -20,21 +24,31 @@ export async function requestLyricsAssist(
   if (!parsed.success) return { ok: false, error: "invalid" };
   const { mode, lang, ...rest } = parsed.data;
   try {
-    const { supabase } = await actionProfile();
-    const { data, error } = await supabase.rpc("lyrics_assist_request", {
+    const result = await runOp(lyricsAssistRequest, await sessionCtx(), {
       p_mode: mode,
       p_lang: lang,
       p_input: rest,
     });
-    if (error) {
-      if (/already running/u.test(error.message))
-        return { ok: false, error: "busy" };
-      if (/daily lyrics limit/u.test(error.message))
-        return { ok: false, error: "limit" };
-      console.error("Lyrics request failed:", error.message.slice(0, 300));
-      return { ok: false, error: "failed" };
+    if (!result.ok) {
+      const reason = z
+        .object({ action_error: z.string() })
+        .safeParse(result.details);
+      return {
+        ok: false,
+        error:
+          reason.success &&
+          (reason.data.action_error === "busy" ||
+            reason.data.action_error === "limit")
+            ? reason.data.action_error
+            : "failed",
+        ...(result.idempotency_key
+          ? { idempotencyKey: result.idempotency_key }
+          : {}),
+      };
     }
-    return { ok: true, id: data as string };
+    return "committed" in result
+      ? { ok: true, committed: true }
+      : { ok: true, id: result.data.id };
   } catch (error) {
     console.error(
       "Lyrics request failed:",
@@ -49,11 +63,10 @@ export async function cancelLyricsAssist(input: unknown) {
   const id = z.string().uuid().safeParse(input);
   if (!id.success) return { ok: false as const };
   try {
-    const { supabase } = await actionProfile();
-    const { error } = await supabase.rpc("lyrics_assist_cancel", {
+    const result = await runOp(lyricsAssistCancel, await sessionCtx(), {
       p_request: id.data,
     });
-    return { ok: !error };
+    return { ok: result.ok };
   } catch {
     return { ok: false as const };
   }

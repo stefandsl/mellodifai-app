@@ -1,8 +1,9 @@
 "use server";
 import { headers } from "next/headers";
-import { actionProfile } from "@/lib/auth";
 import { openRouterKey } from "@/lib/openrouter-key";
-import { createLimiter } from "@/lib/rate-limit";
+import { sessionCtx } from "@/lib/ops/context";
+import { styleFormatCheck } from "@/lib/ops/defs/style-format-check";
+import { runOp } from "@/lib/ops/run";
 import { isRemote } from "@/lib/remote";
 import {
   buildMessages,
@@ -17,16 +18,19 @@ export type FormatResult =
 
 // The lyric pipeline's fast writer (worker: LYRICS_MODEL_FAST).
 const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
-const limiter = createLimiter(20, 10 * 60_000);
 
 // "Formatta con AI": runs on the server because the OpenRouter key must never reach the browser.
 // The key comes from the server environment or the worker's env files (lib/openrouter-key.ts).
 export async function formatStyle(input: unknown): Promise<FormatResult> {
   if (isRemote(await headers())) return { ok: false, error: "failed" };
   try {
-    const { user } = await actionProfile();
     const { styles } = FormatStyleInput.parse(input);
-    if (!limiter.take(user.id)) return { ok: false, error: "limit" };
+    const check = await runOp(styleFormatCheck, await sessionCtx(), {});
+    if (!check.ok)
+      return {
+        ok: false,
+        error: check.code === "rate_limited" ? "limit" : "failed",
+      };
     const key = await openRouterKey();
     if (!key) return { ok: false, error: "noKey" };
     const response = await fetch(

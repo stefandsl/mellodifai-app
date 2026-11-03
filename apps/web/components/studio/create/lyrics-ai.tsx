@@ -183,6 +183,7 @@ export function LyricsAi({
       before.current = { lyrics: form.lyrics, title: form.title };
       setState(null);
       setBriefOpen(false);
+      if ("committed" in result) return;
       setRequest({ id: result.id, mode });
     } finally {
       setSending(false);
