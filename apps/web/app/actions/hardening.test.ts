@@ -1,186 +1,135 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => {
-  const query = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    single: vi.fn(async () => ({
-      data: {
-        id: "publication",
-        render_id: "render",
-        version_id: "version",
-        project_id: "project",
-      },
-      error: null,
-    })),
-  };
-  query.select.mockReturnValue(query);
-  query.eq.mockReturnValue(query);
-  return {
-    from: vi.fn(() => query),
-    rpc: vi.fn(async () => ({
-      data: "project",
-      error: null as { message: string } | null,
-    })),
-    auth: vi.fn(),
-  };
-});
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-vi.mock("@/lib/locale", () => ({ getLocale: async () => "en" }));
-vi.mock("@/lib/auth", () => ({
-  actionProfile: async () => {
-    mocks.auth();
-    return { supabase: mocks, user: { id: "owner" } };
-  },
+const mocks = vi.hoisted(() => ({
+  callOps: vi.fn(),
+  headers: vi.fn(async () => new Headers()),
 }));
+vi.mock("next/headers", () => ({ headers: mocks.headers }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/locale", () => ({ getLocale: async () => "it" }));
+vi.mock("@/lib/supabase/server", () => ({
+  getSessionClaims: async () => ({ sub: "owner", session_id: "session" }),
+}));
+vi.mock("@/lib/db/ops-client", () => ({ callOps: mocks.callOps }));
+const ID = "00000000-0000-4000-8000-000000000001";
+const OTHER = "00000000-0000-4000-8000-000000000002";
+const DATA: Record<string, unknown> = {
+  song_create: { jobs: [], project_id: ID },
+  audio_keep: { jobs: [], version_id: ID },
+  take_choose: { jobs: [], version_id: ID },
+  admin_project_create: { jobs: [], project_id: ID },
+  song_import: { jobs: [], project_id: ID },
+  playlist_create: { jobs: [], playlist_id: ID },
+  songs_trash: { jobs: [], count: 2 },
+  songs_restore: { jobs: [], count: 2 },
+  playlist_add: { jobs: [], count: 2 },
+  playlist_remove: { jobs: [], count: 2 },
+  section_edit_request: { jobs: [], edit_id: ID },
+  section_edit_keep: { jobs: [], take_id: ID },
+  take_save_edit: { jobs: [], take_id: ID },
+  lyrics_back: { version_id: ID, status: "draft" },
+  video_approve: { version_id: ID, status: "ready" },
+  admin_confirm_publication: { jobs: [], job_id: ID },
+};
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.headers.mockResolvedValue(new Headers());
+  mocks.callOps.mockImplementation(async (fn: string) =>
+    fn === "idem_begin"
+      ? { ok: true, data: { status: "new" } }
+      : { ok: true, data: DATA[fn] ?? { jobs: [] } },
+  );
+});
+function called(fn: string, ...args: unknown[]) {
+  expect(mocks.callOps).toHaveBeenCalledWith(fn, [
+    expect.objectContaining({
+      actor_kind: "session",
+      user_id: "owner",
+      session_id: "session",
+    }),
+    ...args,
+  ]);
+}
 
-import { revalidatePath } from "next/cache";
 import {
-  approveLyrics,
   approveVideo,
   backToLyrics,
   generateAgain,
+  keepAudio,
   pickTake,
-  rerenderVideo,
   resolveKieSubmission,
   resolveUpload,
-  retryStage,
   setPrivacy,
   uploadPrivate,
 } from "./checkpoints";
 import { createProject } from "./project";
+import { chooseTake } from "./songs-from-songs";
 
-const id = "00000000-0000-4000-8000-000000000001";
-it("redacts JWT and Supabase keys before logging server action failures", async () => {
-  const { runAction } = await import("@/lib/run-action");
-  const log = vi.spyOn(console, "error").mockImplementation(() => {});
-  const credentials = [
-    "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZSJ9.signature",
-    "sb_secret_Abc123_xyz",
-    "sb_publishable_Abc123_xyz",
-  ];
-  for (const plain of [false, true]) {
-    const message = `request failed ${credentials.join(" ")}`;
-    await runAction(async () => {
-      throw plain ? { message } : new Error(message);
-    });
-  }
-  const logged = JSON.stringify(log.mock.calls);
-  expect(logged).toContain("request failed");
-  for (const credential of credentials)
-    expect(logged).not.toContain(credential);
-  log.mockRestore();
+it("routes all similarly named take actions to the correct wrappers", async () => {
+  expect(await pickTake({ versionId: ID, takeId: OTHER })).toEqual({
+    ok: true,
+  });
+  called("take_pick", ID, OTHER);
+  expect(await keepAudio({ versionId: ID, takeId: OTHER })).toEqual({
+    ok: true,
+  });
+  called("audio_keep", ID, OTHER);
+  expect(await chooseTake({ versionId: ID, takeId: OTHER })).toEqual({
+    ok: true,
+  });
+  called("take_choose", ID, OTHER);
 });
-it("routes both resolution forms through owned recovery RPCs and revalidates", async () => {
-  await resolveUpload({ publicationId: id, uploaded: true, videoId: "abc123" });
-  expect(mocks.rpc).toHaveBeenCalledWith("resolve_upload", {
-    p_publication: id,
-    p_uploaded: true,
-    p_video_id: "abc123",
-  });
-  await resolveUpload({ publicationId: id, uploaded: false });
-  expect(mocks.rpc).toHaveBeenCalledWith("resolve_upload", {
-    p_publication: id,
-    p_uploaded: false,
-    p_video_id: null,
-  });
+
+it("accepts the version and status response of non-enqueueing wrappers", async () => {
+  expect(await approveVideo({ versionId: ID })).toEqual({ ok: true });
+  called("video_approve", ID);
+  expect(await backToLyrics({ versionId: ID })).toEqual({ ok: true });
+  called("lyrics_back", ID);
+});
+it("routes admin work to admin wrappers", async () => {
   await resolveKieSubmission({
-    versionId: id,
+    versionId: ID,
     charged: true,
     taskId: "task-1",
   });
-  expect(mocks.rpc).toHaveBeenCalledWith("resolve_kie_submission", {
-    p_version: id,
-    p_charged: true,
-    p_task_id: "task-1",
+  called("admin_resolve_kie_submission", ID, true, "task-1", null);
+  await resolveUpload({ publicationId: ID, uploaded: true, videoId: "abc" });
+  called("admin_resolve_upload", ID, true, "abc");
+  await approveVideo({ versionId: ID, overrideReason: "Reviewed" });
+  called("admin_video_approve_override", ID, "Reviewed");
+  await setPrivacy({ publicationId: ID, privacy: "public" });
+  called("admin_confirm_publication", ID, "public", null);
+  await uploadPrivate({
+    renderId: ID,
+    metadata: { title: "Title", description: "", tags: "", chapters: "" },
   });
-  await backToLyrics({ versionId: id });
-  expect(mocks.rpc).toHaveBeenCalledWith("back_to_lyrics", { p_version: id });
-  expect(revalidatePath).toHaveBeenCalledWith("/projects/project");
+  expect(
+    mocks.callOps.mock.calls.some(([fn]) => fn === "admin_enqueue_publish"),
+  ).toBe(true);
+  expect(
+    await createProject({
+      topic: "Song",
+      style: "Pop",
+      vocalGender: "f",
+      languages: ["en", "en"],
+    }),
+  ).toEqual({ ok: true, id: ID });
+  called("admin_project_create", "Song", "", ["en"], "Pop", "", "f");
 });
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.rpc.mockResolvedValue({ data: "project", error: null });
-});
-it("picks atomically and revalidates the project rather than version path", async () => {
-  expect(await pickTake({ versionId: id, takeId: id })).toEqual({
-    ok: true,
-    id: "project",
-  });
-  expect(mocks.rpc).toHaveBeenCalledWith("pick_take", {
-    p_version: id,
-    p_take: id,
-  });
-  expect(revalidatePath).toHaveBeenCalledWith("/projects/project");
-});
-it("sends expected generation, override reason and render request to separate RPCs", async () => {
-  await generateAgain({ versionId: id, generation: 4 });
-  await rerenderVideo({ versionId: id });
-  await approveVideo({ versionId: id, overrideReason: "Reviewed loudness" });
-  expect(mocks.rpc).toHaveBeenCalledWith("generate_again", {
-    p_version: id,
-    p_generation: 4,
-  });
-  expect(mocks.rpc).toHaveBeenCalledWith("render_again", { p_version: id });
-  expect(mocks.rpc).toHaveBeenCalledWith("approve_video", {
-    p_version: id,
-    p_override_reason: "Reviewed loudness",
-  });
-  expect(mocks.auth).toHaveBeenCalledTimes(3);
-});
-it("confirms scheduled publication and refreshes its project", async () => {
-  await setPrivacy({
-    publicationId: id,
-    privacy: "scheduled",
-    publishAt: "2099-01-01T00:00:00Z",
-  });
-  expect(mocks.rpc).toHaveBeenCalledWith("confirm_publication", {
-    p_publication: id,
-    p_privacy: "scheduled",
-    p_publish_at: "2099-01-01T00:00:00Z",
-  });
-  expect(revalidatePath).toHaveBeenCalledWith("/projects/project");
-});
-it("creates a deduplicated project in one RPC", async () => {
-  await createProject({
-    topic: "Song",
-    style: "Pop",
-    vocalGender: "f",
-    languages: ["en", "en"],
-  });
-  expect(mocks.rpc).toHaveBeenCalledWith(
-    "create_project",
-    expect.objectContaining({ p_languages: ["en"] }),
-  );
-  expect(mocks.from).not.toHaveBeenCalled();
-});
-it("all actions return failures for malformed input instead of throwing", async () => {
-  for (const action of [
-    approveLyrics,
-    approveVideo,
-    generateAgain,
-    pickTake,
-    rerenderVideo,
-    setPrivacy,
-    uploadPrivate,
-    retryStage,
-    createProject,
-  ])
-    expect(await action({})).toMatchObject({
-      ok: false,
-      error: expect.any(String),
-    });
-  expect(mocks.rpc).not.toHaveBeenCalled();
-});
-it("database errors are returned without leaking raw database details", async () => {
-  mocks.rpc.mockResolvedValueOnce({
-    data: "",
-    error: { message: "secret internal detail" },
-  });
-  expect(await pickTake({ versionId: id, takeId: id })).toEqual({
+it("keeps validation and coded error shapes", async () => {
+  expect(await generateAgain({ versionId: ID, generation: 0 })).toMatchObject({
     ok: false,
-    error: "Action failed. Please try again.",
+    code: "validation",
+  });
+  expect(mocks.callOps).not.toHaveBeenCalled();
+  mocks.callOps.mockImplementation(async (fn: string) =>
+    fn === "idem_begin"
+      ? { ok: true, data: { status: "new" } }
+      : { ok: false, code: "conflict", message: "private detail" },
+  );
+  expect(await pickTake({ versionId: ID, takeId: OTHER })).toMatchObject({
+    ok: false,
+    code: "conflict",
   });
 });

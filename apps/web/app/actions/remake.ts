@@ -13,8 +13,10 @@ import {
   youtubeVideoId,
 } from "@mellodifai/shared";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { actionProfile } from "@/lib/auth";
+import { isRemote } from "@/lib/remote";
 
 export type RemakeActionError =
   | "invalidUrl"
@@ -79,6 +81,8 @@ const StartInput = z.object({
 });
 
 export async function startRemake(input: unknown) {
+  if (isRemote(await headers()))
+    return { ok: false as const, error: "failed" as const };
   return run(async (db) => {
     const v = StartInput.parse(input);
     const videoId = youtubeVideoId(v.url);
@@ -121,6 +125,8 @@ const EditInput = z.object({
 });
 
 export async function editRemake(input: unknown) {
+  if (isRemote(await headers()))
+    return { ok: false as const, error: "failed" as const };
   return run(async (db) => {
     const v = EditInput.parse(input);
     const { data, error } = await db.rpc("remake_edit", {
@@ -141,6 +147,8 @@ const SectionInput = z.object({
 });
 
 export async function regenerateRemakeSection(input: unknown) {
+  if (isRemote(await headers()))
+    return { ok: false as const, error: "failed" as const };
   return run(async (db) => {
     const v = SectionInput.parse(input);
     const { error } = await db.rpc("remake_regenerate_section", {
@@ -165,6 +173,8 @@ const AcceptInput = z.object({
 });
 
 export async function acceptRemake(input: unknown) {
+  if (isRemote(await headers()))
+    return { ok: false as const, error: "failed" as const };
   return run(async (db) => {
     const v = AcceptInput.parse(input);
     const { data: row, error: readError } = await db
@@ -208,6 +218,8 @@ export async function acceptRemake(input: unknown) {
 const RemakeIdInput = z.object({ remakeId: Id });
 
 export async function cancelRemake(input: unknown) {
+  if (isRemote(await headers()))
+    return { ok: false as const, error: "failed" as const };
   return run(async (db) => {
     const { error } = await db.rpc("remake_cancel", {
       p_remake: RemakeIdInput.parse(input).remakeId,
@@ -218,6 +230,8 @@ export async function cancelRemake(input: unknown) {
 }
 
 export async function dismissRemake(input: unknown) {
+  if (isRemote(await headers()))
+    return { ok: false as const, error: "failed" as const };
   return run(async (db) => {
     const { error } = await db.rpc("remake_dismiss", {
       p_remake: RemakeIdInput.parse(input).remakeId,
@@ -228,6 +242,8 @@ export async function dismissRemake(input: unknown) {
 }
 
 export async function retryRemake(input: unknown) {
+  if (isRemote(await headers()))
+    return { ok: false as const, error: "failed" as const };
   return run(async (db) => {
     const { error } = await db.rpc("remake_retry", {
       p_remake: RemakeIdInput.parse(input).remakeId,

@@ -28,5 +28,6 @@ export type OpDef<I, O> = {
   scope: "read" | "create" | "spend" | "admin";
   key: boolean;
   mutating: boolean;
+  reservesPaidWork?: boolean;
   revalidate: (data: O) => string[];
 };

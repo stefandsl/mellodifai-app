@@ -1,43 +1,28 @@
 import { type OpsErrorCode, t } from "@mellodifai/shared";
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { ActionResult } from "./action-result";
-import { actionProfile } from "./auth";
 import { getLocale } from "./locale";
 import { sessionCtx } from "./ops/context";
 import { runOp } from "./ops/run";
 import type { OpDef } from "./ops/types";
 import { isRemote } from "./remote";
 
-type LegacyWork = (
-  db: Awaited<ReturnType<typeof actionProfile>>["supabase"],
-) => Promise<{
-  versionId?: string;
-  projectId?: string;
-  // Overrides the id the result carries (a new playlist, for instance).
-  id?: string;
-  count?: number;
-}>;
-
-export function runAction(work: LegacyWork): Promise<ActionResult>;
 export function runAction<I, O>(
   def: OpDef<I, O>,
   input: unknown,
-  options?: { idempotencyKey?: string },
+  options?: { idempotencyKey?: string; count?: number },
 ): Promise<ActionResult>;
 export async function runAction<I, O>(
-  defOrWork: OpDef<I, O> | LegacyWork,
-  input?: unknown,
-  options?: { idempotencyKey?: string },
+  def: OpDef<I, O>,
+  input: unknown,
+  options?: { idempotencyKey?: string; count?: number },
 ): Promise<ActionResult> {
   try {
     if (isRemote(await headers())) return opsFailure("forbidden_scope");
   } catch {
     return opsFailure("internal");
   }
-  if (typeof defOrWork !== "function")
-    return remoteAction(defOrWork, input, options);
-  return legacyAction(defOrWork);
+  return remoteAction(def, input, options);
 }
 
 async function opsFailure(code: OpsErrorCode): Promise<ActionResult> {
@@ -47,7 +32,7 @@ async function opsFailure(code: OpsErrorCode): Promise<ActionResult> {
 export async function remoteAction<I, O>(
   def: OpDef<I, O>,
   input: unknown,
-  options?: { idempotencyKey?: string },
+  options?: { idempotencyKey?: string; count?: number },
 ): Promise<ActionResult> {
   try {
     const ctx = await sessionCtx();
@@ -73,12 +58,20 @@ export async function remoteAction<I, O>(
             ? data.playlist_id
             : "id" in data
               ? data.id
-              : undefined
+              : "edit_id" in data
+                ? data.edit_id
+                : "take_id" in data
+                  ? data.take_id
+                  : "job_id" in data
+                    ? data.job_id
+                    : "jobs" in data && Array.isArray(data.jobs)
+                      ? data.jobs[0]?.job_id
+                      : undefined
         : undefined;
     const count =
       data && typeof data === "object" && "count" in data
         ? data.count
-        : undefined;
+        : options?.count;
     return {
       ok: true,
       ...(typeof id === "string" ? { id } : {}),
@@ -86,51 +79,5 @@ export async function remoteAction<I, O>(
     };
   } catch {
     return opsFailure("unauthorized");
-  }
-}
-
-async function legacyAction(work: LegacyWork): Promise<ActionResult> {
-  try {
-    const { supabase } = await actionProfile();
-    const result = await work(supabase);
-    let projectId = result.projectId;
-    if (result.versionId) {
-      const { data, error } = await supabase
-        .from("versions")
-        .select("project_id")
-        .eq("id", result.versionId)
-        .single();
-      if (error) throw error;
-      projectId = data.project_id;
-    }
-    if (projectId) revalidatePath(`/projects/${projectId}`);
-    const resultId = result.id ?? projectId;
-    revalidatePath("/library");
-    revalidatePath("/create");
-    revalidatePath("/playlists");
-    revalidatePath("/playlists/[id]", "page");
-    revalidatePath("/search");
-    revalidatePath("/stems/[id]", "page");
-    revalidatePath("/editor/[id]", "page");
-    return {
-      ok: true,
-      ...(resultId ? { id: resultId } : {}),
-      ...(result.count === undefined ? {} : { count: result.count }),
-    };
-  } catch (error) {
-    const message =
-      error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : String(error);
-    console.error(
-      "Server action failed:",
-      message
-        .replace(
-          /\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu,
-          "[redacted]",
-        )
-        .replace(/\bsb_(?:secret|publishable)_[A-Za-z0-9_-]+/gu, "[redacted]"),
-    );
-    return { ok: false, error: t(await getLocale(), "error.action") };
   }
 }

@@ -33,7 +33,9 @@ export async function runOp<I, O>(
   const uncertain = (): OpRunResult<O> => ({
     ok: false,
     code:
-      def.mutating && def.scope === "spend" ? "ambiguous_spend" : "internal",
+      def.mutating && (def.scope === "spend" || def.reservesPaidWork)
+        ? "ambiguous_spend"
+        : "internal",
     message:
       "Completion unknown. Do not automatically retry. Retain the original idempotency key.",
     ...(key ? { idempotency_key: key } : {}),
@@ -104,7 +106,7 @@ export async function runOp<I, O>(
   try {
     data = def.output.parse(result.data);
   } catch {
-    console.error("Operation output contract validation failed");
+    console.error("Operation output contract validation failed:", def.name);
     if (def.mutating) return { ok: true, committed: true };
     return {
       ok: false,
@@ -117,7 +119,12 @@ export async function runOp<I, O>(
       for (const path of def.revalidate(data)) revalidatePath(path);
       for (const path of ["/library", "/create", "/playlists", "/search"])
         revalidatePath(path);
-      for (const path of ["/playlists/[id]", "/stems/[id]", "/editor/[id]"])
+      for (const path of [
+        "/projects/[id]",
+        "/playlists/[id]",
+        "/stems/[id]",
+        "/editor/[id]",
+      ])
         revalidatePath(path, "page");
     } catch {
       // The mutation committed. Reporting failure could cause a duplicate paid job.

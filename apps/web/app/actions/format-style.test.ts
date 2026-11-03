@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
   key: vi.fn(async (): Promise<string | null> => "sk-test-key-123456"),
   user: { id: "u1" } as { id: string },
   signedIn: true,
+  headers: vi.fn(async () => new Headers()),
 }));
+vi.mock("next/headers", () => ({ headers: mocks.headers }));
 vi.mock("@/lib/auth", () => ({
   actionProfile: async () => {
     if (!mocks.signedIn) throw new Error("Unauthorized");
@@ -15,6 +17,15 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/openrouter-key", () => ({ openRouterKey: mocks.key }));
 
 import { formatStyle } from "./format-style";
+
+it("refuses a remote action before reading the paid provider key", async () => {
+  mocks.headers.mockResolvedValueOnce(new Headers({ "x-mdf-remote": "1" }));
+  expect(await formatStyle({ styles: "jazz" })).toEqual({
+    ok: false,
+    error: "failed",
+  });
+  expect(mocks.key).not.toHaveBeenCalled();
+});
 
 const reply = (content: unknown, status = 200) =>
   new Response(

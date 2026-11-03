@@ -367,6 +367,14 @@ spend; the optional `p_edit` selects section-edit recovery. The current audio
 keep RPC creates no timing job, but its wrapper reserves any jobs it enqueues.
 Only e2e was migrated. Existing web action routing remains Task 29.
 
+M1 Task 29 routes the eight planned action modules through 42 operation
+definitions for the Task 19 and 20 wrappers. The old `runAction(work)` path is
+removed. The action scan now checks an effective current-request remote guard.
+`formatStyle`, remake and lyrics-assist have direct remote refusals; their
+remaining public RPC paths need ops wrappers before the M1 lockdown removes
+authenticated write access. The e2e stack passed all eight browser tests with
+Chocolatey FFmpeg first on PATH. Production was untouched.
+
 M1 Task 21 lands engine commit `38556c8234519fd04ac3edc2a1351cb6cb034421`
 in `C:/Users/Asus/Documents/suno-remake` (no remote configured). All six engine
 credential-file readers now refuse under `MELLODIFAI_ENV_ONLY=1` when a file

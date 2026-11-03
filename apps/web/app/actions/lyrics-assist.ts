@@ -2,8 +2,10 @@
 // "Scrivi con AI", "Rigenera" and "Migliora" (task 27): one lyrics_assist job of the worker's lyric
 // pipeline per click (migration 20261102000025). The editor polls lyrics_assist_state.
 import { LyricsAssistInputSchema } from "@mellodifai/shared";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { actionProfile } from "@/lib/auth";
+import { isRemote } from "@/lib/remote";
 
 export type LyricsAssistError = "busy" | "limit" | "invalid" | "failed";
 export type LyricsAssistActionResult =
@@ -13,6 +15,7 @@ export type LyricsAssistActionResult =
 export async function requestLyricsAssist(
   input: unknown,
 ): Promise<LyricsAssistActionResult> {
+  if (isRemote(await headers())) return { ok: false, error: "failed" };
   const parsed = LyricsAssistInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
   const { mode, lang, ...rest } = parsed.data;
@@ -42,6 +45,7 @@ export async function requestLyricsAssist(
 }
 
 export async function cancelLyricsAssist(input: unknown) {
+  if (isRemote(await headers())) return { ok: false as const };
   const id = z.string().uuid().safeParse(input);
   if (!id.success) return { ok: false as const };
   try {

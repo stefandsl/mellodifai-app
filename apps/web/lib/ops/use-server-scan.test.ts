@@ -30,7 +30,11 @@ function serverModules(dir: string): string[] {
 }
 
 function unwrap(node: ts.Node): ts.Node {
-  if (ts.isAwaitExpression(node) || ts.isParenthesizedExpression(node))
+  if (
+    ts.isAwaitExpression(node) ||
+    ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node)
+  )
     return unwrap(node.expression);
   return node;
 }
@@ -40,7 +44,10 @@ function wrapperReturn(node: ts.Node): boolean {
   return (
     ts.isCallExpression(expression) &&
     ts.isIdentifier(expression.expression) &&
-    ["runAction", "remoteAction"].includes(expression.expression.text)
+    ["runAction", "remoteAction"].includes(expression.expression.text) &&
+    expression.arguments.length >= 2 &&
+    !ts.isArrowFunction(expression.arguments[0]) &&
+    !ts.isFunctionExpression(expression.arguments[0])
   );
 }
 
@@ -57,15 +64,15 @@ function refusal(node: ts.Node): boolean {
       (property) =>
         ts.isPropertyAssignment(property) &&
         (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) &&
-        (ts.isStringLiteral(property.initializer) ||
-          property.initializer.kind === ts.SyntaxKind.FalseKeyword),
+        (ts.isStringLiteral(unwrap(property.initializer)) ||
+          unwrap(property.initializer).kind === ts.SyntaxKind.FalseKeyword),
     ) &&
     expression.properties.some(
       (property) =>
         ts.isPropertyAssignment(property) &&
         (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) &&
         property.name.text === "ok" &&
-        property.initializer.kind === ts.SyntaxKind.FalseKeyword,
+        unwrap(property.initializer).kind === ts.SyntaxKind.FalseKeyword,
     )
   );
 }
@@ -88,6 +95,11 @@ function effectiveGuard(node: ts.Node): boolean {
     ts.isCallExpression(condition) &&
     ts.isIdentifier(condition.expression) &&
     condition.expression.text === "isRemote" &&
+    condition.arguments.length === 1 &&
+    ts.isAwaitExpression(condition.arguments[0]) &&
+    ts.isCallExpression(condition.arguments[0].expression) &&
+    ts.isIdentifier(condition.arguments[0].expression.expression) &&
+    condition.arguments[0].expression.expression.text === "headers" &&
     refusal(first.thenStatement)
   );
 }
@@ -177,7 +189,7 @@ it.each([
   "async function action() { return runAction(def, input); } export { action as renamed };",
   "export default async function () { return remoteAction(def, input); }",
   "const action = async () => runAction(def, input); export default action;",
-  "export default async () => { if (isRemote(headers)) return; };",
+  "export default async () => { if (isRemote(await headers())) return; };",
 ])("accepts guarded export forms: %s", (text) => {
   expect(
     unguardedExports(
@@ -186,7 +198,7 @@ it.each([
   ).toEqual([]);
 });
 
-it.fails("every use server export uses an action wrapper or checks remote access", () => {
+it("every use server export uses an action wrapper or checks remote access", () => {
   const root = path.resolve(import.meta.dirname, "../..");
   const unguarded: string[] = [];
   for (const file of serverModules(root)) {
@@ -213,6 +225,7 @@ it.each([
   "await spend(); if (isRemote(headers)) return;",
   "if (isRemote(headers)) { spend(); return; } return spend();",
   "if (isRemote(headers)) return spend();",
+  "if (isRemote(new Headers())) return { ok: false }; return spend();",
 ])("rejects ineffective guards: %s", (body) => {
   expect(
     unguardedExports(

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   ),
   lyrics: null as unknown,
 }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   actionProfile: async () => ({

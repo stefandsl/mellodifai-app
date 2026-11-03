@@ -114,17 +114,6 @@ it("runAction refuses remote requests with forbidden_scope before database work"
   expect(mocks.callOps).not.toHaveBeenCalled();
 });
 
-it("the temporary runAction(work) overload also refuses remote requests", async () => {
-  mocks.headers.mockResolvedValue(new Headers({ "x-mdf-remote": "1" }));
-  const work = vi.fn(async () => ({}));
-  const { runAction } = await import("@/lib/run-action");
-  expect(await runAction(work)).toMatchObject({
-    ok: false,
-    code: "forbidden_scope",
-  });
-  expect(work).not.toHaveBeenCalled();
-});
-
 it("requestHash ignores object key order", async () => {
   const { requestHash } = await import("./run");
   expect(requestHash("example", { b: 2, a: { y: 2, x: 1 } })).toBe(
@@ -421,6 +410,21 @@ it("retains the supplied key when a dispatched spend throws", async () => {
     code: "ambiguous_spend",
     message:
       "Completion unknown. Do not automatically retry. Retain the original idempotency key.",
+    idempotency_key: keyedCtx.idempotency_key,
+  });
+});
+
+it("treats uncertain create-scoped paid work as ambiguous spend", async () => {
+  const { runOp } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({ ok: true, data: { status: "new" } });
+  mocks.callOps.mockRejectedValueOnce(new Error("transport failed"));
+  expect(
+    await runOp({ ...def, key: true, reservesPaidWork: true }, keyedCtx, {
+      value: "ok",
+    }),
+  ).toMatchObject({
+    ok: false,
+    code: "ambiguous_spend",
     idempotency_key: keyedCtx.idempotency_key,
   });
 });
