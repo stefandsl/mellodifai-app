@@ -54,6 +54,14 @@ describe("restore", () => {
     ])
       expect(() => backupTag(path)).toThrow();
   });
+  it("accepts only the legacy backup in the runtime backup directory", () => {
+    expect(
+      backupTag("E:/mellodifai/backups/2026-11-03-task-33-pre-cutover.sql"),
+    ).toBe("m1-floor");
+    expect(() =>
+      backupTag("E:/mellodifai/tmp/2026-11-03-task-33-pre-cutover.sql"),
+    ).toThrow();
+  });
 });
 
 it("uses a database-only reset target and disables seed without permitting a public restore flag", () => {

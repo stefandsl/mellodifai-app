@@ -57,12 +57,15 @@ afterEach(() => {
   f.calls.length = 0;
   if (root) rmSync(root, { recursive: true, force: true });
 });
-function fixture(belowFloor = false) {
+function fixture(belowFloor = false, legacy = false) {
   const base = process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp";
   mkdirSync(base, { recursive: true });
   root = mkdtempSync(join(base, "restore-unit-"));
   vi.stubEnv("MELLODIFAI_ROOT", root);
-  const backup = join(root, "2026-11-02T22-00-00-000Z-m1-floor.sql");
+  const backup = legacy
+    ? join(root, "backups", "2026-11-03-task-33-pre-cutover.sql")
+    : join(root, "2026-11-02T22-00-00-000Z-m1-floor.sql");
+  mkdirSync(join(root, "backups"), { recursive: true });
   writeFileSync(
     backup,
     "-- PostgreSQL database dump\n-- PostgreSQL database dump complete",
@@ -102,6 +105,20 @@ it("production restore validates first, backs up before checkout/reset, and depl
   expect(call?.slice(0, 2)).toEqual(["reset", "prod"]);
   expect(isRestoreAuthorization(call?.[2].restore)).toBe(true);
   expect(f.prepare).toHaveBeenCalledWith(expect.any(String), x.repo);
+});
+it("restores the exact legacy pre-cutover backup through the reviewed floor", async () => {
+  const x = fixture(false, true);
+  await productionRestore(x.backup, x.runner);
+  expect(f.calls).toEqual([
+    "stop",
+    "quiesce",
+    "backup",
+    "checkout",
+    "reset",
+    "import",
+    "passwords",
+    "--to m1-floor --skip-migrations",
+  ]);
 });
 it("a below-floor backup never stops, dumps, checks out or resets production", async () => {
   const x = fixture(true);

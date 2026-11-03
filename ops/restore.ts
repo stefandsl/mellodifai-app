@@ -32,6 +32,14 @@ export type Step = {
   skipMigrations: boolean;
 };
 export function backupTag(backup: string): string {
+  // The verified pre-cutover dump predates tagged M1 backups.
+  if (
+    resolve(backup) ===
+    resolve(
+      join(runtimeRoot(), "backups", "2026-11-03-task-33-pre-cutover.sql"),
+    )
+  )
+    return "m1-floor";
   const match =
     /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-(m1-[a-zA-Z0-9._-]+)\.sql$/.exec(
       basename(backup),
