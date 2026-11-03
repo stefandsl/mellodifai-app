@@ -122,6 +122,19 @@ If you are not using the driver, the same loop by hand: read the task text in th
 implement with tests, commit, push, then review the task's diff against its text with fresh
 eyes before starting the next one.
 
+## 4b. Parallel Codex workstreams (started 2026-11-03)
+
+Six independent streams run next to M1, each in its own worktree `E:/mellodifai/wt/<name>` on
+branch `feat/<name>` from `build/studio-ui`: `render-4k` (1080p minimum, 4K, upscaler), `karaoke`
+(Spotify-like lyrics view), `song-assets` (per-song storyboard/thumbnail/metadata bug, CTR
+thumbnails), `repo-audit` (ponytail audit and fixes), `plan-m2` and `plan-m3m4` (plans only).
+Runner: `bash E:/mellodifai/codex-streams/stream.sh <name> <e2e-port>`; brief, report, reviews
+and `status.log` live in `E:/mellodifai/codex-streams/<name>/`. Builders use `gpt-6-sol`
+(reasoning high), reviewers `gpt-6-astra`; `gpt-6.1-sol` is refused on a ChatGPT account. A stream
+ends with "DONE branch ..." in its status.log; then review its report, merge the branch into
+`build/studio-ui` (renumber migrations to the next free number if needed), run all gates, push.
+Launch detached on Windows with PowerShell `Start-Process` so it outlives the agent session.
+
 ## 5. Later work (after M1)
 
 1080p minimum and 4K with an upscaler; per-song storyboard, thumbnail and metadata; Spotify-
