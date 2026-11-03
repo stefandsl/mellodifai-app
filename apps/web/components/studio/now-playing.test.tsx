@@ -83,6 +83,7 @@ beforeEach(() => {
     time: 12,
     duration: 200,
     showNow: false,
+    showLyrics: false,
     showQueue: false,
     showVideo: false,
     repeat: "off",
@@ -160,6 +161,15 @@ describe("opening and closing", () => {
 });
 
 describe("what it shows", () => {
+  it("opens plain lyrics with a visible synchronization action", async () => {
+    bar();
+    await userEvent.click(screen.getByRole("button", { name: "Testo" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("button", { name: "Sincronizza testo" }),
+    ).toBeVisible();
+    expect(within(dialog).getByText("Strofa", { exact: false })).toBeVisible();
+  });
   it("shows the lyrics, the first four style phrases and the date", async () => {
     bar();
     const dialog = await open();

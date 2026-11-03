@@ -1,6 +1,8 @@
 import {
   type Lang,
+  type LyricTiming,
   normalizeVisualizerParams,
+  parseLyricTiming,
   parseSongSource,
   parseTakeScores,
   type SongSource,
@@ -26,6 +28,7 @@ export type Clip = {
   style: string;
   prompt: string;
   lyrics: string;
+  timing?: LyricTiming | null;
   model: string;
   status: VersionStatus;
   createdAt: string;
@@ -45,6 +48,8 @@ export type Clip = {
     number: number;
     audioUrl: string | null;
     scores: TakeScores | null;
+    lyrics?: string | null;
+    timing?: LyricTiming | null;
     // Made by "Riscrivi una parte" from another take of the song.
     rewritten?: boolean;
   }[];
@@ -246,6 +251,7 @@ type Row = {
     lyrics?: string;
     settings?: { model?: string };
   } | null;
+  lyric_timing: unknown;
   chosen_take_id: string | null;
   lyric_jury: Jury | null;
   liked: boolean;
@@ -320,7 +326,7 @@ export async function loadClips(
   const base = supabase
     .from("versions")
     .select(
-      "id,lang,status,created_at,updated_at,lyric_pack,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings,source)",
+      "id,lang,status,created_at,updated_at,lyric_pack,lyric_timing,lyric_jury,liked,disliked,play_count,trashed_at,display_title,chosen_take_id,generation_count,render_attempt,projects(id,topic,style,brief,song_settings,source)",
     );
   let query = trash
     ? base.not("trashed_at", "is", null)
@@ -366,7 +372,7 @@ export async function loadClips(
       .from("takes")
       // Only whether the stems exist: the full set carries four waveforms.
       .select(
-        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,stems_at:stems->>created_at,source_kind:source->>kind",
+        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,lyrics,lyric_timing,stems_at:stems->>created_at,source_kind:source->>kind",
       )
       .in("version_id", ids),
     supabase
@@ -402,6 +408,8 @@ export async function loadClips(
       number: number;
       path: string | null;
       scores: TakeScores | null;
+      lyrics: string | null;
+      timing: LyricTiming | null;
       rewritten: boolean;
     }[]
   >();
@@ -420,6 +428,8 @@ export async function loadClips(
           number: take.take_number ?? i + 1,
           path: take.audio_preview_path,
           scores: parseTakeScores(take.scores),
+          lyrics: take.lyrics,
+          timing: parseLyricTiming(take.lyric_timing),
           rewritten: take.source_kind === "replace",
         })),
     );
@@ -525,6 +535,7 @@ export async function loadClips(
       style: pack.style || project?.style || "",
       prompt: project?.topic ?? "",
       lyrics: pack.lyrics || project?.brief || "",
+      timing: parseLyricTiming(row.lyric_timing),
       model: pack.settings?.model || (settings.model as string) || "V6",
       status: row.status,
       createdAt: row.created_at,
@@ -542,6 +553,8 @@ export async function loadClips(
         number: take.number,
         audioUrl: url(take.path),
         scores: take.scores,
+        lyrics: take.lyrics,
+        timing: take.timing,
         ...(take.rewritten ? { rewritten: true } : {}),
       })),
       chosenTakeId: row.chosen_take_id,

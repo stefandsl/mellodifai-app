@@ -48,12 +48,18 @@ export function downloadHref(audioUrl: string, name: string): string {
 // The take number the listening view highlights: the preview being played, else the chosen
 // take (the song's own audio), else the first one.
 export function activeTake(
-  detail: Pick<TrackDetail, "takes" | "chosenTakeId" | "takeNumber">,
+  detail: Pick<
+    TrackDetail,
+    "takes" | "chosenTakeId" | "takeNumber" | "playbackTakeId"
+  >,
 ): number | null {
   if (detail.takeNumber !== undefined) return detail.takeNumber;
   return (
-    detail.takes.find((take) => take.id === detail.chosenTakeId)?.number ??
-    detail.takes[0]?.number ??
+    detail.takes.find((take) => take.id === detail.playbackTakeId)?.number ??
+    detail.takes.find(
+      (take) => take.id === detail.chosenTakeId && take.audioUrl,
+    )?.number ??
+    detail.takes.find((take) => take.audioUrl)?.number ??
     null
   );
 }

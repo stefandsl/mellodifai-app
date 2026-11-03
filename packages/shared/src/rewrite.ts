@@ -91,6 +91,15 @@ export const LyricTimingSchema = z.object({
       text: z.string(),
       start: z.number().nonnegative(),
       end: z.number().nonnegative(),
+      words: z
+        .array(
+          z.object({
+            word: z.string(),
+            start: z.number().nonnegative(),
+            end: z.number().nonnegative(),
+          }),
+        )
+        .optional(),
     }),
   ),
 });
@@ -255,10 +264,17 @@ export function alignWordsToLines(
 export function timedLyrics(
   lyrics: string,
   timing: LyricTiming | null,
-): (LyricLine & { start: number | null; end: number | null })[] {
+): (LyricLine & {
+  start: number | null;
+  end: number | null;
+  words?: TimedWord[] | undefined;
+})[] {
   const lines = lyricLines(lyrics);
   const sung = lines.filter((line) => line.sung);
-  const times = new Map<number, { start: number; end: number }>();
+  const times = new Map<
+    number,
+    { start: number; end: number; words?: TimedWord[] | undefined }
+  >();
   if (timing) {
     if (timing.lines.length === sung.length)
       sung.forEach((line, i) => {
@@ -266,8 +282,10 @@ export function timedLyrics(
         if (timed) times.set(line.index, timed);
       });
     else {
-      // Align by words: each timed line becomes words spread across its time.
+      // Prefer measured words; spread line-only timings for alignment fallback.
+      const measured = timing.lines.flatMap((line) => line.words ?? []);
       const heard: TimedWord[] = timing.lines.flatMap((line) => {
+        if (line.words?.length) return line.words;
         const parts = words(line.text);
         const step = parts.length ? (line.end - line.start) / parts.length : 0;
         return parts.map((word, k) => ({
@@ -281,13 +299,29 @@ export function timedLyrics(
         heard,
       ).forEach((time, i) => {
         const line = sung[i];
-        if (time && line) times.set(line.index, time);
+        if (!time || !line) return;
+        const matched = measured.filter(
+          (word) => word.start >= time.start && word.end <= time.end,
+        );
+        const exact =
+          matched.length > 0 &&
+          words(matched.map((word) => word.word).join(" ")).join(" ") ===
+            words(line.text).join(" ");
+        times.set(line.index, {
+          ...time,
+          ...(exact ? { words: matched } : {}),
+        });
       });
     }
   }
   return lines.map((line) => {
     const time = times.get(line.index);
-    return { ...line, start: time?.start ?? null, end: time?.end ?? null };
+    return {
+      ...line,
+      start: time?.start ?? null,
+      end: time?.end ?? null,
+      ...(time?.words ? { words: time.words } : {}),
+    };
   });
 }
 

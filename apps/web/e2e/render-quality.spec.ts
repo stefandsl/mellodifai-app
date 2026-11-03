@@ -57,13 +57,19 @@ test("Video Studio keeps its 4K choice usable at desktop heights", async ({
     "aria-checked",
     "true",
   );
-  const shots = "E:/mellodifai/codex-streams/render-4k/shots";
+  const shots =
+    process.env.E2E_SCREENSHOT_DIR ??
+    "E:/mellodifai/codex-streams/render-4k/shots";
   await mkdir(shots, { recursive: true });
   for (const viewport of [
     { width: 1440, height: 900 },
     { width: 1360, height: 600 },
   ]) {
     await page.setViewportSize(viewport);
+    await expect(studio.getByRole("radio", { name: "4K" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     await expect(studio.getByTestId("visualizer-preview")).toBeVisible();
     await expect(
       studio.getByRole("button", { name: "Usa questo look" }),

@@ -1714,6 +1714,35 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   );
 }, 30_000);
 
+it("runs master-only lyric alignment through the fake worker", async () => {
+  const { ctx, db } = await setup();
+  db.takes = [];
+  db.jobs.push({
+    ...ctx.job,
+    stage: "align_lyrics",
+    payload: { source: "master" },
+    idempotency_key: "align_lyrics:master:version",
+  });
+  const loop = new WorkerLoop({
+    db,
+    workerId: "worker",
+    stages: createFakeStages({ tempRoot: ctx.ws.root, sleep: async () => {} }),
+    engine: ctx.engine,
+    storage: ctx.storage,
+    secrets: ctx.secrets,
+    workspace: { forVersion: async () => ctx.ws },
+  });
+  expect(await loop.runOnce()).toBe(true);
+  expect(db.jobs[0]?.status).toBe("done");
+  expect(db.versions[0]?.lyric_timing).toMatchObject({
+    source: "whisper",
+    lines: [
+      { words: [{ word: "A" }, { word: "little" }, { word: "brighter" }] },
+    ],
+  });
+  expect(db.versions[0]?.status).toBe("producing");
+});
+
 describe("exact stage subprocess contracts", () => {
   it.each([
     "generate_song",
@@ -1937,3 +1966,146 @@ describe("exact stage subprocess contracts", () => {
       ).toMatchObject({ model: "V6", vocal_gender: "f", style_weight: 0.7 });
   });
 });
+
+describe("local lyric alignment", () => {
+  it("aligns a master preview when no take audio exists", async () => {
+    const { ctx, db } = await setup();
+    ctx.job.payload = { source: "master" };
+    ctx.version.lyric_pack = { lyrics: "Hello world" };
+    await db.upsertRender({
+      version_id: ctx.version.id,
+      kind: "master",
+      render_attempt: ctx.version.render_attempt ?? 1,
+      preview_path: "previews/owner/master.mp4",
+    });
+    const download = vi.fn(async (_path: string, file: string) => {
+      await writeFile(file, "fake preview");
+    });
+    ctx.storage.download = download;
+    vi.spyOn(ctx.engine, "run").mockImplementation(async (_command, args) => {
+      await writeFile(
+        args[3] as string,
+        JSON.stringify([
+          { word: "Hello", start: 0, end: 1 },
+          { word: "world", start: 1, end: 2 },
+        ]),
+      );
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    await expect(stages.align_lyrics?.(ctx)).resolves.toEqual({});
+    expect(download).toHaveBeenCalledWith(
+      "previews/owner/master.mp4",
+      expect.stringContaining("master-preview.mp4"),
+    );
+    expect(db.versions[0]?.lyric_timing).toMatchObject({
+      source: "whisper",
+      lines: [{ words: [{ word: "Hello" }, { word: "world" }] }],
+    });
+    await expect(
+      readFile(join(ctx.ws.root, "align-lyrics", "master", "words.json")),
+    ).rejects.toThrow();
+  });
+  it.each(["success", "engine failure", "unmatched"])(
+    "handles %s and cleans its workspace",
+    async (result) => {
+      const { ctx, db } = await setup();
+      ctx.job.payload = { take_id: "alignment-take" };
+      db.takes.push({
+        id: "alignment-take",
+        version_id: ctx.version.id,
+        take_number: 1,
+        lyrics: "Hello world",
+      });
+      await writeFile(join(ctx.ws.outDir, "take-1.mp3"), "fake audio");
+      const run = vi
+        .spyOn(ctx.engine, "run")
+        .mockImplementation(async (_cmd, args) => {
+          if (result === "engine failure")
+            throw new Error("local engine failed");
+          if (!args[3]) throw new Error("Missing output path");
+          await writeFile(
+            args[3],
+            JSON.stringify(
+              result === "unmatched"
+                ? []
+                : [
+                    { word: "Hello", start: 0, end: 1 },
+                    { word: "world", start: 1, end: 2 },
+                  ],
+            ),
+          );
+          return { code: 0, stdout: "", stderr: "" };
+        });
+      const status = ctx.version.status;
+      if (result === "success") {
+        await expect(stages.align_lyrics?.(ctx)).resolves.toEqual({});
+        expect(
+          db.takes.find((t) => t.id === "alignment-take")?.lyric_timing,
+        ).toMatchObject({
+          source: "whisper",
+          lines: [{ words: [{ word: "Hello" }, { word: "world" }] }],
+        });
+      } else {
+        await expect(stages.align_lyrics?.(ctx)).rejects.toThrow();
+        expect(
+          db.takes.find((t) => t.id === "alignment-take")?.lyric_timing,
+        ).toBeUndefined();
+      }
+      expect(ctx.version.status).toBe(status);
+      expect(run).toHaveBeenCalledTimes(1);
+      await expect(
+        readFile(
+          join(ctx.ws.root, "align-lyrics", "alignment-take", "words.json"),
+        ),
+      ).rejects.toThrow();
+    },
+  );
+});
+
+it.each(["w", "word", "missing"])(
+  "preserves pipeline lyric timing with %s word fields",
+  async (field) => {
+    const { ctx, db, output } = await setup();
+    const measured = [
+      { start: 60, end: 60.2 },
+      { start: 60.7, end: 62 },
+    ];
+    output.timing = {
+      duration: 70,
+      lines: [
+        {
+          section: "Final Chorus",
+          text: "Hello world",
+          words: measured.map((time, index) => ({
+            ...time,
+            ...(field === "missing"
+              ? {}
+              : { [field]: ["Hello", "world"][index] }),
+          })),
+        },
+      ],
+    };
+    await stages.timing?.(ctx);
+    expect(
+      db.takes.find((take) => take.id === ctx.version.chosen_take_id)
+        ?.lyric_timing,
+    ).toEqual({
+      source: "timing",
+      lines: [
+        {
+          text: "Hello world",
+          start: 60,
+          end: 62,
+          ...(field === "missing"
+            ? {}
+            : {
+                words: [
+                  { word: "Hello", ...measured[0] },
+                  { word: "world", ...measured[1] },
+                ],
+              }),
+        },
+      ],
+    });
+  },
+);

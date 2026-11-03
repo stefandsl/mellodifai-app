@@ -70,7 +70,7 @@ export const timing: StageHandler = async (context) => {
     lines?: {
       section?: string;
       text?: string;
-      words?: { start: number; end: number }[];
+      words?: { w?: string; word?: string; start: number; end: number }[];
     }[];
     sections?: {
       name?: string;
@@ -83,7 +83,24 @@ export const timing: StageHandler = async (context) => {
     const first = line.words?.[0];
     const last = line.words?.at(-1);
     return first && last && typeof line.text === "string"
-      ? [{ text: line.text, start: first.start, end: last.end }]
+      ? [
+          {
+            text: line.text,
+            start: first.start,
+            end: last.end,
+            ...(line.words?.every(
+              (word) => typeof (word.word ?? word.w) === "string",
+            )
+              ? {
+                  words: line.words.map((word) => ({
+                    word: word.word ?? word.w ?? "",
+                    start: word.start,
+                    end: word.end,
+                  })),
+                }
+              : {}),
+          },
+        ]
       : [];
   });
   if (timed.length > 0)
