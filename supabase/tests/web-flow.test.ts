@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { localSupabaseUrl } from "../../apps/web/e2e/local-env";
 
 let service: SupabaseClient;
 let client: SupabaseClient;
@@ -13,15 +14,8 @@ function env(k: string) {
   return v;
 }
 beforeAll(async () => {
-  const url = new URL(env("SUPABASE_URL"));
-  if (
-    !["127.0.0.1", "localhost"].includes(url.hostname) ||
-    url.port !== "45621"
-  )
-    throw new Error(
-      "web-flow tests require the e2e Supabase API on port 45621",
-    );
-  service = createClient(url.href, env("SUPABASE_SERVICE_ROLE_KEY"));
+  const url = localSupabaseUrl(env("SUPABASE_URL"), {});
+  service = createClient(url, env("SUPABASE_SERVICE_ROLE_KEY"));
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
     await service.from("admin_allowlist").insert({ email });

@@ -41,7 +41,10 @@ async function setup({
   demucsCode = 0,
   files = ["take-1.flac", "take-1.mp3"],
 } = {}) {
-  const root = await mkdtemp(join(tmpdir(), "stems-tests-"));
+  const scratch =
+    process.platform === "win32" ? "E:/mellodifai/runtime/tmp" : tmpdir();
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "stems-tests-"));
   roots.push(root);
   const ws = {
     root,
