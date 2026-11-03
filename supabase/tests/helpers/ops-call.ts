@@ -90,6 +90,11 @@ const wrappers: Record<string, [string, string[], string?]> = {
     "job_id",
   ],
   render_again: ["video_rerender", ["p_version"]],
+  request_lyric_alignment: [
+    "lyric_alignment_request",
+    ["p_version", "p_take"],
+    "job_id",
+  ],
   request_section_edit: [
     "section_edit_request",
     [

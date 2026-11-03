@@ -69,6 +69,7 @@ export const STAGE_RESOURCE_CLASS: Record<Stage, "gpu" | "cpu" | "net"> = {
   remake_analyse: "net",
   remake_rewrite: "net",
   lyrics_assist: "net",
+  align_lyrics: "cpu",
 };
 
 export const REMAKE_JOB_STAGES: readonly Stage[] = [

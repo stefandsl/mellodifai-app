@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
+import { rotationMarker } from "./lib/bootstrap-prod.js";
 import {
   assertAtOrAfterFloor,
   type DeployActions,
@@ -27,7 +28,10 @@ import { runtimeRoot } from "./lib/runtime.js";
 import { SERVICE_ORDER, serviceCommand } from "./lib/services.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
 import { probe } from "./probe.js";
-import { reapplyDbPasswords } from "./rotate-db-passwords.js";
+import {
+  reapplyDbPasswords,
+  rotateDbPasswords,
+} from "./rotate-db-passwords.js";
 import { presentServices } from "./services.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -313,10 +317,13 @@ export async function productionDeploy(
         }
         case "migrate":
           prepareStackDir(stackDir("prod"), repo);
-          await dbCommand(["migration", "up"]);
+          await dbCommand(["migration", "up", "--include-all"]);
           break;
         case "passwords":
-          await reapplyDbPasswords("prod", runner);
+          if (existsSync(rotationMarker())) {
+            await rotateDbPasswords("prod", runner);
+            unlinkSync(rotationMarker());
+          } else await reapplyDbPasswords("prod", runner);
           break;
         case "start": {
           if (!(await probe("prod", runner)).ok)

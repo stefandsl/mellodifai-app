@@ -330,7 +330,7 @@ describe("keep_section_edit and choose_take", () => {
       expect(rewrite.error).toBeNull();
       await park(s.id);
       await finished(rewrite.data as string);
-      const kept = await client.rpc("keep_section_edit", {
+      const kept = await opsRpc(client, "keep_section_edit", {
         p_edit: rewrite.data,
         p_alternative: 0,
       });
@@ -365,7 +365,7 @@ describe("keep_section_edit and choose_take", () => {
         ).toBeNull();
       expect(
         (
-          await client.rpc("choose_take", {
+          await opsRpc(client, "choose_take", {
             p_version: s.id,
             p_take: second.data.id,
           })

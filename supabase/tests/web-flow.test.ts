@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { opsRpc } from "./helpers/ops-call";
 import { localSupabaseUrl } from "../../apps/web/e2e/local-env";
+import { opsRpc } from "./helpers/ops-call";
 
 let service: SupabaseClient;
 let client: SupabaseClient;
@@ -800,10 +800,10 @@ it.each(["approved", "published"])(
       ).error,
     ).not.toBeNull();
     expect(
-      (await other.rpc("render_again", { p_version: v })).error,
+      (await opsRpc(other, "render_again", { p_version: v })).error,
     ).not.toBeNull();
     expect(
-      (await client.rpc("render_again", { p_version: v })).error,
+      (await opsRpc(client, "render_again", { p_version: v })).error,
     ).toBeNull();
     expect(
       (
@@ -855,7 +855,7 @@ it.each(["approved", "published"])(
     await service.from("jobs").update({ status: "done" }).eq("version_id", v);
     await service.from("versions").update({ status: "approved" }).eq("id", v);
     expect(
-      (await client.rpc("render_again", { p_version: v })).error,
+      (await opsRpc(client, "render_again", { p_version: v })).error,
     ).toBeNull();
     const third = await service
       .from("renders")
@@ -894,7 +894,9 @@ it("carries the project Video Studio look before its first visualizer render", a
         .insert({ owner_id: owner, version_id: v, kind: "master" })
     ).error,
   ).toBeNull();
-  expect((await client.rpc("render_again", { p_version: v })).error).toBeNull();
+  expect(
+    (await opsRpc(client, "render_again", { p_version: v })).error,
+  ).toBeNull();
   const { data: next } = await service
     .from("renders")
     .select("qa_results")
@@ -912,7 +914,7 @@ it("refuses a trashed song and an active render", async () => {
     .update({ trashed_at: new Date().toISOString() })
     .eq("id", v);
   expect(
-    (await client.rpc("render_again", { p_version: v })).error,
+    (await opsRpc(client, "render_again", { p_version: v })).error,
   ).not.toBeNull();
   await service.from("versions").update({ trashed_at: null }).eq("id", v);
   await service.from("jobs").insert({
@@ -922,7 +924,7 @@ it("refuses a trashed song and an active render", async () => {
     idempotency_key: `active-render:${v}`,
   });
   expect(
-    (await client.rpc("render_again", { p_version: v })).error?.message,
+    (await opsRpc(client, "render_again", { p_version: v })).error?.message,
   ).toContain("job already active");
   expect(
     (
@@ -999,7 +1001,7 @@ it("publishes a completed landscape visualizer only after master approval", asyn
     p_render: visualizer.data.id,
     p_metadata: { title: "Branded video" },
   };
-  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).not.toBeNull();
   expect(
     (
       await service
@@ -1024,7 +1026,7 @@ it("publishes a completed landscape visualizer only after master approval", asyn
   expect(portrait.error).toBeNull();
   expect(
     (
-      await client.rpc("enqueue_publish", {
+      await opsRpc(client, "enqueue_publish", {
         ...input,
         p_render: portrait.data.id,
       })
@@ -1038,7 +1040,7 @@ it("publishes a completed landscape visualizer only after master approval", asyn
         .eq("id", visualizer.data.id)
     ).error,
   ).toBeNull();
-  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).not.toBeNull();
   expect(
     (
       await service
@@ -1047,7 +1049,7 @@ it("publishes a completed landscape visualizer only after master approval", asyn
         .eq("id", visualizer.data.id)
     ).error,
   ).toBeNull();
-  expect((await client.rpc("enqueue_publish", input)).error).toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).toBeNull();
   const job = await service
     .from("jobs")
     .select("payload")
@@ -1057,7 +1059,7 @@ it("publishes a completed landscape visualizer only after master approval", asyn
   expect(job.data?.payload).toMatchObject({ render_id: visualizer.data.id });
   expect(
     (
-      await client.rpc("enqueue_publish", {
+      await opsRpc(client, "enqueue_publish", {
         ...input,
         p_render: master.data.id,
       })
@@ -1125,8 +1127,12 @@ it("publishes a completed landscape visualizer only after master approval", asyn
     .single();
   expect(next.error).toBeNull();
   expect(
-    (await client.rpc("enqueue_publish", { ...input, p_render: next.data.id }))
-      .error,
+    (
+      await opsRpc(client, "enqueue_publish", {
+        ...input,
+        p_render: next.data.id,
+      })
+    ).error,
   ).toBeNull();
   expect(
     (

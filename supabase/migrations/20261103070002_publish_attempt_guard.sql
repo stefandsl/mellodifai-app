@@ -1,5 +1,5 @@
 -- Publishing is entered through enqueue_publish, and one render attempt has one upload.
-drop policy "owners enqueue jobs" on public.jobs;
+drop policy if exists "owners enqueue jobs" on public.jobs;
 create policy "owners enqueue jobs" on public.jobs for insert to authenticated with check (
   owner_id = (select auth.uid())
   and exists (select 1 from public.profiles where id = (select auth.uid()) and role in ('admin', 'customer'))

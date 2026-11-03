@@ -4,6 +4,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
+import postgres from "postgres";
 import { localSupabaseUrl } from "./local-env";
 import {
   createFrenchProject,
@@ -194,14 +195,28 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
             .eq("id", alternate.id)
         ).error,
       ).toBeNull();
-      expect(
-        (
-          await browserSession.rpc("choose_take", {
-            p_version: previous.id,
-            p_take: alternate.id,
-          })
-        ).error,
-      ).toBeNull();
+      const claims = JSON.parse(
+        Buffer.from(
+          verified.session.access_token.split(".")[1],
+          "base64url",
+        ).toString(),
+      );
+      const sql = postgres(process.env.TEST_MDF_WEB_URL ?? "", { max: 1 });
+      try {
+        const [choice] = await sql`
+          select ops.take_choose(
+            ${sql.json({ actor_kind: "session", user_id: verified.session.user.id, session_id: claims.session_id, remote: false })}::jsonb,
+            ${previous.id}::uuid,
+            ${alternate.id}::uuid
+          ) as result
+        `;
+        if (!choice.result.ok)
+          throw new Error(
+            `take_choose: ${choice.result.code} ${choice.result.message}`,
+          );
+      } finally {
+        await sql.end();
+      }
       await page.reload();
       await expect(page.getByLabel("Descrizione")).toHaveCount(0);
       await expect(page.getByText("FR Revisione video")).toBeVisible();

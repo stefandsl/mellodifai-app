@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { localSupabaseUrl } from "../../apps/web/e2e/local-env";
+import { opsRpc } from "./helpers/ops-call";
 
 let db: SupabaseClient;
 let client: SupabaseClient;
@@ -101,7 +102,7 @@ it.each(["video_review", "approved", "published"])(
     expect(oldRender.error).toBeNull();
     expect(
       (
-        await client.rpc("choose_take", {
+        await opsRpc(client, "choose_take", {
           p_version: version.data.id,
           p_take: first.id,
         })
@@ -118,7 +119,7 @@ it.each(["video_review", "approved", "published"])(
     ).toBe(status);
     expect(
       (
-        await client.rpc("choose_take", {
+        await opsRpc(client, "choose_take", {
           p_version: version.data.id,
           p_take: second.id,
         })
@@ -169,7 +170,7 @@ it.each(["video_review", "approved", "published"])(
     ).toBeNull();
     expect(
       (
-        await client.rpc("choose_take", {
+        await opsRpc(client, "choose_take", {
           p_version: version.data.id,
           p_take: first.id,
         })

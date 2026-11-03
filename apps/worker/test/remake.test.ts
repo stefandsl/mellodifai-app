@@ -84,7 +84,7 @@ const dependencies = {
   secrets: {
     values: {
       OPENROUTER_API_KEY: "or-test-key-123",
-      LYRICS_STATE_FILE: join(scratch(), "lyrics-state.json"),
+      LYRICS_STATE_FILE: "",
     } as Record<string, string>,
     redact: (text: string) => text.replaceAll("or-test-key-123", "***"),
   },

@@ -126,6 +126,7 @@ async function setup(settings: Record<string, unknown> = {}, seconds = 200) {
   };
   const ctx: StageContext = {
     groqLedger: () => recordingLedger(),
+    kieLedger: () => recordingLedger(),
     job: {
       id: "job",
       owner_id: OWNER,

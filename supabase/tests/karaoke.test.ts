@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 const required = (name: string) => {
   const value = process.env[name];
@@ -81,12 +82,12 @@ afterAll(async () => {
 });
 
 it("queues one local alignment job for the owner's untimed take", async () => {
-  const first = await owner.rpc("request_lyric_alignment", {
+  const first = await opsRpc(owner, "request_lyric_alignment", {
     p_version: versionId,
     p_take: takeId,
   });
   expect(first.error).toBeNull();
-  const second = await owner.rpc("request_lyric_alignment", {
+  const second = await opsRpc(owner, "request_lyric_alignment", {
     p_version: versionId,
     p_take: takeId,
   });
@@ -116,12 +117,12 @@ it("queues alignment from the master preview without take audio", async () => {
     preview_path: "previews/test-master.mp4",
   });
   expect(renderError).toBeNull();
-  const first = await owner.rpc("request_lyric_alignment", {
+  const first = await opsRpc(owner, "request_lyric_alignment", {
     p_version: versionId,
     p_take: null,
   });
   expect(first.error).toBeNull();
-  const second = await owner.rpc("request_lyric_alignment", {
+  const second = await opsRpc(owner, "request_lyric_alignment", {
     p_version: versionId,
     p_take: null,
   });
@@ -137,7 +138,7 @@ it("queues alignment from the master preview without take audio", async () => {
   });
   expect(
     (
-      await stranger.rpc("request_lyric_alignment", {
+      await opsRpc(stranger, "request_lyric_alignment", {
         p_version: versionId,
         p_take: null,
       })
@@ -152,7 +153,7 @@ it("queues alignment from the master preview without take audio", async () => {
 it("rejects another user and a take that is already aligned", async () => {
   expect(
     (
-      await stranger.rpc("request_lyric_alignment", {
+      await opsRpc(stranger, "request_lyric_alignment", {
         p_version: versionId,
         p_take: takeId,
       })
@@ -169,7 +170,7 @@ it("rejects another user and a take that is already aligned", async () => {
     .eq("id", takeId);
   expect(
     (
-      await owner.rpc("request_lyric_alignment", {
+      await opsRpc(owner, "request_lyric_alignment", {
         p_version: versionId,
         p_take: takeId,
       })
