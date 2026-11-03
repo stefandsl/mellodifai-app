@@ -1,6 +1,8 @@
 import {
   type Lang,
+  type LyricTiming,
   normalizeVisualizerParams,
+  parseLyricTiming,
   parseSongSource,
   parseTakeScores,
   type SongSource,
@@ -45,6 +47,8 @@ export type Clip = {
     number: number;
     audioUrl: string | null;
     scores: TakeScores | null;
+    lyrics?: string | null;
+    timing?: LyricTiming | null;
     // Made by "Riscrivi una parte" from another take of the song.
     rewritten?: boolean;
   }[];
@@ -366,7 +370,7 @@ export async function loadClips(
       .from("takes")
       // Only whether the stems exist: the full set carries four waveforms.
       .select(
-        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,stems_at:stems->>created_at,source_kind:source->>kind",
+        "id,version_id,audio_preview_path,cover_path,generation,take_number,scores,lyrics,lyric_timing,stems_at:stems->>created_at,source_kind:source->>kind",
       )
       .in("version_id", ids),
     supabase
@@ -402,6 +406,8 @@ export async function loadClips(
       number: number;
       path: string | null;
       scores: TakeScores | null;
+      lyrics: string | null;
+      timing: LyricTiming | null;
       rewritten: boolean;
     }[]
   >();
@@ -420,6 +426,8 @@ export async function loadClips(
           number: take.take_number ?? i + 1,
           path: take.audio_preview_path,
           scores: parseTakeScores(take.scores),
+          lyrics: take.lyrics,
+          timing: parseLyricTiming(take.lyric_timing),
           rewritten: take.source_kind === "replace",
         })),
     );
@@ -542,6 +550,8 @@ export async function loadClips(
         number: take.number,
         audioUrl: url(take.path),
         scores: take.scores,
+        lyrics: take.lyrics,
+        timing: take.timing,
         ...(take.rewritten ? { rewritten: true } : {}),
       })),
       chosenTakeId: row.chosen_take_id,

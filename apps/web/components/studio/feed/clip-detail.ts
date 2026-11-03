@@ -23,10 +23,12 @@ export function detailFor(clip: Clip, takeNumber?: number): TrackDetail {
     lyrics: clip.lyrics,
     style: clip.style,
     createdAt: clip.createdAt,
-    takes: clip.takes.map(({ id, number, audioUrl }) => ({
+    takes: clip.takes.map(({ id, number, audioUrl, lyrics, timing }) => ({
       id,
       number,
       audioUrl,
+      lyrics,
+      timing,
     })),
     chosenTakeId: clip.chosenTakeId,
     ...(takeNumber === undefined ? {} : { takeNumber }),
