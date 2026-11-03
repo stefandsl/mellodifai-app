@@ -200,9 +200,149 @@ it("runOp validates both boundaries and revalidates successful mutations", async
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/projects/project");
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/library");
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/editor/[id]", "page");
-  mocks.callOps.mockResolvedValueOnce({ ok: true, data: { wrong: true } });
-  expect(await runOp(def, ctx, { value: "ok" })).toMatchObject({
-    ok: false,
-    code: "internal",
+});
+
+const keyedCtx = {
+  actor_kind: "pat" as const,
+  remote: true,
+  request_id: "request",
+  idempotency_key: "test-key-123",
+};
+
+it("waits for committed key opening before calling the mutation", async () => {
+  const { runOp } = await import("./run");
+  let finish!: (value: unknown) => void;
+  mocks.callOps.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const pending = runOp({ ...def, key: true }, keyedCtx, { value: "ok" });
+  expect(mocks.callOps).toHaveBeenCalledOnce();
+  expect(mocks.callOps.mock.calls[0][0]).toBe("idem_begin");
+  finish({ ok: true, data: { status: "new" } });
+  expect(await pending).toMatchObject({ ok: true });
+  expect(mocks.callOps).toHaveBeenCalledTimes(2);
+});
+
+it.each([{ status: "unknown" }, { status: "replay", response: null }])(
+  "refuses malformed begin responses without executing: %j",
+  async (data) => {
+    const { runOp } = await import("./run");
+    mocks.callOps.mockResolvedValueOnce({ ok: true, data });
+    expect(
+      await runOp({ ...def, key: true }, keyedCtx, { value: "ok" }),
+    ).toMatchObject({ ok: false, code: "internal" });
+    expect(mocks.callOps).toHaveBeenCalledOnce();
+  },
+);
+
+it("opens a key before running the mutation with the same validated hash", async () => {
+  const { runOp, requestHash } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({ ok: true, data: { status: "new" } });
+  expect(
+    await runOp({ ...def, key: true }, keyedCtx, {
+      value: "ok",
+      ignored: true,
+    }),
+  ).toEqual({ ok: true, data: { id: "project" } });
+  const ctx = {
+    ...keyedCtx,
+    request_hash: requestHash(def.name, { value: "ok" }),
+  };
+  expect(mocks.callOps.mock.calls).toEqual([
+    ["idem_begin", [ctx, keyedCtx.idempotency_key, ctx.request_hash]],
+    [def.fn, [ctx, "ok"]],
+  ]);
+});
+
+it("replays the stored response without rerunning the mutation", async () => {
+  const { runOp } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({
+    ok: true,
+    data: { status: "replay", response: { ok: true, data: { id: "stored" } } },
   });
+  expect(await runOp({ ...def, key: true }, keyedCtx, { value: "ok" })).toEqual(
+    { ok: true, data: { id: "stored" } },
+  );
+  expect(mocks.callOps).toHaveBeenCalledOnce();
+});
+
+it.each(["in_progress", "idempotency_mismatch", "unauthorized", "internal"])(
+  "returns %s from idem_begin without running the operation",
+  async (code) => {
+    const { runOp } = await import("./run");
+    const error = {
+      ok: false,
+      code,
+      message: "Refused",
+      ...(code === "in_progress" ? { retry_after: 2 } : {}),
+    };
+    mocks.callOps.mockResolvedValueOnce(error);
+    expect(
+      await runOp({ ...def, key: true }, keyedCtx, { value: "ok" }),
+    ).toEqual(error);
+    expect(mocks.callOps).toHaveBeenCalledOnce();
+  },
+);
+
+it.each([undefined, "short", "x".repeat(101)])(
+  "refuses an invalid token key before RPCs: %s",
+  async (key) => {
+    const { runOp } = await import("./run");
+    expect(
+      await runOp(
+        { ...def, key: true },
+        { ...keyedCtx, idempotency_key: key },
+        { value: "ok" },
+      ),
+    ).toMatchObject({ ok: false, code: "validation" });
+    expect(mocks.callOps).not.toHaveBeenCalled();
+  },
+);
+
+it("assigns a key to a session mutation that has none", async () => {
+  const { runOp } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({ ok: true, data: { status: "new" } });
+  await runOp(
+    { ...def, key: true },
+    { actor_kind: "session", remote: false, request_id: "request" },
+    { value: "ok" },
+  );
+  expect(mocks.callOps.mock.calls[0][0]).toBe("idem_begin");
+  expect(mocks.callOps.mock.calls[0][1][1]).toMatch(/^[0-9a-f-]{36}$/);
+});
+
+it.each([false, true])(
+  "preserves committed success when output validation throws=%s",
+  async (throws) => {
+    const { runOp } = await import("./run");
+    const result = { ok: true, data: { unexpected: "private detail" } };
+    mocks.callOps.mockResolvedValueOnce(result);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const output = throws
+      ? z.any().transform(() => {
+          throw new Error("private detail");
+        })
+      : def.output;
+    try {
+      expect(
+        await runOp({ ...def, output }, keyedCtx, { value: "ok" }),
+      ).toEqual(result);
+      expect(log).toHaveBeenCalled();
+      expect(JSON.stringify(log.mock.calls)).not.toContain("private detail");
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  },
+);
+
+it("still rejects invalid read output", async () => {
+  const { runOp } = await import("./run");
+  mocks.callOps.mockResolvedValueOnce({ ok: true, data: {} });
+  expect(
+    await runOp({ ...def, mutating: false }, keyedCtx, { value: "ok" }),
+  ).toMatchObject({ ok: false, code: "internal" });
 });

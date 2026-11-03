@@ -29,14 +29,67 @@ function serverModules(dir: string): string[] {
   });
 }
 
-function callsGuard(node: ts.Node): boolean {
+function unwrap(node: ts.Node): ts.Node {
+  if (ts.isAwaitExpression(node) || ts.isParenthesizedExpression(node))
+    return unwrap(node.expression);
+  return node;
+}
+
+function wrapperReturn(node: ts.Node): boolean {
+  const expression = unwrap(node);
+  return (
+    ts.isCallExpression(expression) &&
+    ts.isIdentifier(expression.expression) &&
+    ["runAction", "remoteAction"].includes(expression.expression.text)
+  );
+}
+
+function refusal(node: ts.Node): boolean {
+  if (ts.isBlock(node))
+    return node.statements.length === 1 && refusal(node.statements[0]);
+  if (!ts.isReturnStatement(node)) return false;
+  if (!node.expression) return true;
+  const expression = unwrap(node.expression);
+  if (!ts.isObjectLiteralExpression(expression)) return false;
+  // Only a literal failed result is accepted, never a call or spread with side effects.
+  return (
+    expression.properties.every(
+      (property) =>
+        ts.isPropertyAssignment(property) &&
+        (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) &&
+        (ts.isStringLiteral(property.initializer) ||
+          property.initializer.kind === ts.SyntaxKind.FalseKeyword),
+    ) &&
+    expression.properties.some(
+      (property) =>
+        ts.isPropertyAssignment(property) &&
+        (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) &&
+        property.name.text === "ok" &&
+        property.initializer.kind === ts.SyntaxKind.FalseKeyword,
+    )
+  );
+}
+
+function effectiveGuard(node: ts.Node): boolean {
+  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node))
+    return effectiveGuard(node.body);
+  if (!ts.isBlock(node)) return wrapperReturn(node);
+  const first = node.statements[0];
+  if (!first) return false;
   if (
-    ts.isCallExpression(node) &&
-    ts.isIdentifier(node.expression) &&
-    ["runAction", "remoteAction", "isRemote"].includes(node.expression.text)
+    node.statements.length === 1 &&
+    ts.isReturnStatement(first) &&
+    first.expression
   )
-    return true;
-  return ts.forEachChild(node, callsGuard) ?? false;
+    return wrapperReturn(first.expression);
+  if (!ts.isIfStatement(first)) return false;
+  const condition = unwrap(first.expression);
+  return (
+    ts.isCallExpression(condition) &&
+    ts.isIdentifier(condition.expression) &&
+    condition.expression.text === "isRemote" &&
+    refusal(first.thenStatement)
+  );
 }
 
 function unguardedExports(source: ts.SourceFile): string[] {
@@ -92,7 +145,7 @@ function unguardedExports(source: ts.SourceFile): string[] {
       seen.add(node.text);
       node = declarations.get(node.text);
     }
-    if (!node || !callsGuard(node)) unguarded.push(name);
+    if (!node || !effectiveGuard(node)) unguarded.push(name);
   }
   return unguarded;
 }
@@ -150,4 +203,25 @@ it.fails("every use server export uses an action wrapper or checks remote access
     );
   }
   expect(unguarded).toEqual([]);
+});
+
+it.each([
+  "isRemote(headers); return spend();",
+  "const unused = () => runAction(def, input); return spend();",
+  "function unused() { if (isRemote(headers)) return; } return spend();",
+  "if (flag) return runAction(def, input); return spend();",
+  "await spend(); if (isRemote(headers)) return;",
+  "if (isRemote(headers)) { spend(); return; } return spend();",
+  "if (isRemote(headers)) return spend();",
+])("rejects ineffective guards: %s", (body) => {
+  expect(
+    unguardedExports(
+      ts.createSourceFile(
+        "action.ts",
+        `export async function action() { ${body} }`,
+        ts.ScriptTarget.Latest,
+        true,
+      ),
+    ),
+  ).toEqual(["action"]);
 });
