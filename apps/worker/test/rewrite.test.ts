@@ -553,7 +553,7 @@ describe("kie client", () => {
       "k",
       (async () =>
         new Response(
-          JSON.stringify({ code: 402, msg: "no credits" }),
+          JSON.stringify({ code: "402", msg: "no credits" }),
         )) as typeof fetch,
     );
     await expect(

@@ -274,7 +274,7 @@ describe("songs from audio on kie", () => {
         );
       if (url.includes("createTask"))
         return new Response(
-          JSON.stringify({ code: 200, data: { taskId: "cover-1" } }),
+          JSON.stringify({ code: "200", data: { taskId: "cover-1" } }),
         );
       return new Response("", { status: 404 });
     }) as typeof fetch;
@@ -297,9 +297,16 @@ describe("songs from audio on kie", () => {
       "POST https://api.kie.ai/api/v1/jobs/createTask",
     ]);
   });
-  it.each(['{"code":500,"msg":"truncated', "not JSON", "null"])(
-    "keeps source submission guards after an unreadable HTTP 400 response: %s",
-    async (body) => {
+  it.each([
+    [400, '{"code":500,"msg":"truncated'],
+    [400, "not JSON"],
+    [400, "null"],
+    [400, '{"msg":"missing code"}'],
+    [200, '{"code":"invalid","data":{"taskId":"accepted"}}'],
+    [200, '{"code":201,"data":{"taskId":"accepted"}}'],
+  ])(
+    "keeps source submission guards after an ambiguous HTTP %i response: %s",
+    async (status, body) => {
       const { ctx, db } = await setup({
         source: { mode: "cover", upload: UPLOAD },
       });
@@ -320,7 +327,7 @@ describe("songs from audio on kie", () => {
             );
           if (url.includes("createTask")) {
             submissions++;
-            return new Response(body, { status: 400 });
+            return new Response(body, { status });
           }
           throw new Error("Unexpected fake request");
         }),
