@@ -26,6 +26,7 @@ export function meteredOpenRouterFetch(
   http: typeof fetch = globalThis.fetch,
 ): typeof fetch {
   let n = 0;
+  let retryBudget: Promise<void> | undefined;
   return async (url, init) => {
     const body = JSON.parse(String(init?.body ?? "{}")) as {
       model?: string;
@@ -46,7 +47,10 @@ export function meteredOpenRouterFetch(
       mtok_in: Math.max(8000, Buffer.byteLength(String(init?.body))) / 1e6,
       mtok_out: (body.max_tokens ?? 4096) / 1e6,
     };
-    if ((job.attempts ?? 1) > 1) await ledger.extend(est);
+    if ((job.attempts ?? 1) > 1) {
+      retryBudget ??= ledger.extendStage(job.id);
+      await retryBudget;
+    }
     let refused: Response | undefined;
     try {
       return await paidCall(ledger, key, est, async () => {

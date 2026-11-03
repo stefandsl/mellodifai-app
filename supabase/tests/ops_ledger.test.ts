@@ -800,3 +800,23 @@ it("new ledger functions have hardened worker grants and costs is web-only with 
     });
   });
 });
+
+it("fast writer has verified prices and opens a covered entry", async () => {
+  await fixture(async (tx) => {
+    const prices =
+      await tx`select unit, usd_per_unit, verified from public.price_book
+      where provider='openrouter' and model='anthropic/claude-sonnet-5.5' order by unit`;
+    expect(
+      prices.map((p) => ({ ...p, usd_per_unit: Number(p.usd_per_unit) })),
+    ).toEqual([
+      { unit: "mtok_in", usd_per_unit: 2, verified: true },
+      { unit: "mtok_out", usd_per_unit: 10, verified: true },
+    ]);
+    const j = await job(tx, "draft_lyrics");
+    const reservation = await reserve(tx, j.id);
+    const [entry] =
+      await tx`select ops.spend_entry_open(${reservation}, 'openrouter:writer:0:0:a1',
+      'openrouter', 'anthropic/claude-sonnet-5.5', '{"mtok_in":0.008,"mtok_out":0.004}'::jsonb) as id`;
+    expect(entry.id).toBeTruthy();
+  });
+});

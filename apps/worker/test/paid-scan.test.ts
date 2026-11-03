@@ -4,6 +4,12 @@ import { expect, it } from "vitest";
 import { hasPaidAccess } from "./support/paid-scan.js";
 
 it.each([
+  'import { KIE_API as endpoint } from "../providers/kie-client.js"; fetch(endpoint)',
+  'import { KIE_UPLOAD_API as endpoint } from "../providers/kie-client.js"; fetch(endpoint)',
+  "const { OPENROUTER_API_KEY: token } = process.env;",
+  "const { GROQ_API_KEY } = secrets.values;",
+  'const { "KIE_API_KEY": token } = process.env;',
+
   'env.get("OPENROUTER_API_KEY")',
   'env.require("LYRICS_OPENROUTER_KEY")',
   "secrets.values.GROQ_API_KEY",

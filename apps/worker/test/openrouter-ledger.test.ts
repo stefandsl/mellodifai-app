@@ -96,6 +96,7 @@ function ledger(): Ledger {
     reservationFor: vi.fn(async () => "reservation"),
     open: vi.fn(async () => "entry"),
     extend: vi.fn(async () => {}),
+    extendStage: vi.fn(async () => {}),
     settle: vi.fn(async () => {}),
   };
 }
@@ -210,5 +211,48 @@ it("a refused extension never sends the request", async () => {
   await expect(
     fetch("https://openrouter.ai/api/v1/chat/completions", request),
   ).rejects.toMatchObject({ code: "MDF02" });
+  expect(http).not.toHaveBeenCalled();
+});
+
+it("extends the whole retry stage once before concurrent provider calls", async () => {
+  const db = ledger();
+  const events: string[] = [];
+  vi.mocked(db.extendStage).mockImplementation(async () => {
+    await Promise.resolve();
+    events.push("whole stage extended");
+  });
+  const http = vi.fn(async () => {
+    events.push("provider");
+    return new Response("{}");
+  });
+  const fetch = meteredOpenRouterFetch(
+    { id: "job", attempts: 2, stage: "draft_lyrics" },
+    () => db,
+    http,
+  );
+  await Promise.all([
+    fetch("https://openrouter.ai/api", request),
+    fetch("https://openrouter.ai/api", request),
+  ]);
+  expect(events).toEqual(["whole stage extended", "provider", "provider"]);
+  expect(db.extendStage).toHaveBeenCalledExactlyOnceWith("job");
+  expect(db.extend).not.toHaveBeenCalled();
+});
+
+it("a refused whole-stage retry budget blocks all provider calls", async () => {
+  const db = ledger();
+  vi.mocked(db.extendStage).mockRejectedValue({ code: "MDF02" });
+  const http = vi.fn();
+  const fetch = meteredOpenRouterFetch(
+    { id: "job", attempts: 2, stage: "draft_lyrics" },
+    () => db,
+    http,
+  );
+  for (let i = 0; i < 2; i++)
+    await expect(
+      fetch("https://openrouter.ai/api", request),
+    ).rejects.toMatchObject({ code: "MDF02" });
+  expect(db.extendStage).toHaveBeenCalledTimes(1);
+  expect(db.open).not.toHaveBeenCalled();
   expect(http).not.toHaveBeenCalled();
 });

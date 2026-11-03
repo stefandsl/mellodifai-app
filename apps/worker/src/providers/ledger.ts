@@ -7,6 +7,7 @@ export type Ledger = {
   open(key: string, items: Items): Promise<string>;
   settle(entryId: string, items: Items, usd?: number): Promise<void>;
   extend(items: Items): Promise<void>;
+  extendStage(jobId: string): Promise<void>;
 };
 
 export function serviceLedger(
@@ -27,6 +28,22 @@ export function serviceLedger(
       if (error) throw error;
       activeReservation = data as string | null;
       return activeReservation;
+    },
+    async extendStage(jobId) {
+      const { data, error } = await ops.rpc("job_spend_rule", { p_job: jobId });
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length === 0)
+        throw new Error("paid stage has no estimate");
+      // All models must clear their caps before the first provider request.
+      for (const rule of data) {
+        const { error } = await ops.rpc("extend_reservation", {
+          p_reservation: reservation(),
+          p_provider: rule.provider,
+          p_model: rule.model,
+          p_items: rule.items,
+        });
+        if (error) throw error;
+      }
     },
     async open(key, items) {
       const { data, error } = await ops.rpc("spend_entry_open", {

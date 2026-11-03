@@ -8,6 +8,8 @@ const keys = new Set([
   "HIGGSFIELD_API_KEY",
 ]);
 const rawProviderExports = new Set([
+  "KIE_API",
+  "KIE_UPLOAD_API",
   "OPENROUTER_BASE",
   "OPENROUTER_CHAT_URL",
   "OPENROUTER_DECISIONS_URL",
@@ -66,6 +68,14 @@ export function hasPaidAccess(source: string): boolean {
       )
     )
       found = true;
+    if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      const name = node.propertyName ?? node.name;
+      if (
+        (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) &&
+        keys.has(name.text)
+      )
+        found = true;
+    }
     if (
       ts.isImportSpecifier(node) &&
       rawProviderExports.has((node.propertyName ?? node.name).text)

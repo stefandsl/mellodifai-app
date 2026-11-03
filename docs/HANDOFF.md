@@ -377,3 +377,10 @@ calls. Task 23 still owns setting the flag after childEnvironment, and Task 24
 owns the worker paid-call mapping. The normal lint/type/unit/database gates pass;
 browser validation has two unrelated fake-stack failures (offline job consumed,
 private-video alert missing), recorded in the Task 21 report and runtime log.
+
+Task 22 review R2 adds migration `20261102000035_fast_writer_price.sql`
+for the default Sonnet 5.5 fast writer (verified OpenRouter prices: 2 USD input
+and 10 USD output per million tokens). The planned lockdown migration now takes
+036 or the next free number. OpenRouter job retries extend every rule in the
+database stage estimate before their first request, once per transport; refusal
+blocks all requests. Partial extensions remain reserved until normal job close.

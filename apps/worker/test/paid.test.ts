@@ -19,6 +19,7 @@ describe("paid provider calls", () => {
   it("paidCall opens before and settles after; on MDF07 it extends once then reopens (Major 8)", async () => {
     const calls: string[] = [];
     const ledger = {
+      extendStage: vi.fn(async () => {}),
       reservationFor: vi.fn(),
       open: vi
         .fn()
@@ -105,6 +106,7 @@ describe("paid provider calls", () => {
 
   it("keeps an entry open when the provider outcome is unknown", async () => {
     const ledger = {
+      extendStage: vi.fn(async () => {}),
       reservationFor: vi.fn(),
       open: vi.fn(async () => "entry"),
       extend: vi.fn(),
@@ -128,3 +130,44 @@ describe("paid provider calls", () => {
     expect(await kieAllowed(context)).toBe(false);
   });
 });
+
+it.each([false, true])(
+  "extends every database stage rule before returning (refused=%s)",
+  async (refused) => {
+    const rules = [
+      { provider: "openrouter", model: "router", items: { mtok_in: 0.01 } },
+      {
+        provider: "openrouter",
+        model: "writer",
+        items: { mtok_in: 0.04, mtok_out: 0.02 },
+      },
+    ];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => ({
+      data: name === "job_spend_rule" ? rules : null,
+      error: refused && args.p_model === "writer" ? { code: "MDF02" } : null,
+    }));
+    const db = serviceLedger(
+      { schema: () => ({ rpc }) } as unknown as SupabaseClient,
+      "reservation",
+      "openrouter",
+      "router",
+    );
+    if (refused)
+      await expect(db.extendStage("job")).rejects.toMatchObject({
+        code: "MDF02",
+      });
+    else await db.extendStage("job");
+    expect(rpc.mock.calls).toEqual([
+      ["job_spend_rule", { p_job: "job" }],
+      ...rules.map((rule) => [
+        "extend_reservation",
+        {
+          p_reservation: "reservation",
+          p_provider: rule.provider,
+          p_model: rule.model,
+          p_items: rule.items,
+        },
+      ]),
+    ]);
+  },
+);
