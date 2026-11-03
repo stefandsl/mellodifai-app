@@ -373,10 +373,13 @@ credential-file readers now refuse under `MELLODIFAI_ENV_ONLY=1` when a file
 would be needed; YouTube's file-backed OAuth flow refuses entirely under the flag.
 Kie, OpenRouter TTS and both Groq scripts support the base URL overrides recorded
 in the plan's Spike results. Eighteen isolated engine tests pass without provider
-calls. Task 23 still owns setting the flag after childEnvironment, and Task 24
-owns the worker paid-call mapping. The normal lint/type/unit/database gates pass;
-browser validation has two unrelated fake-stack failures (offline job consumed,
+calls. The normal lint/type/unit/database gates pass; browser validation has
+two unrelated fake-stack failures (offline job consumed,
 private-video alert missing), recorded in the Task 21 report and runtime log.
+
+M1 Task 23 sets the flag after childEnvironment, rejects unaccounted paid
+secrets in engine.run, and passes Groq entry IDs for uncached take scoring.
+Task 24 owns the remaining worker paid-call mapping.
 
 Task 22 review R2 adds migration `20261102000035_fast_writer_price.sql`
 for the default Sonnet 5.5 fast writer (verified OpenRouter prices: 2 USD input

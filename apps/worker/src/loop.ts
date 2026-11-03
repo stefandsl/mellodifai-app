@@ -11,6 +11,7 @@ import {
 import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
+import type { Ledger } from "./providers/ledger.js";
 import type { LedgerForModel } from "./providers/openrouter.js";
 import type { Secrets } from "./secrets.js";
 import type { Storage } from "./storage.js";
@@ -32,6 +33,7 @@ export type StageContext = {
   // The ComfyUI server of this PC, owned by main.ts; absent on workers without local engines.
   comfy?: LocalRuntime;
   providerLedger?: LedgerForModel;
+  groqLedger?: () => Ledger;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
@@ -99,6 +101,7 @@ export class WorkerLoop {
       report?: (message: string) => void;
       comfy?: LocalRuntime;
       providerLedger?: LedgerForModel;
+      groqLedger?: () => Ledger;
     },
   ) {}
   private redact(message: string) {
@@ -323,6 +326,9 @@ export class WorkerLoop {
         progress,
         ...(this.options.providerLedger
           ? { providerLedger: this.options.providerLedger }
+          : {}),
+        ...(this.options.groqLedger
+          ? { groqLedger: this.options.groqLedger }
           : {}),
         ...(this.options.comfy ? { comfy: this.options.comfy } : {}),
       });

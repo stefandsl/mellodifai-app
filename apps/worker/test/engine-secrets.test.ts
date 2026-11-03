@@ -111,10 +111,95 @@ it("hands a child only the secrets the caller names, and still redacts its outpu
   const log = vi.fn(async () => {});
   const engine = new Engine({ spawn, log, secrets });
   await engine.run("tool", []);
-  await engine.run("tool", [], { secretEnv: ["GROQ_API_KEY"] });
+  await engine.run("tool", [], {
+    secretEnv: ["GROQ_API_KEY"],
+    entryIds: ["entry-1"],
+  });
   const envs = spawn.mock.calls.map((call) => call[2].env ?? {});
   expect(envs[0]).not.toHaveProperty("GROQ_API_KEY");
   expect(envs[1]).toMatchObject({ GROQ_API_KEY: "groq-secret-value" });
   expect(envs[1]).not.toHaveProperty("OTHER_API_KEY");
   expect(log).toHaveBeenCalledWith("key is ***");
+});
+
+it.each([
+  "KIE_API_KEY",
+  "OPENROUTER_API_KEY",
+  "LYRICS_OPENROUTER_KEY",
+  "GROQ_API_KEY",
+  "HIGGSFIELD_API_KEY",
+])("refuses a paid secretEnv without entry ids: %s", async (name) => {
+  const spawn = vi.fn<Spawn>();
+  const engine = new Engine({ spawn, log: async () => {} });
+  await expect(engine.run("tool", [], { secretEnv: [name] })).rejects.toThrow(
+    /spend entry/u,
+  );
+  expect(spawn).not.toHaveBeenCalled();
+});
+
+it("accepts several entry ids", async () => {
+  const spawn = vi.fn<Spawn>(() => {
+    const child = new EventEmitter();
+    queueMicrotask(() => child.emit("close", 0));
+    return child;
+  });
+  await new Engine({ spawn, log: async () => {} }).run("tool", [], {
+    secretEnv: ["GROQ_API_KEY"],
+    entryIds: ["take-1-entry", "take-2-entry"],
+  });
+  expect(spawn).toHaveBeenCalledOnce();
+});
+
+it("accepts a named free call and refuses an unknown or blank authorization", async () => {
+  const spawn = vi.fn<Spawn>(() => {
+    const child = new EventEmitter();
+    queueMicrotask(() => child.emit("close", 0));
+    return child;
+  });
+  const engine = new Engine({ spawn, log: async () => {} });
+  await engine.run("tool", [], {
+    secretEnv: ["KIE_API_KEY"],
+    freeCall: "kie:credit",
+  });
+  await expect(
+    engine.run("tool", [], {
+      secretEnv: ["KIE_API_KEY"],
+      entryIds: [" "],
+    }),
+  ).rejects.toThrow(/spend entry/u);
+  await expect(
+    engine.run("tool", [], {
+      secretEnv: ["KIE_API_KEY"],
+      freeCall: "unknown" as "kie:credit",
+    }),
+  ).rejects.toThrow(/spend entry/u);
+  expect(spawn).toHaveBeenCalledOnce();
+});
+
+it("a child sees MELLODIFAI_ENV_ONLY=1 set after childEnvironment", async () => {
+  const spawn = vi.fn<Spawn>(() => {
+    const child = new EventEmitter();
+    queueMicrotask(() => child.emit("close", 0));
+    return child;
+  });
+  await new Engine({ spawn, log: async () => {} }).run("tool", [], {
+    env: { MELLODIFAI_ENV_ONLY: "0" },
+  });
+  expect(spawn.mock.calls[0]?.[2].env).toMatchObject({
+    MELLODIFAI_ENV_ONLY: "1",
+  });
+});
+
+it("ENGINE_ROOT follows MELLODIFAI_ENGINE_ROOT", async () => {
+  const previous = process.env.MELLODIFAI_ENGINE_ROOT;
+  process.env.MELLODIFAI_ENGINE_ROOT = "G:/engines/test-root";
+  vi.resetModules();
+  try {
+    const { ENGINE_ROOT } = await import("../src/stages/utils.js");
+    expect(ENGINE_ROOT).toBe("G:/engines/test-root");
+  } finally {
+    if (previous === undefined) delete process.env.MELLODIFAI_ENGINE_ROOT;
+    else process.env.MELLODIFAI_ENGINE_ROOT = previous;
+    vi.resetModules();
+  }
 });

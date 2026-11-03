@@ -24,6 +24,7 @@ import {
   YUE2_MAX_DURATION,
 } from "../src/stages/local-engine.js";
 import { type FakeComfy, fakeComfy } from "./fake-comfy.js";
+import { recordingLedger } from "./support/ledger.js";
 
 const roots: string[] = [];
 const servers: FakeComfy[] = [];
@@ -167,6 +168,7 @@ async function setup(
     l10n: {},
   });
   const ctx: StageContext = {
+    groqLedger: () => recordingLedger(),
     job: {
       owner_id: "owner",
       id: "job",

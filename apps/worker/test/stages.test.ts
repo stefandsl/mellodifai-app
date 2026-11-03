@@ -214,11 +214,25 @@ describe("take scoring at the end of generate_song", () => {
     );
   });
   it("scores both takes with Groq and stores the scores on each take", async () => {
-    const { ctx, db, calls } = await scoringSetup();
+    const { ctx, db, calls, groqLedger } = await scoringSetup();
+    vi.mocked(groqLedger.open)
+      .mockResolvedValueOnce("first-entry")
+      .mockResolvedValueOnce("second-entry");
+    const run = vi.spyOn(ctx.engine, "run");
     const result = await stages.generate_song?.(ctx);
     expect(result?.versionStatus).toBe("takes_review");
     const [call, ...others] = scoreCalls(calls);
     expect(others).toHaveLength(0);
+    expect(
+      run.mock.calls.find(([, args]) =>
+        args.includes("tools/score_takes.py"),
+      )?.[2]?.entryIds,
+    ).toEqual(["first-entry", "second-entry"]);
+    expect(vi.mocked(groqLedger.open).mock.calls).toHaveLength(2);
+    expect(vi.mocked(groqLedger.settle).mock.calls).toEqual([
+      ["first-entry", { audio_hour: 212.4 / 3600 }],
+      ["second-entry", { audio_hour: 198 / 3600 }],
+    ]);
     expect(call).toMatchObject({
       cmd: "python",
       args: [
@@ -265,6 +279,20 @@ describe("take scoring at the end of generate_song", () => {
     expect(options?.clearOutputs).toEqual([
       join(ctx.ws.outDir, "takes-score.json"),
     ]);
+  });
+  it("uses cached words without granting a paid key or opening entries", async () => {
+    const { ctx, calls, groqLedger } = await scoringSetup();
+    for (const number of [1, 2])
+      await writeFile(join(ctx.ws.outDir, `take-${number}.words.json`), "[]");
+    const run = vi.spyOn(ctx.engine, "run");
+    await stages.generate_song?.(ctx);
+    const options = run.mock.calls.find(([, args]) =>
+      args.includes("tools/score_takes.py"),
+    )?.[2];
+    expect(options?.secretEnv).toBeUndefined();
+    expect(options?.entryIds).toBeUndefined();
+    expect(vi.mocked(groqLedger.open)).not.toHaveBeenCalled();
+    expect(scoreCalls(calls)).toHaveLength(1);
   });
   it("never lets the Groq key reach the log", async () => {
     const { ctx } = await scoringSetup();
@@ -1178,8 +1206,10 @@ async function setup() {
     return child as unknown as ReturnType<Spawn>;
   };
   const db = new InMemoryDb();
+  const groqLedger = recordingLedger();
   const ctx: StageContext = {
     providerLedger: () => recordingLedger(),
+    groqLedger: () => groqLedger,
     job: {
       owner_id: "owner",
       id: "job",
@@ -1242,7 +1272,7 @@ async function setup() {
     owner_id: "owner",
     path: join(ws.renderDir, "video.mp4"),
   });
-  return { ctx, calls, output, db };
+  return { ctx, calls, output, db, groqLedger };
 }
 function command(cmd: string, args: string[], cwd: string = ENGINE_ROOT) {
   return { cmd, args, cwd };

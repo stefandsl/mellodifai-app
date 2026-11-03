@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type TakeScores,
@@ -8,7 +8,8 @@ import {
 } from "@mellodifai/shared";
 import type { Take } from "../db.js";
 import type { StageContext } from "../loop.js";
-import { groqAvailable } from "../providers/paid.js";
+import type { Ledger } from "../providers/ledger.js";
+import { callKey, groqAvailable } from "../providers/paid.js";
 import { ENGINE_ROOT, language } from "./utils.js";
 
 // score_takes.py rows use snake_case; the take number is in the file name ("take-2.mp3").
@@ -73,6 +74,51 @@ export async function scoreTakes(
     }
     const lang = language(context);
     const reportFile = join(context.ws.outDir, "takes-score.json");
+    const files = await readdir(context.ws.outDir);
+    const takeByNumber = new Map(takes.map((take) => [take.take_number, take]));
+    for (const file of files) {
+      const number = /^take-(\d+)\.mp3$/u.exec(file)?.[1];
+      if (number && !takeByNumber.has(Number(number)))
+        throw new Error("Take scoring found an untracked take");
+    }
+    const uncached: Take[] = [];
+    for (const take of takes) {
+      if (!take.take_number) continue;
+      try {
+        await access(
+          join(context.ws.outDir, `take-${take.take_number}.words.json`),
+        );
+      } catch {
+        uncached.push(take);
+      }
+    }
+    const entries: Array<{ take: Take; id: string }> = [];
+    let ledger: Ledger | undefined;
+    if (uncached.length) {
+      if (!context.groqLedger) throw new Error("Groq ledger is not configured");
+      ledger = context.groqLedger();
+      if (!(await ledger.reservationFor(context.job.id)))
+        throw new Error("Groq scoring has no reservation");
+      if ((context.job.attempts ?? 1) > 1)
+        await ledger.extendStage(context.job.id);
+      for (const take of uncached) {
+        const key = callKey("groq", {
+          takeId: take.id,
+          attempt: context.job.attempts ?? 1,
+        });
+        const estimate = { audio_hour: 0.1 };
+        let id: string;
+        try {
+          id = await ledger.open(key, estimate);
+        } catch (error) {
+          if ((error as { code?: string } | null)?.code !== "MDF07")
+            throw error;
+          await ledger.extend(estimate);
+          id = await ledger.open(key, estimate);
+        }
+        entries.push({ take, id });
+      }
+    }
     await context.engine.run(
       "python",
       [
@@ -87,13 +133,25 @@ export async function scoreTakes(
       ],
       {
         cwd: ENGINE_ROOT,
-        secretEnv: ["GROQ_API_KEY"],
+        ...(entries.length
+          ? {
+              secretEnv: ["GROQ_API_KEY"],
+              entryIds: entries.map(({ id }) => id),
+            }
+          : {}),
         // A report left by an earlier generation must never be read as this one's.
         clearOutputs: [reportFile],
       },
     );
     const report: unknown = JSON.parse(await readFile(reportFile, "utf8"));
     const scores = scoresByTake(report);
+    for (const { take, id } of entries) {
+      const duration = scores.get(take.take_number ?? 0)?.duration;
+      if (!ledger) throw new Error("Groq ledger is not configured");
+      await ledger.settle(id, {
+        audio_hour: duration && duration > 0 ? duration / 3600 : 0.1,
+      });
+    }
     for (const take of takes) {
       const number = take.take_number;
       const own = number && scores.get(number);

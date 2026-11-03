@@ -24,6 +24,7 @@ import {
   submitSourceTask,
 } from "../src/stages/source-audio.js";
 import type { FakeComfy } from "./fake-comfy.js";
+import { recordingLedger } from "./support/ledger.js";
 
 const roots: string[] = [];
 const servers: FakeComfy[] = [];
@@ -124,6 +125,7 @@ async function setup(settings: Record<string, unknown> = {}, seconds = 200) {
     }),
   };
   const ctx: StageContext = {
+    groqLedger: () => recordingLedger(),
     job: {
       id: "job",
       owner_id: OWNER,

@@ -2,8 +2,17 @@ import { spawn as nodeSpawn, type SpawnOptions } from "node:child_process";
 import { rename, rm } from "node:fs/promises";
 import { join, parse, win32 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { FREE_KEY_CALLS } from "./providers/paid.js";
 import { workerTempDir } from "./runtime.js";
 import { childEnvironment, type Secrets } from "./secrets.js";
+
+export const PAID_SECRET_NAMES = [
+  "KIE_API_KEY",
+  "OPENROUTER_API_KEY",
+  "LYRICS_OPENROUTER_KEY",
+  "GROQ_API_KEY",
+  "HIGGSFIELD_API_KEY",
+] as const;
 
 type Child = {
   pid?: number | undefined;
@@ -25,6 +34,8 @@ export type EngineOptions = {
   env?: Record<string, string>;
   // Names from secrets.values this child may see; every other secret stays out of its environment.
   secretEnv?: string[];
+  entryIds?: string[];
+  freeCall?: (typeof FREE_KEY_CALLS)[number];
   outputs?: string[];
   cwd?: string;
 };
@@ -112,6 +123,17 @@ export class Engine {
         "Shell shims are unsupported: use node <path to remotion CLI js> instead of npx or .cmd",
       );
     }
+    if (
+      options.secretEnv?.some((name) =>
+        (PAID_SECRET_NAMES as readonly string[]).includes(name),
+      ) &&
+      !options.entryIds?.some((id) => id.trim()) &&
+      !(
+        options.freeCall &&
+        (FREE_KEY_CALLS as readonly string[]).includes(options.freeCall)
+      )
+    )
+      throw new Error("Paid secret requires a spend entry or free call");
     const parts = new Map(
       (options.outputs ?? []).map((file) => {
         const { dir, name, ext } = parse(file);
@@ -154,6 +176,7 @@ export class Engine {
         TMP: workerTempDir(),
         TEMP: workerTempDir(),
         TMPDIR: workerTempDir(),
+        MELLODIFAI_ENV_ONLY: "1",
       },
     });
     let logs = Promise.resolve();

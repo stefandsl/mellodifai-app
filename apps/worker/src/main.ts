@@ -14,6 +14,7 @@ import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
 import { fakeSongless } from "./fake/lyrics-assist.js";
 import { WorkerLoop } from "./loop.js";
+import { serviceLedger } from "./providers/ledger.js";
 import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
@@ -118,6 +119,7 @@ async function main() {
   const workerId =
     secrets.values.WORKER_ID ?? `worker-${process.env.COMPUTERNAME ?? "pc"}`;
   const db = new SupabaseDb(url, key, secrets.values.WORKER_OWNER_ID);
+  const client = createClient(url, key);
   const engine = new Engine({
     log: async (line) => console.log(secrets.redact(line)),
     secrets,
@@ -163,8 +165,9 @@ async function main() {
     songless: process.env.WORKER_FAKE === "1" ? fakeSongless : songlessStages,
     workspace: new WorkspaceFactory(),
     engine,
-    storage: new SupabaseStorage(createClient(url, key)),
+    storage: new SupabaseStorage(client),
     secrets,
+    groqLedger: () => serviceLedger(client, null, "groq", ""),
     report,
     comfy,
   });
