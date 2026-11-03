@@ -1,7 +1,8 @@
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { runtimeRoot } from "@mellodifai/remake";
 import { LyricPackSchema, type Stage } from "@mellodifai/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
@@ -143,6 +144,27 @@ it("prunes only superseded previews of this version after upload succeeds", asyn
   );
   expect(JSON.stringify(remove.mock.calls)).not.toContain("other.mp4");
   expect(JSON.stringify(remove.mock.calls)).not.toContain("master-preview.mp4");
+});
+it("retains the preview of a published render after rerendering", async () => {
+  const { ctx, db } = await setup();
+  db.renders.push({
+    id: "published",
+    version_id: ctx.version.id,
+    kind: "master",
+    render_attempt: 1,
+    preview_path: "published-preview.mp4",
+  });
+  db.publications.push({
+    id: "publication",
+    render_id: "published",
+    privacy: "private",
+  });
+  const remove = vi.fn(async () => {});
+  ctx.storage.remove = remove;
+  await stages.render_master?.(ctx);
+  expect(JSON.stringify(remove.mock.calls)).not.toContain(
+    "published-preview.mp4",
+  );
 });
 it.each([
   [4, "balance 3 credits < 12 needed", true],
@@ -801,8 +823,9 @@ describe("round 2 hardening", () => {
     const body = JSON.parse(String(request.body)) as {
       messages: { content: string }[];
     };
-    for (const key of ['"title"', '"lyrics"', '"style"', '"exclude"', '"l10n"'])
+    for (const key of ['"title"', '"lyrics"', '"style"', '"exclude"'])
       expect(body.messages[0]?.content).toContain(key);
+    expect(body.messages[0]?.content).not.toContain('"l10n"');
   });
   it("asks for the user's topic and uses the reference only as a format", async () => {
     // Live test 2026-10-31: "office coffee machine" came back as another VBP song about AI approvals.
@@ -1078,7 +1101,9 @@ const pack = {
   l10n: {},
 };
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "stage-tests-"));
+  const scratch = join(runtimeRoot(), "tmp");
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "stage-tests-"));
   roots.push(root);
   const ws = {
     root,
@@ -1097,7 +1122,22 @@ async function setup() {
   );
   await writeFile(
     join(ws.publicDir, "data", "fr", "timing.json"),
-    JSON.stringify({ duration: 10, words: [{ start: 0, end: 0.1 }] }),
+    JSON.stringify({
+      duration: 10,
+      words: [{ start: 0, end: 0.1 }],
+      lines: [
+        {
+          section: "Verse 1",
+          text: "First line",
+          words: [{ start: 0, end: 0.1 }],
+        },
+        {
+          section: "Chorus",
+          text: "Second line",
+          words: [{ start: 5, end: 5.5 }],
+        },
+      ],
+    }),
   );
   const calls: {
     cmd: string;
@@ -1116,6 +1156,18 @@ async function setup() {
     timing: {
       duration: 10,
       words: [{ start: 0, end: 0.1 }],
+      lines: [
+        {
+          section: "Verse 1",
+          text: "First line",
+          words: [{ start: 0, end: 0.1 }],
+        },
+        {
+          section: "Chorus",
+          text: "Second line",
+          words: [{ start: 5, end: 5.5 }],
+        },
+      ],
       sections: [
         { name: "Final Chorus", lines: [{ words: [{ start: 60, end: 61 }] }] },
       ],
@@ -1319,6 +1371,39 @@ describe("stage safety and behavior", () => {
       tags: ["pop", "fr"],
       privacyStatus: "private",
     });
+  });
+  it("fills a title-only publish job from its render snapshot", async () => {
+    const { ctx, db } = await setup();
+    ctx.project.brief = "Old project brief";
+    ctx.version.lyric_pack = {
+      ...pack,
+      title: "Current title",
+      lyrics: "Current lyrics",
+    };
+    ctx.job.payload = { metadata: { title: "Reviewed title" } };
+    await db.patchRender(db.renders[0]?.id ?? "", {
+      qa_results: {
+        assets: {
+          lyric_pack: {
+            ...pack,
+            title: "Rendered title",
+            lyrics: "Une lumière sur le port",
+          },
+          lang: "fr",
+          mood: "Pop luminoso",
+        },
+      },
+    });
+    await stages.publish?.(ctx);
+    const meta = JSON.parse(
+      await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+    );
+    expect(meta.title).toBe("Reviewed title");
+    expect(meta.description).toContain("Une lumière sur le port");
+    expect(meta.description).toContain("lumineux");
+    expect(meta.description).not.toContain("Old project brief");
+    expect(meta.description).not.toContain("Current lyrics");
+    expect(meta.tags).toContain("lumineux");
   });
   it("strips loaded secrets from child environment, including overridden aliases", async () => {
     const { ctx, calls } = await setup();
@@ -1569,6 +1654,52 @@ describe("stage safety and behavior", () => {
     );
     expect(ctx.storage.upload).toHaveBeenCalledTimes(2);
   });
+  it("stores the selected take's storyboard and thumbnail on its render", async () => {
+    const { ctx, db } = await setup();
+    ctx.project.mood = "wistful";
+    ctx.version.storyboard_path = join(
+      ctx.ws.publicDir,
+      "data",
+      "fr",
+      "storyboard-7.json",
+    );
+    ctx.version.chosen_take_id = "take-one";
+    await stages.art?.(ctx);
+    const render = await db.getRender(ctx.version.id, "master");
+    expect(render?.qa_results).toMatchObject({
+      assets: {
+        storyboard_path: ctx.version.storyboard_path,
+        thumbnail_path: "previews/owner/project/fr/version/7/thumbnail.png",
+        chosen_take_id: "take-one",
+        lyric_pack: ctx.version.lyric_pack,
+        storyboard_sections: ctx.version.storyboard_sections,
+        title: "Test song",
+        lang: "fr",
+        mood: "wistful",
+      },
+    });
+  });
+  it("uses lyric style when both project moods are blank", async () => {
+    const { ctx, db } = await setup();
+    ctx.project.mood = "  ";
+    ctx.project.song_settings = { mood: "" };
+    ctx.version.lyric_pack = { ...pack, style: "sad dark" };
+    const storyboard = await stages.storyboard?.(ctx);
+    expect(storyboard?.patch?.storyboard_sections).toBeTruthy();
+    const scenes = JSON.parse(
+      await readFile(
+        join(ctx.ws.publicDir, "data", "fr", "storyboard.json"),
+        "utf8",
+      ),
+    );
+    expect(scenes.shots[0].mood).toBe("ink");
+    await stages.art?.(ctx);
+    expect(
+      (await db.getRender(ctx.version.id, "master"))?.qa_results,
+    ).toMatchObject({
+      assets: { mood: "sad dark" },
+    });
+  });
   it("writes the lyric files an imported song never had before timing it", async () => {
     const { ctx } = await setup();
     ctx.version.lyric_pack = fakePack;
@@ -1577,6 +1708,62 @@ describe("stage safety and behavior", () => {
     expect(await readFile(join(ctx.ws.versionsDir, "title.txt"), "utf8")).toBe(
       fakePack.title,
     );
+  });
+  it("refreshes stale lyric files before the production timing command after a take switch", async () => {
+    const { ctx, db, output } = await setup();
+    await writeFile(join(ctx.ws.versionsDir, "title.txt"), "Previous title");
+    await writeFile(join(ctx.ws.versionsDir, "lyrics.txt"), "Previous lyrics");
+    const run = ctx.engine.run.bind(ctx.engine);
+    const observed: string[] = [];
+    vi.spyOn(ctx.engine, "run").mockImplementation(
+      async (cmd, args, options) => {
+        if (cmd === "bash") {
+          const lyrics = await readFile(
+            join(ctx.ws.versionsDir, "lyrics.txt"),
+            "utf8",
+          );
+          observed.push(lyrics);
+          output.timing = {
+            duration: 10,
+            sections: [
+              {
+                name: "Final Chorus",
+                lines: [{ words: [{ start: 60, end: 61 }] }],
+              },
+            ],
+            lines: [
+              { section: "Verse", text: lyrics, words: [{ start: 0, end: 9 }] },
+            ],
+          };
+        }
+        return run(cmd, args, options);
+      },
+    );
+    for (const lyrics of ["New take lyrics", "Original take lyrics"]) {
+      const take = await db.createTake({
+        version_id: ctx.version.id,
+        take_number: 2,
+        generation: 1,
+        lyrics,
+      });
+      ctx.version.chosen_take_id = take.id;
+      ctx.version.lyric_pack = { ...fakePack, lyrics };
+      await stages.timing?.(ctx);
+      const storyboard = await stages.storyboard?.(ctx);
+      expect(JSON.stringify(storyboard?.patch?.storyboard_sections)).toContain(
+        lyrics,
+      );
+      const timing = await readFile(
+        join(ctx.ws.publicDir, "data", "fr", "timing.json"),
+        "utf8",
+      );
+      expect(timing).toContain(lyrics);
+      expect(timing).not.toContain("Previous lyrics");
+      expect(
+        await readFile(join(ctx.ws.versionsDir, "title.txt"), "utf8"),
+      ).toBe(fakePack.title);
+    }
+    expect(observed).toEqual(["New take lyrics", "Original take lyrics"]);
   });
   it("re-encodes a preview over 40 MB using ffprobe size", async () => {
     const { ctx, calls, output } = await setup();
@@ -1706,9 +1893,21 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   });
   await run("set_privacy");
   expect(ctx.version.status).toBe("published");
-  expect(sleep).toHaveBeenCalledTimes(11);
+  ctx.version.render_attempt = 8;
+  const replacement = await db.upsertRender({
+    version_id: ctx.version.id,
+    kind: "master",
+    render_attempt: 8,
+    path: join(ctx.ws.renderDir, "video.mp4"),
+  });
+  await run("publish");
+  expect(db.publications).toHaveLength(2);
+  expect(db.publications[1]?.render_id).toBe(replacement.id);
+  await run("publish");
+  expect(db.publications).toHaveLength(2);
+  expect(sleep).toHaveBeenCalledTimes(13);
   expect(ctx.storage.upload).toHaveBeenCalledWith(
-    "previews/owner/project/fr/master-preview.mp4",
+    "previews/owner/project/fr/version/7/master-preview.mp4",
     join(ctx.ws.renderDir, "master-preview.mp4"),
     "video/mp4",
   );
@@ -1756,6 +1955,7 @@ describe("exact stage subprocess contracts", () => {
     "set_privacy",
   ] as Stage[])("%s arguments, cwd, environment", async (stage) => {
     const { ctx, calls, db } = await setup();
+    if (stage === "art") ctx.version.lyric_pack = { ...pack, title: "--Night" };
     if (stage === "set_privacy")
       await db.createPublication({
         render_id: db.renders[0]?.id ?? "",
@@ -1816,26 +2016,37 @@ describe("exact stage subprocess contracts", () => {
           render("outro-listen.part.mp3"),
         ]),
       ],
-      storyboard: [
-        command("python", [
-          "-I",
-          "-X",
-          "utf8",
-          "tools/make_storyboard.py",
-          "fr",
-        ]),
-      ],
+      storyboard: [],
       art: [
-        command("python", [
-          "-I",
-          "-X",
-          "utf8",
-          "tools/make_thumb.py",
-          "--title",
-          "Test song",
-          "--out",
-          render("thumbnail.part.png"),
+        command("ffmpeg", [
+          "-y",
+          "-ss",
+          "0.5",
+          "-i",
+          render("video.mp4"),
+          "-frames:v",
+          "1",
+          render("thumbnail-frame.part.jpg"),
         ]),
+        command(
+          "python",
+          [
+            "-I",
+            "-X",
+            "utf8",
+            fileURLToPath(
+              new URL("../src/stages/thumbnail.py", import.meta.url),
+            ),
+            "--title=--Night",
+            "--lang",
+            "fr",
+            "--source",
+            render("thumbnail-frame.jpg"),
+            "--out",
+            render("thumbnail.part.png"),
+          ],
+          ctx.ws.root,
+        ),
         command("python", [
           "-I",
           "-X",

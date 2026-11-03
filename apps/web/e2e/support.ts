@@ -114,10 +114,11 @@ export async function createFrenchProject(page: Page, topic: string) {
   await page.getByRole("button", { name: /^Lingue:/u }).click();
   const italian = page.getByRole("menuitemcheckbox", { name: /Italiano/u });
   const french = page.getByRole("menuitemcheckbox", { name: /Francese/u });
-  await expect(italian).toHaveAttribute("aria-checked", "true");
-  await italian.click();
+  if ((await italian.getAttribute("aria-checked")) === "true")
+    await italian.click();
   await expect(italian).toHaveAttribute("aria-checked", "false");
-  await french.click();
+  if ((await french.getAttribute("aria-checked")) === "false")
+    await french.click();
   await expect(french).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Crea canzone" }).click();
@@ -145,7 +146,10 @@ export async function removeE2EWorker() {
   if (error) throw error;
 }
 
-export async function startFakeWorker() {
+export async function startFakeWorker(
+  ownerId?: string,
+  workerId = "e2e-worker",
+) {
   const supabaseUrl = localSupabaseUrl();
   const child = spawn(
     process.execPath,
@@ -163,7 +167,7 @@ export async function startFakeWorker() {
         SUPABASE_URL: supabaseUrl,
         SUPABASE_SERVICE_ROLE_KEY: required("SUPABASE_SERVICE_ROLE_KEY"),
         WORKER_ID: workerId,
-        WORKER_OWNER_ID: await getAdminId(),
+        WORKER_OWNER_ID: ownerId ?? (await getAdminId()),
       },
       stdio: "ignore",
     },

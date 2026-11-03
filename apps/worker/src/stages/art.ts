@@ -1,25 +1,62 @@
 import { join } from "node:path";
-import { LyricPackSchema } from "@mellodifai/shared";
-import type { StageHandler } from "../loop.js";
+import { fileURLToPath } from "node:url";
+import { LyricPackSchema, songMood } from "@mellodifai/shared";
+import type { StageContext, StageHandler } from "../loop.js";
 import { ENGINE_ROOT, upload } from "./utils.js";
-export const art: StageHandler = async (context) => {
+
+const script = fileURLToPath(new URL("./thumbnail.py", import.meta.url));
+
+export async function makeThumbnail(context: StageContext, source: string) {
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   const output = join(context.ws.renderDir, "thumbnail.png");
   await context.engine.run(
     "python",
     [
-      "-I",
       "-X",
       "utf8",
-      "tools/make_thumb.py",
-      "--title",
-      pack.title,
+      script,
+      `--title=${pack.title}`,
+      "--lang",
+      context.version.lang,
+      "--source",
+      source,
       "--out",
       output,
     ],
-    { cwd: ENGINE_ROOT, outputs: [output] },
+    { cwd: context.ws.root, outputs: [output] },
   );
-  await upload(context, output, "image/png");
+  return upload(context, output, "image/png");
+}
+
+export const art: StageHandler = async (context) => {
+  const render = await context.db.getRender(context.version.id, "master");
+  if (!render?.path) throw new Error("Master video required for its thumbnail");
+  const frame = join(context.ws.renderDir, "thumbnail-frame.jpg");
+  await context.engine.run(
+    "ffmpeg",
+    ["-y", "-ss", "0.5", "-i", render.path, "-frames:v", "1", frame],
+    { cwd: ENGINE_ROOT, outputs: [frame] },
+  );
+  const thumbnailPath = await makeThumbnail(context, frame);
+  await context.db.patchRender(render.id, {
+    qa_results: {
+      ...((render.qa_results as Record<string, unknown> | null) ?? {}),
+      assets: {
+        storyboard_path: context.version.storyboard_path,
+        thumbnail_path: thumbnailPath,
+        chosen_take_id: context.version.chosen_take_id,
+        lyric_pack: context.version.lyric_pack,
+        storyboard_sections: context.version.storyboard_sections,
+        title: LyricPackSchema.parse(context.version.lyric_pack).title,
+        lang: context.version.lang,
+        mood: songMood(
+          context.project.mood,
+          (context.project.song_settings as { mood?: string } | null)?.mood,
+          LyricPackSchema.parse(context.version.lyric_pack).style,
+        ),
+      },
+    },
+  });
   const srt = join(context.ws.renderDir, `${context.version.lang}.srt`);
   await context.engine.run(
     "python",

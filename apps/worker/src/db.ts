@@ -180,7 +180,11 @@ export type Publication = {
 };
 
 export interface Db {
-  previewRows(versionId: string): Promise<{ renders: Render[]; takes: Take[] }>;
+  previewRows(versionId: string): Promise<{
+    renders: Render[];
+    takes: Take[];
+    publishedRenderIds: string[];
+  }>;
   claim(workerId: string): Promise<Job | null>;
   heartbeat(jobId: string, workerId: string): Promise<boolean>;
   requeueStale(seconds: number): Promise<number>;
@@ -233,6 +237,7 @@ export interface Db {
   patchRender(id: string, patch: Partial<Render>): Promise<void>;
   createPublication(publication: Omit<Publication, "id">): Promise<Publication>;
   getPublicationForVersion(versionId: string): Promise<Publication | null>;
+  getPublicationForRender(renderId: string): Promise<Publication | null>;
   patchPublication(id: string, patch: Partial<Publication>): Promise<void>;
   getWorker(id: string): Promise<WorkerUpdate | null>;
   // profiles.role of a song's owner: local engines are for the admin only (design 5.5).
@@ -272,9 +277,21 @@ export class SupabaseDb implements Db {
       .select("*")
       .eq("version_id", versionId);
     if (error) throw new Error(error.message);
+    const renders = (data ?? []) as Render[];
+    const { data: publications, error: publicationError } = renders.length
+      ? await this.client
+          .from("publications")
+          .select("render_id")
+          .in(
+            "render_id",
+            renders.map((render) => render.id),
+          )
+      : { data: [], error: null };
+    if (publicationError) throw new Error(publicationError.message);
     return {
-      renders: (data ?? []) as Render[],
+      renders,
       takes: await this.getTakes(versionId),
+      publishedRenderIds: (publications ?? []).map((row) => row.render_id),
     };
   }
   private readonly client: SupabaseClient;
@@ -558,6 +575,17 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(error.message);
     return data as Publication | null;
   }
+  async getPublicationForRender(renderId: string): Promise<Publication | null> {
+    const { data, error } = await this.client
+      .from("publications")
+      .select("*")
+      .eq("render_id", renderId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Publication | null;
+  }
   async patchPublication(
     id: string,
     patch: Partial<Publication>,
@@ -684,6 +712,7 @@ export class InMemoryDb implements Db {
     return {
       renders: this.renders.filter((r) => r.version_id === versionId),
       takes: await this.getTakes(versionId),
+      publishedRenderIds: this.publications.map((p) => p.render_id),
     };
   }
   public takes: Take[] = [];
@@ -902,6 +931,11 @@ export class InMemoryDb implements Db {
             (b.created_at ?? "").localeCompare(a.created_at ?? "") ||
             b.id.localeCompare(a.id),
         )[0] ?? null
+    );
+  }
+  async getPublicationForRender(renderId: string) {
+    return (
+      this.publications.find((item) => item.render_id === renderId) ?? null
     );
   }
   async patchPublication(id: string, patch: Partial<Publication>) {

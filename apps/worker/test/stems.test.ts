@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb, type Take, type Version } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
-import { createFakeStages } from "../src/fake/index.js";
+import { createFakeStages, fakePack } from "../src/fake/index.js";
 import { type StageContext, WorkerLoop } from "../src/loop.js";
 import { stages } from "../src/stages/index.js";
 import {
@@ -447,6 +447,7 @@ describe("timing on an edited take", () => {
     await writeFile(join(ws.outDir, "aligned-take1.json"), "{}");
     ctx.job = { ...ctx.job, stage: "timing", payload: {} };
     ctx.version.status = "producing";
+    ctx.version.lyric_pack = fakePack;
     db.takes[0] = { ...take };
     // The pipeline itself is out of scope here: stop right after the audio is in place.
     vi.spyOn(ctx.engine, "run").mockRejectedValueOnce(new Error("stop"));

@@ -144,9 +144,9 @@ Launch detached on Windows with PowerShell `Start-Process` so it outlives the ag
 
 ## 5. Later work (after M1)
 
-Per-song storyboard, thumbnail and metadata; per-language publishing hub (11 languages); CTR
-thumbnails (not clickbait);
-milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
+Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design
+(plans in docs/superpowers/plans/2026-11-03-*); re-render after approval (song-assets follow-up);
+cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 

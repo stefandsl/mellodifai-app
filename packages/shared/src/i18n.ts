@@ -184,7 +184,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "privacy.scheduled": "Programma",
     "privacy.private": "Privato",
     "publish.suffix": "Lyric video",
-    "publish.credits": "Creato con mellodifai.",
+    "publish.credits": "Creato con strumenti AI.",
     "publish.at": "Data e ora di pubblicazione",
     "publish.video": "Video",
     "publish.wait": "Caricamento in corso. Il video rimane privato.",
@@ -340,7 +340,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "privacy.scheduled": "Schedule",
     "privacy.private": "Private",
     "publish.suffix": "Lyric video",
-    "publish.credits": "Created with mellodifai.",
+    "publish.credits": "Created with AI tools.",
     "publish.at": "Publication date and time",
     "publish.video": "Video",
     "publish.wait": "Upload in progress. The video remains private.",
@@ -467,4 +467,42 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
 
 export function t(lang: "it" | "en", key: DictKey): string {
   return DICTIONARY[lang][key];
+}
+// Publication text follows the recording's language, independently of the app locale.
+export function publicationCopy(language: string) {
+  const copy: Record<string, [string, string, string]> = {
+    it: ["Lyric video", "Creato con strumenti AI.", "lyric video"],
+    en: ["Lyric video", "Created with AI tools.", "lyric video"],
+    fr: [
+      "Vidéo avec paroles",
+      "Créé avec des outils d’intelligence artificielle.",
+      "vidéo avec paroles",
+    ],
+    de: ["Songtextvideo", "Mit KI-Werkzeugen erstellt.", "Songtextvideo"],
+    es: [
+      "Vídeo con letra",
+      "Creado con herramientas de IA.",
+      "vídeo con letra",
+    ],
+    pt: ["Vídeo com letra", "Criado com ferramentas de IA.", "vídeo com letra"],
+    ro: [
+      "Videoclip cu versuri",
+      "Creat cu instrumente de inteligență artificială.",
+      "videoclip cu versuri",
+    ],
+    ru: [
+      "Видео с текстом",
+      "Создано с помощью инструментов ИИ.",
+      "видео с текстом",
+    ],
+    ja: ["歌詞付き動画", "AIツールを使用して制作しました。", "歌詞付き動画"],
+    zh: ["歌词视频", "使用人工智能工具制作。", "歌词视频"],
+    ko: ["가사 영상", "AI 도구로 제작했습니다.", "가사 영상"],
+  };
+  const [suffix, credits, tag] = copy[language] ?? [
+    "Lyric video",
+    "Created with AI tools.",
+    "lyric video",
+  ];
+  return { suffix, credits, tag };
 }

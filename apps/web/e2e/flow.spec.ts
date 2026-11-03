@@ -88,13 +88,13 @@ test("admin completes the French song-to-public-video flow", async ({
   await expect(
     dialog.getByRole("heading", { name: "Conferma visibilità" }),
   ).toBeVisible();
-  await expect(dialog).toContainText("A little brighter");
+  await expect(dialog).toContainText(topic);
   expect(await privacyJobCount()).toBe(0);
   await dialog.getByRole("button", { name: "Annulla" }).click();
   await expect(dialog).not.toBeVisible();
   expect(await privacyJobCount()).toBe(0);
   await page.getByRole("button", { name: "Rendi pubblico" }).click();
-  await expect(dialog).toContainText("A little brighter");
+  await expect(dialog).toContainText(topic);
   expect(await privacyJobCount()).toBe(0);
   await dialog.getByRole("button", { name: "Conferma" }).click();
   await expect(page.getByText("FR Pubblicato")).toBeVisible({

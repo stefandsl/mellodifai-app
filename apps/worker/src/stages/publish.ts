@@ -1,6 +1,11 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
-import { LyricPackSchema, privacyVersionStatus } from "@mellodifai/shared";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  LyricPackSchema,
+  privacyVersionStatus,
+  publicationDefaults,
+  songMood,
+} from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
 import { nextPacificQuotaTime } from "./quota.js";
 import { ENGINE_ROOT, language } from "./utils.js";
@@ -36,30 +41,55 @@ export const publish: StageHandler = async (context) => {
     throw new Error("upload state unknown, check YouTube Studio");
   if (reservation.kind === "uploaded") return { versionStatus: "approved" };
   if (!reservation.publication) throw new Error("Missing upload reservation");
-  const pack = LyricPackSchema.parse(context.version.lyric_pack);
+  const assets = (
+    render.qa_results as {
+      assets?: {
+        lyric_pack?: unknown;
+        lang?: string;
+        storyboard_sections?: unknown;
+        mood?: string;
+      };
+    } | null
+  )?.assets;
+  const pack = LyricPackSchema.parse(
+    assets?.lyric_pack ?? context.version.lyric_pack,
+  );
+  const lang = assets?.lang ?? language(context);
+  const defaults = publicationDefaults(
+    pack.title,
+    pack.lyrics,
+    lang,
+    assets?.storyboard_sections ?? context.version.storyboard_sections,
+    assets?.mood ??
+      songMood(
+        context.project.mood,
+        (context.project.song_settings as { mood?: string } | null)?.mood,
+        pack.style,
+      ),
+  );
   const requested = context.job.payload?.metadata as
     | { title?: string; description?: string; tags?: string; chapters?: string }
     | undefined;
   const meta = {
     video: render.path,
-    captions: join(context.ws.renderDir, `${language(context)}.srt`),
+    captions: join(dirname(render.path), `${lang}.srt`),
     captions_name: pack.title,
-    thumbnail: join(context.ws.renderDir, "thumbnail.png"),
-    title: requested?.title ?? pack.title,
+    thumbnail: join(dirname(render.path), "thumbnail.png"),
+    title: requested?.title?.trim() || defaults.title,
     description: [
-      requested?.description ?? context.project.brief ?? "",
-      requested?.chapters ?? "",
+      requested?.description?.trim() || defaults.description,
+      requested?.chapters ?? defaults.chapters,
     ]
       .filter(Boolean)
       .join("\n\n"),
     tags:
-      requested?.tags
+      (requested?.tags?.trim() || defaults.tags)
         ?.split(",")
         .map((tag) => tag.trim())
         .filter(Boolean) ?? [],
     categoryId: "10",
-    defaultLanguage: language(context),
-    defaultAudioLanguage: language(context),
+    defaultLanguage: lang,
+    defaultAudioLanguage: lang,
     privacyStatus: "private",
     publishAt: null,
     selfDeclaredMadeForKids: false,

@@ -18,10 +18,62 @@ vi.mock("@/app/actions/checkpoints", () => ({
   retryStage: vi.fn(),
 }));
 
+import { LyricPackSchema } from "@mellodifai/shared";
 import { ConfirmDialog } from "./confirm-dialog";
 import { LocaleProvider } from "./locale-provider";
 import { LyricEditor } from "./lyric-editor";
 import { ProjectWorkspace, PublishPanel } from "./project-workspace";
+
+it("binds publication metadata and storyboard to the rendered take", () => {
+  const pack = LyricPackSchema.parse({
+    title: "Le port",
+    lyrics: "Anciennes paroles",
+    style: "Pop",
+    exclude: "",
+    settings: { model: "V5" },
+    displayMap: {},
+    l10n: {},
+  });
+  render(
+    <LocaleProvider value="it">
+      <ProjectWorkspace
+        version={{
+          id: "v",
+          lang: "fr",
+          status: "approved",
+          lyric_pack: { ...pack, lyrics: "Nouvelles paroles" },
+          generation_count: 1,
+          render_attempt: 1,
+          storyboard_sections: [{ title: "New section", start: 0 }],
+        }}
+        takes={[]}
+        publication={null}
+        renders={[
+          {
+            id: "r",
+            kind: "master",
+            previewUrl: null,
+            qa_results: {
+              assets: {
+                lyric_pack: pack,
+                lang: "fr",
+                storyboard_sections: [{ title: "Rendered section", start: 0 }],
+              },
+            },
+          },
+        ]}
+      />
+    </LocaleProvider>,
+  );
+  const description = (
+    screen.getByLabelText("Descrizione") as HTMLTextAreaElement
+  ).value;
+  expect(description).toContain("Anciennes paroles");
+  expect(description).not.toContain("Nouvelles paroles");
+  expect(description).not.toContain("Pop");
+  expect(screen.getByText("Rendered section")).toBeInTheDocument();
+  expect(screen.queryByText("New section")).not.toBeInTheDocument();
+});
 
 beforeEach(() => vi.clearAllMocks());
 it("shows approved master, hook and thumbnail before the publish form without repeating status", () => {

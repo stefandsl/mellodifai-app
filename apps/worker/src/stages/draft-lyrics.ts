@@ -28,15 +28,7 @@ import { ENGINE_ROOT } from "./utils.js";
 
 const reference = async (lang: string) =>
   Promise.all(
-    [
-      "lyrics.txt",
-      "title.txt",
-      "style.txt",
-      "settings.json",
-      "exclude.txt",
-      "display-map.json",
-      "storyboard-l10n.json",
-    ].map(
+    ["lyrics.txt", "title.txt", "style.txt"].map(
       async (name) =>
         `${name}:\n${await (["lyrics.txt", "title.txt", "style.txt"].includes(name) ? readFile(join(ENGINE_ROOT, "versions", lang, name), "utf8") : optionalText(join(ENGINE_ROOT, "versions", lang, name), name.endsWith(".json") ? "{}" : ""))}`,
     ),
@@ -73,7 +65,6 @@ const DRAFT_INSTRUCTIONS = [
   '"lyrics": string, the full lyrics with [Section] tag lines, exactly 80 sung lines in the same section structure as the reference (reference file lyrics.txt).',
   '"style": string, the music style prompt, at most 1000 characters (reference file style.txt).',
   '"exclude": string, comma-separated styles to avoid (reference file exclude.txt).',
-  '"l10n": object with the same keys as the reference storyboard-l10n.json, values written in the requested language.',
   "No other keys, no Markdown, no commentary. Never use the em dash character (U+2014).",
   REDACTION_NOTE,
 ].join("\n");
@@ -96,7 +87,6 @@ function parseReply(content: string): Record<string, unknown> {
 function buildPack(
   draft: Record<string, unknown>,
   vocalGender: string | null | undefined,
-  displayMap: Record<string, string>,
   songSettings: unknown,
 ) {
   // Studio projects carry the form settings; projects created before the studio have none.
@@ -108,7 +98,7 @@ function buildPack(
     lyrics: draft.lyrics,
     style: draft.style,
     exclude: form.exclude || (draft.exclude ?? ""),
-    l10n: draft.l10n ?? {},
+    l10n: {},
     settings: {
       model: form.model,
       ...(vocalGender === "m" || vocalGender === "f"
@@ -121,7 +111,7 @@ function buildPack(
       variety: form.variety ?? 1,
       duration: studio ? (form.duration ?? null) : 310,
     },
-    displayMap,
+    displayMap: {},
   };
 }
 
@@ -135,28 +125,6 @@ function briefLine(project: {
     ? `Lyrics written by the user (keep their words, arrange them into the reference format):
 ${project.brief}`
     : `Brief: ${project.brief ?? ""}`;
-}
-
-async function referenceDisplayMap(
-  lang: string,
-): Promise<Record<string, string>> {
-  try {
-    const value: unknown = JSON.parse(
-      await optionalText(
-        join(ENGINE_ROOT, "versions", lang, "display-map.json"),
-        "{}",
-      ),
-    );
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(
-          Object.entries(value).filter(
-            (entry): entry is [string, string] => typeof entry[1] === "string",
-          ),
-        )
-      : {};
-  } catch {
-    return {};
-  }
 }
 
 // Writer calls per draft: at most MAX_FORMAT_ATTEMPTS drafts that break the format, plus
@@ -177,7 +145,6 @@ export const draftLyrics: StageHandler = async (context) => {
   const secrets = context.secrets.values;
   const budget = await lyricsBudget(secrets);
   const template = await draftReference(context.version.lang);
-  const displayMap = await referenceDisplayMap(context.version.lang);
   const referenceTitle = (
     await optionalText(
       join(ENGINE_ROOT, "versions", context.version.lang, "title.txt"),
@@ -259,7 +226,6 @@ export const draftLyrics: StageHandler = async (context) => {
     const raw = buildPack(
       parseReply(body.choices?.[0]?.message?.content ?? ""),
       context.project.vocal_gender,
-      displayMap,
       context.project.song_settings,
     );
     const parsed = LyricPackSchema.safeParse(raw);

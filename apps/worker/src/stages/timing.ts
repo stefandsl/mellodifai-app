@@ -1,4 +1,3 @@
-import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { LyricPackSchema } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
@@ -9,7 +8,6 @@ import {
   language,
   readJson,
   upload,
-  versionFile,
   writePack,
 } from "./utils.js";
 
@@ -25,14 +23,9 @@ export const timing: StageHandler = async (context) => {
     throw new Error("Invalid take_number");
   const lang = language(context);
   await materializeEditedTake(context, selected);
-  // A song that never went through generate_song (an import) may have no lyric files yet: the
-  // pipeline reads them from versions/<lang>/.
-  const hasPack = await access(versionFile(context, "title.txt")).then(
-    () => true,
-    () => false,
-  );
-  const pack = LyricPackSchema.safeParse(context.version.lyric_pack);
-  if (!hasPack && pack.success) await writePack(context, pack.data);
+  // The pipeline reads these files, including on rerenders after a take switch.
+  const pack = LyricPackSchema.parse(context.version.lyric_pack);
+  await writePack(context, { ...pack, lyrics: selected.lyrics ?? pack.lyrics });
   const timingFile = join(context.ws.publicDir, "data", lang, "timing.json");
   const vocalStem = join(
     context.ws.root,
