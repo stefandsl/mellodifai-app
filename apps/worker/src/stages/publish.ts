@@ -1,5 +1,5 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { LyricPackSchema, privacyVersionStatus } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
 import { nextPacificQuotaTime } from "./quota.js";
@@ -42,9 +42,9 @@ export const publish: StageHandler = async (context) => {
     | undefined;
   const meta = {
     video: render.path,
-    captions: join(context.ws.renderDir, `${language(context)}.srt`),
+    captions: join(dirname(render.path), `${language(context)}.srt`),
     captions_name: pack.title,
-    thumbnail: join(context.ws.renderDir, "thumbnail.png"),
+    thumbnail: join(dirname(render.path), "thumbnail.png"),
     title: requested?.title ?? pack.title,
     description: [
       requested?.description ?? context.project.brief ?? "",

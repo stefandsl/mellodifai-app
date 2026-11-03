@@ -66,6 +66,18 @@ const job = (stage: Job["stage"], payload: Record<string, unknown> = {}) => ({
   idempotency_key: `${stage}:${Math.random()}`,
   payload,
 });
+const scratchDirs: string[] = [];
+function scratch() {
+  const root = join(runtimeRoot(), "tmp");
+  mkdirSync(root, { recursive: true });
+  const dir = mkdtempSync(join(root, "remake-worker-"));
+  scratchDirs.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
+});
+
 const dependencies = {
   workspace: {
     forVersion: async () => ({
@@ -79,22 +91,13 @@ const dependencies = {
   engine: new Engine({ log: async () => {} }),
   storage: { upload: async () => {} },
   secrets: {
-    values: { OPENROUTER_API_KEY: "or-test-key-123" } as Record<string, string>,
+    values: {
+      OPENROUTER_API_KEY: "or-test-key-123",
+      LYRICS_STATE_FILE: join(scratch(), "lyrics-state.json"),
+    } as Record<string, string>,
     redact: (text: string) => text.replaceAll("or-test-key-123", "***"),
   },
 };
-
-const scratchDirs: string[] = [];
-function scratch() {
-  const root = join(runtimeRoot(), "tmp");
-  mkdirSync(root, { recursive: true });
-  const dir = mkdtempSync(join(root, "remake-worker-"));
-  scratchDirs.push(dir);
-  return dir;
-}
-afterAll(() => {
-  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
-});
 
 function loop(
   db: InMemoryDb,

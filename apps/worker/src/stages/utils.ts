@@ -12,11 +12,17 @@ export function key(stage: string, context: StageContext): string {
   return `${stage}:${context.version.id}:${attempt(context)}`;
 }
 export function previewPath(context: StageContext, file: string): string {
+  const renderAsset =
+    /^(master-preview|hook-preview|thumbnail|contact-sheet)\./u.test(file) ||
+    file === `${context.version.lang}.srt`;
   return [
     PREVIEW_ROOT,
     context.version.owner_id ?? "unknown",
     context.project.id,
     context.version.lang,
+    ...(renderAsset
+      ? [context.version.id, String(context.version.render_attempt ?? 1)]
+      : []),
     file,
   ].join("/");
 }

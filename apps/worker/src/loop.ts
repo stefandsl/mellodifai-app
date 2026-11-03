@@ -53,7 +53,11 @@ export type SonglessHandler = (
 ) => Promise<Pick<StageResult, "retryLater">>;
 export type SonglessRegistry = Partial<Record<Stage, SonglessHandler>>;
 export type WorkspaceProvider = {
-  forVersion(projectId: string, lang: Version["lang"]): Promise<Workspace>;
+  forVersion(
+    projectId: string,
+    lang: Version["lang"],
+    renderAttempt?: number,
+  ): Promise<Workspace>;
 };
 
 let renderLock: Promise<void> = Promise.resolve();
@@ -293,7 +297,11 @@ export class WorkerLoop {
       const { engine, storage, secrets, workspace } = this.options;
       if (!engine || !storage || !secrets || !workspace)
         throw new Error("Worker dependencies are not configured");
-      const ws = await workspace.forVersion(project.id, version.lang);
+      const ws = await workspace.forVersion(
+        project.id,
+        version.lang,
+        version.render_attempt ?? 1,
+      );
       signal.throwIfAborted();
       active.engine = engine.withWorkspace(ws.root, log, signal);
       return handler({

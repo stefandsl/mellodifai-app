@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { LyricPackSchema, type Stage } from "@mellodifai/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
@@ -771,8 +772,9 @@ describe("round 2 hardening", () => {
     const body = JSON.parse(String(request.body)) as {
       messages: { content: string }[];
     };
-    for (const key of ['"title"', '"lyrics"', '"style"', '"exclude"', '"l10n"'])
+    for (const key of ['"title"', '"lyrics"', '"style"', '"exclude"'])
       expect(body.messages[0]?.content).toContain(key);
+    expect(body.messages[0]?.content).not.toContain('"l10n"');
   });
   it("asks for the user's topic and uses the reference only as a format", async () => {
     // Live test 2026-10-31: "office coffee machine" came back as another VBP song about AI approvals.
@@ -1067,7 +1069,22 @@ async function setup() {
   );
   await writeFile(
     join(ws.publicDir, "data", "fr", "timing.json"),
-    JSON.stringify({ duration: 10, words: [{ start: 0, end: 0.1 }] }),
+    JSON.stringify({
+      duration: 10,
+      words: [{ start: 0, end: 0.1 }],
+      lines: [
+        {
+          section: "Verse 1",
+          text: "First line",
+          words: [{ start: 0, end: 0.1 }],
+        },
+        {
+          section: "Chorus",
+          text: "Second line",
+          words: [{ start: 5, end: 5.5 }],
+        },
+      ],
+    }),
   );
   const calls: {
     cmd: string;
@@ -1086,6 +1103,18 @@ async function setup() {
     timing: {
       duration: 10,
       words: [{ start: 0, end: 0.1 }],
+      lines: [
+        {
+          section: "Verse 1",
+          text: "First line",
+          words: [{ start: 0, end: 0.1 }],
+        },
+        {
+          section: "Chorus",
+          text: "Second line",
+          words: [{ start: 5, end: 5.5 }],
+        },
+      ],
       sections: [
         { name: "Final Chorus", lines: [{ words: [{ start: 60, end: 61 }] }] },
       ],
@@ -1539,6 +1568,27 @@ describe("stage safety and behavior", () => {
     );
     expect(ctx.storage.upload).toHaveBeenCalledTimes(2);
   });
+  it("stores the selected take's storyboard and thumbnail on its render", async () => {
+    const { ctx, db } = await setup();
+    ctx.version.storyboard_path = join(
+      ctx.ws.publicDir,
+      "data",
+      "fr",
+      "storyboard-7.json",
+    );
+    ctx.version.chosen_take_id = "take-one";
+    await stages.art?.(ctx);
+    const render = await db.getRender(ctx.version.id, "master");
+    expect(render?.qa_results).toMatchObject({
+      assets: {
+        storyboard_path: ctx.version.storyboard_path,
+        thumbnail_path: "previews/owner/project/fr/version/7/thumbnail.png",
+        chosen_take_id: "take-one",
+        title: "Test song",
+        lang: "fr",
+      },
+    });
+  });
   it("writes the lyric files an imported song never had before timing it", async () => {
     const { ctx } = await setup();
     ctx.version.lyric_pack = fakePack;
@@ -1678,7 +1728,7 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   expect(ctx.version.status).toBe("published");
   expect(sleep).toHaveBeenCalledTimes(11);
   expect(ctx.storage.upload).toHaveBeenCalledWith(
-    "previews/owner/project/fr/master-preview.mp4",
+    "previews/owner/project/fr/version/7/master-preview.mp4",
     join(ctx.ws.renderDir, "master-preview.mp4"),
     "video/mp4",
   );
@@ -1757,26 +1807,38 @@ describe("exact stage subprocess contracts", () => {
           render("outro-listen.part.mp3"),
         ]),
       ],
-      storyboard: [
-        command("python", [
-          "-I",
-          "-X",
-          "utf8",
-          "tools/make_storyboard.py",
-          "fr",
-        ]),
-      ],
+      storyboard: [],
       art: [
-        command("python", [
-          "-I",
-          "-X",
-          "utf8",
-          "tools/make_thumb.py",
-          "--title",
-          "Test song",
-          "--out",
-          render("thumbnail.part.png"),
+        command("ffmpeg", [
+          "-y",
+          "-ss",
+          "0.5",
+          "-i",
+          render("video.mp4"),
+          "-frames:v",
+          "1",
+          render("thumbnail-frame.part.jpg"),
         ]),
+        command(
+          "python",
+          [
+            "-I",
+            "-X",
+            "utf8",
+            fileURLToPath(
+              new URL("../src/stages/thumbnail.py", import.meta.url),
+            ),
+            "--title",
+            "Test song",
+            "--lang",
+            "fr",
+            "--source",
+            render("thumbnail-frame.jpg"),
+            "--out",
+            render("thumbnail.part.png"),
+          ],
+          ctx.ws.root,
+        ),
         command("python", [
           "-I",
           "-X",

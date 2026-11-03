@@ -1,13 +1,22 @@
-import { copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
   type LyricPack,
+  LyricPackSchema,
   privacyVersionStatus,
   STAGE_STATUS,
   type Stage,
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
+import { makeThumbnail } from "../stages/art.js";
+import { songStoryboard } from "../stages/storyboard.js";
 import { key, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
 
@@ -49,7 +58,7 @@ export async function createFakeMedia(
     );
     if (result.code !== 0) throw new Error("Fake media generation failed");
   };
-  await run([
+  const audioArgs = [
     "-f",
     "lavfi",
     "-i",
@@ -59,7 +68,13 @@ export async function createFakeMedia(
     "-b:a",
     "128k",
     audio,
-  ]);
+  ];
+  try {
+    await run(audioArgs);
+  } catch {
+    // Conda's Windows FFmpeg build has MediaFoundation MP3 but no libmp3lame.
+    await run(audioArgs.map((arg) => (arg === "libmp3lame" ? "mp3_mf" : arg)));
+  }
   await run([
     "-f",
     "lavfi",
@@ -150,13 +165,29 @@ export function createFakeStages(
         return upload(ctx, target, type);
       };
       switch (stage) {
-        case "draft_lyrics":
-          await writePack(ctx, fakePack);
-          result.patch = { ...result.patch, lyric_pack: fakePack };
+        case "draft_lyrics": {
+          const title =
+            ((ctx.project.song_settings ?? {}) as { title?: string }).title ||
+            ctx.project.topic;
+          const pack = {
+            ...fakePack,
+            title,
+            lyrics: [
+              "[Verse 1]",
+              ...Array.from(
+                { length: 80 },
+                (_, i) => `${title}, line ${i + 1}`,
+              ),
+            ].join("\n"),
+            style: ctx.project.style || fakePack.style,
+          };
+          await writePack(ctx, pack);
+          result.patch = { ...result.patch, lyric_pack: pack };
           result.versionStatus = "lyrics_review";
           break;
+        }
         case "generate_song": {
-          await writePack(ctx, fakePack);
+          await writePack(ctx, LyricPackSchema.parse(ctx.version.lyric_pack));
           for (const n of [1, 2]) {
             const path = await copy(
               fixtures.audio,
@@ -186,19 +217,32 @@ export function createFakeStages(
           break;
         }
         case "timing": {
+          const pack = LyricPackSchema.parse(ctx.version.lyric_pack);
+          const sung = pack.lyrics
+            .split(/\r?\n/u)
+            .filter((line) => line.trim() && !line.startsWith("["));
+          const timing = {
+            duration: 10,
+            lines: sung.map((text, i) => ({
+              section:
+                i < 20
+                  ? "Verse 1"
+                  : i < 40
+                    ? "Chorus"
+                    : i < 60
+                      ? "Verse 2"
+                      : "Final Chorus",
+              text,
+              words: [{ w: text, start: i / 8, end: (i + 1) / 8 }],
+            })),
+          };
           const path = join(
             ctx.ws.publicDir,
             "data",
             ctx.version.lang,
             "timing.json",
           );
-          await writeFile(
-            path,
-            JSON.stringify({
-              duration: 10,
-              words: [{ start: 0, end: 1, text: "Hello" }],
-            }),
-          );
+          await writeFile(path, JSON.stringify(timing));
           result.patch = {
             ...result.patch,
             timing_path: path,
@@ -211,14 +255,40 @@ export function createFakeStages(
           break;
         }
         case "storyboard": {
+          const pack = LyricPackSchema.parse(ctx.version.lyric_pack);
           const path = join(
             ctx.ws.publicDir,
             "data",
             ctx.version.lang,
             "storyboard.json",
           );
-          await writeFile(path, JSON.stringify({ scenes: [] }));
-          result.patch = { ...result.patch, storyboard_path: path };
+          const timing = JSON.parse(
+            await readFile(
+              join(ctx.ws.publicDir, "data", ctx.version.lang, "timing.json"),
+              "utf8",
+            ),
+          );
+          const { storyboard, sections } = songStoryboard(
+            timing,
+            pack.title,
+            ctx.version.lang,
+            ctx.project.mood ??
+              (ctx.project.song_settings as { mood?: string } | null)?.mood ??
+              pack.style,
+          );
+          await writeFile(path, JSON.stringify(storyboard));
+          const archived = join(
+            ctx.ws.publicDir,
+            "data",
+            ctx.version.lang,
+            `storyboard-${renderAttempt}.json`,
+          );
+          await copyFile(path, archived);
+          result.patch = {
+            ...result.patch,
+            storyboard_path: archived,
+            storyboard_sections: sections,
+          };
           break;
         }
         case "render_master":
@@ -270,12 +340,22 @@ export function createFakeStages(
           });
           break;
         }
-        case "art":
-          await copy(
-            fixtures.thumbnail,
-            join(ctx.ws.renderDir, "thumbnail.png"),
-            "image/png",
-          );
+        case "art": {
+          const thumbnailPath = await makeThumbnail(ctx, fixtures.thumbnail);
+          const master = await ctx.db.getRender(ctx.version.id, "master");
+          if (!master) throw new Error("Fake master is missing");
+          await ctx.db.patchRender(master.id, {
+            qa_results: {
+              ...((master.qa_results as Record<string, unknown> | null) ?? {}),
+              assets: {
+                storyboard_path: ctx.version.storyboard_path,
+                thumbnail_path: thumbnailPath,
+                chosen_take_id: ctx.version.chosen_take_id,
+                title: LyricPackSchema.parse(ctx.version.lyric_pack).title,
+                lang: ctx.version.lang,
+              },
+            },
+          });
           await writeFile(
             join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
             "1\n00:00:00,000 --> 00:00:10,000\nA little brighter\n",
@@ -287,6 +367,7 @@ export function createFakeStages(
           );
           result.versionStatus = "video_review";
           break;
+        }
         case "publish": {
           const render = await ctx.db.getRender(ctx.version.id, "master");
           if (!render) throw new Error("Fake master is missing");
@@ -300,6 +381,14 @@ export function createFakeStages(
               privacy: "private",
               upload_state: "uploaded",
               privacy_applied: "private",
+              metadata: {
+                ...((ctx.job.payload?.metadata ?? {}) as Record<
+                  string,
+                  unknown
+                >),
+                defaultLanguage: ctx.version.lang,
+                defaultAudioLanguage: ctx.version.lang,
+              },
             });
           result.versionStatus = "approved";
           break;
