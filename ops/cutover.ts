@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { bootstrapProductionSecrets } from "./lib/bootstrap-prod.js";
 import { prepareCompose } from "./lib/compose.js";
 import { compareCounts, tableCounts } from "./lib/counts.js";
 import { runtimePath, stackDir } from "./lib/envs.js";
@@ -66,6 +67,7 @@ export async function productionCutover(runner: Runner = realRunner) {
       "Cutover already attempted; inspect retained volumes and counts before retrying",
     );
   const repo = runtimePath(join(runtimeRoot(), "deploy"));
+  await bootstrapProductionSecrets(runner);
   const db = await recoveryDatabase("prod", runner);
   let containers: string[] = [];
   let tag = "";
