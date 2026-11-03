@@ -15,9 +15,10 @@ async function fixture(present: boolean) {
   if (
     parsed.hostname !== "127.0.0.1" ||
     (parsed.port !== "45622" &&
+      parsed.port !== "55322" &&
       !(parsed.port === "54322" && process.env.CI === "true"))
   )
-    throw new Error("Role fixtures require the isolated e2e/CI database");
+    throw new Error("Role fixtures require an isolated test database");
   const sql = ownerConnection(url);
   const rollback = new Error("rollback fixture");
   try {

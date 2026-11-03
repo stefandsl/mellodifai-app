@@ -52,6 +52,8 @@ describe("services", () => {
     expect(output).toContain("mdf-tunnel");
     expect(output).toContain("icacls");
     expect(output).toContain("New-NetFirewallRule");
+    expect(output).toContain("RandomNumberGenerator");
+    expect(output).not.toContain("Get-Credential");
     const write = vi
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
@@ -645,7 +647,7 @@ it.skipIf(process.platform !== "win32")(
       const commands = installCommands({ root });
       // Execute only the pre-account ACL hardening, never account creation or firewall changes.
       for (const [cmd, ...args] of commands.slice(1)) {
-        if (args.some((arg) => arg.includes("Get-Credential"))) break;
+        if (args.some((arg) => arg.includes("New-LocalUser"))) break;
         expect((await realRunner(cmd as string, args)).code).toBe(0);
       }
       for (const file of files) {

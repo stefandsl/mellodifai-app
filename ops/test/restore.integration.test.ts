@@ -11,12 +11,11 @@ import { assertTestStack } from "../test-db-guard.js";
 
 it("an end-to-end restore on the e2e stack keeps storage objects readable", async () => {
   assertTestStack(process.env);
-  const env = process.env.CI === "true" ? "ci" : "e2e";
-  if (
-    env === "e2e" &&
-    new URL(process.env.TEST_DB_URL as string).port !== "45622"
-  )
-    throw new Error("Expected e2e database");
+  const port = new URL(process.env.TEST_DB_URL as string).port;
+  const env =
+    process.env.CI === "true" ? "ci" : port === "55322" ? "dev" : "e2e";
+  if (env !== "ci" && !["45622", "55322"].includes(port))
+    throw new Error("Expected a private test database");
   const root = process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp";
   mkdirSync(root, { recursive: true });
   const directory = mkdtempSync(join(root, "restore-integration-"));

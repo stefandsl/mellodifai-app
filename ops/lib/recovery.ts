@@ -29,6 +29,18 @@ export async function stopWriters(runner: Runner) {
     if (service !== "supabase") await serviceCommand(runner, "stop", service);
 }
 
+export function dumpTables(content: string): Set<string> {
+  const tables = new Set<string>();
+  for (const match of content.matchAll(/^COPY ([^\s]+) \(/gmu)) {
+    const name = match[1];
+    if (!name || !/^(public|auth|storage)\.[a-z_][a-z0-9_]*$/u.test(name))
+      throw new Error("Unsupported backup table name");
+    tables.add(name);
+  }
+  if (!tables.size) throw new Error("Backup has no table data");
+  return tables;
+}
+
 export async function recoveryDatabase(
   env: StackEnv,
   runner: Runner = realRunner,
@@ -134,17 +146,19 @@ export async function recoveryDatabase(
         throw new Error("Incomplete recovery backup");
     },
     async import(file: string) {
-      // Remote db reset keeps managed schemas; clear them and migration seed rows
-      // in the same transaction as the import to avoid duplicates and partial data.
-      // Keep Auth/Storage migration history, which Supabase data dumps exclude.
+      // Keep seed rows in tables introduced after a pre-cutover backup.
+      const dump = readFileSync(runtimePath(file), "utf8");
+      const tables = dumpTables(dump);
       const sql = ownerConnection(url);
       let truncate: string;
       try {
-        const [row] =
-          await sql`select 'truncate table ' || string_agg(format('%I.%I', schemaname, tablename), ', ') || ' cascade;' as statement
-          from pg_catalog.pg_tables where schemaname in ('public', 'auth', 'storage')
-          and (schemaname, tablename) not in (('auth', 'schema_migrations'), ('storage', 'migrations'))`;
-        truncate = row?.statement ?? "";
+        const rows = await sql`select schemaname || '.' || tablename as name,
+          format('%I.%I', schemaname, tablename) as identifier
+          from pg_catalog.pg_tables where schemaname in ('public', 'auth', 'storage')`;
+        const selected = rows.filter((row) => tables.has(row.name));
+        if (selected.length !== tables.size)
+          throw new Error("Backup tables do not match the restored schema");
+        truncate = `truncate table ${selected.map((row) => row.identifier).join(", ")} cascade;`;
       } finally {
         await sql.end();
       }
@@ -170,7 +184,7 @@ export async function recoveryDatabase(
         ],
         {
           env: privateEnv,
-          input: `set session_replication_role = replica;\n${truncate}\n${readFileSync(runtimePath(file), "utf8")}\ncreate schema if not exists ops authorization postgres;\nnotify pgrst, 'reload schema';\n`,
+          input: `set session_replication_role = replica;\n${truncate}\n${dump}\ncreate schema if not exists ops authorization postgres;\nnotify pgrst, 'reload schema';\n`,
         },
       );
     },

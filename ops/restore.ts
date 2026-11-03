@@ -171,8 +171,19 @@ if (
 ) {
   const args = process.argv.slice(2);
   (async () => {
+    if (
+      args[0] === "--env" &&
+      args[1] === "dev" &&
+      args.length === 3 &&
+      args[2]
+    ) {
+      await restoreDatabase("dev", args[2]);
+      return;
+    }
     if (args.length !== 1 || !args[0])
-      throw new Error("Usage: restore.ts <backup>");
+      throw new Error(
+        "Usage: restore.ts <backup> | restore.ts --env dev <backup>",
+      );
     await productionRestore(args[0]);
   })().catch(() => {
     process.stderr.write(
