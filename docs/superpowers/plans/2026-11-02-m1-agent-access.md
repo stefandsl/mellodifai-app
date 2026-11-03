@@ -1395,6 +1395,7 @@ Full report: `.superpowers/sdd/2026-11-02-m1-agent-access/task-3-report.md`.
 - A new private dev stack at `E:/mellodifai/stacks/dev` restored `E:/mellodifai/backups/2026-11-03-task-33-pre-cutover.sql`. All 52 table counts from `task-33-counts-preflight.json` matched, totaling 11,145 rows. M1 seed tables that are absent from the old dump remained available. The database and browser gates used this private stack and port 3219.
 - The shared e2e database at API 45621 already contains the studio alignment function while its migration history ends before that migration. Applying the fresh migration set there fails on the preexisting function. This integration did not edit that shared schema or migration history.
 - `E:/mellodifai/deploy` now tracks `build/m1-agent-access`. The owner still needs to run `ops/owner-admin.ps1` from elevated PowerShell, then perform the production cutover and local owner read, write and heartbeat smoke checks under the Task 33 procedure. DNS, tunnel credentials and SMTP remain owner actions. No production service, database or key was changed.
+- Final private gates: lint passed with 5 warnings and 1 info; both TypeScript commands passed; unit tests passed with 1,751 tests and 1 existing skip; integration passed 6/6; database passed 289/289; Playwright passed 19/19 at port 3219. `m1-floor` moved to the final lockdown commit `c9b3784` and was pushed. The dedicated E: deploy clone was fast forwarded to this branch and its local floor tag updated.
 
 ## Major to task
 
