@@ -43,6 +43,7 @@ export type RenderPreview = {
     assets?: {
       lyric_pack?: LyricPack;
       lang?: string;
+      mood?: string;
       storyboard_sections?: unknown;
     };
   };
@@ -164,6 +165,7 @@ export function ProjectWorkspace({
     pack?.lyrics ?? "",
     rendered?.lang ?? version.lang,
     sections,
+    rendered?.mood ?? "",
   );
   if (version.status === "lyrics_review" && version.lyric_pack)
     return (

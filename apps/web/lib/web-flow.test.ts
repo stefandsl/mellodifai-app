@@ -62,6 +62,41 @@ it("prefills metadata and filters chapter starts less than ten seconds apart", (
   });
   expect(publicationDefaults("Song", "", "it", null).chapters).toBe("");
 });
+it("uses the rendered song mood in publication defaults", () => {
+  const calm = publicationDefaults(
+    "Same song",
+    "Same lyrics",
+    "en",
+    null,
+    "calm",
+  );
+  const urgent = publicationDefaults(
+    "Same song",
+    "Same lyrics",
+    "en",
+    null,
+    "urgent",
+  );
+  expect(calm.description).toContain("calm");
+  expect(calm.tags).toContain("calm");
+  expect(urgent.description).toContain("urgent");
+  expect(urgent.tags).toContain("urgent");
+  expect(calm).not.toEqual(urgent);
+  const long = publicationDefaults(
+    "Song",
+    "A".repeat(5000),
+    "en",
+    null,
+    "B".repeat(1000),
+  );
+  expect(long.tags.length).toBeLessThanOrEqual(500);
+  expect(
+    PublicationInput.safeParse({
+      renderId: "00000000-0000-4000-8000-000000000001",
+      metadata: long,
+    }).success,
+  ).toBe(true);
+});
 it("updates jobs in chronological position without duplicating rows", () => {
   const a = { id: "a", created_at: "2026-01-01", status: "queued" };
   const b = { id: "b", created_at: "2026-01-02", status: "queued" };

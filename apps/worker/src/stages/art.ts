@@ -49,6 +49,10 @@ export const art: StageHandler = async (context) => {
         storyboard_sections: context.version.storyboard_sections,
         title: LyricPackSchema.parse(context.version.lyric_pack).title,
         lang: context.version.lang,
+        mood:
+          context.project.mood ??
+          (context.project.song_settings as { mood?: string } | null)?.mood ??
+          LyricPackSchema.parse(context.version.lyric_pack).style,
       },
     },
   });

@@ -84,6 +84,7 @@ export async function upload(
       const rows = await context.db.previewRows(context.version.id);
       const live = new Set<string>([path]);
       const obsolete = new Set<string>();
+      const published = new Set(rows.publishedRenderIds);
       for (const r of rows.renders) {
         // A visualizer video belongs to no render attempt: a new lyric video leaves it alone.
         const files = r.preview_path
@@ -93,6 +94,7 @@ export async function upload(
           : [];
         for (const file of files)
           (r.kind !== "visualizer" &&
+          !published.has(r.id) &&
           (r.render_attempt ?? 1) < (context.version.render_attempt ?? 1)
             ? obsolete
             : live

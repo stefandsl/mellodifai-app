@@ -145,6 +145,27 @@ it("prunes only superseded previews of this version after upload succeeds", asyn
   expect(JSON.stringify(remove.mock.calls)).not.toContain("other.mp4");
   expect(JSON.stringify(remove.mock.calls)).not.toContain("master-preview.mp4");
 });
+it("retains the preview of a published render after rerendering", async () => {
+  const { ctx, db } = await setup();
+  db.renders.push({
+    id: "published",
+    version_id: ctx.version.id,
+    kind: "master",
+    render_attempt: 1,
+    preview_path: "published-preview.mp4",
+  });
+  db.publications.push({
+    id: "publication",
+    render_id: "published",
+    privacy: "private",
+  });
+  const remove = vi.fn(async () => {});
+  ctx.storage.remove = remove;
+  await stages.render_master?.(ctx);
+  expect(JSON.stringify(remove.mock.calls)).not.toContain(
+    "published-preview.mp4",
+  );
+});
 it.each([
   [4, "balance 3 credits < 12 needed", true],
   [1, "Error: HTTP 503 /api/v1/chat/credit: unavailable", true],
@@ -1572,6 +1593,7 @@ describe("stage safety and behavior", () => {
   });
   it("stores the selected take's storyboard and thumbnail on its render", async () => {
     const { ctx, db } = await setup();
+    ctx.project.mood = "wistful";
     ctx.version.storyboard_path = join(
       ctx.ws.publicDir,
       "data",
@@ -1590,6 +1612,7 @@ describe("stage safety and behavior", () => {
         storyboard_sections: ctx.version.storyboard_sections,
         title: "Test song",
         lang: "fr",
+        mood: "wistful",
       },
     });
   });

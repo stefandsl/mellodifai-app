@@ -355,6 +355,11 @@ export function createFakeStages(
                 storyboard_sections: ctx.version.storyboard_sections,
                 title: LyricPackSchema.parse(ctx.version.lyric_pack).title,
                 lang: ctx.version.lang,
+                mood:
+                  ctx.project.mood ??
+                  (ctx.project.song_settings as { mood?: string } | null)
+                    ?.mood ??
+                  LyricPackSchema.parse(ctx.version.lyric_pack).style,
               },
             },
           });

@@ -138,6 +138,9 @@ snapshots, including original A to rewritten A to original B; timing refreshes i
 on every run. Kept rewrites can use take numbers above 2.
 R4 makes thumbnail font selection glyph-aware for mixed-script and emoji titles and accepts
 titles beginning with `--`; the focused database and browser regressions pass.
+R5 snapshots each render's mood (or its style fallback) for publication defaults and retains
+the previews of publication-linked renders during cleanup. The focused database and unit tests pass;
+the shared e2e worker queue delayed the latest two-song browser reruns.
 
 ## 6. Waiting on the owner
 

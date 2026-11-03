@@ -1,6 +1,11 @@
 import { publicationCopy } from "@mellodifai/shared";
 
-function defaultTags(title: string, language: string, lyricTag: string) {
+function defaultTags(
+  title: string,
+  language: string,
+  lyricTag: string,
+  mood: string,
+) {
   const unique = (words: string[]) => [
     ...new Map(words.map((word) => [word.toLocaleLowerCase(), word])).values(),
   ];
@@ -20,7 +25,11 @@ function defaultTags(title: string, language: string, lyricTag: string) {
       return true;
     })
     .join(" ");
-  const suffix = unique([lyricTag, language]);
+  const suffix = unique([
+    ...(mood.trim() ? [mood.trim()] : []),
+    lyricTag,
+    language,
+  ]);
   const candidates = unique([
     ...(phrase.length > 2 ? [phrase] : []),
     ...acronyms,
@@ -51,8 +60,10 @@ export function publicationDefaults(
   lyrics: string,
   language: string,
   sections: unknown,
+  mood = "",
 ) {
   const copy = publicationCopy(language);
+  const moodText = mood.trim().slice(0, 150);
   const titled = `${title} | ${copy.suffix}`;
   const starts: { title: string; start: number }[] = Array.isArray(sections)
     ? sections
@@ -86,12 +97,14 @@ export function publicationDefaults(
         .map((line) => line.trim())
         .filter((line) => line && !/^\[.*\]$/u.test(line))
         .slice(0, 4)
-        .join("\n"),
+        .join("\n")
+        .slice(0, 4500),
+      moodText,
       copy.credits,
     ]
       .filter(Boolean)
       .join("\n\n"),
-    tags: defaultTags(title, language, copy.tag),
+    tags: defaultTags(title, language, copy.tag, moodText),
     chapters: chapters.join("\n"),
   };
 }

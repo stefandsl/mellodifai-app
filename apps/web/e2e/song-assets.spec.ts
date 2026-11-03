@@ -106,6 +106,7 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
     await createFrenchProject(page, title);
     const projectId = /\/projects\/([^?]+)/u.exec(page.url())?.[1];
     if (!projectId) throw new Error("Project id missing");
+    const mood = "Pop luminoso";
     await expect(page.getByText("FR Revisione testi")).toBeVisible();
     await page.getByLabel("Titolo").fill(title);
     const lyricField = page.locator("#lyric-lyrics");
@@ -229,6 +230,7 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
     );
     const description = await page.getByLabel("Descrizione").inputValue();
     expect(description).toContain(title);
+    expect(description).toContain(mood);
     expect(description).toContain(
       "Créé avec des outils d’intelligence artificielle.",
     );
@@ -299,6 +301,7 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
         chosen_take_id: version.chosen_take_id,
         title,
         lang: "fr",
+        mood,
       },
     });
     const { data: thumbnail, error: storageError } = await db.storage
@@ -331,6 +334,7 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
       defaultLanguage: "fr",
       defaultAudioLanguage: "fr",
     });
+    expect((publication.metadata as { tags: string }).tags).toContain(mood);
   }
   expect(assets.map((asset) => asset.title)).toEqual(songs);
   expect(assets[0].storyboard).not.toBe(assets[1].storyboard);
