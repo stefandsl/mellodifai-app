@@ -763,7 +763,7 @@ it("a customer and an admin session JWT cannot insert or update jobs, insert pro
 - [ ] **Step 2:** `DBTEST supabase/tests/ops_lockdown.test.ts supabase/tests/ops_acl.test.ts supabase/tests/rls.test.ts`. Expected: FAIL.
 - [ ] **Step 3:** Write the migration exactly as 6.3.2's lockdown block, plus the profile check on the "owners delete studio files" storage policy (`022:54-59`), which 6.3.2 lists (Nit 15). Generate `acl-allowlist.json` from the migrated e2e stack and review every line against 6.3.6, 6.4, 11.5 and 14.4.
 - [ ] **Step 4:** Migrate, run `pnpm lint && pnpm typecheck && pnpm test && pnpm test:db && pnpm e2e && pnpm test:ledger`. Expected: all PASS.
-- [ ] **Step 5:** Commit and tag: `git commit -m "feat(db): ops lockdown with ACL and refusal tests" && git tag m1-floor && git push origin build/studio-ui m1-floor`
+- [ ] **Step 5:** Commit and tag: `git commit -m "feat(db): ops lockdown with ACL and refusal tests" && git tag m1-floor && git push -u origin build/m1-agent-access m1-floor`. Accepted preflight ruling 26 supersedes the original `build/studio-ui` target; integrate that branch only through the planned whole-branch review.
 
 ### Task 33: First production deploy at `m1-floor`
 
