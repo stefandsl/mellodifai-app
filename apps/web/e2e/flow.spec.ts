@@ -65,6 +65,22 @@ test("admin completes the French song-to-public-video flow", async ({
   if (versionError || !version)
     throw versionError ?? new Error("French version was not found");
   const versionId = version.id;
+  const { data: publication, error: publicationError } = await db
+    .from("publications")
+    .select("id,metadata,renders!inner(version_id)")
+    .eq("renders.version_id", versionId)
+    .eq("upload_state", "uploaded")
+    .single();
+  if (publicationError || !publication)
+    throw publicationError ?? new Error("Uploaded publication was not found");
+  // The fake upload omits metadata; give this publication an explicit title to confirm.
+  const publicationTitle = `${topic} | Lyric video`;
+  const { error: metadataError } = await db
+    .from("publications")
+    .update({ metadata: { ...publication.metadata, title: publicationTitle } })
+    .eq("id", publication.id);
+  if (metadataError) throw metadataError;
+  await page.reload();
   const { count: beforeConfirm, error: beforeError } = await db
     .from("jobs")
     .select("id", { count: "exact", head: true })
@@ -88,13 +104,13 @@ test("admin completes the French song-to-public-video flow", async ({
   await expect(
     dialog.getByRole("heading", { name: "Conferma visibilità" }),
   ).toBeVisible();
-  await expect(dialog).toContainText("A little brighter");
+  await expect(dialog).toContainText(publicationTitle);
   expect(await privacyJobCount()).toBe(0);
   await dialog.getByRole("button", { name: "Annulla" }).click();
   await expect(dialog).not.toBeVisible();
   expect(await privacyJobCount()).toBe(0);
   await page.getByRole("button", { name: "Rendi pubblico" }).click();
-  await expect(dialog).toContainText("A little brighter");
+  await expect(dialog).toContainText(publicationTitle);
   expect(await privacyJobCount()).toBe(0);
   await dialog.getByRole("button", { name: "Conferma" }).click();
   await expect(page.getByText("FR Pubblicato")).toBeVisible({

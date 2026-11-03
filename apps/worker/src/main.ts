@@ -16,6 +16,7 @@ import { fakeSongless } from "./fake/lyrics-assist.js";
 import { WorkerLoop } from "./loop.js";
 import { serviceLedger, validateEngineEntries } from "./providers/ledger.js";
 import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
+import { startScheduler } from "./scheduler.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
 import { songlessStages, stages } from "./stages/index.js";
@@ -176,14 +177,17 @@ async function main() {
     report,
     comfy,
   });
+  const stopScheduler = startScheduler(client, workerId);
   const removeSignals = installSignals(
     {
       stop: async () => {
+        stopScheduler();
         balanceAbort.abort();
         await Promise.all([loop.stop(), stopBalance()]);
         await stopLocal();
       },
       forceStop: async () => {
+        stopScheduler();
         balanceAbort.abort();
         await Promise.all([loop.forceStop(), stopBalance()]);
         await stopLocal();
@@ -196,6 +200,7 @@ async function main() {
   try {
     await loop.runForever();
   } finally {
+    stopScheduler();
     balanceAbort.abort();
     await stopBalance();
     await stopLocal();

@@ -122,13 +122,15 @@ it("all checkpoint wrappers return their documented jobs or version status", asy
     });
     await tx`update public.jobs set status='done' where version_id=${v}`;
     await tx`update public.versions set status='video_review' where id=${v}`;
+    await tx`insert into public.renders(owner_id,version_id,kind,render_attempt) select owner_id,id,'master',render_attempt from public.versions where id=${v}`;
     expect(await call(tx, "mdf_web", "video_rerender", [a, v])).toMatchObject({
       ok: true,
       data: { jobs: [{ stage: "timing" }] },
     });
     await tx`update public.jobs set status='done' where version_id=${v}`;
     await tx`update public.versions set status='video_review' where id=${v}`;
-    await tx`insert into public.renders(owner_id,version_id,kind,render_attempt,qa_results) select owner_id,id,'master',render_attempt,'{"gates":[{"pass":true}]}' from public.versions where id=${v}`;
+    await tx`insert into public.renders(owner_id,version_id,kind,render_attempt) select owner_id,id,'master',render_attempt from public.versions v where id=${v} and not exists(select 1 from public.renders r where r.version_id=v.id and r.kind='master' and r.render_attempt=v.render_attempt)`;
+    await tx`update public.renders r set qa_results=coalesce(r.qa_results,'{}'::jsonb) || '{"gates":[{"pass":true}]}'::jsonb from public.versions v where v.id=${v} and r.version_id=v.id and r.kind='master' and r.render_attempt=v.render_attempt`;
     expect(await call(tx, "mdf_web", "video_approve", [a, v])).toMatchObject({
       ok: true,
       data: { version_id: v, status: "approved" },
