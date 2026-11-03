@@ -48,10 +48,11 @@ function defaultTags(title: string, language: string, lyricTag: string) {
 }
 export function publicationDefaults(
   title: string,
-  brief: string,
+  lyrics: string,
   language: string,
   sections: unknown,
   locale: "it" | "en",
+  mood = "",
 ) {
   const starts: { title: string; start: number }[] = Array.isArray(sections)
     ? sections
@@ -77,7 +78,17 @@ export function publicationDefaults(
   }
   return {
     title: `${title} | ${t(locale, "publish.suffix")}`,
-    description: [brief, t(locale, "publish.credits")]
+    description: [
+      title,
+      mood,
+      lyrics
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter((line) => line && !/^\[.*\]$/u.test(line))
+        .slice(0, 4)
+        .join("\n"),
+      t(locale, "publish.credits"),
+    ]
       .filter(Boolean)
       .join("\n\n"),
     tags: defaultTags(title, language, t(locale, "publish.tag")),

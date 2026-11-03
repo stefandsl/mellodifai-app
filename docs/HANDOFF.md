@@ -124,9 +124,12 @@ eyes before starting the next one.
 
 ## 5. Later work (after M1)
 
-1080p minimum and 4K with an upscaler; per-song storyboard, thumbnail and metadata; Spotify-
-like karaoke; per-language publishing hub (11 languages); CTR thumbnails (not clickbait);
-milestones M2-M7 in the design; cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
+1080p minimum and 4K with an upscaler; Spotify-like karaoke; per-language publishing hub
+(11 languages); milestones M2-M7 in the design; cleanup of the suno-remake worktree
+`agent-a9f66bcbe8615fa5b`.
+
+Per-song storyboard, thumbnail, metadata and CTR thumbnail work is in `feat/song-assets`,
+pending review and merge.
 
 ## 6. Waiting on the owner
 

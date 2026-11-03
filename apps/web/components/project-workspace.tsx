@@ -59,12 +59,68 @@ export type WorkspaceVersion = {
   kie_task_id?: string | null;
   kie_task_state?: string | null;
 };
+function StoryboardSummary({
+  sections,
+  lang,
+}: {
+  sections: unknown;
+  lang: "it" | "en";
+}) {
+  if (!Array.isArray(sections) || !sections.length) return null;
+  return (
+    <details className="rounded-lg border px-4 py-3 text-sm">
+      <summary className="cursor-pointer font-medium">
+        {t(lang, "stage.storyboard")}
+      </summary>
+      <ol className="mt-3 grid max-h-64 gap-3 overflow-y-auto pr-2 sm:grid-cols-2">
+        {sections
+          .filter(
+            (section) =>
+              section &&
+              typeof section.title === "string" &&
+              typeof section.start === "number",
+          )
+          .map((section) => (
+            <li key={`${section.start}-${section.title}`}>
+              <div className="flex gap-3 font-medium">
+                <time className="font-mono tabular-nums">
+                  {Math.floor(section.start / 60)}:
+                  {String(Math.floor(section.start % 60)).padStart(2, "0")}
+                </time>
+                <span>{section.title}</span>
+              </div>
+              {Array.isArray(section.shots) && (
+                <ul className="mt-1 space-y-1 pl-11 text-muted-foreground">
+                  {section.shots
+                    .filter(
+                      (shot: unknown) =>
+                        shot &&
+                        typeof shot === "object" &&
+                        "text" in shot &&
+                        typeof shot.text === "string",
+                    )
+                    .map((shot: { start: number; text: string }) => (
+                      <li
+                        key={`${shot.start}-${shot.text}`}
+                        className="truncate"
+                        title={shot.text}
+                      >
+                        {shot.text}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </li>
+          ))}
+      </ol>
+    </details>
+  );
+}
 export function ProjectWorkspace({
   version,
   takes,
   renders,
   publication,
-  brief = "",
   failedJob,
   thumbnailUrl,
   activeJob = false,
@@ -76,7 +132,6 @@ export function ProjectWorkspace({
   takes: Take[];
   renders: RenderPreview[];
   publication: PublicationView | null;
-  brief?: string;
   failedJob?: { id: string; error: string | null; stage?: string };
   activeJob?: boolean;
   isAdmin?: boolean;
@@ -96,10 +151,13 @@ export function ProjectWorkspace({
     Boolean(version.kie_task_id) && version.kie_task_state !== "failed";
   const defaults = publicationDefaults(
     version.lyric_pack?.title ?? "",
-    brief,
+    version.lyric_pack?.lyrics ?? "",
     version.lang,
     version.storyboard_sections,
     lang,
+    typeof settings?.mood === "string"
+      ? settings.mood
+      : (version.lyric_pack?.style ?? "").slice(0, 160),
   );
   if (version.status === "lyrics_review" && version.lyric_pack)
     return (
@@ -127,6 +185,7 @@ export function ProjectWorkspace({
   if (version.status === "video_review")
     return (
       <section className="space-y-4">
+        <StoryboardSummary sections={version.storyboard_sections} lang={lang} />
         {renders.map(
           (r) =>
             r.previewUrl && (
@@ -310,6 +369,10 @@ export function ProjectWorkspace({
     return (
       <>
         <section className="mb-8 space-y-6">
+          <StoryboardSummary
+            sections={version.storyboard_sections}
+            lang={lang}
+          />
           {(["master", "hook"] as const).map((kind) => {
             const preview = renders.find(
               (render) => render.kind === kind,

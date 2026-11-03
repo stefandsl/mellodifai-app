@@ -156,10 +156,17 @@ export default async function ProjectPage({
   const previewDirectory = masterPath?.includes("/")
     ? masterPath.slice(0, masterPath.lastIndexOf("/"))
     : null;
-  const thumbnailUrl = previewDirectory
-    ? ((await signed(`${previewDirectory}/thumbnail-1280x720.png`)) ??
-      (await signed(`${previewDirectory}/thumbnail.png`)))
-    : null;
+  const thumbnailPath = (
+    (renderRows ?? []).find((r) => r.kind === "master")?.qa_results as {
+      assets?: { thumbnail_path?: string };
+    } | null
+  )?.assets?.thumbnail_path;
+  const thumbnailUrl =
+    (await signed(thumbnailPath ?? null)) ??
+    (previewDirectory
+      ? ((await signed(`${previewDirectory}/thumbnail-1280x720.png`)) ??
+        (await signed(`${previewDirectory}/thumbnail.png`)))
+      : null);
   const hook = renders.find((r) => r.kind === "hook");
   if (hook && !hook.previewUrl && previewDirectory)
     hook.previewUrl = await signed(`${previewDirectory}/hook.mp4`);
@@ -240,7 +247,6 @@ export default async function ProjectPage({
                 takes={takeData}
                 renders={renders as RenderPreview[]}
                 publication={publication as PublicationView | null}
-                brief={project.brief ?? ""}
                 failedJob={failedJob}
                 quotaNotBefore={
                   (jobs ?? []).find(

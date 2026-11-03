@@ -6,7 +6,7 @@ it("prefills metadata and filters chapter starts less than ten seconds apart", (
   expect(
     publicationDefaults(
       "My song",
-      "A brief",
+      "[Verse]\nA light across the bay\nWe sing tonight",
       "en",
       [
         { title: "Intro", start: 0 },
@@ -17,7 +17,8 @@ it("prefills metadata and filters chapter starts less than ten seconds apart", (
     ),
   ).toEqual({
     title: "My song | Lyric video",
-    description: "A brief\n\nCreated with mellodifai.",
+    description:
+      "My song\n\nA light across the bay\nWe sing tonight\n\nCreated with AI tools.",
     tags: "My song, lyric video, en",
     chapters: "0:00 Intro\n1:05 Chorus",
   });
