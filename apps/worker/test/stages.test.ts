@@ -150,7 +150,11 @@ it.each([
   [1, 'Error: HTTP 200 /api/v1/jobs/createTask: {"code":402}', true],
   [1, 'Error: HTTP 400 /api/v1/jobs/createTask: {"code":400}', true],
   [1, 'Error: HTTP 400 /api/v1/jobs/createTask: {"code":"402"}', false],
-  [1, 'Error: HTTP 400 /api/v1/jobs/createTask: {"code":200,"data":{"taskId":"accepted"}}', false],
+  [
+    1,
+    'Error: HTTP 400 /api/v1/jobs/createTask: {"code":200,"data":{"taskId":"accepted"}}',
+    false,
+  ],
   [1, 'Error: HTTP 400 /api/v1/jobs/createTask: {"code":false}', false],
   [1, 'Error: HTTP 400 /api/v1/jobs/createTask: {"code":[]}', false],
   [1, 'Error: HTTP 400 /api/v1/jobs/createTask: {"code":"invalid"}', false],
