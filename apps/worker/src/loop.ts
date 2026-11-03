@@ -12,6 +12,7 @@ import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
 import type { Secrets } from "./secrets.js";
+import type { AceStepRuntime } from "./stages/ace-step.js";
 import type { Storage } from "./storage.js";
 import type { Workspace } from "./workspace.js";
 
@@ -30,6 +31,7 @@ export type StageContext = {
   signal: AbortSignal;
   // The ComfyUI server of this PC, owned by main.ts; absent on workers without local engines.
   comfy?: LocalRuntime;
+  aceStep?: AceStepRuntime;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
@@ -100,6 +102,7 @@ export class WorkerLoop {
       engineVersion?: string;
       report?: (message: string) => void;
       comfy?: LocalRuntime;
+      aceStep?: AceStepRuntime;
     },
   ) {}
   private redact(message: string) {
@@ -317,6 +320,7 @@ export class WorkerLoop {
         log,
         progress,
         ...(this.options.comfy ? { comfy: this.options.comfy } : {}),
+        ...(this.options.aceStep ? { aceStep: this.options.aceStep } : {}),
       });
     };
     // Keep the render lock until child termination and pending log delivery complete.

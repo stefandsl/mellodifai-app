@@ -43,7 +43,7 @@ import { useVideoStudio } from "@/store/video-studio";
 import { Counter, InfoTip, Segmented, Tip } from "../ui";
 import { AudioCard } from "./audio-card";
 import { ClearButton } from "./clear-field";
-import { EngineSelect } from "./engine-select";
+import { AceStepStatusLine, EngineSelect } from "./engine-select";
 import { LanguagePicker } from "./language-picker";
 import { LyricsCard } from "./lyrics-card";
 import { ModelSelect } from "./model-select";
@@ -338,6 +338,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
             {fallback}
           </p>
         ) : null}
+        {engine === "ace-step" ? <AceStepStatusLine /> : null}
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-4 scrollbar-thin">

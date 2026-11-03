@@ -15,7 +15,8 @@ import {
 } from "@mellodifai/shared";
 import { assertKieAllowed } from "../kie/guard.js";
 import type { StageContext, StageHandler } from "../loop.js";
-import { generateLocal, songEngine } from "./local-engine.js";
+import { generateAceStep } from "./ace-step.js";
+import { generateLocal, LOCAL_TEXT, songEngine } from "./local-engine.js";
 import { scoreTakes } from "./score-takes.js";
 import { songSource, submitSourceTask } from "./source-audio.js";
 import {
@@ -140,6 +141,17 @@ export async function refreshBalance(
 export const generateSong: StageHandler = async (context) => {
   // Local engines branch off before any kie state is read or written (design 5.1).
   const songEngineId = songEngine(context.project.song_settings);
+  // ACE-Step runs natively on this PC (no ComfyUI, owner decision 2026-11-01): no credits, no kie
+  // task state. YuE2 is parked and still goes through the ComfyUI path.
+  if (songEngineId === "ace-step") {
+    // Local engines are for the admin only (design 5.5).
+    const ownerId = context.version.owner_id ?? context.project.owner_id;
+    const role = ownerId ? await context.db.getOwnerRole(ownerId) : null;
+    if (role !== "admin") throw new Error(LOCAL_TEXT.adminOnly);
+    const pack = LyricPackSchema.parse(context.version.lyric_pack);
+    await writePack(context, pack);
+    return generateAceStep(context, pack, context.aceStep);
+  }
   if (songEngineId !== "kie") return generateLocal(context, songEngineId);
   // Paid from here on: never for a test account or a test song.
   await assertKieAllowed(context);

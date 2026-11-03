@@ -1,14 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { publishEngines } from "./comfy/availability.js";
-import { COMFY_CONFIG, comfyInputDir, comfyOutputDir } from "./comfy/config.js";
-import type { LocalRuntime } from "./comfy/runtime.js";
-import {
-  type ComfySupervisor,
-  createComfySupervisor,
-  nvidiaFreeVramMb,
-} from "./comfy/supervisor.js";
+import { createAceStepSupervisor } from "./ace-step/runtime.js";
+import type { ComfySupervisor } from "./comfy/supervisor.js";
 import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
@@ -140,21 +134,21 @@ async function main() {
             log: async (line) => report(line),
           }),
         );
-  const supervisor = createComfySupervisor({ secrets, report });
-  const comfy: LocalRuntime = {
-    supervisor,
-    outputDir: comfyOutputDir(COMFY_CONFIG),
-    inputDir: comfyInputDir(COMFY_CONFIG),
-    freeVramMb: nvidiaFreeVramMb,
-  };
-  const stopLocal =
-    process.env.WORKER_FAKE === "1"
-      ? async () => {}
-      : await startLocalEngines({
-          supervisor,
-          publish: () => publishEngines(db, workerId),
-          report,
+  // ACE-Step runs natively (owner decision 2026-11-01: no ComfyUI runtime). The supervisor
+  // installs it on the first local song and publishes its state in workers.engines.
+  const aceStep =
+    process.env.WORKER_FAKE === "1" || process.env.MELLODIFAI_ACE_STEP === "off"
+      ? undefined
+      : createAceStepSupervisor({
+          engine: engine.withWorkspace(
+            "E:\\mellodifai\\ace-step",
+            async (line) => report(line),
+          ),
+          db,
+          workerId,
+          secrets,
         });
+  await aceStep?.announce();
   const loop = new WorkerLoop({
     db,
     workerId,
@@ -165,19 +159,19 @@ async function main() {
     storage: new SupabaseStorage(createClient(url, key)),
     secrets,
     report,
-    comfy,
+    ...(aceStep ? { aceStep } : {}),
   });
   const removeSignals = installSignals(
     {
       stop: async () => {
         balanceAbort.abort();
         await Promise.all([loop.stop(), stopBalance()]);
-        await stopLocal();
+        await aceStep?.shutdown();
       },
       forceStop: async () => {
         balanceAbort.abort();
         await Promise.all([loop.forceStop(), stopBalance()]);
-        await stopLocal();
+        await aceStep?.shutdown();
       },
     },
     process,
@@ -189,7 +183,7 @@ async function main() {
   } finally {
     balanceAbort.abort();
     await stopBalance();
-    await stopLocal();
+    await aceStep?.shutdown();
     removeSignals();
   }
 }

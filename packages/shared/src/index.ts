@@ -1,4 +1,5 @@
 export * from "./i18n.js";
+export * from "./local-engine.js";
 export * from "./lyric-pack.js";
 export * from "./lyrics-assist.js";
 export * from "./publication-defaults.js";

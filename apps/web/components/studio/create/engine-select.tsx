@@ -1,6 +1,6 @@
 "use client";
 
-import type { SongEngine } from "@mellodifai/shared";
+import { aceStepStatusText, type SongEngine } from "@mellodifai/shared";
 import { Check, ChevronDown } from "lucide-react";
 import { useLocale } from "@/components/locale-provider";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { engineLabel } from "@/lib/studio/engines";
 import { st } from "@/lib/studio/i18n";
+import { useAceStepStatus } from "@/lib/studio/use-ace-step";
 
 // Admin only: Suno through kie, or a local engine on the PC. The caller passes only the
 // engines that can run right now.
@@ -62,5 +63,23 @@ export function EngineSelect({
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// What native ACE-Step is doing on the PC (first-song setup, starting, ready), in plain words.
+export function AceStepStatusLine() {
+  const { status, online } = useAceStepStatus();
+  return (
+    <p
+      role="status"
+      data-testid="ace-step-status"
+      className={
+        status.state === "error" || !online
+          ? "mt-2 text-xs text-[var(--danger)]"
+          : "mt-2 text-xs text-[var(--fg-muted)]"
+      }
+    >
+      {aceStepStatusText(status, online)}
+    </p>
   );
 }
