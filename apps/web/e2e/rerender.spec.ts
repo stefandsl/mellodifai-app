@@ -259,7 +259,7 @@ test("published song starts a new render and keeps its original publication", as
     await expect(
       page.getByRole("button", { name: "Nuovo render" }),
     ).toBeVisible();
-    const shots = "E:/mellodifai/codex-streams/rerender/shots";
+    const shots = "E:/mellodifai/codex-streams/e2e-coverage/shots";
     await mkdir(shots, { recursive: true });
     await page.screenshot({
       path: join(shots, `rerender-${width}x${height}.png`),

@@ -188,6 +188,13 @@ command exit codes and test summary lines without saving raw output.
 `supabase/tests/song-assets.test.ts` now accepts any local non-live stack through the same
 URL guard as Playwright.
 
+The `feat/e2e-coverage` stream adds browser journeys for AI lyrics through private publication,
+remake section regeneration, library controls, karaoke, audio trim export, and the existing
+published re-render. It fixes the song-assets test's fixed browser port. Its private
+`mellodifai_cov` stack (API 49621, Next 3231) passed the database suite (144 tests) and browser
+suite (17 tests) twice in a row with fake providers. The stack was stopped and its temporary
+image tags restored. Report and screenshots: `E:/mellodifai/codex-streams/e2e-coverage/`.
+
 ## 5. Later work (after M1)
 
 Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design
