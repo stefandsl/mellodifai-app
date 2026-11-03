@@ -590,3 +590,5 @@ The review-round-1 installer fix prepares missing cache, secret, stack, backup
 and env-file ACL targets inside the protected runtime root before service
 grants. Existing env-file content is preserved; the owner must still provide
 production env values before starting services.
+Review round 2 resolves legacy `data/<lang>/storyboard.json` paths under the
+song workspace in both real and fake workers, so pre-merge songs can rerender.
