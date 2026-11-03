@@ -194,6 +194,9 @@ published re-render. It fixes the song-assets test's fixed browser port. Its pri
 `mellodifai_cov` stack (API 49621, Next 3231) passed the database suite (144 tests) and browser
 suite (17 tests) twice in a row with fake providers. The stack was stopped and its temporary
 image tags restored. Report and screenshots: `E:/mellodifai/codex-streams/e2e-coverage/`.
+Review round 1 strengthened filter inclusion and exclusion, automatic karaoke playback timing,
+Verse 2 regeneration persistence, exact take selection, and uploaded logo storage checks. The
+private database and browser suites each passed twice again; the stack is stopped.
 
 ## 5. Later work (after M1)
 

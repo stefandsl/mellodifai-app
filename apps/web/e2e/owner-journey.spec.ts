@@ -70,14 +70,25 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
     .getByRole("button", { name: "Conferma" })
     .click();
   await expect(page.getByText("IT Revisione take")).toBeVisible();
-  await page.getByRole("button", { name: "Scegli" }).first().click();
+  const { data: selectedTake } = await db
+    .from("takes")
+    .select("id")
+    .eq("version_id", version.id)
+    .eq("take_number", 1)
+    .single();
+  if (!selectedTake) throw new Error("First take missing");
+  await page
+    .getByRole("article")
+    .filter({ has: page.getByRole("heading", { name: "Take 1" }) })
+    .getByRole("button", { name: "Scegli" })
+    .click();
   await expect(page.getByText("IT Revisione video")).toBeVisible();
   const { data: chosen } = await db
     .from("versions")
     .select("chosen_take_id")
     .eq("id", version.id)
     .single();
-  expect(chosen?.chosen_take_id).toBeTruthy();
+  expect(chosen?.chosen_take_id).toBe(selectedTake.id);
 
   await page.goto("/library");
   const song = page.getByRole("article", { name: title });
@@ -152,7 +163,21 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
   const logoUrl = (
     visualizer.visualizer_params as { logos: { assetUrl: string }[] }
   ).logos[0]?.assetUrl;
-  expect(logoUrl).toContain("/media/");
+  expect(logoUrl).toMatch(/^\/media\/uploads\//u);
+  const uploadedLogo = await db.storage
+    .from("uploads")
+    .download(
+      logoUrl
+        .slice("/media/uploads/".length)
+        .split("/")
+        .map(decodeURIComponent)
+        .join("/"),
+    );
+  if (uploadedLogo.error || !uploadedLogo.data)
+    throw uploadedLogo.error ?? new Error("Uploaded logo missing");
+  expect(Buffer.from(await uploadedLogo.data.arrayBuffer())).toEqual(
+    Buffer.from(logo, "base64"),
+  );
   expect((visualizer.visualizer_params as { preset: string }).preset).toBe(
     "contours",
   );
