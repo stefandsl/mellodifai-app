@@ -170,7 +170,8 @@ file under the stack folder, then map its `API_URL`, `ANON_KEY`, `SERVICE_ROLE_K
 `MAILPIT_URL` to `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and
 `MAILPIT_URL` for the test process. Set `E2E_PORT=3230` and `WORKER_FAKE=1`. Never print or
 commit the status or test env files. `supabase start` prints development credentials, so
-discard its output instead of saving an unfiltered startup log.
+discard its output instead of saving an unfiltered startup log. For suite evidence, record
+command exit codes and test summary lines without saving raw output.
 `supabase/tests/song-assets.test.ts` now accepts any local non-live stack through the same
 URL guard as Playwright.
 
