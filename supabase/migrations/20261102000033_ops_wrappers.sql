@@ -873,7 +873,9 @@ begin
     select * into owned_version from public.versions where id=owned_job.version_id and owner_id=a.user_id for update;
     if found and owned_version.test_run <> a.test_mode then raise exception 'test rule required' using errcode='MDF04'; end if;
     if owned_job.stage in ('publish','set_privacy') and (a.actor_kind<>'session' or a.role<>'admin' or a.remote) then raise exception 'admin required'; end if;
-    if owned_job.stage in ('draft_lyrics','generate_song','replace_section','import_audio','timing','lyrics_assist') and not ('spend'=any(a.scopes)) then raise exception 'admin required'; end if;
+    if owned_job.stage in ('draft_lyrics','generate_song','replace_section','import_audio','timing','lyrics_assist','remake_analyse','remake_rewrite') and not ('spend'=any(a.scopes)) then raise exception 'admin required'; end if;
+    -- Remake provider calls have no ledger rule yet, so even spend-authorized retries must wait.
+    if owned_job.stage in ('remake_analyse','remake_rewrite') then raise exception 'metered stage required'; end if;
     if a.actor_kind <> 'session' and coalesce(length(p_ctx->>'idempotency_key'),0)=0 then
       raise exception 'idempotency key required' using errcode='MDF01';
     end if;
@@ -965,7 +967,7 @@ begin
     perform set_config('request.jwt.claims',jsonb_build_object('sub',a.user_id,'role','authenticated')::text,true);
     if auth.uid() is distinct from a.user_id then raise exception 'claim required' using errcode='MDF03'; end if;
     perform set_config('mdf.job_ctx',jsonb_build_object('token_id',a.token_id,'run_id',p_ctx->>'run_id','fake_providers',a.test_mode)::text,true);
-    if owned_job.status not in ('queued','running') then raise exception 'active job required'; end if;
+    if owned_job.status <> 'queued' then raise exception 'queued job required'; end if;
     update public.jobs set status='cancelled',finished_at=now() where id=p_job and owner_id=a.user_id;
     select jsonb_build_object('job',jsonb_build_object('id',j.id,'version_id',j.version_id,'stage',j.stage,'status',j.status,
         'attempts',j.attempts,'created_at',j.created_at,'started_at',j.started_at,'finished_at',j.finished_at,

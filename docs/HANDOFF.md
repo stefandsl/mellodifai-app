@@ -354,3 +354,5 @@ upload support while token create rejects upload sources. The existing
 `JobStatus` string type remains compatible alongside the new Zod read schema.
 Only the e2e stack was migrated. Task 20 owns cookie-only wrappers, and Task 29
 still owns routing the existing server actions through the operations layer.
+Task 19 review fixes limit cancellation to queued jobs. Remake analysis/rewrite
+retries are refused through ops until their paid work has ledger coverage.

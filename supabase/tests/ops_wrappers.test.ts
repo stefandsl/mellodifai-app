@@ -264,8 +264,19 @@ it("jobs_stamp_ctx does nothing without context and never clears fake_providers 
     const result = await call(tx, "mdf_web", "song_create", [t, create]);
     expect(result.ok).toBe(true);
     const id = result.data.jobs[0].job_id;
-    const [before] = await tx`select token_id from public.jobs where id=${id}`;
+    const [before] =
+      await tx`select token_id,run_id,fake_providers from public.jobs where id=${id}`;
+    const [settingsBefore] =
+      await tx`select current_setting('mdf.job_ids',true) ids`;
     await tx`update public.jobs set priority=1 where id=${id}`;
+    expect(
+      (
+        await tx`select token_id,run_id,fake_providers from public.jobs where id=${id}`
+      )[0],
+    ).toEqual(before);
+    expect(
+      (await tx`select current_setting('mdf.job_ids',true) ids`)[0],
+    ).toEqual(settingsBefore);
     await tx`select set_config('mdf.job_ctx','{"token_id":null,"fake_providers":false}',true)`;
     await tx`update public.jobs set priority=2,fake_providers=false,token_id=null where id=${id}`;
     expect(
@@ -273,6 +284,62 @@ it("jobs_stamp_ctx does nothing without context and never clears fake_providers 
         await tx`select token_id,fake_providers from public.jobs where id=${id}`
       )[0],
     ).toEqual({ token_id: before.token_id, fake_providers: true });
+  });
+});
+
+it("unsupported paid remake retries require spend and remain blocked until metered", async () => {
+  await fixture(async (tx) => {
+    const a = await actor(tx);
+    const createOnly = await token(tx, a, ["create"]);
+    const spender = await token(tx, a, ["create", "spend"]);
+    for (const stage of ["remake_analyse", "remake_rewrite"]) {
+      const v = await song(tx, a.user_id);
+      const [j] =
+        await tx`insert into public.jobs(owner_id,version_id,stage,status,idempotency_key) values(${a.user_id},${v},${stage},'failed',${randomUUID()}) returning id`;
+      for (const [ctx, code] of [
+        [createOnly, "forbidden_scope"],
+        [spender, "conflict"],
+        [a, "conflict"],
+      ] as const) {
+        expect(
+          await call(tx, "mdf_web", "stage_retry", [ctx, j.id]),
+        ).toMatchObject({ ok: false, code });
+        expect(
+          (await tx`select status from public.versions where id=${v}`)[0]
+            .status,
+        ).toBe("failed");
+        expect(
+          await tx`select id from public.jobs where version_id=${v}`,
+        ).toHaveLength(1);
+        expect(
+          await tx`select id from public.reservations where version_id=${v}`,
+        ).toHaveLength(0);
+      }
+    }
+  });
+});
+
+it("cancelling a running job leaves the job and its reservation unchanged", async () => {
+  await realCaps(async (tx) => {
+    const a = await actor(tx, "customer");
+    const result = await call(tx, "mdf_web", "song_create", [a, create]);
+    expect(result.ok).toBe(true);
+    const id = result.data.jobs[0].job_id;
+    await tx`update public.jobs set status='running',started_at=now() where id=${id}`;
+    const [beforeJob] = await tx`select * from public.jobs where id=${id}`;
+    const [beforeReservation] =
+      await tx`select * from public.reservations where job_id=${id}`;
+    expect(beforeReservation.state).toBe("open");
+    expect(await call(tx, "mdf_web", "job_cancel", [a, id])).toMatchObject({
+      ok: false,
+      code: "conflict",
+    });
+    expect((await tx`select * from public.jobs where id=${id}`)[0]).toEqual(
+      beforeJob,
+    );
+    expect(
+      (await tx`select * from public.reservations where job_id=${id}`)[0],
+    ).toEqual(beforeReservation);
   });
 });
 it("admin operations refuse remote, stale and unknown sessions", async () => {
