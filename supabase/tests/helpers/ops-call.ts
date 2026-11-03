@@ -38,6 +38,36 @@ export async function opsCall(
 }
 
 const wrappers: Record<string, [string, string[], string?]> = {
+  my_remake: ["my_remake", []],
+  lyrics_assist_state: ["lyrics_assist_state", ["p_request"]],
+  remake_start: [
+    "remake_start",
+    ["p_url", "p_video_id", "p_lang", "p_country"],
+    "id",
+  ],
+  remake_edit: [
+    "remake_edit",
+    ["p_remake", "p_revision", "p_lines", "p_title"],
+    "revision",
+  ],
+  remake_regenerate_section: [
+    "remake_regenerate_section",
+    ["p_remake", "p_revision", "p_section"],
+  ],
+  remake_accept: [
+    "remake_accept",
+    ["p_remake", "p_revision", "p_pack", "p_settings", "p_vocal_gender"],
+    "id",
+  ],
+  remake_cancel: ["remake_cancel", ["p_remake"]],
+  remake_dismiss: ["remake_dismiss", ["p_remake"]],
+  remake_retry: ["remake_retry", ["p_remake"]],
+  lyrics_assist_request: [
+    "lyrics_assist_request",
+    ["p_mode", "p_lang", "p_input"],
+    "id",
+  ],
+  lyrics_assist_cancel: ["lyrics_assist_cancel", ["p_request"]],
   set_reaction: ["reaction_set", ["p_version", "p_reaction"]],
   count_play: ["play_count", ["p_version"]],
   rename_version: ["song_rename", ["p_version", "p_title"]],

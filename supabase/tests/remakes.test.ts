@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { remakeLyricsText } from "../../packages/shared/src/remake/workflow";
+import { opsRpc } from "./helpers/ops-call";
 
 // "Rifai da YouTube" and the AI lyric buttons (migration 20261102000025): remake_start and the
 // review RPCs (edit, regenerate a section, accept, cancel, dismiss, retry), the originality gate
@@ -143,7 +144,7 @@ function lyricsFixture(flaggedLine = false) {
 }
 
 async function start() {
-  const { data, error } = await client.rpc("remake_start", {
+  const { data, error } = await opsRpc(client, "remake_start", {
     p_url: URL_,
     p_video_id: "49rDdMbXd_w",
     p_lang: "it",
@@ -208,7 +209,7 @@ describe("remake_start", () => {
         p_country: "Italy",
       },
     ])
-      expect((await client.rpc("remake_start", args)).error).not.toBeNull();
+      expect((await opsRpc(client, "remake_start", args)).error).not.toBeNull();
   });
 
   it("creates the song in analysis, the remake and the R1 job; one remake at a time", async () => {
@@ -234,7 +235,7 @@ describe("remake_start", () => {
       .eq("version_id", remake.version_id);
     expect(jobs).toEqual([{ stage: "remake_ingest", status: "queued" }]);
     await park(remake.version_id);
-    const again = await client.rpc("remake_start", {
+    const again = await opsRpc(client, "remake_start", {
       p_url: URL_,
       p_video_id: "49rDdMbXd_w",
       p_lang: "en",
@@ -248,16 +249,16 @@ describe("remake_start", () => {
       (await other.from("remakes").select("id").eq("id", remake.id)).data,
     ).toHaveLength(0);
     expect(
-      (await other.rpc("remake_cancel", { p_remake: remake.id })).error,
+      (await opsRpc(other, "remake_cancel", { p_remake: remake.id })).error,
     ).not.toBeNull();
     // my_remake reports the active job with its queue position.
-    const { data: mine } = await client.rpc("my_remake");
+    const { data: mine } = await opsRpc(client, "my_remake", {});
     expect(mine).toMatchObject({
       remake: { id: remake.id, stage: "ingest" },
       job: { stage: "remake_ingest", status: "queued" },
     });
     expect(
-      (await client.rpc("remake_cancel", { p_remake: remake.id })).error,
+      (await opsRpc(client, "remake_cancel", { p_remake: remake.id })).error,
     ).toBeNull();
     const { data: cancelled } = await service
       .from("jobs")
@@ -270,7 +271,7 @@ describe("remake_start", () => {
       .eq("id", remake.version_id)
       .single();
     expect(trashed?.trashed_at).not.toBeNull();
-    expect((await client.rpc("my_remake")).data).toBeNull();
+    expect((await opsRpc(client, "my_remake", {})).data).toBeNull();
   });
 });
 
@@ -284,7 +285,7 @@ describe("the review", () => {
       .eq("version_id", remake.version_id);
     await toReview(remake.id, lyricsFixture(true));
 
-    const stale = await client.rpc("remake_edit", {
+    const stale = await opsRpc(client, "remake_edit", {
       p_remake: remake.id,
       p_revision: 0,
       p_lines: [{ index: 2, text: "nessuno ascolta il mio canto" }],
@@ -297,14 +298,14 @@ describe("the review", () => {
     ])
       expect(
         (
-          await client.rpc("remake_edit", {
+          await opsRpc(client, "remake_edit", {
             p_remake: remake.id,
             p_revision: 1,
             p_lines: bad,
           })
         ).error,
       ).not.toBeNull();
-    const edited = await client.rpc("remake_edit", {
+    const edited = await opsRpc(client, "remake_edit", {
       p_remake: remake.id,
       p_revision: 1,
       p_lines: [{ index: 2, text: " nessuno ascolta il mio canto " }],
@@ -338,7 +339,7 @@ describe("the review", () => {
     ]);
     await park(remake.version_id);
     // Nothing is accepted while the check of an edit is pending.
-    const early = await client.rpc("remake_accept", {
+    const early = await opsRpc(client, "remake_accept", {
       p_remake: remake.id,
       p_revision: 2,
       p_pack: pack(lyricsFixture()),
@@ -355,7 +356,7 @@ describe("the review", () => {
       .from("remakes")
       .update({ pending: null, lyrics: lyricsFixture(true), revision: 3 })
       .eq("id", remake.id);
-    const flagged = await client.rpc("remake_accept", {
+    const flagged = await opsRpc(client, "remake_accept", {
       p_remake: remake.id,
       p_revision: 3,
       p_pack: pack(lyricsFixture(true)),
@@ -371,7 +372,7 @@ describe("the review", () => {
     const other_ = { ...pack(ok), lyrics: "[Verse]\nsomething else" };
     expect(
       (
-        await client.rpc("remake_accept", {
+        await opsRpc(client, "remake_accept", {
           p_remake: remake.id,
           p_revision: 4,
           p_pack: other_,
@@ -381,7 +382,7 @@ describe("the review", () => {
     ).toMatch(/differ from the reviewed/u);
     expect(
       (
-        await client.rpc("remake_accept", {
+        await opsRpc(client, "remake_accept", {
           p_remake: remake.id,
           p_revision: 4,
           p_pack: pack(ok),
@@ -389,7 +390,7 @@ describe("the review", () => {
         })
       ).error,
     ).not.toBeNull();
-    const accepted = await client.rpc("remake_accept", {
+    const accepted = await opsRpc(client, "remake_accept", {
       p_remake: remake.id,
       p_revision: 4,
       p_pack: pack(ok),
@@ -432,7 +433,7 @@ describe("the review", () => {
       .single();
     expect(done?.stage).toBe("accepted");
     expect(
-      (await client.rpc("remake_dismiss", { p_remake: remake.id })).error,
+      (await opsRpc(client, "remake_dismiss", { p_remake: remake.id })).error,
     ).toBeNull();
     // An accepted remake's song stays in the library.
     const { data: kept } = await service
@@ -454,7 +455,7 @@ describe("the review", () => {
     for (const section of ["intro-1", "nope"])
       expect(
         (
-          await client.rpc("remake_regenerate_section", {
+          await opsRpc(client, "remake_regenerate_section", {
             p_remake: remake.id,
             p_revision: 1,
             p_section: section,
@@ -463,7 +464,7 @@ describe("the review", () => {
       ).toMatch(/unknown section/u);
     expect(
       (
-        await client.rpc("remake_regenerate_section", {
+        await opsRpc(client, "remake_regenerate_section", {
           p_remake: remake.id,
           p_revision: 1,
           p_section: "chorus-1",
@@ -480,7 +481,7 @@ describe("the review", () => {
     ]);
     expect(
       (
-        await client.rpc("remake_regenerate_section", {
+        await opsRpc(client, "remake_regenerate_section", {
           p_remake: remake.id,
           p_revision: 1,
           p_section: "verse-1",
@@ -488,7 +489,7 @@ describe("the review", () => {
       ).error?.message,
     ).toMatch(/wait for the running step/u);
     await park(remake.version_id);
-    await client.rpc("remake_cancel", { p_remake: remake.id });
+    await opsRpc(client, "remake_cancel", { p_remake: remake.id });
   });
 
   it("retries a failed stage and lets the person throw a failed remake away", async () => {
@@ -514,14 +515,14 @@ describe("the review", () => {
         error: "Private video",
       })
       .eq("id", remake.id);
-    const { data: mine } = await client.rpc("my_remake");
+    const { data: mine } = await opsRpc(client, "my_remake", {});
     expect(mine).toMatchObject({
       remake: { stage: "failed", error_code: "private" },
       job: null,
       failedJob: { stage: "remake_ingest" },
     });
     expect(
-      (await client.rpc("remake_retry", { p_remake: remake.id })).error,
+      (await opsRpc(client, "remake_retry", { p_remake: remake.id })).error,
     ).toBeNull();
     const { data: after } = await service
       .from("remakes")
@@ -547,7 +548,7 @@ describe("the review", () => {
       .update({ stage: "failed" })
       .eq("id", remake.id);
     expect(
-      (await client.rpc("remake_dismiss", { p_remake: remake.id })).error,
+      (await opsRpc(client, "remake_dismiss", { p_remake: remake.id })).error,
     ).toBeNull();
     const { data: gone } = await service
       .from("versions")
@@ -576,14 +577,14 @@ describe("lyrics_assist", () => {
     ] as const)
       expect(
         (
-          await client.rpc("lyrics_assist_request", {
+          await opsRpc(client, "lyrics_assist_request", {
             p_mode: mode,
             p_lang: "it",
             p_input: input,
           })
         ).error,
       ).not.toBeNull();
-    const { data: id, error } = await client.rpc("lyrics_assist_request", {
+    const { data: id, error } = await opsRpc(client, "lyrics_assist_request", {
       p_mode: "write",
       p_lang: "it",
       p_input: { brief: "una gita al lago", title: "", style: "folk" },
@@ -600,13 +601,13 @@ describe("lyrics_assist", () => {
       status: "queued",
       payload: { request_id: id },
     });
-    const busy = await client.rpc("lyrics_assist_request", {
+    const busy = await opsRpc(client, "lyrics_assist_request", {
       p_mode: "improve",
       p_lang: "it",
       p_input: { lyrics: "[Verse]\nciao" },
     });
     expect(busy.error?.message).toMatch(/already running/u);
-    const { data: state } = await client.rpc("lyrics_assist_state", {
+    const { data: state } = await opsRpc(client, "lyrics_assist_state", {
       p_request: id,
     });
     expect(state).toMatchObject({
@@ -617,15 +618,15 @@ describe("lyrics_assist", () => {
     });
     expect(state.queuePosition).toBeGreaterThanOrEqual(1);
     expect(
-      (await other.rpc("lyrics_assist_state", { p_request: id })).data,
+      (await opsRpc(other, "lyrics_assist_state", { p_request: id })).data,
     ).toBeNull();
     expect(
-      (await other.rpc("lyrics_assist_cancel", { p_request: id })).error,
+      (await opsRpc(other, "lyrics_assist_cancel", { p_request: id })).error,
     ).not.toBeNull();
     expect(
-      (await client.rpc("lyrics_assist_cancel", { p_request: id })).error,
+      (await opsRpc(client, "lyrics_assist_cancel", { p_request: id })).error,
     ).toBeNull();
-    const { data: cancelled } = await client.rpc("lyrics_assist_state", {
+    const { data: cancelled } = await opsRpc(client, "lyrics_assist_state", {
       p_request: id,
     });
     expect(cancelled.status).toBe("cancelled");
