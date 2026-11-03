@@ -131,7 +131,7 @@ branch `feat/<name>` from `build/studio-ui`: `render-4k` (1080p minimum, 4K, ups
 thumbnails), `repo-audit` (ponytail audit and fixes), `plan-m2` and `plan-m3m4` (plans only).
 Runner: `bash E:/mellodifai/codex-streams/stream.sh <name> <e2e-port>`; brief, report, reviews
 and `status.log` live in `E:/mellodifai/codex-streams/<name>/`. Builders use `gpt-6-sol`
-(reasoning high). `gpt-6-astra` returns 429 under parallel load, so reviewers and the M1 driver also run on sol: use `E:/mellodifai/codex-streams/stream3.sh` and start M1 with `CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh <from> 47`. `gpt-6.1-sol` is refused on a ChatGPT account. Re-run a parked stream's review loop with `SKIP_IMPL=1 bash E:/mellodifai/codex-streams/stream3.sh <name> <port>`. A stream
+(reasoning high). `gpt-6-astra` returns 429 under parallel load, so reviewers and the M1 driver also run on sol: use `E:/mellodifai/codex-streams/stream4.sh` and start M1 with `CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh <from> 47`. `gpt-6.1-sol` is refused on a ChatGPT account. Re-run a parked stream's review loop with `SKIP_IMPL=1 bash E:/mellodifai/codex-streams/stream4.sh <name> <port>`. A stream
 ends with "DONE branch ..." in its status.log; then review its report, merge the branch into
 `build/studio-ui` (renumber migrations to the next free number if needed), run all gates, push.
 Launch detached on Windows with PowerShell `Start-Process` so it outlives the agent session.
