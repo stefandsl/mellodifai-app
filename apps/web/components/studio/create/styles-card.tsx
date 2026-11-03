@@ -168,7 +168,7 @@ export function StylesCard() {
           value={styles}
           aria-label={st(lang, "create.styles")}
           onChange={(event) => set({ styles: event.target.value })}
-          className="relative block h-20 w-full resize-none bg-transparent px-0.5 leading-6 outline-none scrollbar-thin"
+          className="relative block h-20 w-full resize-none bg-transparent px-0.5 leading-6 outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] scrollbar-thin"
         />
         <div className="flex justify-end">
           <Counter value={styles.length} max={LIMITS.styles} />

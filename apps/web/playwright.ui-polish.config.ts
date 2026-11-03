@@ -10,5 +10,5 @@ export default defineConfig({
   ...base,
   globalSetup: undefined,
   testMatch: "ui-polish.spec.ts",
-  webServer: { ...server, reuseExistingServer: true },
+  webServer: server,
 });

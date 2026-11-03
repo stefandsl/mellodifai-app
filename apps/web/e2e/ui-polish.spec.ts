@@ -1,39 +1,37 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { localSupabaseUrl } from "./local-env";
 import { serviceClient } from "./support";
 
-const email = "e2e-ui-visual-20261103@mellodifai.test";
+const email = `e2e-ui-visual-${randomUUID()}@mellodifai.test`;
+let userId: string | undefined;
 
 if (process.platform !== "win32")
   throw new Error("UI image baselines require the Windows visual test gate");
 
-test.beforeEach(async ({ page, baseURL }) => {
-  if (!baseURL) throw new Error("E2E base URL required");
+test.beforeAll(async () => {
   const db = serviceClient();
   const { error: allowError } = await db
     .from("admin_allowlist")
     .upsert({ email }, { onConflict: "email" });
   if (allowError) throw allowError;
-  const { data: users, error: usersError } = await db.auth.admin.listUsers({
-    perPage: 1000,
+  const { data, error } = await db.auth.admin.createUser({
+    email,
+    email_confirm: true,
   });
-  if (usersError) throw usersError;
-  let user = users.users.find((entry) => entry.email === email);
-  if (!user) {
-    const { data, error } = await db.auth.admin.createUser({
-      email,
-      email_confirm: true,
-    });
-    if (error) throw error;
-    user = data.user;
-  }
+  if (error || !data.user) throw error ?? new Error("Visual test user missing");
+  userId = data.user.id;
   const { error: profileError } = await db
     .from("profiles")
-    .upsert({ id: user.id, email, role: "admin" });
+    .upsert({ id: userId, email, role: "admin" });
   if (profileError) throw profileError;
+});
 
+test.beforeEach(async ({ page, baseURL }) => {
+  if (!baseURL) throw new Error("E2E base URL required");
+  const db = serviceClient();
   // The shared Mailpit can hit its global OTP rate limit; the local admin link keeps
   // this visual check independent of other agents' sign-in traffic.
   const { data, error } = await db.auth.admin.generateLink({
@@ -115,15 +113,18 @@ test("advanced create style suggestions wrap and refresh", async ({ page }) => {
   await refresh.click();
   await expect(chips).toHaveCount(6);
   expect(await chips.first().getAttribute("aria-label")).not.toBe(first);
+  const styles = page.getByRole("textbox", { name: "Stili" });
+  await styles.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(styles).toBeFocused();
+  await expect(styles).not.toHaveCSS("box-shadow", "none");
 });
 
 test.afterAll(async () => {
   const db = serviceClient();
-  const { data, error } = await db.auth.admin.listUsers({ perPage: 1000 });
-  if (error) throw error;
-  const user = data.users.find((entry) => entry.email === email);
-  if (user) {
-    const deleted = await db.auth.admin.deleteUser(user.id);
+  if (userId) {
+    const deleted = await db.auth.admin.deleteUser(userId);
     if (deleted.error) throw deleted.error;
   }
   const allow = await db.from("admin_allowlist").delete().eq("email", email);
