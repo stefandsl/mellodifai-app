@@ -173,7 +173,7 @@ async function probeSeconds(
   return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
 }
 
-async function upscaleImage(
+export async function upscaleImage(
   context: StageContext,
   file: string,
   size: { width: number; height: number },
@@ -187,21 +187,25 @@ async function upscaleImage(
     context.signal,
   );
   await probe.run(
-    "ffprobe",
+    "ffmpeg",
     [
-      "-v",
-      "error",
-      "-select_streams",
-      "v:0",
-      "-show_entries",
-      "stream=width,height",
-      "-of",
-      "csv=s=x:p=0",
+      "-hide_banner",
+      "-loglevel",
+      "info",
+      "-i",
       file,
+      "-frames:v",
+      "1",
+      "-vf",
+      "showinfo",
+      "-f",
+      "null",
+      "-",
     ],
     { cwd: dirname(file) },
   );
-  const match = /^(\d+)x(\d+)/u.exec(output.trim());
+  // showinfo sees the decoded frame after ffmpeg's automatic EXIF rotation.
+  const match = /\bs:(\d+)x(\d+)\b/u.exec(output);
   if (!match) throw new Error("Dimensioni dell'immagine non disponibili");
   const width = Number(match[1]);
   const height = Number(match[2]);
