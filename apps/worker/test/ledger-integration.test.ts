@@ -706,12 +706,40 @@ async function run(scenario: Scenario): Promise<Result> {
       } finally {
         await worker.stop();
       }
+    } else if (scenario === "requeue") {
+      const firstWorker = `ledger-first-${f.user}`;
+      const secondWorker = `ledger-second-${f.user}`;
+      const first = await context.db.claim(firstWorker);
+      expect(first?.id).toBe(f.job.id);
+      expect(first?.attempts).toBe(2);
+      if (!first) throw new Error("first claim missing");
+      context.job = first;
+      await expect(runDraft(context, false)).rejects.toThrow(
+        "lyric pack validation failed",
+      );
+      await context.db.requeue(f.job.id, firstWorker);
+      const [queued] =
+        await sql`select status,worker_id,attempts from public.jobs where id=${f.job.id}`;
+      expect(queued).toMatchObject({
+        status: "queued",
+        worker_id: null,
+        attempts: 2,
+      });
+      const second = await context.db.claim(secondWorker);
+      expect(second).toMatchObject({
+        id: f.job.id,
+        status: "running",
+        worker_id: secondWorker,
+        attempts: 3,
+      });
+      if (!second) throw new Error("second claim missing");
+      context.job = second;
+      const drafted = await runDraft(context, true);
+      await context.db.finishJob(f.job.id, drafted, secondWorker);
+      const [done] =
+        await sql`select status from public.jobs where id=${f.job.id}`;
+      expect(done?.status).toBe("done");
     } else {
-      if (scenario === "requeue") {
-        await expect(runDraft(context, false)).rejects.toThrow();
-        await sql`update public.jobs set status='queued',attempts=2,not_before=null where id=${f.job.id}`;
-        context.job.attempts = 2;
-      }
       const drafted = await runDraft(context, true);
       await sql`update public.jobs set status='done' where id=${f.job.id}`;
       if (scenario === "normal") {
@@ -727,7 +755,7 @@ async function run(scenario: Scenario): Promise<Result> {
         await completeGeneration(context);
       }
     }
-    if (scenario === "retry-later") {
+    if (scenario === "retry-later" || scenario === "requeue") {
       const [job] =
         await sql`select attempts from public.jobs where id=${f.job.id}`;
       expect(job?.attempts).toBe(3);
@@ -812,13 +840,21 @@ it("replace_section submits through the kie fake and settles its entry", async (
       root,
     );
     observeAttempt(context);
-    await expect(replaceSection(context)).rejects.toThrow();
+    const { REWRITE_TEXT } = await import("../src/stages/replace-section.js");
+    await expect(replaceSection(context)).rejects.toThrow(
+      REWRITE_TEXT.kieFailed,
+    );
     await sql`update public.jobs set status='failed' where id=${f.job.id}`;
     const result = await snapshot(f);
     expect(result.used).toBeCloseTo(result.expected, 4);
     expect(result.entries).toBe(1);
     expect(result.calls).toBe(1);
     expect(result.states).toEqual(["closed"]);
+    const [entry] = await sql`select e.state,e.items from public.spend_entries e
+      join public.reservations r on r.id=e.reservation_id
+      where r.job_id=${f.job.id} and e.provider='kie'`;
+    expect(entry?.state).toBe("settled");
+    expect(entry?.items).toEqual({ credit: 5 });
   } finally {
     await sql`update public.jobs set status='failed' where owner_id=${f.user} and status in ('queued','running')`;
     try {
@@ -864,7 +900,18 @@ it("Groq scoring sends one fake transcription per spend entry", async () => {
       join(context.ws.versionsDir, "lyrics.txt"),
       "[Verse]\nfake",
     );
+    let scoringArguments: readonly string[] | undefined;
+    const spawn: Spawn = (command, args, options) => {
+      if (command === "python") {
+        scoringArguments = args;
+        // Refuse to launch without the disk-policy guard, even in a regression.
+        if (!args.includes("-B"))
+          throw new Error("Python bytecode writes must be disabled");
+      }
+      return nodeSpawn(command, args, options) as unknown as ReturnType<Spawn>;
+    };
     context.engine = new Engine({
+      spawn,
       secrets: context.secrets,
       validateEntries: (ids, providers) =>
         validateEngineEntries(service, ids, providers),
@@ -872,6 +919,13 @@ it("Groq scoring sends one fake transcription per spend entry", async () => {
     }).withWorkspace(root);
     observeAttempt(context);
     await scoreTakes(context, [take]);
+    expect(scoringArguments?.slice(0, 5)).toEqual([
+      "-I",
+      "-B",
+      "-X",
+      "utf8",
+      "tools/score_takes.py",
+    ]);
     expect(
       JSON.parse(
         await readFile(join(context.ws.outDir, "take-1.words.json"), "utf8"),
