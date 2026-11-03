@@ -13,7 +13,8 @@ export const FREE_KEY_CALLS = [
   "kie:balance-refresh",
 ] as const;
 
-export const OPENROUTER_BASE = "https://openrouter.ai/api";
+export const OPENROUTER_BASE =
+  process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api";
 export const OPENROUTER_CHAT_URL = `${OPENROUTER_BASE}/v1/chat/completions`;
 export const OPENROUTER_DECISIONS_URL = `${OPENROUTER_BASE}/alpha/decisions`;
 

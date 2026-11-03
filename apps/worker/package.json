@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:ledger": "vitest run -c vitest.ledger.config.ts"
   },
   "dependencies": {
     "@mellodifai/remake": "workspace:^",

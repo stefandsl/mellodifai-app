@@ -13,7 +13,8 @@
     "test": "pnpm -r --if-present test",
     "e2e": "pnpm -r --if-present e2e",
     "test:db": "tsx ops/test-db-guard.ts && vitest run --no-file-parallelism supabase/tests",
-    "test:integration": "tsx ops/test-db-guard.ts && vitest run --config vitest.integration.config.mts"
+    "test:integration": "tsx ops/test-db-guard.ts && vitest run --config vitest.integration.config.mts",
+    "test:ledger": "pnpm --filter @mellodifai/worker test:ledger"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.4",

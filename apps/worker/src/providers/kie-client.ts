@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 // through suno-remake/tools/kie.mjs): replace-section, upload-and-cover-audio and
 // upload-and-extend-audio (docs.kie.ai/suno-api/*, checked 2026-11-01), the credit balance and
 // the free file upload that gives kie a URL for audio on this PC (files are deleted after 24 h).
-export const KIE_API = "https://api.kie.ai";
+export const KIE_API = process.env.KIE_API_BASE ?? "https://api.kie.ai";
 export const KIE_UPLOAD_API = "https://kieai.redpandaai.co";
 
 export function kieKey(
