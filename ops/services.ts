@@ -19,15 +19,39 @@ import { realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
 import {
   aclCommands,
+  expectedPortOwners,
+  icaclsProbe,
+  installCommands,
   planStart,
+  portOwners,
   SERVICE_ORDER,
   type Service,
   serviceCommand,
   startAll,
   stopAll,
+  watchPorts,
 } from "./lib/services.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
 import { planStackCommand } from "./stack.js";
+
+// Keep the console attached for Windows credential prompts; capture output for the ACL probe.
+const interactiveRunner: typeof realRunner = (cmd, args) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      windowsHide: true,
+      stdio: ["inherit", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+  });
 
 export function presentServices(root: string): Set<Service> {
   const deploy = join(runtimePath(root), "deploy");
@@ -40,6 +64,15 @@ export function presentServices(root: string): Set<Service> {
   if (existsSync(join(root, "secrets/cloudflared/config.yml")))
     present.add("cloudflared");
   return present;
+}
+
+export function assertTunnelConfig(config: string, template: string): void {
+  const expected = parse(readFileSync(template, "utf8")).ingress;
+  if (
+    !Array.isArray(expected) ||
+    !isDeepStrictEqual(parse(readFileSync(config, "utf8")).ingress, expected)
+  )
+    throw new Error("Tunnel ingress drift; start refused");
 }
 
 // Creation time prevents a stale PID record from stopping an unrelated process.
@@ -133,6 +166,21 @@ async function managedService(action: string, service: Service, root: string) {
     }
     return;
   }
+  if (action === "watch" && service === "cloudflared") {
+    const expected = await expectedPortOwners();
+    const stop = watchPorts(expected, async () => {
+      await managedService("stop", "cloudflared", root);
+      process.exitCode = 1;
+    });
+    const stateFile = runtimePath(join(logs, "cloudflared.pid.json"));
+    const timer = setInterval(() => {
+      if (!existsSync(stateFile)) {
+        stop();
+        clearInterval(timer);
+      }
+    }, 60000);
+    return;
+  }
   const stateFile = runtimePath(join(logs, `${service}.pid.json`));
   let running = false;
   let pid = 0;
@@ -176,14 +224,17 @@ async function managedService(action: string, service: Service, root: string) {
       join(deploy, "ops/edge-proxy.ts"),
     ];
   } else if (service === "cloudflared") {
+    const expectedOwners = await expectedPortOwners();
+    const actualOwners = await portOwners();
+    if (
+      Object.entries(expectedOwners).some(
+        ([port, owner]) => actualOwners[Number(port)] !== owner,
+      )
+    )
+      throw new Error("Port owner mismatch; cloudflared start refused");
     const config = join(root, "secrets/cloudflared/config.yml");
     const template = join(deploy, "ops/cloudflared/config.template.yml");
-    const expected = parse(readFileSync(template, "utf8")).ingress;
-    if (
-      !Array.isArray(expected) ||
-      !isDeepStrictEqual(parse(readFileSync(config, "utf8")).ingress, expected)
-    )
-      throw new Error("Tunnel ingress drift; start refused");
+    assertTunnelConfig(config, template);
     cmd = "cloudflared";
     args = ["tunnel", "--config", config, "run"];
   } else {
@@ -219,6 +270,43 @@ async function managedService(action: string, service: Service, root: string) {
     });
     try {
       await trackServiceProcess(child, stateFile);
+      if (service === "cloudflared") {
+        const watchLog = openSync(
+          runtimePath(join(logs, "port-watch.log")),
+          "a",
+        );
+        try {
+          const watcher = spawn(
+            process.execPath,
+            [
+              createRequire(import.meta.url).resolve("tsx/cli"),
+              fileURLToPath(import.meta.url),
+              "__watch",
+              "cloudflared",
+            ],
+            {
+              cwd: deploy,
+              detached: true,
+              windowsHide: true,
+              stdio: ["ignore", watchLog, watchLog],
+              env: {
+                ...process.env,
+                MELLODIFAI_ROOT: root,
+                TEMP: temp,
+                TMP: temp,
+                TMPDIR: temp,
+              },
+            },
+          );
+          await new Promise<void>((resolve, reject) => {
+            watcher.once("error", reject);
+            watcher.once("spawn", resolve);
+          });
+          watcher.unref();
+        } finally {
+          closeSync(watchLog);
+        }
+      }
     } finally {
       child.unref();
     }
@@ -227,7 +315,11 @@ async function managedService(action: string, service: Service, root: string) {
   }
 }
 
-export async function main(args: string[]) {
+export async function main(
+  args: string[],
+  installRunner = interactiveRunner,
+  checkAcl = icaclsProbe,
+) {
   const [action, flag] = args;
   const root = runtimePath(runtimeRoot());
   if (action === "acl" && args.length <= 2 && (!flag || flag === "--apply")) {
@@ -236,7 +328,7 @@ export async function main(args: string[]) {
         `${[cmd, ...commandArgs].map((part) => `"${part}"`).join(" ")}\n`,
       );
       if (flag === "--apply") {
-        const result = await realRunner(cmd as string, commandArgs);
+        const result = await installRunner(cmd as string, commandArgs);
         if (result.code !== 0)
           throw new Error(
             "Runtime ACL refused; owner administrator action pending",
@@ -246,16 +338,47 @@ export async function main(args: string[]) {
     return;
   }
   if (
+    action === "install" &&
+    args.length <= 2 &&
+    (!flag || flag === "--apply")
+  ) {
+    const commands = installCommands({ root });
+    for (const [cmd, ...commandArgs] of commands) {
+      process.stdout.write(
+        `${[cmd, ...commandArgs].map((part) => `"${part}"`).join(" ")}\n`,
+      );
+      if (flag === "--apply") {
+        const result = await installRunner(cmd as string, commandArgs);
+        if (result.code !== 0)
+          throw new Error(
+            "Service install failed; owner administrator action pending",
+          );
+      }
+    }
+    if (flag === "--apply") {
+      for (const account of ["mdf-web", "mdf-auth", "mdf-tunnel"]) {
+        const violations = await checkAcl(account, root, installRunner);
+        if (violations.length)
+          throw new Error(
+            `ACL probe failed for ${account}: ${violations.join(", ")}`,
+          );
+      }
+    }
+    return;
+  }
+  if (
     action?.startsWith("__") &&
     args.length === 2 &&
     SERVICE_ORDER.includes(flag as Service) &&
-    ["__start", "__stop", "__status"].includes(action)
+    ["__start", "__stop", "__status", "__watch"].includes(action)
   ) {
     await managedService(action.slice(2), flag as Service, root);
     return;
   }
   if (args.length !== 1 || !["start", "stop", "status"].includes(action ?? ""))
-    throw new Error("Usage: services.ts <start|stop|status|acl [--apply]>");
+    throw new Error(
+      "Usage: services.ts <start|stop|status|acl [--apply]|install [--apply]>",
+    );
   if (action === "start")
     await startAll(realRunner, { root, present: presentServices(root) });
   else if (action === "stop") {

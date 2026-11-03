@@ -15,14 +15,18 @@ import { realRunner, recordingRunner } from "../lib/run.js";
 import { runtimeRoot } from "../lib/runtime.js";
 import {
   aclCommands,
+  icaclsProbe,
+  installCommands,
   planStart,
+  portOwners,
   SERVICE_ORDER,
   startAll,
   stopAll,
+  watchPorts,
 } from "../lib/services.js";
 import { probe } from "../probe.js";
 import { reapplyDbPasswords } from "../rotate-db-passwords.js";
-import { presentServices } from "../services.js";
+import { assertTunnelConfig, main, presentServices } from "../services.js";
 
 vi.mock("../rotate-db-passwords.js", () => ({ reapplyDbPasswords: vi.fn() }));
 vi.mock("../probe.js", () => ({ probe: vi.fn() }));
@@ -31,6 +35,178 @@ describe("services", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(probe).mockResolvedValue({ ok: true, failures: [] });
+  });
+
+  it("install prints account, ACL and firewall commands and runs nothing without --apply", async () => {
+    const commands = installCommands({ root: runtimeRoot() });
+    const output = commands.flat().join(" ");
+    expect(output).toContain("mdf-web");
+    expect(output).toContain("mdf-auth");
+    expect(output).toContain("mdf-tunnel");
+    expect(output).toContain("icacls");
+    expect(output).toContain("New-NetFirewallRule");
+    const write = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    try {
+      await main(["install"]);
+      expect(write).toHaveBeenCalled();
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it("the icacls probe fails install when mdf-web can read secrets or write the deploy clone", async () => {
+    const runner = recordingRunner([
+      { code: 0, stdout: "read:secrets\\auth\nwrite:deploy\n", stderr: "" },
+    ]);
+    await expect(
+      icaclsProbe("mdf-web", runtimeRoot(), runner),
+    ).resolves.toEqual(["read:secrets\\auth", "write:deploy"]);
+    const installRunner = recordingRunner();
+    const checkAcl = vi.fn(async () => ["read:secrets/auth", "write:deploy"]);
+    const write = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    try {
+      await expect(
+        main(["install", "--apply"], installRunner, checkAcl),
+      ).rejects.toThrow(/ACL probe failed for mdf-web/);
+      expect(installRunner.calls).toHaveLength(
+        installCommands({ root: runtimeRoot() }).length,
+      );
+      expect(checkAcl).toHaveBeenCalledTimes(1);
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it("portOwners normalizes Windows account names", async () => {
+    const runner = recordingRunner([
+      {
+        code: 0,
+        stdout: JSON.stringify([
+          { port: 3000, owner: "PC\\mdf-web" },
+          { port: 3010, owner: "PC\\mdf-auth" },
+          { port: 3080, owner: "PC\\mdf-web" },
+        ]),
+        stderr: "",
+      },
+    ]);
+    await expect(portOwners(runner)).resolves.toEqual({
+      3000: "mdf-web",
+      3010: "mdf-auth",
+      3080: "mdf-web",
+    });
+  });
+
+  it("a port owned by another account stops cloudflared", async () => {
+    const runner = vi.fn(async (_cmd: string, args: string[]) => ({
+      code: 0,
+      stdout: args.some((a) => a.includes("Get-LocalUser"))
+        ? "mdf-web,mdf-auth"
+        : args.includes("__start")
+          ? ""
+          : args.some((a) => a.includes("Get-NetTCPConnection"))
+            ? JSON.stringify([
+                { port: 3000, owner: "other" },
+                { port: 3010, owner: "mdf-auth" },
+                { port: 3080, owner: "mdf-web" },
+              ])
+            : "",
+      stderr: "",
+    }));
+    await expect(
+      startAll(runner, {
+        root: runtimeRoot(),
+        present: new Set(SERVICE_ORDER),
+      }),
+    ).rejects.toThrow(/port owner/i);
+    expect(
+      runner.mock.calls.some(
+        ([, args]) =>
+          args.at(-1) === "cloudflared" && args.at(-2) === "__start",
+      ),
+    ).toBe(false);
+  });
+
+  it("cloudflared starts last, only after password re-apply and a passing probe", async () => {
+    const events: string[] = [];
+    vi.mocked(reapplyDbPasswords).mockImplementation(async () => {
+      events.push("passwords");
+    });
+    vi.mocked(probe).mockImplementation(async () => {
+      events.push("probe");
+      return { ok: true, failures: [] };
+    });
+    const runner = vi.fn(async (_cmd: string, args: string[]) => {
+      if (args.some((a) => a.includes("Get-LocalUser")))
+        return { code: 0, stdout: "mdf-web,mdf-auth", stderr: "" };
+      if (args.some((a) => a.includes("Get-NetTCPConnection"))) {
+        events.push("ports");
+        return {
+          code: 0,
+          stdout: JSON.stringify([
+            { port: 3000, owner: "mdf-web" },
+            { port: 3010, owner: "mdf-auth" },
+            { port: 3080, owner: "mdf-web" },
+          ]),
+          stderr: "",
+        };
+      }
+      if (args.at(-2) === "__start") events.push(String(args.at(-1)));
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    await startAll(runner, {
+      root: runtimeRoot(),
+      present: new Set(SERVICE_ORDER),
+    });
+    expect(events).toEqual([
+      "supabase",
+      "passwords",
+      "probe",
+      "worker",
+      "auth",
+      "web",
+      "edge",
+      "ports",
+      "cloudflared",
+    ]);
+  });
+
+  it("watchPorts reports a later owner mismatch", async () => {
+    vi.useFakeTimers();
+    const mismatch = vi.fn();
+    const stop = watchPorts({ 3000: "mdf-web" }, mismatch, 100, async () => ({
+      3000: "other",
+    }));
+    try {
+      await vi.advanceTimersByTimeAsync(100);
+      expect(mismatch).toHaveBeenCalledTimes(1);
+    } finally {
+      stop();
+      vi.useRealTimers();
+    }
+  });
+
+  it("tunnel drift: a live config differing from the template refuses start", () => {
+    mkdirSync(join(runtimeRoot(), "tmp"), { recursive: true });
+    const base = mkdtempSync(join(runtimeRoot(), "tmp", "tunnel-drift-"));
+    try {
+      const template = join(base, "template.yml");
+      const config = join(base, "config.yml");
+      writeFileSync(
+        template,
+        "ingress:\n  - service: http://127.0.0.1:3080\n  - service: http_status:404\n",
+      );
+      writeFileSync(
+        config,
+        "ingress:\n  - service: http://127.0.0.1:54321\n  - service: http_status:404\n",
+      );
+      expect(() => assertTunnelConfig(config, template)).toThrow(/drift/);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 
   it("starts in SERVICE_ORDER and skips services the target lacks", async () => {
@@ -43,7 +219,9 @@ describe("services", () => {
       "cloudflared",
     ]);
     const present = new Set(
-      SERVICE_ORDER.filter((service) => service !== "auth"),
+      SERVICE_ORDER.filter(
+        (service) => service !== "auth" && service !== "cloudflared",
+      ),
     );
     const runner = recordingRunner();
     await startAll(runner, { root: runtimeRoot(), present });
@@ -230,7 +408,12 @@ it.skipIf(process.platform !== "win32")(
           fileURLToPath(new URL("../services.ts", import.meta.url)),
           ...args,
         ],
-        { env: { MELLODIFAI_ROOT: root } },
+        {
+          env: {
+            MELLODIFAI_ROOT: root,
+            npm_execpath: join(root, "fake-pnpm.cjs"),
+          },
+        },
       );
     try {
       const app = join(root, "deploy/apps/web");
@@ -242,6 +425,10 @@ it.skipIf(process.platform !== "win32")(
       writeFileSync(
         join(app, "fake.cjs"),
         "console.log('fake service ready'); console.error('fake stderr'); setInterval(() => {}, 1000);",
+      );
+      writeFileSync(
+        join(root, "fake-pnpm.cjs"),
+        "require(process.cwd() + '/fake.cjs');",
       );
       expect([...presentServices(root)]).toEqual(["web"]);
       expect((await cli(["acl"])).code).toBe(0);

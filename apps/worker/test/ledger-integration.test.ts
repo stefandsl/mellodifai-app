@@ -109,8 +109,9 @@ async function listening(port: number): Promise<boolean> {
 }
 
 beforeAll(async () => {
-  if ((await listening(3210)) || (await listening(3219)))
-    throw new Error("port 3210 or 3219 is busy: e2e may be running");
+  const e2ePort = Number(process.env.E2E_PORT ?? 3210);
+  if (await listening(e2ePort))
+    throw new Error(`port ${e2ePort} is busy: e2e may be running`);
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
     throw new Error("load the e2e test.env");
   const databaseUrl = process.env.TEST_DB_URL;

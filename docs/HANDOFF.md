@@ -436,9 +436,18 @@ remake and lyric editor polls now use `ops.my_remake` and
 `ops.lyrics_assist_state` through local server actions. The ACL allowlist and
 customer/admin JWT refusal tests pass on the e2e stack.
 Production remains at the Task 33 owner gate. The ledger integration gate
-needs port 3210 free; the owner's local launcher currently holds that port.
-Task 32 review R2 confirms that this gate remains unverified. The owner must
-release the launcher port before rerunning `pnpm test:ledger` with the private
-e2e environment loaded. Both 3210 and 3219 must have no listeners. The existing
-progress ruling forbids agents from stopping the launcher; repeated review
-requests do not satisfy that prerequisite. Keep the ledger guard intact.
+now checks `E2E_PORT`; Task 35 passed all 18 cases on 3219 with the private
+e2e environment loaded. The owner's launcher still holds 3210 and must not be
+stopped by an agent.
+
+M1 Task 35 adds a preview and administrator apply path for local service
+accounts, ACLs and the LAN firewall rule. Tunnel startup checks the owners of
+ports 3000, 3010 and 3080 after password reapplication and the database probe;
+a separate watcher repeats the check every 60 seconds and stops the tunnel on
+drift. `install --apply` remains an owner action. Until account launch is
+configured, services run as the owner and the tunnel cannot start once the
+dedicated accounts exist. The e2e stack runs, and the browser gate passed on
+3219. A separate restore integration test reset the e2e database and left
+four functions from the ACL allowlist absent; ordinary `stack.ts migrate` does
+not recreate them because no migration in this branch defines them. The final
+database gate is 274 passed, 1 failed for that allowlist mismatch.
