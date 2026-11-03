@@ -95,6 +95,28 @@ test("mobile library filters fit without a clipped strip", async ({ page }) => {
   );
 });
 
+test("advanced create style suggestions wrap and refresh", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/create");
+  await page.getByRole("button", { name: "Crea" }).last().click();
+  await page.getByRole("radio", { name: "Avanzato" }).click();
+  const refresh = page.getByRole("button", {
+    name: "Aggiorna gli stili consigliati",
+  });
+  const chips = page.getByRole("button", { name: /^Aggiungi stile:/u });
+  await expect(chips).toHaveCount(6);
+  const first = await chips.first().getAttribute("aria-label");
+  for (const chip of await chips.all()) {
+    const box = await chip.boundingBox();
+    if (!box) throw new Error("Style suggestion missing");
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+  }
+  await refresh.click();
+  await expect(chips).toHaveCount(6);
+  expect(await chips.first().getAttribute("aria-label")).not.toBe(first);
+});
+
 test.afterAll(async () => {
   const db = serviceClient();
   const { data, error } = await db.auth.admin.listUsers({ perPage: 1000 });
