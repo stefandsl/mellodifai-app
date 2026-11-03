@@ -22,14 +22,15 @@ import {
 } from "../comfy/graphs.js";
 import { LOCAL_LIMITS } from "../comfy/runtime.js";
 import type { SectionAlternative, SectionEdit, Take } from "../db.js";
+import { assertKieAllowed } from "../kie/guard.js";
+import type { StageContext, StageHandler, StageResult } from "../loop.js";
 import {
   KieClient,
   KieFailed,
   KieRefused,
   type KieTrack,
-} from "../kie/client.js";
-import { assertKieAllowed } from "../kie/guard.js";
-import type { StageContext, StageHandler, StageResult } from "../loop.js";
+  kieKey,
+} from "../providers/kie-client.js";
 import { encode, matchGain, probeSeconds, splice } from "./audio-util.js";
 import { LOCAL_TEXT, LocalGeneration, takeSeeds } from "./local-engine.js";
 import { takeAudio } from "./take-audio.js";
@@ -133,7 +134,7 @@ async function kieAlternatives(
 ): Promise<Made[]> {
   // Paid: never for a test account or a test song.
   await assertKieAllowed(context);
-  const key = context.secrets.values.KIE_API_KEY ?? "";
+  const key = kieKey(context.secrets.values);
   if (!key) throw new Error(REWRITE_TEXT.kieKey);
   const client = new KieClient(key);
   let taskId = edit.kie_task_id ?? null;

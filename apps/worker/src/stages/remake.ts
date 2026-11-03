@@ -39,6 +39,7 @@ import {
 } from "@mellodifai/shared";
 import type { Remake } from "../db.js";
 import type { StageContext, StageHandler, StageRegistry } from "../loop.js";
+import { openRouterKeyFromEnv } from "../providers/paid.js";
 
 type Embedder = { name: string; embed: RewriteDeps["embed"]; close(): void };
 
@@ -91,8 +92,7 @@ export const packageEngine: RemakeEngine = {
     createClient({
       // As in the lyric pipeline (draft-lyrics.ts): a key without OpenRouter's privacy
       // guardrail keeps lyrics intact.
-      key:
-        env.get("LYRICS_OPENROUTER_KEY") ?? env.require("OPENROUTER_API_KEY"),
+      key: openRouterKeyFromEnv(env),
       ledger: new Ledger(),
       signal,
     }),

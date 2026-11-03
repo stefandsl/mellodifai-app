@@ -8,6 +8,7 @@ import {
 } from "@mellodifai/shared";
 import { optionalText } from "../legacy-import.js";
 import type { StageHandler } from "../loop.js";
+import { OPENROUTER_CHAT_URL, openRouterKey } from "../providers/paid.js";
 import {
   combine,
   DEFAULT_JUDGES,
@@ -186,7 +187,7 @@ export const draftLyrics: StageHandler = async (context) => {
   ).trim();
   const call = {
     // A key without the privacy guardrail keeps lyrics intact; see REDACTION_NOTE.
-    key: secrets.LYRICS_OPENROUTER_KEY ?? secrets.OPENROUTER_API_KEY ?? "",
+    key: openRouterKey(secrets),
     signal: context.signal,
   };
   const writers = {
@@ -226,31 +227,28 @@ export const draftLyrics: StageHandler = async (context) => {
   for (let calls = 0; calls < MAX_WRITER_CALLS; calls += 1) {
     // Reserve before making the request, including requests that fail in transit.
     await budget.reserve();
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${call.key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: writers[writer],
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content: DRAFT_INSTRUCTIONS,
-            },
-            {
-              role: "user",
-              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\n${toneLine(plan.tone)}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
-            },
-          ],
-        }),
-        signal: context.signal,
+    const response = await fetch(OPENROUTER_CHAT_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${call.key}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        model: writers[writer],
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: DRAFT_INSTRUCTIONS,
+          },
+          {
+            role: "user",
+            content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\n${toneLine(plan.tone)}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
+          },
+        ],
+      }),
+      signal: context.signal,
+    });
     if (!response.ok)
       throw new Error(`OpenRouter request failed: ${response.status}`);
     const body = (await response.json()) as {

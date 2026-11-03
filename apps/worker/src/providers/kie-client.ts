@@ -9,6 +9,12 @@ import { setTimeout as delay } from "node:timers/promises";
 export const KIE_API = "https://api.kie.ai";
 export const KIE_UPLOAD_API = "https://kieai.redpandaai.co";
 
+export function kieKey(
+  secrets: Readonly<Record<string, string | undefined>>,
+): string {
+  return secrets.KIE_API_KEY ?? "";
+}
+
 // kie answered and did not take the task: nothing was charged.
 export class KieRefused extends Error {}
 // The task ran and failed on kie's side.

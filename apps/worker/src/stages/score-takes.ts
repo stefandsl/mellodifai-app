@@ -8,6 +8,7 @@ import {
 } from "@mellodifai/shared";
 import type { Take } from "../db.js";
 import type { StageContext } from "../loop.js";
+import { groqAvailable } from "../providers/paid.js";
 import { ENGINE_ROOT, language } from "./utils.js";
 
 // score_takes.py rows use snake_case; the take number is in the file name ("take-2.mp3").
@@ -66,7 +67,7 @@ export async function scoreTakes(
   options: { ceiling?: number; truncated?: ReadonlySet<number> } = {},
 ): Promise<void> {
   try {
-    if (!context.secrets.values.GROQ_API_KEY) {
+    if (!groqAvailable(context.secrets.values)) {
       await context.log("Takes not scored: GROQ_API_KEY is not set");
       return;
     }

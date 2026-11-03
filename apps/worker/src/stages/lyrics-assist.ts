@@ -11,6 +11,7 @@ import {
   spliceSection,
 } from "@mellodifai/shared";
 import type { SonglessHandler } from "../loop.js";
+import { OPENROUTER_CHAT_URL, openRouterKey } from "../providers/paid.js";
 import {
   DEFAULT_JUDGES,
   DEFAULT_WRITERS,
@@ -142,7 +143,7 @@ export const lyricsAssist: SonglessHandler = async (context) => {
     const budget = await lyricsBudget(secrets);
     const call = {
       // A key without the privacy guardrail keeps lyrics intact; see REDACTION_NOTE.
-      key: secrets.LYRICS_OPENROUTER_KEY ?? secrets.OPENROUTER_API_KEY ?? "",
+      key: openRouterKey(secrets),
       signal: context.signal,
     };
     if (!call.key) throw new Error("OPENROUTER_API_KEY is not set");
@@ -187,28 +188,25 @@ export const lyricsAssist: SonglessHandler = async (context) => {
         calls === 0 ? 20 : 60,
         calls === 0 ? "assist.write" : "assist.revise",
       );
-      const response = await fetch(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${call.key}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: writers[writer],
-            response_format: { type: "json_object" },
-            messages: [
-              { role: "system", content: assistSystem(input) },
-              {
-                role: "user",
-                content: assistUser(input, toneLine(plan.tone), correction),
-              },
-            ],
-          }),
-          signal: context.signal,
+      const response = await fetch(OPENROUTER_CHAT_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${call.key}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          model: writers[writer],
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: assistSystem(input) },
+            {
+              role: "user",
+              content: assistUser(input, toneLine(plan.tone), correction),
+            },
+          ],
+        }),
+        signal: context.signal,
+      });
       if (!response.ok)
         throw new Error(`OpenRouter request failed: ${response.status}`);
       const body = (await response.json()) as {

@@ -17,8 +17,12 @@ import { withSourceAudio } from "../src/comfy/graphs.js";
 import type { LocalRuntime } from "../src/comfy/runtime.js";
 import { InMemoryDb, type SectionEdit, type Take } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
-import { findTracks, KieClient, KieRefused } from "../src/kie/client.js";
 import type { StageContext } from "../src/loop.js";
+import {
+  findTracks,
+  KieClient,
+  KieRefused,
+} from "../src/providers/kie-client.js";
 import { spliceArgs } from "../src/stages/audio-util.js";
 import { stages } from "../src/stages/index.js";
 import { LOCAL_TEXT } from "../src/stages/local-engine.js";

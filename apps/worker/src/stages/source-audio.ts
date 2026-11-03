@@ -8,8 +8,8 @@ import {
   KIE_SOURCE_MAX_SECONDS,
   type LyricPack,
 } from "@mellodifai/shared";
-import { KieClient, KieRefused } from "../kie/client.js";
 import type { StageContext } from "../loop.js";
+import { KieClient, KieRefused, kieKey } from "../providers/kie-client.js";
 import { encode, probeSeconds } from "./audio-util.js";
 
 export const SOURCE_TEXT = {
@@ -109,7 +109,7 @@ export async function submitSourceTask(
   context: StageContext,
   source: AudioSource,
   pack: LyricPack,
-  client = new KieClient(context.secrets.values.KIE_API_KEY ?? ""),
+  client = new KieClient(kieKey(context.secrets.values)),
 ): Promise<string> {
   const dir = join(context.ws.root, "source");
   let file: string;

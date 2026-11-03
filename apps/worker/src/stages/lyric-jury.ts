@@ -2,8 +2,10 @@
 // models scores each draft. Every call is best effort: a router or judge that fails is
 // left out, so a provider outage slows nothing down and never blocks a song.
 
-const DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
-const CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
+import {
+  OPENROUTER_CHAT_URL as CHAT_URL,
+  OPENROUTER_DECISIONS_URL as DECISIONS_URL,
+} from "../providers/paid.js";
 export const JEV = "typesafe/jev-1.14";
 
 export type Writer = "strong" | "fast";

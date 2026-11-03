@@ -10,8 +10,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
-import { KieClient } from "../src/kie/client.js";
 import type { StageContext } from "../src/loop.js";
+import { KieClient } from "../src/providers/kie-client.js";
 import { kieTrackIds } from "../src/stages/generate-song.js";
 import { IMPORT_TEXT } from "../src/stages/import-audio.js";
 import { stages } from "../src/stages/index.js";
