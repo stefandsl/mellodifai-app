@@ -76,6 +76,17 @@ export type DictKey =
   | "publish.tags"
   | "publish.chapters"
   | "error.action"
+  | "error.unauthorized"
+  | "error.forbidden_scope"
+  | "error.not_found"
+  | "error.conflict"
+  | "error.idempotency_mismatch"
+  | "error.in_progress"
+  | "error.ambiguous_spend"
+  | "error.validation"
+  | "error.cap_exceeded"
+  | "error.rate_limited"
+  | "error.internal"
   | "auth.invalidLink"
   | "auth.devInbox"
   | "job.superseded"
@@ -161,6 +172,19 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "qa.notMeasured": "Non misurato",
     "publish.tag": "lyric video",
     "error.action": "Operazione non riuscita. Riprova.",
+    "error.unauthorized": "Accedi per continuare.",
+    "error.forbidden_scope": "Non hai il permesso per questa operazione.",
+    "error.not_found": "Elemento non trovato.",
+    "error.conflict": "L'elemento non è nello stato richiesto.",
+    "error.idempotency_mismatch":
+      "Questa chiave è già stata usata per una richiesta diversa.",
+    "error.in_progress": "La richiesta è già in corso. Riprova tra poco.",
+    "error.ambiguous_spend":
+      "L'esito della spesa non è ancora noto. Controlla prima di riprovare.",
+    "error.validation": "Controlla i dati inseriti.",
+    "error.cap_exceeded": "Limite di spesa raggiunto.",
+    "error.rate_limited": "Troppi tentativi. Riprova tra poco.",
+    "error.internal": "Errore interno. Riprova.",
     "auth.invalidLink": "Link non valido o scaduto. Richiedi un nuovo link.",
     "job.superseded": "Tentativo precedente non riuscito",
     "error.details": "Dettagli tecnici",
@@ -316,6 +340,20 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "qa.notMeasured": "Not measured",
     "publish.tag": "lyric video",
     "error.action": "Action failed. Please try again.",
+    "error.unauthorized": "Sign in to continue.",
+    "error.forbidden_scope": "You do not have permission for this action.",
+    "error.not_found": "Item not found.",
+    "error.conflict": "The item is not in the required state.",
+    "error.idempotency_mismatch":
+      "This key was already used for a different request.",
+    "error.in_progress":
+      "The request is already in progress. Try again shortly.",
+    "error.ambiguous_spend":
+      "The spending outcome is still unknown. Check before retrying.",
+    "error.validation": "Check the information you entered.",
+    "error.cap_exceeded": "Spending cap reached.",
+    "error.rate_limited": "Too many attempts. Try again shortly.",
+    "error.internal": "Internal error. Please try again.",
     "auth.invalidLink": "Invalid or expired link. Request a new link.",
     "job.superseded": "Earlier attempt failed",
     "error.details": "Technical details",

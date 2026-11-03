@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   })),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/locale", () => ({ getLocale: async () => "en" }));
 vi.mock("@/lib/auth", () => ({
   actionProfile: async () => ({ supabase: mocks, user: { id: "owner" } }),

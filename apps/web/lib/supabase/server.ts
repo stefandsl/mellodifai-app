@@ -22,3 +22,10 @@ export async function createClient() {
     },
   );
 }
+
+export async function getSessionClaims() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims?.sub || !data.claims.session_id) return null;
+  return { sub: data.claims.sub, session_id: String(data.claims.session_id) };
+}

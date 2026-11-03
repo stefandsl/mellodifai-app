@@ -1,18 +1,79 @@
-import { t } from "@mellodifai/shared";
+import { type OpsErrorCode, t } from "@mellodifai/shared";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import type { ActionResult } from "./action-result";
 import { actionProfile } from "./auth";
 import { getLocale } from "./locale";
+import { sessionCtx } from "./ops/context";
+import { runOp } from "./ops/run";
+import type { OpDef } from "./ops/types";
+import { isRemote } from "./remote";
 
-export async function runAction(
-  work: (db: Awaited<ReturnType<typeof actionProfile>>["supabase"]) => Promise<{
-    versionId?: string;
-    projectId?: string;
-    // Overrides the id the result carries (a new playlist, for instance).
-    id?: string;
-    count?: number;
-  }>,
+type LegacyWork = (
+  db: Awaited<ReturnType<typeof actionProfile>>["supabase"],
+) => Promise<{
+  versionId?: string;
+  projectId?: string;
+  // Overrides the id the result carries (a new playlist, for instance).
+  id?: string;
+  count?: number;
+}>;
+
+export function runAction(work: LegacyWork): Promise<ActionResult>;
+export function runAction<I, O>(
+  def: OpDef<I, O>,
+  input: unknown,
+): Promise<ActionResult>;
+export async function runAction<I, O>(
+  defOrWork: OpDef<I, O> | LegacyWork,
+  input?: unknown,
 ): Promise<ActionResult> {
+  try {
+    if (isRemote(await headers())) return opsFailure("forbidden_scope");
+  } catch {
+    return opsFailure("internal");
+  }
+  if (typeof defOrWork !== "function") return remoteAction(defOrWork, input);
+  return legacyAction(defOrWork);
+}
+
+async function opsFailure(code: OpsErrorCode): Promise<ActionResult> {
+  return { ok: false, code, error: t(await getLocale(), `error.${code}`) };
+}
+
+export async function remoteAction<I, O>(
+  def: OpDef<I, O>,
+  input: unknown,
+): Promise<ActionResult> {
+  try {
+    const result = await runOp(def, await sessionCtx(), input);
+    if (!result.ok) return opsFailure(result.code);
+    const data = result.data;
+    const id =
+      data && typeof data === "object"
+        ? "project_id" in data
+          ? data.project_id
+          : "playlist_id" in data
+            ? data.playlist_id
+            : "id" in data
+              ? data.id
+              : undefined
+        : undefined;
+    const count =
+      data && typeof data === "object" && "count" in data
+        ? data.count
+        : undefined;
+    return {
+      ok: true,
+      ...(typeof id === "string" ? { id } : {}),
+      ...(typeof count === "number" ? { count } : {}),
+    };
+  } catch {
+    return opsFailure("unauthorized");
+  }
+}
+
+async function legacyAction(work: LegacyWork): Promise<ActionResult> {
   try {
     const { supabase } = await actionProfile();
     const result = await work(supabase);

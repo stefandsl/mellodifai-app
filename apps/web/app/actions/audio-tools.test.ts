@@ -22,6 +22,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/locale", () => ({ getLocale: async () => "it" }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 
 import { revalidatePath } from "next/cache";
 import { requestStems, saveEditedTake } from "./audio-tools";
