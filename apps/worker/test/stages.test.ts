@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runtimeRoot } from "@mellodifai/remake";
 import { LyricPackSchema, type Stage } from "@mellodifai/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
@@ -1050,7 +1050,9 @@ const pack = {
   l10n: {},
 };
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "stage-tests-"));
+  const scratch = join(runtimeRoot(), "tmp");
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "stage-tests-"));
   roots.push(root);
   const ws = {
     root,

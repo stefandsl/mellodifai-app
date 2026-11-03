@@ -1,6 +1,32 @@
+import { LANGS, publicationCopy } from "@mellodifai/shared";
 import { expect, it } from "vitest";
+import { PublicationInput } from "../app/actions/schemas";
 import { publicationDefaults } from "./publication-defaults";
 import { upsertJob } from "./timeline";
+
+it.each(LANGS)(
+  "keeps publication titles within the validator limit in %s",
+  (language) => {
+    const suffix = ` | ${publicationCopy(language).suffix}`;
+    const budget = 100 - suffix.length;
+    for (const length of [1, budget, budget + 1, 80, 100]) {
+      const title = "A".repeat(length);
+      const metadata = publicationDefaults(title, "Lyrics", language, null);
+      expect(metadata.title).toBe(length <= budget ? title + suffix : title);
+      expect(metadata.title.length).toBeLessThanOrEqual(100);
+      expect(
+        PublicationInput.safeParse({
+          renderId: "00000000-0000-4000-8000-000000000001",
+          metadata,
+        }).success,
+      ).toBe(true);
+    }
+    const unicodeTitle = "🎵".repeat(50);
+    expect(publicationDefaults(unicodeTitle, "", language, null).title).toBe(
+      unicodeTitle,
+    );
+  },
+);
 
 it("uses the song language when the UI language differs", () => {
   const french = publicationDefaults("Le port", "Une lumière", "fr", null);

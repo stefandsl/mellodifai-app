@@ -53,6 +53,7 @@ export function publicationDefaults(
   sections: unknown,
 ) {
   const copy = publicationCopy(language);
+  const titled = `${title} | ${copy.suffix}`;
   const starts: { title: string; start: number }[] = Array.isArray(sections)
     ? sections
         .filter(
@@ -76,7 +77,8 @@ export function publicationDefaults(
     last = start;
   }
   return {
-    title: `${title} | ${copy.suffix}`,
+    // Keep the complete song title when the optional suffix cannot fit.
+    title: titled.length <= 100 ? titled : title,
     description: [
       title,
       lyrics
