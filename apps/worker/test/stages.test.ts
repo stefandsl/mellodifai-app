@@ -1382,19 +1382,70 @@ async function setup() {
 }
 
 it("pre-migration job reserves on demand before the first paid call", async () => {
-  const { ctx, calls, kieLedger } = await setup();
-  ctx.job.attempts = 1;
-  await stages.generate_song?.(ctx);
+  const { ctx, db, kieLedger, groqLedger } = await setup();
+  ctx.job.stage = "generate_song";
+  ctx.job.attempts = 0;
+  ctx.version.status = "song_queued";
+  db.jobs.push(ctx.job);
+  let reservation: string | null = null;
+  const order: string[] = [];
+  vi.mocked(kieLedger.reservationFor).mockImplementation(async () => {
+    expect(reservation).toBeNull();
+    reservation = "created-reservation";
+    order.push("reserve");
+    return reservation;
+  });
+  vi.mocked(kieLedger.open).mockImplementation(async () => {
+    expect(reservation).toBe("created-reservation");
+    order.push("open");
+    return "entry";
+  });
+  const withWorkspace = ctx.engine.withWorkspace.bind(ctx.engine);
+  vi.spyOn(ctx.engine, "withWorkspace").mockImplementation((...args) => {
+    const engine = withWorkspace(...args);
+    const run = engine.run.bind(engine);
+    vi.spyOn(engine, "run").mockImplementation(async (cmd, args, options) => {
+      if (args[1] === "generate") order.push("submit");
+      return run(cmd, args, options);
+    });
+    return engine;
+  });
+  await new WorkerLoop({
+    db,
+    workerId: "worker",
+    stages,
+    engine: ctx.engine,
+    storage: ctx.storage,
+    secrets: ctx.secrets,
+    workspace: { forVersion: async () => ctx.ws },
+    kieLedger: () => kieLedger,
+    groqLedger: () => groqLedger,
+  }).runOnce();
   expect(kieLedger.reservationFor).toHaveBeenCalledWith(ctx.job.id);
   expect(kieLedger.open).toHaveBeenCalledWith("kie:generate:1", { credit: 12 });
   expect(kieLedger.settle).toHaveBeenCalledWith("entry", { credit: 12 });
-  expect(calls.some((call) => call.args[1] === "generate")).toBe(true);
+  expect(order).toEqual(["reserve", "open", "submit"]);
+  expect(db.jobs[0]?.status).toBe("done");
 });
 
 it("a refused on-demand reservation fails with cap_exceeded and makes no provider call", async () => {
-  const { ctx, calls, kieLedger } = await setup();
+  const { ctx, db, calls, kieLedger } = await setup();
+  ctx.job.stage = "generate_song";
+  ctx.job.attempts = 0;
+  ctx.version.status = "song_queued";
+  db.jobs.push(ctx.job);
   vi.mocked(kieLedger.reservationFor).mockRejectedValue({ code: "MDF06" });
-  await expect(stages.generate_song?.(ctx)).rejects.toThrow("cap_exceeded");
+  await new WorkerLoop({
+    db,
+    workerId: "worker",
+    stages,
+    engine: ctx.engine,
+    storage: ctx.storage,
+    secrets: ctx.secrets,
+    workspace: { forVersion: async () => ctx.ws },
+    kieLedger: () => kieLedger,
+  }).runOnce();
+  expect(db.jobs[0]).toMatchObject({ status: "failed", error: "cap_exceeded" });
   expect(calls).toHaveLength(0);
   expect(kieLedger.open).not.toHaveBeenCalled();
 });
@@ -1427,11 +1478,15 @@ it("timing.ts is treated as paid Groq (the 11.5 default)", async () => {
 });
 
 it("a kie submit timeout marks the reservation ambiguous before failing the stage", async () => {
-  const { ctx, db, kieLedger } = await setup();
+  const { ctx, db, output, calls, kieLedger } = await setup();
   ctx.job.stage = "generate_song";
+  ctx.job.attempts = 0;
   ctx.version.status = "song_queued";
-  ctx.version.kie_submit_state = "submitting";
+  expect(ctx.version.kie_submit_state).toBeUndefined();
+  output.submitCode = 1;
+  output.submitError = "TimeoutError: request timed out after POST";
   db.jobs.push(ctx.job);
+  const failJob = vi.spyOn(db, "failJob");
   const loop = new WorkerLoop({
     db,
     workerId: "worker",
@@ -1443,7 +1498,14 @@ it("a kie submit timeout marks the reservation ambiguous before failing the stag
     kieLedger: () => kieLedger,
   });
   await loop.runOnce();
+  expect(calls.filter((call) => call.args[1] === "generate")).toHaveLength(1);
+  expect(ctx.version.kie_submit_state).toBe("submitting");
+  expect(kieLedger.settle).not.toHaveBeenCalled();
   expect(kieLedger.markAmbiguous).toHaveBeenCalledOnce();
+  expect(failJob).toHaveBeenCalledOnce();
+  expect(
+    vi.mocked(kieLedger.markAmbiguous).mock.invocationCallOrder[0],
+  ).toBeLessThan(failJob.mock.invocationCallOrder[0] as number);
   expect(db.jobs[0]?.status).toBe("failed");
 });
 function command(cmd: string, args: string[], cwd: string = ENGINE_ROOT) {
