@@ -472,3 +472,14 @@ passing production probe. Both startup and the supervisor compare full Windows
 account identities; local service accounts use COMPUTERNAME and fallback uses
 the launcher's full Windows identity. These changes do not complete the pending
 administrator installation or production tunnel owner actions.
+
+Task 35 review R3 removes the process-start containment race. The Windows host
+now creates the process suspended, assigns it to the kill-on-close Job Object,
+verifies its owner and initial port prerequisites, and only then resumes it.
+The native creation helper is ops/service-process.cs, compiled by Add-Type
+with the host's E: temporary directory. Tests confirm no execution before resume
+and termination of an immediately spawned detached grandchild when the host is
+killed. Firewall reinstall updates the existing MellodifAI block LAN rule in
+place; it creates a new rule only when absent and never deletes the old rule
+before an update. Actual administrator account/firewall verification remains
+pending with the existing owner actions.

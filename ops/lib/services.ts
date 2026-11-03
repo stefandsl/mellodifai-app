@@ -107,7 +107,7 @@ export function installCommands(opts: { root: string }): string[][] {
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      "Get-NetFirewallRule -DisplayName 'MellodifAI block LAN' -ErrorAction SilentlyContinue | Remove-NetFirewallRule; New-NetFirewallRule -DisplayName 'MellodifAI block LAN' -Direction Inbound -Action Block -Protocol TCP -LocalPort 3000,3001,3010,3080,4007,8188,54321-54329 -RemoteAddress LocalSubnet",
+      "$ErrorActionPreference='Stop'; $rules=Get-NetFirewallRule -DisplayName 'MellodifAI block LAN' -ErrorAction SilentlyContinue; if ($rules) { $rules | Set-NetFirewallRule -Enabled True -Profile Any -Direction Inbound -Action Block -Protocol TCP -LocalPort 3000,3001,3010,3080,4007,8188,54321-54329 -RemoteAddress LocalSubnet } else { New-NetFirewallRule -DisplayName 'MellodifAI block LAN' -Enabled True -Profile Any -Direction Inbound -Action Block -Protocol TCP -LocalPort 3000,3001,3010,3080,4007,8188,54321-54329 -RemoteAddress LocalSubnet }",
     ],
   ];
 }

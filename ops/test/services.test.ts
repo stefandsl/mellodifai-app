@@ -510,7 +510,7 @@ it.skipIf(process.platform !== "win32")(
       );
       writeFileSync(
         join(app, "fake.cjs"),
-        "console.log('fake service ready'); console.error('fake stderr'); setInterval(() => {}, 1000);",
+        "const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' }); require('node:fs').writeFileSync('grandchild.pid', String(child.pid)); child.unref(); console.log('fake service ready'); console.error('fake stderr'); setInterval(() => {}, 1000);",
       );
       writeFileSync(
         join(root, "fake-pnpm.cjs"),
@@ -531,6 +531,10 @@ it.skipIf(process.platform !== "win32")(
       expect(readFileSync(join(root, "logs/web.error.log"), "utf8")).toContain(
         "fake stderr",
       );
+      const grandchild = Number(
+        readFileSync(join(app, "grandchild.pid"), "utf8"),
+      );
+      expect(grandchild).toBeGreaterThan(0);
       const state = JSON.parse(
         readFileSync(join(root, "logs/web.pid.json"), "utf8").replace(
           /^\uFEFF/,
@@ -556,7 +560,7 @@ it.skipIf(process.platform !== "win32")(
           const result = await realRunner("powershell.exe", [
             "-NoProfile",
             "-Command",
-            `if (Get-Process -Id ${state.pid} -ErrorAction SilentlyContinue) { exit 1 }`,
+            `if (Get-Process -Id ${state.pid},${grandchild} -ErrorAction SilentlyContinue) { exit 1 }`,
           ]);
           expect(result.code).toBe(0);
         },
@@ -733,4 +737,76 @@ it.skipIf(process.platform !== "win32")(
     for (const owner of Object.values(owners))
       expect(owner).toMatch(/^[^\\]+\\[^\\]+$/);
   },
+);
+
+it.skipIf(process.platform !== "win32")(
+  "keeps the existing firewall rule when its update fails",
+  async () => {
+    const command = installCommands({ root: runtimeRoot() }).find((parts) =>
+      parts.some((part) => part.includes("New-NetFirewallRule")),
+    );
+    expect(command).toBeDefined();
+    const script = `
+$script:protected=$true
+$script:updated=$false
+function Get-NetFirewallRule { [pscustomobject]@{Name='existing'} }
+function Remove-NetFirewallRule { $script:protected=$false }
+function New-NetFirewallRule { throw 'injected failure' }
+function Set-NetFirewallRule { $script:updated=$true; throw 'injected failure' }
+try { & { ${command?.at(-1)} } } catch {}
+if (-not $script:protected -or -not $script:updated) { exit 1 }
+exit 0
+`;
+    expect(
+      (
+        await realRunner("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          script,
+        ])
+      ).code,
+    ).toBe(0);
+  },
+);
+
+it.skipIf(process.platform !== "win32")(
+  "does not execute a suspended service until it is contained and resumed",
+  async () => {
+    const root = mkdtempSync(join(runtimeRoot(), "tmp", "suspended-service-"));
+    try {
+      writeFileSync(
+        join(root, "child.cjs"),
+        "require('node:fs').writeFileSync('executed', 'yes'); setInterval(() => {}, 1000);",
+      );
+      const source = fileURLToPath(
+        new URL("../service-process.cs", import.meta.url),
+      );
+      const script = `
+$ErrorActionPreference='Stop'
+Add-Type -Path '${source}'
+$service=[ServiceProcess]::CreateSuspended('${process.execPath}', '"${join(root, "child.cjs")}"', '${root}', '${join(root, "out.log")}', '${join(root, "err.log")}', $null, $null, $null)
+try {
+  Start-Sleep -Milliseconds 300
+  if (Test-Path '${join(root, "executed")}') { throw 'Service ran before resume' }
+  $service.Resume()
+  for ($i=0; $i -lt 50 -and -not (Test-Path '${join(root, "executed")}'); $i++) { Start-Sleep -Milliseconds 100 }
+  if (-not (Test-Path '${join(root, "executed")}')) { throw 'Service did not resume' }
+} finally { $service.Dispose() }
+`;
+      expect(
+        (
+          await realRunner("powershell.exe", [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            script,
+          ])
+        ).code,
+      ).toBe(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+  15000,
 );
