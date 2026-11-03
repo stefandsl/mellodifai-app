@@ -366,3 +366,14 @@ matching ambiguous generation or section-edit reservation, retaining charged
 spend; the optional `p_edit` selects section-edit recovery. The current audio
 keep RPC creates no timing job, but its wrapper reserves any jobs it enqueues.
 Only e2e was migrated. Existing web action routing remains Task 29.
+
+M1 Task 21 lands engine commit `38556c8234519fd04ac3edc2a1351cb6cb034421`
+in `C:/Users/Asus/Documents/suno-remake` (no remote configured). All six engine
+credential-file readers now refuse under `MELLODIFAI_ENV_ONLY=1` when a file
+would be needed; YouTube's file-backed OAuth flow refuses entirely under the flag.
+Kie, OpenRouter TTS and both Groq scripts support the base URL overrides recorded
+in the plan's Spike results. Eighteen isolated engine tests pass without provider
+calls. Task 23 still owns setting the flag after childEnvironment, and Task 24
+owns the worker paid-call mapping. The normal lint/type/unit/database gates pass;
+browser validation has two unrelated fake-stack failures (offline job consumed,
+private-video alert missing), recorded in the Task 21 report and runtime log.

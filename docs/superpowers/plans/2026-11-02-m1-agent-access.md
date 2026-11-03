@@ -978,6 +978,31 @@ Preconditions: Majors 12, 13 (Tasks 15, 42) and 26 (Task 35) are done. Owner act
 
 (Filled by Tasks 1, 2, 3 and 21.)
 
+### Engine environment-only credentials (Task 21, 2026-11-03)
+
+Engine commit: `38556c8234519fd04ac3edc2a1351cb6cb034421` in
+`C:/Users/Asus/Documents/suno-remake` (`master`, no remote configured).
+The change covers `tools/kie.mjs`, `tools/tts.mjs`, `tools/whisper_words.py`,
+`tools/clip_whisper.py`, `motion/higgsfield/index.ts`, and `publish/yt.py`.
+The last reader was found by the wider repository scan required by design 11.5.
+Missing or blank credentials with `MELLODIFAI_ENV_ONLY=1` refuse key-file reads;
+YouTube's file-backed OAuth flow refuses under the flag. Unflagged fallbacks remain.
+
+Base overrides: `KIE_API_BASE` defaults to `https://api.kie.ai`,
+`OPENROUTER_BASE_URL` to `https://openrouter.ai/api/v1`, and `GROQ_BASE_URL`
+to `https://api.groq.com/openai/v1`. Each replaces that complete base, with trailing
+slashes removed. Environment credentials bypass files, including `KIE_ENV`.
+
+Run `node --test tools/test/env-only.test.mjs` in the engine repo with TEMP/TMP
+on E:. All 18 tests passed; the original source failed all 18. Harnesses block
+credential-file reads and external networking and fake HTTP/audio work. Evidence:
+`E:/mellodifai/tmp/task21-{red,green}.log`.
+MellodifAI lint, both typechecks, 1,511 unit tests (one existing skip), and 257
+database tests passed. E2E on API 45621/Next 3219 had 6 passes and 2 unrelated
+failures: offline job was `done` instead of `queued`, and the private-video alert
+timed out. The fake-worker browser gate does not execute these engine scripts.
+Full output: `E:/mellodifai/tmp/task21-e2e.log`; no production or paid calls ran.
+
 ### Spike 1: oidc-provider wiring (Task 1, 2026-11-02)
 
 **Decision:** keep `oidc-provider`; (a)-(d) pass, so the section 6.4 fallback to
