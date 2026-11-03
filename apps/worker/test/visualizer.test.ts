@@ -477,13 +477,15 @@ describe("visualizer files and cleanup", () => {
       version_id: "version",
       kind: "master",
       render_attempt: 1,
-      preview_path: "previews/owner/project/it/master-old.mp4",
+      preview_path: "previews/owner/project/it/version/1/master-preview.mp4",
     });
     const file = join(ctx.ws.root, "new.mp4");
     await writeFile(file, "x");
     await upload(ctx, file, "video/mp4");
     const removed = storage.remove.mock.calls.flatMap((c) => c[0]);
-    expect(removed).toContain("previews/owner/project/it/master-old.mp4");
+    expect(removed).toContain(
+      "previews/owner/project/it/version/1/master-preview.mp4",
+    );
     expect(removed).not.toContain(
       "previews/owner/project/it/visualizer-16x9.mp4",
     );

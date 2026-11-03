@@ -1,5 +1,5 @@
 import { copyFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { LyricPackSchema, songMood } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
 import { key, language, readJson } from "./utils.js";
@@ -101,6 +101,39 @@ export const storyboard: StageHandler = async (context) => {
   const lang = language(context);
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   const dataDir = join(context.ws.publicDir, "data", lang);
+  const prior = await context.db.getRender(context.version.id, "master");
+  const saved = (
+    prior?.qa_results as {
+      assets?: { storyboard_path?: unknown; storyboard_sections?: unknown };
+    } | null
+  )?.assets;
+  if (
+    (context.version.render_attempt ?? 1) > 1 &&
+    typeof saved?.storyboard_path === "string"
+  ) {
+    const source = resolve(saved.storyboard_path);
+    if (!source.startsWith(resolve(dataDir) + sep))
+      throw new Error("Invalid storyboard path");
+    const current = join(dataDir, "storyboard.json");
+    const archived = join(
+      dataDir,
+      `storyboard-${context.version.render_attempt}.json`,
+    );
+    await copyFile(source, archived);
+    await copyFile(archived, current);
+    return {
+      patch: {
+        storyboard_path: archived,
+        storyboard_sections: saved.storyboard_sections,
+      },
+      enqueue: [
+        {
+          stage: "render_master",
+          idempotencyKey: key("render_master", context),
+        },
+      ],
+    };
+  }
   const timing = await readJson<Timing>(join(dataDir, "timing.json"));
   const { storyboard: scenes, sections } = songStoryboard(
     timing,

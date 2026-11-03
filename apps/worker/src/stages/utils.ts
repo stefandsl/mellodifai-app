@@ -26,6 +26,15 @@ export function previewPath(context: StageContext, file: string): string {
     file,
   ].join("/");
 }
+export function renderAssetPath(
+  context: StageContext,
+  renderAttempt: number,
+  path: string,
+  file: RegExp,
+): boolean {
+  const prefix = `previews/${context.version.owner_id}/${context.project.id}/${context.version.lang}/${context.version.id}/${renderAttempt}/`;
+  return path.startsWith(prefix) && file.test(path.slice(prefix.length));
+}
 export function versionFile(context: StageContext, file: string): string {
   return join(context.ws.versionsDir, file);
 }
@@ -85,6 +94,24 @@ export async function upload(
       const live = new Set<string>([path]);
       const obsolete = new Set<string>();
       const published = new Set(rows.publishedRenderIds);
+      const pending = rows.renders.find(
+        (r) =>
+          r.kind === "master" &&
+          r.render_attempt === context.version.render_attempt,
+      );
+      const sourceThumbnail = (
+        pending?.qa_results as { assets?: { thumbnail_path?: unknown } } | null
+      )?.assets?.thumbnail_path;
+      if (
+        typeof sourceThumbnail === "string" &&
+        renderAssetPath(
+          context,
+          (context.version.render_attempt ?? 1) - 1,
+          sourceThumbnail,
+          /^thumbnail(?:-1280x720)?\.(?:png|jpg|jpeg|webp)$/u,
+        )
+      )
+        live.add(sourceThumbnail);
       for (const r of rows.renders) {
         // A visualizer video belongs to no render attempt: a new lyric video leaves it alone.
         const thumbnail = (
@@ -99,13 +126,25 @@ export async function upload(
                 (file): file is string =>
                   typeof file === "string" && Boolean(file),
               );
-        for (const file of files)
+        for (const file of files) {
+          if (
+            !renderAssetPath(
+              context,
+              r.render_attempt ?? 1,
+              file,
+              r.kind === "visualizer"
+                ? /^(?:visualizer-[^/]+)\.(?:mp4|jpg)$/u
+                : /^(?:master-preview\.mp4|hook-preview\.mp4|thumbnail(?:-1280x720)?\.(?:png|jpg|jpeg|webp))$/u,
+            )
+          )
+            continue;
           (r.kind !== "visualizer" &&
           !published.has(r.id) &&
           (r.render_attempt ?? 1) < (context.version.render_attempt ?? 1)
             ? obsolete
             : live
           ).add(file);
+        }
       }
       for (const take of rows.takes)
         for (const file of [
@@ -113,7 +152,17 @@ export async function upload(
           take.cover_path,
           ...stemPaths(take.stems),
         ])
-          if (file)
+          if (
+            file?.startsWith(
+              `previews/${context.version.owner_id}/${context.project.id}/${context.version.lang}/`,
+            ) &&
+            !file
+              .slice(
+                `previews/${context.version.owner_id}/${context.project.id}/${context.version.lang}/`
+                  .length,
+              )
+              .includes("/")
+          )
             ((take.generation ?? 1) < (context.version.generation_count ?? 1)
               ? obsolete
               : live

@@ -117,9 +117,13 @@ it("prunes only superseded previews of this version after upload succeeds", asyn
     id: "old",
     version_id: "version",
     kind: "master",
-    render_attempt: 1,
-    preview_path: "old-render.mp4",
-    qa_results: { assets: { thumbnail_path: "old-thumbnail.png" } },
+    render_attempt: 6,
+    preview_path: "previews/owner/project/fr/version/6/master-preview.mp4",
+    qa_results: {
+      assets: {
+        thumbnail_path: "previews/owner/project/fr/version/6/thumbnail.png",
+      },
+    },
   });
   db.renders.push({
     id: "foreign",
@@ -132,7 +136,7 @@ it("prunes only superseded previews of this version after upload succeeds", asyn
     id: "old-take",
     version_id: "version",
     generation: 1,
-    audio_preview_path: "old-take.mp3",
+    audio_preview_path: "previews/owner/project/fr/old-take.mp3",
   });
   const remove = vi.fn(async () => {});
   ctx.storage.remove = remove;
@@ -142,13 +146,15 @@ it("prunes only superseded previews of this version after upload succeeds", asyn
   await stages.render_master?.(ctx);
   expect(remove).toHaveBeenCalledWith(
     expect.arrayContaining([
-      "old-render.mp4",
-      "old-thumbnail.png",
-      "old-take.mp3",
+      "previews/owner/project/fr/version/6/master-preview.mp4",
+      "previews/owner/project/fr/version/6/thumbnail.png",
+      "previews/owner/project/fr/old-take.mp3",
     ]),
   );
   expect(JSON.stringify(remove.mock.calls)).not.toContain("other.mp4");
-  expect(JSON.stringify(remove.mock.calls)).not.toContain("master-preview.mp4");
+  expect(JSON.stringify(remove.mock.calls)).not.toContain(
+    "/7/master-preview.mp4",
+  );
 });
 it("retains the preview of a published render after rerendering", async () => {
   const { ctx, db } = await setup();
@@ -156,9 +162,13 @@ it("retains the preview of a published render after rerendering", async () => {
     id: "published",
     version_id: ctx.version.id,
     kind: "master",
-    render_attempt: 1,
-    preview_path: "published-preview.mp4",
-    qa_results: { assets: { thumbnail_path: "published-thumbnail.png" } },
+    render_attempt: 6,
+    preview_path: "previews/owner/project/fr/version/6/master-preview.mp4",
+    qa_results: {
+      assets: {
+        thumbnail_path: "previews/owner/project/fr/version/6/thumbnail.png",
+      },
+    },
   });
   db.publications.push({
     id: "publication",
@@ -169,11 +179,50 @@ it("retains the preview of a published render after rerendering", async () => {
   ctx.storage.remove = remove;
   await stages.render_master?.(ctx);
   expect(JSON.stringify(remove.mock.calls)).not.toContain(
-    "published-preview.mp4",
+    "previews/owner/project/fr/version/6/master-preview.mp4",
   );
   expect(JSON.stringify(remove.mock.calls)).not.toContain(
-    "published-thumbnail.png",
+    "previews/owner/project/fr/version/6/thumbnail.png",
   );
+});
+it("never prunes a render path outside its own attempt", async () => {
+  const { ctx, db } = await setup();
+  db.renders.push({
+    id: "tampered",
+    version_id: ctx.version.id,
+    kind: "master",
+    render_attempt: 6,
+    preview_path: "previews/other/project/fr/version/6/master-preview.mp4",
+    qa_results: {
+      assets: {
+        thumbnail_path: "previews/owner/project/fr/another/6/thumbnail.png",
+      },
+    },
+  });
+  const remove = vi.fn(async () => {});
+  ctx.storage.remove = remove;
+  await stages.render_master?.(ctx);
+  expect(JSON.stringify(remove.mock.calls)).not.toContain("previews/other/");
+  expect(JSON.stringify(remove.mock.calls)).not.toContain("/another/");
+});
+it("keeps an approved thumbnail until it has been copied to the new attempt", async () => {
+  const { ctx, db } = await setup();
+  const thumbnail = "previews/owner/project/fr/version/6/thumbnail.png";
+  const current = db.renders.find((r) => r.render_attempt === 7);
+  if (!current) throw new Error("Current render missing");
+  current.qa_results = { assets: { thumbnail_path: thumbnail } };
+  db.renders.push({
+    id: "old",
+    version_id: ctx.version.id,
+    kind: "master",
+    render_attempt: 6,
+    preview_path: "previews/owner/project/fr/version/6/master-preview.mp4",
+    qa_results: { assets: { thumbnail_path: thumbnail } },
+  });
+  const remove = vi.fn(async () => {});
+  ctx.storage.remove = remove;
+  await stages.render_master?.(ctx);
+  expect(JSON.stringify(remove.mock.calls)).not.toContain(thumbnail);
 });
 it.each([
   [4, "balance 3 credits < 12 needed", true],

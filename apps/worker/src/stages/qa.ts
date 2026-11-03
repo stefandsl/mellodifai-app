@@ -112,7 +112,14 @@ export const qa: StageHandler = async (context) => {
       },
     ],
   };
-  await context.db.patchRender(master.id, { qa_results: results });
+  await context.db.patchRender(master.id, {
+    qa_results: {
+      ...results,
+      ...((master.qa_results as { assets?: unknown } | null)?.assets
+        ? { assets: (master.qa_results as { assets: unknown }).assets }
+        : {}),
+    },
+  });
   return {
     enqueue: [{ stage: "art", idempotencyKey: key("art", context) }],
   };

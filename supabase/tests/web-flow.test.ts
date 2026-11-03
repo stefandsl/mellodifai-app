@@ -708,6 +708,13 @@ it.each(["approved", "published"])(
   async (status) => {
     const v = await fixture(status);
     await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+    await service
+      .from("versions")
+      .update({
+        storyboard_path: "current-storyboard.json",
+        storyboard_sections: [{ title: "Edited scene" }],
+      })
+      .eq("id", v);
     const old = await service
       .from("renders")
       .insert({
@@ -732,6 +739,31 @@ it.each(["approved", "published"])(
       .select()
       .single();
     expect(publication.error).toBeNull();
+    const look = { preset: "circle", aspect: "16:9" };
+    expect(
+      (
+        await service.from("renders").insert({
+          owner_id: owner,
+          version_id: v,
+          kind: "visualizer",
+          aspect: "16:9",
+          visualizer_params: look,
+        })
+      ).error,
+    ).toBeNull();
+    expect(
+      (
+        await client
+          .from("renders")
+          .update({
+            qa_results: {
+              assets: { thumbnail_path: "previews/other/song.png" },
+            },
+          })
+          .eq("id", old.data.id)
+          .select("id")
+      ).error,
+    ).not.toBeNull();
     expect(
       (await other.rpc("render_again", { p_version: v })).error,
     ).not.toBeNull();
@@ -771,8 +803,56 @@ it.each(["approved", "published"])(
       render_id: old.data.id,
       metadata: { title: "Old video" },
     });
+    const next = await service
+      .from("renders")
+      .select("qa_results")
+      .eq("version_id", v)
+      .eq("kind", "master")
+      .eq("render_attempt", 2)
+      .single();
+    expect(next.data?.qa_results.assets).toMatchObject({
+      storyboard_path: "current-storyboard.json",
+      storyboard_sections: [{ title: "Edited scene" }],
+      thumbnail_path: `old-${v}.png`,
+      metadata: { title: "Old video" },
+      visualizer_params: look,
+    });
   },
 );
+it("carries the project Video Studio look before its first visualizer render", async () => {
+  const v = await fixture("approved");
+  await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+  const { data: version } = await service
+    .from("versions")
+    .select("project_id")
+    .eq("id", v)
+    .single();
+  const look = { preset: "mirror", aspect: "16:9" };
+  expect(
+    (
+      await service
+        .from("projects")
+        .update({ song_settings: { visualizer: look } })
+        .eq("id", version?.project_id)
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .insert({ owner_id: owner, version_id: v, kind: "master" })
+    ).error,
+  ).toBeNull();
+  expect((await client.rpc("render_again", { p_version: v })).error).toBeNull();
+  const { data: next } = await service
+    .from("renders")
+    .select("qa_results")
+    .eq("version_id", v)
+    .eq("render_attempt", 2)
+    .eq("kind", "master")
+    .single();
+  expect(next?.qa_results.assets.visualizer_params).toEqual(look);
+});
 it("refuses a trashed song and an active render", async () => {
   const v = await fixture("approved");
   await service.from("jobs").update({ status: "done" }).eq("version_id", v);
