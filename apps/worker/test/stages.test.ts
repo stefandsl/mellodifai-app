@@ -154,13 +154,18 @@ it.each([
   [1, 'Error: HTTP 400 /api/v1/jobs/createTask: {"code":500}', false],
   [1, 'Error: HTTP 502 /api/v1/jobs/createTask: {"code":402}', false],
   [1, 'Error: HTTP 200 /api/v1/jobs/createTask: {"code":', false],
+  [
+    1,
+    `Error: HTTP 400 /api/v1/jobs/createTask: ${JSON.stringify({ code: 500, msg: "x".repeat(600) }).slice(0, 500)}`,
+    false,
+  ],
   [1, "TypeError: fetch failed", false],
   [1, "process crashed after POST", false],
   [1, "", false],
 ] as const)(
   "classifies Kie exit %s stderr %s safely",
   async (code, stderr, notCharged) => {
-    const { ctx, output, calls } = await setup();
+    const { ctx, output, calls, db } = await setup();
     output.submitCode = code;
     output.submitError = stderr;
     await expect(stages.generate_song?.(ctx)).rejects.toThrow(
@@ -173,6 +178,16 @@ it.each([
         versionStatus: "takes_review",
       });
     } else {
+      expect(db.versions[0]?.kie_submit_state).toBe("submitting");
+      await expect(
+        readFile(
+          join(
+            ctx.ws.outDir,
+            `submitting-${ctx.version.generation_count ?? 1}.json`,
+          ),
+          "utf8",
+        ),
+      ).resolves.toContain('"state":"submitting"');
       await expect(stages.generate_song?.(ctx)).rejects.toThrow("unknown");
       expect(calls.filter((c) => c.args[1] === "generate")).toHaveLength(1);
     }

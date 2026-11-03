@@ -249,9 +249,9 @@ export const generateSong: StageHandler = async (context) => {
     if (submit.code !== 0) {
       const response =
         /HTTP (\d{3}) \/api\/v1\/jobs\/createTask: ([^\r\n]*)/u.exec(stderr);
-      let apiCode = 0;
+      let apiCode = Number.NaN;
       try {
-        apiCode = JSON.parse(response?.[2] ?? "null")?.code ?? 0;
+        apiCode = JSON.parse(response?.[2] ?? "null")?.code ?? Number.NaN;
       } catch {
         // A truncated response cannot prove that the submission was refused.
       }
