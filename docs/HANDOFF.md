@@ -133,6 +133,9 @@ pending review and merge.
 Its R1 revision adds migration `20261103030001_invalidate_take_assets.sql`: switching a
 rendered take starts a new video review; existing publications keep their original render.
 Publication copy follows the song language, and each new render stores its lyric snapshot.
+R2 adds `20261103030002_preserve_take_lyrics.sql` for generated and legacy take lyric
+snapshots, including original A to rewritten A to original B; timing refreshes its files
+on every run. Kept rewrites can use take numbers above 2.
 
 ## 6. Waiting on the owner
 

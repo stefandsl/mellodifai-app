@@ -297,6 +297,90 @@ describe("request_section_edit", () => {
 });
 
 describe("keep_section_edit and choose_take", () => {
+  it.each([false, true])(
+    "restores original B after original A is rewritten (legacy null snapshots: %s)",
+    async (legacy) => {
+      const s = await song();
+      const second = await service
+        .from("takes")
+        .insert({
+          owner_id: owner,
+          version_id: s.id,
+          generation: 1,
+          take_number: 2,
+          engine: "kie",
+          audio_preview_path: `previews/${owner}/${s.id}/take-2.mp3`,
+        })
+        .select()
+        .single();
+      expect(second.error).toBeNull();
+      // Generated takes omit lyrics, just as the real generation handlers do.
+      expect(second.data.lyrics).toBe(LYRICS);
+      if (legacy)
+        expect(
+          (
+            await service
+              .from("takes")
+              .update({ lyrics: null })
+              .eq("version_id", s.id)
+          ).error,
+        ).toBeNull();
+      const rewrite = await request(client, s);
+      expect(rewrite.error).toBeNull();
+      await park(s.id);
+      await finished(rewrite.data as string);
+      const kept = await client.rpc("keep_section_edit", {
+        p_edit: rewrite.data,
+        p_alternative: 0,
+      });
+      expect(kept.error).toBeNull();
+      expect(
+        (
+          await client
+            .from("versions")
+            .select("lyric_pack")
+            .eq("id", s.id)
+            .single()
+        ).data?.lyric_pack.lyrics,
+      ).toBe(NEW);
+      expect(
+        (
+          await client
+            .from("takes")
+            .select("lyrics")
+            .eq("id", second.data.id)
+            .single()
+        ).data?.lyrics,
+      ).toBe(LYRICS);
+      // Also repair a pre-migration missing B snapshot after the rewrite was already kept.
+      if (legacy)
+        expect(
+          (
+            await service
+              .from("takes")
+              .update({ lyrics: null })
+              .eq("id", second.data.id)
+          ).error,
+        ).toBeNull();
+      expect(
+        (
+          await client.rpc("choose_take", {
+            p_version: s.id,
+            p_take: second.data.id,
+          })
+        ).error,
+      ).toBeNull();
+      const selected = await client
+        .from("versions")
+        .select("chosen_take_id,lyric_pack")
+        .eq("id", s.id)
+        .single();
+      expect(selected.data).toMatchObject({
+        chosen_take_id: second.data.id,
+        lyric_pack: { lyrics: LYRICS },
+      });
+    },
+  );
   it("adds the kept alternative as a new take next to the original and makes it the song's audio", async () => {
     const s = await song();
     const r = await request(client, s);

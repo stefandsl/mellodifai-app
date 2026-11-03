@@ -1600,6 +1600,62 @@ describe("stage safety and behavior", () => {
       fakePack.title,
     );
   });
+  it("refreshes stale lyric files before the production timing command after a take switch", async () => {
+    const { ctx, db, output } = await setup();
+    await writeFile(join(ctx.ws.versionsDir, "title.txt"), "Previous title");
+    await writeFile(join(ctx.ws.versionsDir, "lyrics.txt"), "Previous lyrics");
+    const run = ctx.engine.run.bind(ctx.engine);
+    const observed: string[] = [];
+    vi.spyOn(ctx.engine, "run").mockImplementation(
+      async (cmd, args, options) => {
+        if (cmd === "bash") {
+          const lyrics = await readFile(
+            join(ctx.ws.versionsDir, "lyrics.txt"),
+            "utf8",
+          );
+          observed.push(lyrics);
+          output.timing = {
+            duration: 10,
+            sections: [
+              {
+                name: "Final Chorus",
+                lines: [{ words: [{ start: 60, end: 61 }] }],
+              },
+            ],
+            lines: [
+              { section: "Verse", text: lyrics, words: [{ start: 0, end: 9 }] },
+            ],
+          };
+        }
+        return run(cmd, args, options);
+      },
+    );
+    for (const lyrics of ["New take lyrics", "Original take lyrics"]) {
+      const take = await db.createTake({
+        version_id: ctx.version.id,
+        take_number: 2,
+        generation: 1,
+        lyrics,
+      });
+      ctx.version.chosen_take_id = take.id;
+      ctx.version.lyric_pack = { ...fakePack, lyrics };
+      await stages.timing?.(ctx);
+      const storyboard = await stages.storyboard?.(ctx);
+      expect(JSON.stringify(storyboard?.patch?.storyboard_sections)).toContain(
+        lyrics,
+      );
+      const timing = await readFile(
+        join(ctx.ws.publicDir, "data", "fr", "timing.json"),
+        "utf8",
+      );
+      expect(timing).toContain(lyrics);
+      expect(timing).not.toContain("Previous lyrics");
+      expect(
+        await readFile(join(ctx.ws.versionsDir, "title.txt"), "utf8"),
+      ).toBe(fakePack.title);
+    }
+    expect(observed).toEqual(["New take lyrics", "Original take lyrics"]);
+  });
   it("re-encodes a preview over 40 MB using ffprobe size", async () => {
     const { ctx, calls, output } = await setup();
     output.sizes = [41 * 1024 * 1024, 1000];
