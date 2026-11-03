@@ -817,6 +817,22 @@ it.each(["approved", "published"])(
       metadata: { title: "Old video" },
       visualizer_params: look,
     });
+    await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+    await service.from("versions").update({ status: "approved" }).eq("id", v);
+    expect(
+      (await client.rpc("render_again", { p_version: v })).error,
+    ).toBeNull();
+    const third = await service
+      .from("renders")
+      .select("qa_results")
+      .eq("version_id", v)
+      .eq("kind", "master")
+      .eq("render_attempt", 3)
+      .single();
+    expect(third.data?.qa_results.assets).toMatchObject({
+      thumbnail_path: `old-${v}.png`,
+      metadata: { title: "Old video" },
+    });
   },
 );
 it("carries the project Video Studio look before its first visualizer render", async () => {

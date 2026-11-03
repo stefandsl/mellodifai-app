@@ -149,10 +149,10 @@ database and full e2e stack had unrelated failures in its review-round-2 run.
 
 The `feat/rerender` stream adds a new attempt after video approval or publication, protects
 published render files and thumbnails during cleanup, and adds the song-page action. Migration
-`20261103050001_rerender_published.sql` and follow-up migration
-`20261103050002_rerender_assets.sql` are applied to the e2e database only. The follow-up snapshots
+`20261103050001_rerender_published.sql`, `20261103050002_rerender_assets.sql`, and
+`20261103050003_rerender_metadata.sql` are applied to the e2e database only. The second migration snapshots
 the current storyboard, thumbnail, publication metadata and Video Studio look, and limits render
-row writes to worker and RPC paths. Report and
+row writes to worker and RPC paths. The third keeps saved metadata across later re-renders. Report and
 screenshots: `E:/mellodifai/codex-streams/rerender/`. It awaits integration into `build/studio-ui`.
 The shared e2e database and full browser suites still have unrelated role, auth rate-limit,
 and competing-worker failures; read the stream report before integration.
