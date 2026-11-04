@@ -55,112 +55,99 @@ pnpm test:db      # needs the e2e stack env (see the M1 plan, "How tests reach a
 pnpm e2e          # e2e stack only
 ```
 
-## 3. Where things stand
+## 3. Where things stand (2026-11-04)
 
-Merged into `build/studio-ui` and pushed:
-- T26 Video Studio preset polish.
-- T28 no built-in branding (no AIMELODIA / STEFANDSL.COM / MELLODIFAI text, no trumpet or
-  gramophone marks) and user logos (up to 2, corners, size, opacity) in every preset.
-  Report `E:/mellodifai/reports/task-28-report.md`, frames `E:/mellodifai/reports/task-28-shots/`.
-  Its migration is `supabase/migrations/20261102000025_visualizer_logos.sql`; it is applied to
-  the live stack (applied 2026-11-02) and the e2e database (by psql, not in its history).
-- T27 "Rifai da YouTube" panel in the create panel and the AI lyric buttons ("Scrivi con AI",
-  "Rigenera", "Migliora"). Report `E:/mellodifai/reports/task-27-report.md`. Migration
-  `20261102000026_remakes.sql` applied to the live stack. Real rewrites stay blocked until the
-  owner turns off the OpenRouter privacy filter (or sets `LYRICS_OPENROUTER_KEY` to a key
-  without it). The worker now depends on `@mellodifai/remake`: `pnpm install` before starting it.
-  The audio editor trim test flake under load is fixed (146d2dc). Playback timeout
-  and export commit race test fixes are on `feat/test-flakes`.
-- Agentic studio design revision 6 and the M1 plan.
-- Video Studio 1080p/4K quality selection and local image upscaler, merged from `feat/render-4k`.
+Merged into `build/studio-ui` and pushed (all unit gates green after each merge):
+- T26 preset polish; T28 no built-in branding + user logos; T27 "Rifai da YouTube" + AI lyric
+  buttons; 1080p minimum / 4K + local upscaler (render-4k); repo-audit fixes (kie paid-retry
+  guards, Suno redirect checks); karaoke "Testo" view; per-song storyboard, thumbnail, metadata
+  and CTR thumbnail check (song-assets); re-render after approval (rerender); UI polish pass;
+  test-flake fixes; full database + e2e suites green on a private stack (suite-health); 17
+  browser journeys of the owner's daily flows, single upload per publication (e2e-coverage);
+  opt-in "Vetro" look: cover-colour ambience, glass surfaces, karaoke themes (glassy-ui,
+  clean-room from a GPL app; never copy its code).
+- Plans: M2a, M2b, M3, M4 in `docs/superpowers/plans/2026-11-03-*.md`, each with an
+  `*-open-review-findings.md` file to settle in the execution preflight.
+- Not merged on purpose: `feat/perf` (tiny gains, a behaviour change, an untested index).
+- Every studio-ui migration up to `20261103070002` (and rerender `20261103050001-3`) is applied
+  to the live stack.
 
-In progress:
+M1 agent access (`build/m1-agent-access`, worktree
+`C:/Users/Asus/Documents/mellodifai/.claude/worktrees/m1-agent-access`, ledger
+`.superpowers/sdd/2026-11-02-m1-agent-access/progress.md`):
+- Tasks 1-32 and 35 done. Several are PARKED: their open findings are in the ledger and in
+  `task-N-review-r4.md`; the final whole-branch review must triage them, notably Task 23
+  (duplicate-ID spend authorization) and Task 28 (ambiguous_spend scope, isRemote scan).
+- The integration job (`E:/mellodifai/codex-streams/m1-integrate/`) merged studio-ui into M1,
+  moved its features onto the ops layer, made the lockdown the last migration (tag `m1-floor`
+  = lockdown commit), added the prod secrets bootstrap, a verified restore and
+  `ops/owner-admin.ps1`.
+- Task 33 (first production deploy) stopped safely before any production change. Pre-cutover
+  backup: `E:/mellodifai/backups/2026-11-03-task-33-pre-cutover.sql`. Deploy clone:
+  `E:/mellodifai/deploy` on `build/m1-agent-access`.
+- Owner admin setup is IN PROGRESS. The owner runs, in an elevated PowerShell:
+  `$env:MELLODIFAI_ROOT='E:/mellodifai'; $env:TEMP='E:/mellodifai/tmp'; $env:TMP=$env:TEMP`,
+  then `cd E:\mellodifai\deploy` and `pnpm ops services.ts install --apply`. Done so far: the
+  E:/mellodifai ACL (owner + SYSTEM only) and the accounts `mdf-web`, `mdf-auth`, `mdf-tunnel`
+  with credentials in `E:/mellodifai/secrets/services/*.xml`. Bugs fixed on the way: missing
+  `apps/auth` folder, icacls `(X)` syntax; the install now prints the failing step and its exit
+  code. If it still fails: read the printed step, fix `ops/lib/services.ts`, commit, push, run
+  `git -C E:/mellodifai/deploy pull --ff-only origin build/m1-agent-access`, and ask the owner to
+  rerun. Never run it yourself: it needs administrator rights.
+- Known red test: `ops/test/services.test.ts` "manages a detached fake service and applies an
+  owner-only ACL" fails since the real E:/mellodifai ACL changed; make it use its own temp root
+  (ledger ruling).
 
-| Work | Branch / worktree | Brief | What is left |
-| --- | --- | --- | --- |
-| M1 agent access (47 tasks) | `build/m1-agent-access`, `.claude/worktrees/m1-agent-access` | `docs/superpowers/plans/2026-11-02-m1-agent-access.md` | Run the Codex driver (section 4). |
-| Karaoke lyrics | `feat/karaoke`, `E:/mellodifai/wt/karaoke` | `E:/mellodifai/codex-streams/karaoke/brief.md` | Implemented with local Whisper alignment; playback-take selection, master-only audio alignment and fake worker master jobs are fixed, awaiting integration. Apply migrations `20261103020001` and `20261103020002`. Report and screenshots: `E:/mellodifai/codex-streams/karaoke/`. |
+## 4. Next steps for Codex, in order
 
-Leftover worktrees to clean up when their branches are merged: `agent-aeb276f7c9d48b97b`
-(T28, merged), `agent-ab7634b26f5114742` (T27, merged). Remove with
-`git worktree remove --force <path>` then `git worktree prune`; if Windows says "Directory not
-empty", `rm -rf <path>` then `git worktree prune`.
+1. Finish the owner admin setup (above). Verify: `Get-LocalUser mdf-*` lists 3 accounts,
+   `icacls E:\mellodifai` shows the `(X)` grants, the firewall rule exists.
+2. Fix the services test (above). Commit, push.
+3. Task 33 production deploy (owner approved on 2026-11-03: "vai"), then Task 34, with only
+   Task 47 gated:
+   ```bash
+   cd C:/Users/Asus/Documents/mellodifai/.claude/worktrees/m1-agent-access
+   OWNER_GATE=47 CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh 33 34
+   ```
+   Rules (also in the ledger): verify the cutover backup first; right before the deploy step
+   stop only the `next dev` on port 3000 that runs from `C:/Users/Asus/Documents/mellodifai`
+   (the deployed app replaces it; if the deploy is rolled back, restart it with `pnpm dev` in
+   `apps/web`); never touch the launcher on 3210; apply migrations with `--include-all`; if an
+   expected result fails, restore from the backup and stop. After the deploy the owner signs
+   in with `pnpm ops sign-in-link.ts <owner email> http://127.0.0.1:3000`.
+4. Continue M1 Tasks 36-46 (Task 47 = tunnel, owner gate):
+   `OWNER_GATE=47 CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh 36 46`
+5. Final whole-branch review of M1 (read-only Codex over
+   `git diff build/studio-ui...build/m1-agent-access` plus every PARKED line in the ledger), one
+   fix pass, all gates (on a private stack), merge `build/m1-agent-access` into
+   `build/studio-ui`, push, update this file.
+6. Then M2a (its plan plus its open findings file), with the same driver (`PLAN=` the M2a plan).
 
-## 4. How to continue M1 with Codex
+How the M1 driver works: `scripts/codex-sdd/run.sh` runs one Codex implementer per task, then
+a Codex reviewer (`VERDICT: APPROVED|REVISE`), up to 3 fix rounds. Ledger lines `Task N:
+complete` are skipped on re-run. It stops (exit 2) on BLOCKED/NEEDS_CONTEXT or no commit: read
+`task-N-impl-last.txt`, add a `Ruling:` line to the ledger telling the next run what to do, and
+re-run. `PARKED` = open findings kept for the final review. Launch it detached on Windows
+(PowerShell `Start-Process` bash) so it survives the agent session.
 
-The driver `scripts/codex-sdd/run.sh` (on `build/m1-agent-access`) runs the plan task by task:
-a Codex implementer (full access, commits and pushes), then a read-only Codex reviewer
-(`VERDICT: APPROVED|REVISE`), up to 3 fix rounds, then the next task. Progress lives in the
-ledger `.superpowers/sdd/2026-11-02-m1-agent-access/progress.md` inside the worktree
-(gitignored, survives restarts). Re-running skips tasks marked complete.
+Rulings that still bind (more in the ledger): migrations take the next free number and the
+lockdown stays last; owner actions are never faked (mark pending, DONE_WITH_CONCERNS);
+production steps only with the owner's approval; e2e on `E2E_PORT` (3219 in the driver; 3210
+belongs to the owner's launcher app, never stop it).
 
-```bash
-cd C:/Users/Asus/Documents/mellodifai/.claude/worktrees/m1-agent-access
-bash scripts/codex-sdd/run.sh            # all tasks
-bash scripts/codex-sdd/run.sh 14 20      # a range
-```
+## 4b. Parallel workstreams runner
 
-- Model: whatever `~/.codex/config.toml` says (`gpt-6-astra`). Do not pin `-m`.
-- The run stops (exit 2) when a task reports BLOCKED / NEEDS_CONTEXT or makes no commit.
-  Read `.superpowers/sdd/.../task-N-impl-last.txt`, fix the cause (add context to the brief
-  or a `Ruling:` line in the ledger), and re-run.
-- Tasks 33, 34 and 47 are owner gates: they touch production (live data cutover, live key
-  rotation, tunnel). The driver skips them and records "owner gate". Do them only when the
-  owner says go.
-- Rulings already made (follow them):
-  - Migration numbers: `20261102000025` (T28) and `20261102000026` (T27) are taken. Before its first migration, M1 merges `build/studio-ui`; every M1 migration takes the next
-    free number when its task runs (the plan's 025-033 become 027-035 or later); keep the
-    plan's file names after the number. T27 may take numbers too: always check
-    `ls supabase/migrations` first.
-  - Production-touching steps wait for the owner (above).
-  - Owner actions the plan lists (Windows accounts, admin rights, DNS, Cloudflare tunnel,
-    SMTP, Google OAuth JSON, keys) are never faked: the task does everything else, marks the
-    step pending, and finishes DONE_WITH_CONCERNS.
-- When all tasks are done: run one whole-branch review (read-only Codex over
-  `git diff build/studio-ui...build/m1-agent-access`, plus every PARKED line in the ledger),
-  fix what it finds in one pass, run all gates, merge `build/m1-agent-access` into
-  `build/studio-ui`, push, and update this file.
+`bash E:/mellodifai/codex-streams/stream4.sh <name> <e2e-port>` creates `E:/mellodifai/wt/<name>`
+on `feat/<name>` from `build/studio-ui`, runs a Codex builder (`gpt-6-sol`, reasoning high) from
+`E:/mellodifai/codex-streams/<name>/brief.md`, then reviewer rounds; it never merges. A stream
+ends with "DONE branch ..." in its `status.log`: read its report, merge into `build/studio-ui`
+(renumber migrations if needed), run all gates, apply new migrations to the live stack with
+`npx supabase migration up`, push. `SKIP_IMPL=1` reruns only the review loop. `stream-wt.sh`
+does the same for an existing worktree (`WT=`, `BR=`, `BASE_OVERRIDE=`). `gpt-6-astra` returns
+429 under parallel load, `gpt-6.1-sol` is refused on a ChatGPT account, and `codex-sol.sh` pins
+`gpt-6-sol`.
 
-If you are not using the driver, the same loop by hand: read the task text in the plan,
-implement with tests, commit, push, then review the task's diff against its text with fresh
-eyes before starting the next one.
-
-Migration order note: the live stack already has `20261103020001`/`020002` (karaoke). M1's
-migrations (`20261102000027` onward) sort before them, so applying M1 to the live stack needs
-`npx supabase migration up --include-all`.
-
-## 4b. Parallel Codex workstreams (started 2026-11-03)
-
-Six independent streams run next to M1, each in its own worktree `E:/mellodifai/wt/<name>` on
-branch `feat/<name>` from `build/studio-ui`: `render-4k` (merged), `karaoke` (merged)
-(Spotify-like lyrics view), `song-assets` (per-song storyboard/thumbnail/metadata bug, CTR
-thumbnails), `repo-audit` (merged), `plan-m2` (merged) and `plan-m3m4` (plans only).
-Runner: `bash E:/mellodifai/codex-streams/stream.sh <name> <e2e-port>`; brief, report, reviews
-and `status.log` live in `E:/mellodifai/codex-streams/<name>/`. Builders use `gpt-6-sol`
-(reasoning high). `gpt-6-astra` returns 429 under parallel load, so reviewers and the M1 driver also run on sol: use `E:/mellodifai/codex-streams/stream4.sh` and start M1 with `CODEX=E:/mellodifai/codex-streams/codex-sol.sh bash scripts/codex-sdd/run.sh <from> 47`. `gpt-6.1-sol` is refused on a ChatGPT account. Re-run a parked stream's review loop with `SKIP_IMPL=1 bash E:/mellodifai/codex-streams/stream4.sh <name> <port>`. A stream
-ends with "DONE branch ..." in its status.log; then review its report, merge the branch into
-`build/studio-ui` (renumber migrations to the next free number if needed), run all gates, push.
-Launch detached on Windows with PowerShell `Start-Process` so it outlives the agent session.
-
-The `feat/ui-polish` stream has a visual audit, UI fixes, and before/after screenshots at
-`E:/mellodifai/codex-streams/ui-polish/report.md`. Its final style-card evidence covers
-1440x900, 1360x600, and 390x844. The focused browser suite and unit gates pass; the shared
-database and full e2e stack had unrelated failures in its review-round-2 run.
-
-The `feat/rerender` stream adds a new attempt after video approval or publication, protects
-published render files and thumbnails during cleanup, and adds the song-page action. Migration
-`20261103050001_rerender_published.sql`, `20261103050002_rerender_assets.sql`, and
-`20261103050003_rerender_metadata.sql` are applied to the e2e database only. The second migration snapshots
-the current storyboard, thumbnail, publication metadata and Video Studio look, and limits render
-row writes to worker and RPC paths. The third keeps saved metadata across later re-renders. Report and
-screenshots: `E:/mellodifai/codex-streams/rerender/`. Review round 3 also covers legacy flat
-preview cleanup and guards its database fixture against non-local and live ports. It awaits
-integration into `build/studio-ui`. After merging the latest integration branch, its full database
-suite (144 tests) and browser suite (15 tests) passed on the private `mellodifai_rerender` stack
-(API 48621, Next 3229) with fake workers. That stack was stopped and its temporary image tags
-restored. Read the stream report before integration.
-
-The `feat/suite-health` stream verifies the merged suites on a private Supabase stack at
+To run test:db and e2e on a private Supabase stack (the shared e2e stack 45621 holds M1 schema), use a folder like
 `E:/mellodifai/stacks/suite-health` (API 47621, DB 47622, Studio 47623, Mailpit 47624,
 Next 3230). Copy `supabase/` there and give it a unique `project_id` and ports before
 `npx supabase start --workdir E:/mellodifai/stacks/suite-health`. The CLI v3.0.0 defaults
@@ -188,40 +175,18 @@ command exit codes and test summary lines without saving raw output.
 `supabase/tests/song-assets.test.ts` now accepts any local non-live stack through the same
 URL guard as Playwright.
 
-The `feat/e2e-coverage` stream adds browser journeys for AI lyrics through private publication,
-remake section regeneration, library controls, karaoke, audio trim export, and the existing
-published re-render. It fixes the song-assets test's fixed browser port. Its private
-`mellodifai_cov` stack (API 49621, Next 3231) passed the database suite (144 tests) and browser
-suite (17 tests) twice in a row with fake providers. The stack was stopped and its temporary
-image tags restored. Report and screenshots: `E:/mellodifai/codex-streams/e2e-coverage/`.
-Review round 1 strengthened filter inclusion and exclusion, automatic karaoke playback timing,
-Verse 2 regeneration persistence, exact take selection, and uploaded logo storage checks. The
-private database and browser suites each passed twice again; the stack is stopped.
-Review round 2 verifies the visible private publication title and visibility, the playlist item's
-song ID, and the actual 2-8 second WAV segment. The private database and browser suites each
-passed twice again; the stack is stopped.
-Review round 3 preserves submitted AI lyrics in the fake draft and lets the approved project's
-publish kit select a completed 16:9 Video Studio render. Migration
-`20261103070001_publish_visualizer.sql` allows that render only after master approval; the worker
-uploads the selected render from the job payload. The migration is applied to the private coverage
-stack only. The branch's report has the latest tests and screenshots.
-Review round 4 adds `20261103070002_publish_attempt_guard.sql`. Authenticated users cannot
-insert publish jobs directly, enqueue and reservation allow one active or completed upload per
-render attempt, and both worker paths recheck approval before upload. The private stack has
-passed two database runs; see the branch report for the final browser verification.
 
-## 5. Later work (after M1)
+## 5. Later work
 
-Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in the design
-(plans in docs/superpowers/plans/2026-11-03-*);
-cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
+M2a/M2b/M3/M4 from their plans; the per-language publishing hub (in M4); M5-M7 in the design;
+perf ideas from `feat/perf` (only parts with measured gains); cleanup of old worktrees
+(`git worktree list`, remove merged ones under `E:/mellodifai/wt`).
 
 ## 6. Waiting on the owner
 
-Docker Desktop disk image moved from C: to G: (Settings > Resources > Advanced > Disk image
-location; stop the stacks first; until then the dev, e2e and spike stacks keep running in
-the existing daemon); OpenRouter privacy filter off (it swaps Italian words for tags); Windows accounts `mdf-web`
-and `mdf-auth` plus the firewall rule; Google OAuth client JSON; Cloudflare nameservers and
-`cloudflared` login; SMTP sender; codex login in the image container; an evaluation
-OpenRouter key with a cap; kie credit price in USD; kie Midjourney access; Gemini, Blotato
-and COMFY_CLOUD keys; Postiz account; Envato licences; YouTube OAuth.
+Finish the admin setup (section 3); Docker Desktop disk image moved from C: to G:; OpenRouter
+privacy filter off (blocks real lyric rewrites); Google OAuth client JSON; Cloudflare
+nameservers and `cloudflared` login (Task 47); SMTP sender; an evaluation OpenRouter key with
+a cap; kie credit price in USD; kie Midjourney access; Gemini, Blotato and COMFY_CLOUD keys;
+Postiz account; Envato licences; YouTube OAuth; a decision on installing the `arena` skill
+(SkillSpector CAUTION, each run starts 16-100 Claude agents).
