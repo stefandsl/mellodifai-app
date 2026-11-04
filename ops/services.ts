@@ -346,7 +346,7 @@ export async function main(
         const result = await installRunner(cmd as string, commandArgs);
         if (result.code !== 0)
           throw new Error(
-            "Service install failed; owner administrator action pending",
+            `step ${cmd} exited ${result.code}${result.stderr ? `: ${result.stderr.trim()}` : ""}`,
           );
       }
     }
@@ -393,9 +393,11 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  main(process.argv.slice(2)).catch(() => {
+  main(process.argv.slice(2)).catch((error: unknown) => {
+    // Commands never carry secret values (credentials stay in Export-Clixml files), so the cause is safe to show.
+    const cause = error instanceof Error ? error.message : String(error);
     process.stderr.write(
-      "Service command failed; check prerequisites, service logs and owner ACL permissions\n",
+      `Service command failed: ${cause}\nCheck prerequisites, service logs and owner ACL permissions.\n`,
     );
     process.exitCode = 1;
   });
