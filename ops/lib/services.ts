@@ -93,7 +93,7 @@ export function installCommands(opts: { root: string }): string[][] {
       "-Command",
       `$ErrorActionPreference='Stop'; $dir='${join(root, "secrets/services").replaceAll("'", "''")}'; $name=$env:COMPUTERNAME+'\\${account}'; $file=Join-Path $dir '${account}.xml'; $user=Get-LocalUser -Name '${account}' -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $file) { $credential=Import-Clixml -LiteralPath $file; if ($credential.UserName -ine $name) { throw 'Credential identity mismatch' }; if (-not $user) { New-LocalUser -Name '${account}' -Password $credential.Password -PasswordNeverExpires | Out-Null } } else { $bytes=New-Object byte[] 48; $rng=[Security.Cryptography.RandomNumberGenerator]::Create(); try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }; $plain=[Convert]::ToBase64String($bytes)+'Aa1!'; $secure=ConvertTo-SecureString $plain -AsPlainText -Force; if ($user) { Set-LocalUser -Name '${account}' -Password $secure } else { New-LocalUser -Name '${account}' -Password $secure -PasswordNeverExpires | Out-Null }; $credential=[pscredential]::new($name,$secure); $credential | Export-Clixml -LiteralPath $file; $plain=$null }`,
     ]),
-    ["icacls", root, "/grant", "mdf-web:X", "mdf-auth:X", "mdf-tunnel:X"],
+    ["icacls", root, "/grant", "mdf-web:(X)", "mdf-auth:(X)", "mdf-tunnel:(X)"],
     grant(deploy, "mdf-web", "RX"),
     ["icacls", deploy, "/grant", "mdf-auth:(OI)(CI)RX"],
     [
