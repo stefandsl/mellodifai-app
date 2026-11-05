@@ -81,6 +81,8 @@ export async function loadStackSecrets(
   }
   const secrets = JSON.parse(readFileSync(path, "utf8")) as StackSecrets;
   if (env === "prod") {
+    const jwtFile = join(dirname(keyPath), "jwt-secret");
+    if (existsSync(jwtFile)) secrets.jwt = readFileSync(jwtFile, "utf8").trim();
     const dbFile = join(dirname(keyPath), "db-passwords.json");
     if (existsSync(dbFile))
       secrets.postgres = JSON.parse(readFileSync(dbFile, "utf8")).postgres;

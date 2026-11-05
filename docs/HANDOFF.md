@@ -256,6 +256,23 @@ followed by `stack.ts migrate --env e2e` to restore fake mode before tests.
 The database gate now passes 289/289 and the browser gate passes 19/19 on API
 45621 and Next 3219. SMTP, DNS and tunnel setup remain owner actions.
 
+Task 34 adds `pnpm ops rotate-supabase-keys.ts`. It rotates the external ES256
+key and `secrets/supabase/jwt-secret`, restarts the pinned Compose stack,
+updates the deploy web/worker env files, rebuilds the web bundle and restarts
+those services. Failures restore the previous credentials and rebuild; failed
+recovery retains an owner-only `secrets/supabase/rotation-*.backup`.
+The production step remains pending: the canonical deploy worker env file is
+still empty and access-denied. An administrator must repair its ACL and move
+the active `config/worker.env` values there before rotation. The tool refuses
+before changing keys or stopping services while that prerequisite is open.
+Production keys were not changed; the local owner sign-in and library read
+still work. The throwaway production-like stack verifies real rotation,
+working new credentials, and refusal of old keys and a demo-secret JWT.
+Task 34 lint, typechecks, unit tests (1,770) and database tests (289) pass.
+The browser gate had three failures; lyrics-editor navigation and rerender
+passed on retry, while the existing French publication flow still times out
+at its overall 60-second limit waiting for `FR Pubblicato`.
+
 Docker Desktop's disk image is still on C:. Moving it to G: through Docker
 Desktop > Settings > Resources > Advanced > Disk image location is an owner
 maintenance action. The accepted M1 progress ruling permits the existing
