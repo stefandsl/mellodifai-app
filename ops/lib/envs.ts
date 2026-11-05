@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { AUTH_ORIGINS } from "./auth-origins.js";
 import { runtimeRoot } from "./runtime.js";
 
 export type StackEnv = "dev" | "e2e" | "ci" | "prod";
@@ -86,8 +87,7 @@ function signingKey(env: StackEnv): string {
 export const ENV_TABLE: Record<StackEnv, StackValues> = {
   dev: {
     projectId: "mellodifai_dev",
-    siteUrl: "http://127.0.0.1:3001",
-    redirectUrls: ["http://127.0.0.1:3001/**", "http://localhost:3001/**"],
+    ...AUTH_ORIGINS.dev,
     issuer: null,
     ports: {
       api: 55321,
@@ -108,8 +108,7 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   },
   e2e: {
     projectId: "mellodifai_e2e",
-    siteUrl: "http://127.0.0.1:3210",
-    redirectUrls: ["http://127.0.0.1:3210/**", "http://127.0.0.1:3212/**"],
+    ...AUTH_ORIGINS.e2e,
     issuer: "http://127.0.0.1:3212/oauth",
     ports: {
       api: 45621,
@@ -130,8 +129,7 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   },
   ci: {
     projectId: "mellodifai_ci",
-    siteUrl: "http://127.0.0.1:3210",
-    redirectUrls: ["http://127.0.0.1:3210/**", "http://127.0.0.1:3212/**"],
+    ...AUTH_ORIGINS.ci,
     issuer: "http://127.0.0.1:3212/oauth",
     ports: {
       api: 54321,
@@ -152,12 +150,7 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   },
   prod: {
     projectId: "mellodifai",
-    siteUrl: "https://app.mellodifai.com",
-    redirectUrls: [
-      "https://app.mellodifai.com/**",
-      "http://127.0.0.1:3000/**",
-      "http://localhost:3000/**",
-    ],
+    ...AUTH_ORIGINS.prod,
     issuer: "https://app.mellodifai.com/oauth",
     ports: {
       api: 54321,

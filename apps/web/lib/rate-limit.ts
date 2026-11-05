@@ -7,11 +7,17 @@ const limits = {
     windowMs: 3_600_000,
     hits: new Map<string, number[]>(),
   },
+  signIn: { max: 5, windowMs: 15 * 60_000, hits: new Map<string, number[]>() },
+  signInCode: {
+    max: 5,
+    windowMs: 15 * 60_000,
+    hits: new Map<string, number[]>(),
+  },
 };
 
 export function rateLimit(
   key: string,
-  kind: "read" | "write" | "reservation",
+  kind: keyof typeof limits,
 ): { ok: true } | { ok: false; retryAfter: number } {
   const { max, windowMs, hits } = limits[kind];
   const now = Date.now();

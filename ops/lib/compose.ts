@@ -216,25 +216,54 @@ export function renderCompose(env: StackEnv, toml: string): Compose {
     if (!existsSync(path))
       throw new Error(`Missing configured email template: ${kind}`);
     mkdirSync(join(dir, "compose/templates"), { recursive: true });
-    cpSync(path, join(dir, "compose/templates", `${kind}.html`));
+    const staged = join(dir, "compose/templates", `${kind}.html`);
+    if (resolve(path) !== resolve(staged)) cpSync(path, staged);
     const authEnvironment = required("auth").environment ?? {};
     authEnvironment[`GOTRUE_MAILER_TEMPLATES_${kind.toUpperCase()}`] =
       `http://templates:8080/${kind}.html`;
   }
-  if (Object.keys(templates).length)
+  if (Object.keys(templates).length) {
+    // The pinned Kong image includes nginx, but its BusyBox has no httpd applet.
+    const nginxConfig = join(dir, "compose/template-nginx.conf");
+    writeFileSync(
+      nginxConfig,
+      "pid /tmp/nginx.pid;\nerror_log /dev/stderr;\nevents {}\nhttp { access_log off; server { listen 8080; root /templates; } }\n",
+    );
     s.templates = {
       image: `public.ecr.aws/supabase/${images.kong}`,
       restart: "unless-stopped",
       entrypoint: [
-        "/bin/busybox",
-        "httpd",
-        "-f",
+        "/usr/local/bin/nginx",
         "-p",
-        "8080",
-        "-h",
-        "/templates",
+        "/tmp/",
+        "-e",
+        "/dev/stderr",
+        "-c",
+        "/etc/nginx/templates.conf",
+        "-g",
+        "daemon off;",
       ],
+      healthcheck: {
+        test: [
+          "CMD",
+          "/bin/busybox",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:8080/magic_link.html",
+        ],
+        interval: "5s",
+        timeout: "5s",
+        retries: 3,
+      },
       volumes: [
+        {
+          type: "bind",
+          source: nginxConfig,
+          target: "/etc/nginx/templates.conf",
+          read_only: true,
+        },
         {
           type: "bind",
           source: join(dir, "compose/templates"),
@@ -243,6 +272,7 @@ export function renderCompose(env: StackEnv, toml: string): Compose {
         },
       ],
     };
+  }
   const legacyFile = join(dir, "legacy-volumes.json");
   if (env === "prod" && existsSync(legacyFile)) {
     const legacy = JSON.parse(readFileSync(legacyFile, "utf8"));

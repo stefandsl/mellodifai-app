@@ -1,66 +1,92 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { redirectUrl } from "./redirect-url";
+// @vitest-environment node
+import { afterEach, expect, it, vi } from "vitest";
+import { AUTH_ORIGINS } from "../../../ops/lib/auth-origins";
+import { emailRedirect, redirectUrl, safeNext } from "./redirect-url";
 
-beforeEach(() => {
-  vi.stubEnv("NODE_ENV", "production");
-  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://mellodifai.com");
-});
 afterEach(() => vi.unstubAllEnvs());
-function target(headers: Record<string, string>) {
-  return redirectUrl(new Request("http://internal/", { headers }), "/library")
-    .href;
-}
-it("prioritizes allowed forwarded host and protocol", () => {
-  expect(
-    target({
-      host: "internal",
-      "x-forwarded-host": "mellodifai.com, internal",
-      "x-forwarded-proto": "https, http",
-    }),
-  ).toBe("https://mellodifai.com/library");
-});
-it("falls back to Host and request protocol", () => {
-  expect(target({ host: "mellodifai.com" })).toBe(
-    "http://mellodifai.com/library",
-  );
-});
-const rejectedHeaders: Record<string, string>[] = [
-  {},
-  { host: "evil.test" },
-  { host: "mellodifai.com@evil.test" },
-  { host: "mellodifai.com/path" },
-  { host: "[broken" },
-  { host: "localhost:4444" },
-  { host: "mellodifai.com", "x-forwarded-proto": "javascript" },
-  { host: "mellodifai.com", "x-forwarded-proto": "ftp" },
-];
-it.each(rejectedHeaders)("safely rejects %j", (headers) => {
-  expect(target(headers)).toBe("https://mellodifai.com/library");
-});
-it.each(["localhost:4444", "127.0.0.1:3000", "localhost:80"])(
-  "allows development loopback %s",
-  (host) => {
-    vi.stubEnv("NODE_ENV", "development");
-    expect(target({ host })).toBe(new URL(`http://${host}/library`).href);
-  },
-);
-it("uses nextUrl origin with no site config", () => {
-  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-  const request = Object.assign(new Request("http://internal/"), {
-    nextUrl: { origin: "https://preview.vercel.app" },
-  });
-  expect(redirectUrl(request, "/library").href).toBe(
-    "https://preview.vercel.app/library",
-  );
-});
-it("handles malformed site config", () => {
-  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "malformed");
-  expect(target({})).toBe("http://internal/library");
+
+it("a local origin outside additional_redirect_urls is refused (Major 18)", () => {
+  for (const origin of [
+    "http://localhost:3000",
+    "https://evil.test",
+    "http://localhost:3001.evil.test",
+    "http://localhost:3001/path",
+  ]) {
+    expect(() =>
+      emailRedirect(origin, AUTH_ORIGINS.dev, false, "/create"),
+    ).toThrow();
+  }
 });
 
-it.each(["localhost:3000", "127.0.0.1:3000"])(
-  "keeps the approved production local origin %s",
-  (host) => {
-    expect(target({ host })).toBe(`http://${host}/library`);
-  },
-);
+it.each(["localhost", "127.0.0.1"])("%s:3001 is accepted on dev", (host) => {
+  expect(
+    emailRedirect(`http://${host}:3001`, AUTH_ORIGINS.dev, false, "/library"),
+  ).toBe(`http://${host}:3001/auth/confirm?next=%2Flibrary`);
+});
+
+it("remote requests always use SITE_URL", () => {
+  expect(
+    emailRedirect(
+      "https://evil.test",
+      AUTH_ORIGINS.prod,
+      true,
+      "/consent?uid=flow",
+    ),
+  ).toBe(
+    "https://app.mellodifai.com/auth/confirm?next=%2Fconsent%3Fuid%3Dflow",
+  );
+});
+
+it("remote next accepts only /consent?uid=", () => {
+  expect(safeNext("/consent?uid=flow", true)).toBe("/consent?uid=flow");
+  for (const next of [
+    "/create",
+    "/consent",
+    "/consent?uid=",
+    "/consent?uid=a&uid=b",
+    "/consent?uid=a&next=b",
+    "/consent?uid=a#fragment",
+    "/other/../consent?uid=a",
+  ]) {
+    expect(safeNext(next, true)).toBe("/login");
+  }
+});
+
+it.each([
+  "https://evil.test",
+  "//evil.test",
+  "/\\evil.test",
+  "/%5cevil.test",
+  "/%2fevil.test",
+  "/%0aevil",
+  "/%",
+  " create",
+])("refuses unsafe next %s", (next) => {
+  expect(safeNext(next, false)).toBe("/create");
+  expect(safeNext(next, true)).toBe("/login");
+});
+
+it("local next accepts app paths and queries", () => {
+  expect(safeNext("/library?search=hello%20world#songs", false)).toBe(
+    "/library?search=hello%20world#songs",
+  );
+});
+
+it("redirects preserve approved local hosts and pin remote hosts", () => {
+  vi.stubEnv("SITE_URL", AUTH_ORIGINS.prod.siteUrl);
+  const local = new Request("http://internal/", {
+    headers: { host: "localhost:3000" },
+  });
+  expect(redirectUrl(local, "/create").href).toBe(
+    "http://localhost:3000/create",
+  );
+  const remote = new Request("http://internal/", {
+    headers: { host: "evil.test", "x-mdf-remote": "1" },
+  });
+  expect(redirectUrl(remote, "/login").href).toBe(
+    "https://app.mellodifai.com/login",
+  );
+  expect(() =>
+    redirectUrl(new Request("http://evil.test/"), "/create"),
+  ).toThrow();
+});

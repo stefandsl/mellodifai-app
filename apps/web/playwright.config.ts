@@ -38,7 +38,6 @@ export default defineConfig({
       SUPABASE_INTERNAL_URL: process.env.SUPABASE_INTERNAL_URL ?? supabaseUrl,
       MDF_WEB_DATABASE_URL: process.env.MDF_WEB_DATABASE_URL ?? "",
       SITE_URL: process.env.SITE_URL ?? base,
-      NEXT_PUBLIC_SITE_URL: base,
     },
   },
 });

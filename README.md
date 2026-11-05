@@ -25,14 +25,16 @@ The checked-in [worker environment example](apps/worker/.env.example) has empty 
 1. Apply all Supabase migrations.
    Then upload the Video Studio's stock backgrounds once (`apps/worker`: `node node_modules/tsx/dist/cli.mjs scripts/visualizer-stock.ts`); the uploads bucket takes files up to 100 MB, which also needs the project's global upload limit at 100 MB or more.
 2. Insert the administrator email into `admin_allowlist` before that administrator's first sign-in.
-3. In hosted Supabase Auth, disable signups, enable email confirmations, set Site URL to `https://mellodifai.com`, and set the redirect allowlist to exactly `https://mellodifai.com/**` and `https://www.mellodifai.com/**`.
+3. Render the target stack with `pnpm ops stack.ts render --env <dev|e2e|ci|prod>`. Its auth origins and email template come from the per-environment configuration. Production uses `https://app.mellodifai.com`; signups remain disabled.
 4. Google Cloud OAuth consent screen set to In production (Testing tokens expire after 7 days and publishing stops).
 5. Configure the worker environment locally.
 6. Perform the first magic-link smoke test.
 
-Preview deployments intentionally do not receive authentication: only the two production domains are trusted redirect targets.
+Preview deployments intentionally do not receive authentication: only the configured stack origins are trusted redirect targets.
 
-Deploy the web app to Vercel with `apps/web` as the project root. Configure only `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SITE_URL` in Vercel. Add repository secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY` for the keepalive workflow. Outlook link scanning can consume a one-time link; open the link in the same browser that requested it.
+The web app uses `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for browser reads, and server-only `SUPABASE_INTERNAL_URL`, `SITE_URL` and `MDF_WEB_DATABASE_URL`. See [the web README](apps/web/README.md) for sign-in settings. No service-role key belongs in Next.
+
+For OAuth sign-in, the email link only works in the starting browser, where the authorization flow cookie lives. If your mail app opens another browser, enter the email's six-digit code on the original login page instead. "Codice a 6 cifre" means "6-digit code"; "Accedi con il codice" means "Sign in with code". Outlook link scanning can consume a one-time link. Until the owner configures production SMTP, use `pnpm ops sign-in-link.ts <email>` for a local sign-in link.
 
 ## Weekly backup
 

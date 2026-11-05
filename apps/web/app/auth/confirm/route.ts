@@ -1,41 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { redirectUrl } from "@/lib/redirect-url";
+import { redirectUrl, safeNext } from "@/lib/redirect-url";
+import { isRemote } from "@/lib/remote";
 import { createClient } from "@/lib/supabase/server";
-
-function destination(request: NextRequest): string {
-  const origin = redirectUrl(request, "/");
-  const local = ["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname);
-  const fallback = local ? "/create" : "/login";
-  const next = request.nextUrl.searchParams.get("next");
-  if (!next?.startsWith("/") || next.startsWith("//")) return fallback;
-  try {
-    if (
-      [...decodeURIComponent(next)].some(
-        (char) => char === "\\" || char.charCodeAt(0) <= 32,
-      )
-    )
-      return fallback;
-    const url = new URL(next, origin);
-    if (url.origin !== origin.origin) return fallback;
-    if (
-      !local &&
-      (url.pathname !== "/consent" ||
-        !url.searchParams.get("uid") ||
-        [...url.searchParams.keys()].some((key) => key !== "uid") ||
-        url.hash)
-    )
-      return fallback;
-    return `${url.pathname}${url.search}${url.hash}`;
-  } catch {
-    return fallback;
-  }
-}
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const code = params.get("code");
   const tokenHash = params.get("token_hash");
   const type = params.get("type");
+  let destination: URL;
+  try {
+    destination = redirectUrl(
+      request,
+      safeNext(params.get("next") ?? "", isRemote(request.headers)),
+    );
+  } catch {
+    return new NextResponse(null, { status: 400 });
+  }
+  const invalidLink = new URL("/login?message=invalid-link", destination);
   if (code || (tokenHash && (type === "email" || type === "magiclink"))) {
     try {
       const db = await createClient();
@@ -45,17 +27,10 @@ export async function GET(request: NextRequest) {
             token_hash: tokenHash as string,
             type: type as "email" | "magiclink",
           });
-      if (!error)
-        return NextResponse.redirect(
-          redirectUrl(request, destination(request)),
-        );
+      if (!error) return NextResponse.redirect(destination);
     } catch {
-      return NextResponse.redirect(
-        redirectUrl(request, "/login?message=invalid-link"),
-      );
+      return NextResponse.redirect(invalidLink);
     }
   }
-  return NextResponse.redirect(
-    redirectUrl(request, "/login?message=invalid-link"),
-  );
+  return NextResponse.redirect(invalidLink);
 }

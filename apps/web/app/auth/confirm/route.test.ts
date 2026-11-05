@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -12,11 +13,20 @@ vi.mock("@/lib/supabase/server", () => ({
 import { GET } from "./route";
 
 beforeEach(() => {
-  vi.stubEnv("NODE_ENV", "development");
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("SITE_URL", "https://app.mellodifai.com");
   exchange.mockReset();
   verify.mockReset();
 });
 afterEach(() => vi.unstubAllEnvs());
+it("refuses an unapproved local origin before consuming the credential", async () => {
+  const response = await GET(
+    new NextRequest("http://localhost:4000/auth/confirm?code=valid"),
+  );
+  expect(response.status).toBe(400);
+  expect(exchange).not.toHaveBeenCalled();
+  expect(verify).not.toHaveBeenCalled();
+});
 it("redirects only a successful exchange to the protected studio", async () => {
   exchange.mockResolvedValue({ error: null });
   const response = await GET(
@@ -101,21 +111,22 @@ it.each([
   ["/consent?uid=flow&next=evil", "/login"],
 ])("remote confirmation restricts next %s", async (next, expected) => {
   vi.stubEnv("NODE_ENV", "production");
-  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://app.example.test");
+  vi.stubEnv("SITE_URL", "https://app.mellodifai.com");
   verify.mockResolvedValue({ error: null });
   const response = await GET(
     new NextRequest(
-      `https://app.example.test/auth/confirm?token_hash=test-hash&type=email&next=${encodeURIComponent(next)}`,
+      `https://app.mellodifai.com/auth/confirm?token_hash=test-hash&type=email&next=${encodeURIComponent(next)}`,
+      { headers: { "x-mdf-remote": "1" } },
     ),
   );
   expect(response.headers.get("location")).toBe(
-    `https://app.example.test${expected}`,
+    `https://app.mellodifai.com${expected}`,
   );
 });
 
 it("keeps owner sign-in local in production before the public tunnel is available", async () => {
   vi.stubEnv("NODE_ENV", "production");
-  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://app.example.test");
+  vi.stubEnv("SITE_URL", "https://app.mellodifai.com");
   verify.mockResolvedValue({ error: null });
   const response = await GET(
     new NextRequest(

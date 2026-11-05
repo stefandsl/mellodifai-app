@@ -15,7 +15,7 @@ function localInbox() {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ message?: string; next?: string }>;
 }) {
   const lang = await getLocale();
   const params = await searchParams;
@@ -40,7 +40,7 @@ export default async function LoginPage({
             )}
           </p>
         )}
-        <LoginForm lang={lang} />
+        <LoginForm lang={lang} next={params.next ?? ""} />
         {localInbox() && (
           <p className="mt-6 rounded-xl border border-dashed border-[var(--hairline)] p-3 text-sm text-muted-foreground">
             {t(lang, "auth.devInbox")}{" "}

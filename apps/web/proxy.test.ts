@@ -1,3 +1,5 @@
+// @vitest-environment node
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -6,10 +8,10 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({ auth: { getUser } }),
 }));
 
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
 beforeEach(() => {
-  vi.stubEnv("NODE_ENV", "development");
+  vi.stubEnv("SITE_URL", "https://app.mellodifai.com");
   getUser.mockReset();
   getUser.mockResolvedValue({ data: { user: null } });
 });
@@ -47,7 +49,7 @@ it.each(["/", "/login", "/library", "/projects/new"])(
     expect(target.origin).toBe(url.origin);
     expect(target.pathname).toBe("/auth/confirm");
     expect(target.searchParams.get("code")).toBe("test+code/with=symbols");
-    expect(target.searchParams.has("next")).toBe(false);
+    expect(target.searchParams.get("next")).toBe("/create");
     expect(getUser).not.toHaveBeenCalled();
   },
 );
@@ -60,5 +62,25 @@ it.each(["/auth/confirm?code=valid", "/library", "/?code="])(
     );
     expect(response.headers.get("location")).toBeNull();
     expect(getUser).toHaveBeenCalledOnce();
+  },
+);
+it.each([
+  "/api/v1",
+  "/api/v1/projects",
+  "/api/mcp",
+  "/.well-known/oauth-protected-resource",
+  "/api/health",
+  "/api/transcribe",
+])("does not buffer or authenticate %s in the proxy", (url) => {
+  expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(
+    false,
+  );
+});
+it.each(["/login", "/create", "/auth/confirm", "/api/v10"])(
+  "keeps the session proxy on %s",
+  (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(
+      true,
+    );
   },
 );

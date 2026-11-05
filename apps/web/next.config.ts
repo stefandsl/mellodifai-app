@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      allowedOrigins: [
+        "app.mellodifai.com",
+        "127.0.0.1:3000",
+        "localhost:3000",
+      ],
+    },
+  },
   // Confirmation URLs carry single-use sign-in credentials.
   logging: { incomingRequests: { ignore: [/^\/auth\/confirm(?:\?|$)/] } },
   // The floating dev badge sits on the player bar; build errors still show as an overlay.

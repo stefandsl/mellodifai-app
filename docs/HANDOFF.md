@@ -230,6 +230,22 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 37 moves sign-in to server actions with neutral email responses and separate
+five-attempt, fifteen-minute limits for sending and verifying a six-digit code.
+Both actions have an explicitly unauthenticated, validated `remoteAction` path;
+the existing authenticated path remains for consent. Local email callbacks must
+match the stack allowlist; remote callbacks use server-only `SITE_URL` and only
+accept `/consent?uid=...` as `next`. Next and the session proxy now use
+`SUPABASE_INTERNAL_URL`. Stack rendering and Next share `ops/lib/auth-origins.ts`.
+The required source template link remains, while CLI 3's `content_path` uses
+`./compose/templates/magic_link.html`, staged inside the stack root. The internal
+template service uses nginx from the existing pinned Kong image and an HTTP health
+check. Render/start the target stack when deploying this change. Task 37 verified
+actual email/code sign-in on API 45621 and Next 3219; production was not deployed.
+Production SMTP remains an owner action, with `ops/sign-in-link.ts` as the local
+no-SMTP fallback. The email link for OAuth must open in the starting browser;
+the code can instead be entered in that original browser.
+
 Task 36 adds the loopback edge proxy and the Cloudflare tunnel template.
 `pnpm ops edge-proxy.ts` listens on 3080, forwarding the section 5.2 M1
 allowlist to Next on 3000 and auth on 3010. It overwrites the public forwarding
@@ -344,7 +360,7 @@ and `pnpm e2e`; role fixtures always roll back. Local runs refuse production
 ports even with `E2E_ALLOW_LIVE_STACK=1`; only isolated CI may set that flag
 alongside `CI=true`. CI renders and starts its own pinned Compose stack and
 masks test.env values before exporting them. The implementation branch now
-triggers CI on push. Keep `NEXT_PUBLIC_SITE_URL` until Task 37 migrates its users.
+triggers CI on push. Task 37 replaces `NEXT_PUBLIC_SITE_URL` with server-only `SITE_URL`.
 
 Playwright starts Next through `ops/e2e-server.ts`. Each run copies source into
 `MELLODIFAI_ROOT/e2e-servers/web-*` (CI: `RUNNER_TEMP/e2e-servers/web-*`), installs

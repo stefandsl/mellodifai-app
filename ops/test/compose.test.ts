@@ -1,4 +1,5 @@
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -31,6 +32,16 @@ beforeEach(() => {
   mkdirSync(tmp, { recursive: true });
   root = mkdtempSync(join(tmp, "compose-test-"));
   vi.stubEnv("MELLODIFAI_ROOT", root);
+  for (const env of ["e2e", "prod"] as const) {
+    const path = join(stackDir(env), "compose/templates");
+    mkdirSync(path, { recursive: true });
+    cpSync(
+      fileURLToPath(
+        new URL("../../supabase/templates/magic_link.html", import.meta.url),
+      ),
+      join(path, "magic_link.html"),
+    );
+  }
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -105,7 +116,7 @@ it("bootstraps production signing material once outside stacks without activatin
 });
 
 it("serves configured email templates on an internal-only endpoint", () => {
-  const path = join(stackDir("e2e"), "supabase/templates/magic.html");
+  const path = join(stackDir("e2e"), "compose/templates/magic_link.html");
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, "<p>{{ .ConfirmationURL }}</p>");
   const toml = renderConfig(
@@ -115,6 +126,28 @@ it("serves configured email templates on an internal-only endpoint", () => {
   );
   const output = renderCompose("e2e", toml);
   expect(output.services.templates?.ports).toBeUndefined();
+  expect(output.services.templates?.entrypoint).toEqual([
+    "/usr/local/bin/nginx",
+    "-p",
+    "/tmp/",
+    "-e",
+    "/dev/stderr",
+    "-c",
+    "/etc/nginx/templates.conf",
+    "-g",
+    "daemon off;",
+  ]);
+  expect(output.services.templates?.healthcheck).toMatchObject({
+    test: [
+      "CMD",
+      "/bin/busybox",
+      "wget",
+      "-q",
+      "-O",
+      "/dev/null",
+      "http://127.0.0.1:8080/magic_link.html",
+    ],
+  });
   expect(
     output.services.auth?.environment?.GOTRUE_MAILER_TEMPLATES_MAGIC_LINK,
   ).toBe("http://templates:8080/magic_link.html");

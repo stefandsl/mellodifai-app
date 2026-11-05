@@ -43,6 +43,8 @@ export type DictKey =
   | "status.published"
   | "status.failed"
   | "auth.email"
+  | "auth.code"
+  | "auth.verifyCode"
   | "auth.sendLink"
   | "auth.sent"
   | "auth.unavailable"
@@ -89,6 +91,7 @@ export type DictKey =
   | "error.rate_limited"
   | "error.internal"
   | "auth.invalidLink"
+  | "auth.invalidCode"
   | "auth.devInbox"
   | "job.superseded"
   | "error.details"
@@ -188,6 +191,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "error.rate_limited": "Troppi tentativi. Riprova tra poco.",
     "error.internal": "Errore interno. Riprova.",
     "auth.invalidLink": "Link non valido o scaduto. Richiedi un nuovo link.",
+    "auth.invalidCode":
+      "Codice non valido o scaduto. Richiedi un nuovo codice.",
     "job.superseded": "Tentativo precedente non riuscito",
     "error.details": "Dettagli tecnici",
     "lyrics.advanced": "Impostazioni avanzate",
@@ -304,6 +309,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.unavailable":
       "Servizio temporaneamente non disponibile. Riprova tra poco.",
     "auth.rateLimited": "Troppi tentativi, riprova tra qualche minuto",
+    "auth.code": "Codice a 6 cifre",
+    "auth.verifyCode": "Accedi con il codice",
     "action.approveGeneration": "Approva e genera la canzone: 12 crediti kie",
     "auth.notAllowed": "Se l'indirizzo è abilitato riceverai un link.",
     "project.create": "Crea progetto",
@@ -359,6 +366,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "error.rate_limited": "Too many attempts. Try again shortly.",
     "error.internal": "Internal error. Please try again.",
     "auth.invalidLink": "Invalid or expired link. Request a new link.",
+    "auth.invalidCode": "Invalid or expired code. Request a new code.",
     "job.superseded": "Earlier attempt failed",
     "error.details": "Technical details",
     "lyrics.advanced": "Advanced settings",
@@ -474,6 +482,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.unavailable":
       "Service temporarily unavailable. Please try again shortly.",
     "auth.rateLimited": "Too many attempts, please try again in a few minutes",
+    "auth.code": "6-digit code",
+    "auth.verifyCode": "Sign in with code",
     "action.approveGeneration": "Approve and generate song: 12 kie credits",
     "auth.notAllowed": "If the address is enabled, you will receive a link.",
     "project.create": "Create project",

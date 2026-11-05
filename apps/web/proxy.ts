@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
-import { redirectUrl } from "@/lib/redirect-url";
+import { redirectUrl, safeNext } from "@/lib/redirect-url";
+import { isRemote } from "@/lib/remote";
 
 export async function proxy(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -14,11 +15,17 @@ export async function proxy(request: NextRequest) {
     // Recover codes sent to Site URL when the auth redirect allowlist is incomplete.
     const callback = redirectUrl(request, "/auth/confirm");
     callback.searchParams.set("code", code);
+    const next = request.nextUrl.searchParams.get("next");
+    if (next)
+      callback.searchParams.set(
+        "next",
+        safeNext(next, isRemote(request.headers)),
+      );
     return NextResponse.redirect(callback);
   }
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+    process.env.SUPABASE_INTERNAL_URL ?? "",
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
     {
       cookies: {
@@ -40,5 +47,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/health(?:/|$)|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!api/(?:v1|mcp|health|transcribe)(?:/|$)|\\.well-known(?:/|$)|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

@@ -16,6 +16,32 @@ import { prepareStackDir, renderConfig } from "../lib/render.js";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const base = readFileSync(join(repo, "supabase/config.toml"), "utf8");
+it("the template renders RedirectTo, TokenHash and the 6-digit Token", () => {
+  const template = readFileSync(
+    join(repo, "supabase/templates/magic_link.html"),
+    "utf8",
+  );
+  const rendered = template
+    .replaceAll(
+      "{{ .RedirectTo }}",
+      "http://localhost:3001/auth/confirm?next=%2Fcreate",
+    )
+    .replaceAll("{{ .TokenHash }}", "test-hash")
+    .replaceAll("{{ .Token }}", "123456");
+  expect(rendered).toContain(
+    "http://localhost:3001/auth/confirm?next=%2Fcreate&token_hash=test-hash&type=email",
+  );
+  expect(rendered).toContain("123456");
+});
+
+it.each(["dev", "e2e", "ci", "prod"] as const)(
+  "%s config selects the sign-in template",
+  (env) => {
+    expect(rendered(env).auth.email.template?.magic_link.content_path).toBe(
+      "./compose/templates/magic_link.html",
+    );
+  },
+);
 let root = "";
 let dir: string;
 beforeEach(() => {
@@ -192,24 +218,32 @@ it("isolates every configured listener and removes optional SMTP listeners", () 
   }
 });
 
-it("links migrations, seed and templates to the repository without copying source files", () => {
+it("links sources and stages a template inside the stack root for CLI 3", () => {
   const source = join(root, "source");
   mkdirSync(join(source, "supabase/migrations"), { recursive: true });
   mkdirSync(join(source, "supabase/templates"), { recursive: true });
   writeFileSync(join(source, "supabase/seed.sql"), "select 1;");
   writeFileSync(
-    join(source, "supabase/templates/magic.html"),
+    join(source, "supabase/templates/magic_link.html"),
     "{{ .RedirectTo }}",
   );
   prepareStackDir(dir, source);
   prepareStackDir(dir, source);
   const t = rendered(
     "e2e",
-    `${base}\n[auth.email.template.magic_link]\ncontent_path = "./supabase/templates/magic.html"\n`,
+    `${base}\n[auth.email.template.magic_link]\ncontent_path = "./supabase/templates/magic_link.html"\n`,
   );
   expect(realpathSync(join(dir, "supabase/migrations"))).toBe(
     realpathSync(join(source, "supabase/migrations")),
   );
+  expect(realpathSync(join(dir, "supabase/templates"))).toBe(
+    realpathSync(join(source, "supabase/templates")),
+  );
+  expect(
+    realpathSync(
+      resolve(dir, t.auth.email.template?.magic_link.content_path ?? ""),
+    ),
+  ).toBe(resolve(dir, "compose/templates/magic_link.html"));
   expect(
     readFileSync(
       resolve(dir, "supabase", t.db.seed.sql_paths[0] ?? ""),

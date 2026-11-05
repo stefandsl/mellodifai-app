@@ -1,4 +1,5 @@
 import {
+  cpSync,
   lstatSync,
   mkdirSync,
   readlinkSync,
@@ -90,6 +91,8 @@ export function renderConfig(
   // Never inherit an external SMTP sender into a fake/test environment. Owner
   // SMTP provisioning is deliberately separate; this renderer invents no credentials.
   if (values.smtp === "catcher") delete table(auth, "email").smtp;
+  table(table(table(auth, "email"), "template"), "magic_link").content_path =
+    "./compose/templates/magic_link.html";
   return stringify(config);
 }
 
@@ -108,7 +111,7 @@ const versionFiles = [
 
 /** Prepare external links and CLI pins; never generate keys or start a service.
  * The repo directory link lets seed.sql be referenced across Windows drives
- * without a privileged file symlink. Missing templates may be added by Task 37.
+ * without a privileged file symlink.
  */
 export function prepareStackDir(
   stackDirectory: string,
@@ -142,6 +145,13 @@ export function prepareStackDir(
       path,
       process.platform === "win32" ? "junction" : "dir",
     );
+  // CLI 3 rejects content_path when a junction resolves outside the stack root.
+  const templates = runtimePath(join(stackDirectory, "compose/templates"));
+  mkdirSync(templates, { recursive: true });
+  cpSync(
+    join(source, "templates/magic_link.html"),
+    join(templates, "magic_link.html"),
+  );
   const temp = join(destination, ".temp");
   runtimePath(temp);
   mkdirSync(temp, { recursive: true });
