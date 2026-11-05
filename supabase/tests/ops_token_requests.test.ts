@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 import { afterAll, expect, it } from "vitest";
 import { callOps, opsSql } from "../../apps/web/lib/db/ops-client";
 import { newPat } from "../../apps/web/lib/ops/tokens";
+import { assertTestWebStack } from "../../ops/test-db-guard";
 import { ownerSql } from "./helpers/pg";
-import { actor, call } from "./helpers/token-fixture";
+import { actor } from "./helpers/token-fixture";
 
+assertTestWebStack(process.env);
 const sql = ownerSql();
 afterAll(async () => {
   await sql.end();
@@ -14,18 +16,9 @@ afterAll(async () => {
 it("parallel token requests open one key, create one fake job and replay its response", async () => {
   const token = newPat();
   const session = await sql.begin(async (tx) => {
-    await tx`grant mdf_web to postgres with set true`;
     const ctx = await actor(tx);
-    const result = await call(tx, "mdf_web", "admin_token_create", [
-      ctx,
-      "Task 39 concurrency",
-      token.hash,
-      token.hint,
-      ["read", "spend"],
-      false,
-      true,
-      null,
-    ]);
+    const [{ result }] = await tx`select ops.admin_token_create(${tx.json(ctx)},
+      'Task 39 concurrency', ${token.hash}, ${token.hint}, array['read','spend'], false, true, null) as result`;
     expect(result.ok).toBe(true);
     return ctx;
   });

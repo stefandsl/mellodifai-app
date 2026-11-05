@@ -212,15 +212,35 @@ it.each(["short", "a".repeat(101)])(
   },
 );
 
-it("reserving operations have a 20-per-hour window", async () => {
+it("replays do not consume reservation allowance", async () => {
   const req = request("/api/v1/songs", newPat().token);
   const paid = { ...def, scope: "spend" as const, reservesPaidWork: true };
-  for (let i = 0; i < 20; i++) {
-    if (i === 10) vi.advanceTimersByTime(60_000);
+  mocks.callOps.mockResolvedValue({
+    ok: true,
+    data: {
+      status: "replay",
+      response: { ok: true, data: { status: "done" } },
+    },
+  });
+  for (let i = 0; i < 21; i++) {
+    if (i && i % 10 === 0) vi.advanceTimersByTime(60_000);
     expect((await runTokenOp(paid, req, {})).status).toBe(200);
   }
-  vi.advanceTimersByTime(60_000);
-  const response = await runTokenOp(paid, req, {});
+});
+
+it("a database reservation refusal carries retry_after through HTTP", async () => {
+  mocks.callOps.mockResolvedValue({
+    ok: false,
+    code: "rate_limited",
+    message: "Reservation rate limit exceeded",
+    details: { retry_after: 3480 },
+  });
+  const response = await runTokenOp(
+    def,
+    request("/api/v1/songs", newPat().token),
+    {},
+  );
   expect(response.status).toBe(429);
   expect(await response.json()).toMatchObject({ error: { retry_after: 3480 } });
+  expect(response.headers.get("Retry-After")).toBe("3480");
 });

@@ -1,10 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { assertTestStack } from "../test-db-guard.js";
+import { assertTestStack, assertTestWebStack } from "../test-db-guard.js";
 
 const e2e = {
   TEST_DB_URL: "postgresql://postgres:fixture@127.0.0.1:45622/postgres",
   SUPABASE_URL: "http://127.0.0.1:45621",
 };
+
+describe("assertTestWebStack", () => {
+  const web = "postgresql://mdf_web:fixture@127.0.0.1:45622/postgres";
+  it("accepts the web role on the guarded database", () => {
+    expect(() =>
+      assertTestWebStack({ ...e2e, MDF_WEB_DATABASE_URL: web }),
+    ).not.toThrow();
+  });
+  it.each([
+    undefined,
+    "not-a-url",
+    web.replace("45622", "54322"),
+    web.replace("45622", "55322"),
+    web.replace("127.0.0.1", "example.com"),
+    web.replace("/postgres", "/other"),
+    `${web}?host=example.com`,
+    `${web}?port=54322`,
+    `${web}?database=other`,
+  ])("refuses a missing or mismatched actual web connection", (url) => {
+    expect(() =>
+      assertTestWebStack({ ...e2e, MDF_WEB_DATABASE_URL: url }),
+    ).toThrow();
+    expect(() =>
+      assertTestWebStack({ ...e2e, MDF_WEB_DATABASE_URL: url }),
+    ).not.toThrow("fixture");
+  });
+  it("requires the API and database to belong to the same port block", () => {
+    expect(() =>
+      assertTestWebStack({
+        ...e2e,
+        SUPABASE_URL: "http://127.0.0.1:55321",
+        MDF_WEB_DATABASE_URL: web,
+      }),
+    ).toThrow();
+  });
+});
 
 describe("assertTestStack", () => {
   it("refuses 54321 and 54322 outside CI", () => {

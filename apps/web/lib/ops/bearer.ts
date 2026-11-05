@@ -76,16 +76,7 @@ export async function runTokenOperation<I, O>(
       message: "Rate limit exceeded",
       retry_after: limit.retryAfter,
     };
-  if (def.mutating && (def.scope === "spend" || def.reservesPaidWork)) {
-    const reservation = rateLimit(key, "reservation");
-    if (!reservation.ok)
-      return {
-        ok: false,
-        code: "rate_limited",
-        message: "Reservation rate limit exceeded",
-        retry_after: reservation.retryAfter,
-      };
-  }
+  // The database counts actual new reservations atomically, including job batches.
   const result = await runOp(def, ctx, input);
   if (result.ok && "committed" in result)
     return {
@@ -98,7 +89,16 @@ export async function runTokenOperation<I, O>(
       details: { committed: true },
     };
   if (!result.ok) {
-    const { code, message, details, retry_after } = result;
+    const { code, message, details } = result;
+    const retry_after =
+      result.retry_after ??
+      (code === "rate_limited" &&
+      details &&
+      typeof details === "object" &&
+      "retry_after" in details &&
+      typeof details.retry_after === "number"
+        ? details.retry_after
+        : undefined);
     return {
       ok: false,
       code,

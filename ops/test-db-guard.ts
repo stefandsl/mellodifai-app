@@ -23,6 +23,32 @@ export function assertTestStack(env: Record<string, string | undefined>): void {
   }
 }
 
+export function assertTestWebStack(
+  env: Record<string, string | undefined>,
+): void {
+  assertTestStack(env);
+  assertTestStack({ ...env, TEST_DB_URL: env.MDF_WEB_DATABASE_URL });
+  const db = new URL(env.TEST_DB_URL as string);
+  const web = new URL(env.MDF_WEB_DATABASE_URL as string);
+  const api = new URL(env.SUPABASE_URL as string);
+  if (
+    // postgres accepts query parameters that override the apparent URL target.
+    web.search ||
+    db.search ||
+    web.hash ||
+    db.hash ||
+    web.hostname !== db.hostname ||
+    web.port !== db.port ||
+    web.pathname !== db.pathname ||
+    api.hostname !== db.hostname ||
+    Number(api.port) + 1 !== Number(db.port)
+  ) {
+    throw new Error(
+      "MDF_WEB_DATABASE_URL must target the same isolated test stack",
+    );
+  }
+}
+
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
