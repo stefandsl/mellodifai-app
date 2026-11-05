@@ -152,6 +152,53 @@ it("refuses an empty canonical worker file before changing secrets or stopping s
   ).toBe("[]");
 });
 
+it.each([false, true])(
+  "passes off-C temp and cache paths to every service subprocess (rollback: %s)",
+  async (rollback) => {
+    const { runner } = fixture();
+    const services: Array<{
+      action: string;
+      env: Record<string, string> | undefined;
+    }> = [];
+    let failed = false;
+    const recorded: Runner = async (cmd, args, opts) => {
+      const reply = await runner(cmd, args, opts);
+      const action = args.find((arg) => arg === "__start" || arg === "__stop");
+      if (action) services.push({ action, env: opts?.env });
+      if (rollback && action === "__start" && !failed) {
+        failed = true;
+        return { code: 1, stdout: "", stderr: "" };
+      }
+      return reply;
+    };
+    if (rollback)
+      await expect(rotateSupabaseKeys(recorded)).rejects.toThrow(/restored/i);
+    else await rotateSupabaseKeys(recorded);
+    expect(services.map(({ action }) => action)).toEqual(
+      rollback
+        ? [
+            "__stop",
+            "__stop",
+            "__start",
+            "__stop",
+            "__stop",
+            "__start",
+            "__start",
+          ]
+        : ["__stop", "__stop", "__start", "__start"],
+    );
+    for (const { env } of services)
+      expect(env).toEqual({
+        MELLODIFAI_ROOT: root,
+        TEMP: join(root, "tmp"),
+        TMP: join(root, "tmp"),
+        TMPDIR: join(root, "tmp"),
+        npm_config_cache: join(root, "cache/npm"),
+        npm_config_store_dir: join(root, "cache/pnpm"),
+      });
+  },
+);
+
 it.each(["up", "build", "__start"])(
   "restores keys, application env and services after a failed %s",
   async (failure) => {

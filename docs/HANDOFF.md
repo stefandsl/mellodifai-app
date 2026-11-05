@@ -272,6 +272,13 @@ Task 34 lint, typechecks, unit tests (1,770) and database tests (289) pass.
 The browser gate had three failures; lyrics-editor navigation and rerender
 passed on retry, while the existing French publication flow still times out
 at its overall 60-second limit waiting for `FR Pubblicato`.
+Review R1 makes every rotation and rollback service subprocess receive the
+off-C temp/cache environment before tsx starts. Regression tests verify both
+activation and recovery calls, including the preserved runtime root.
+R1 gates pass lint, both typechecks, 1,772 unit tests, 289 database tests and
+the real throwaway rotation integration. Browser tests pass 18 of 19; the
+French flow reaches its 60-second limit waiting for the visibility confirmation
+dialog at `flow.spec.ts:106`.
 
 Docker Desktop's disk image is still on C:. Moving it to G: through Docker
 Desktop > Settings > Resources > Advanced > Disk image location is an owner

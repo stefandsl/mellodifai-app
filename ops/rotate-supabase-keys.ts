@@ -93,6 +93,11 @@ export async function rotateSupabaseKeys(
     npm_config_cache: runtimePath(join(root, "cache/npm")),
     npm_config_store_dir: runtimePath(join(root, "cache/pnpm")),
   };
+  const serviceRunner: Runner = (cmd, args, opts) =>
+    runner(cmd, args, {
+      ...opts,
+      env: { ...opts?.env, ...childEnv },
+    });
   const previous = new Map<string, string>();
   for (const file of [keyFile, storeFile, webFile, workerFile])
     previous.set(file, readFileSync(file, "utf8"));
@@ -150,8 +155,8 @@ export async function rotateSupabaseKeys(
   let stackAttempted = false;
   let preserveBackup = false;
   try {
-    await serviceCommand(runner, "stop", "worker", root);
-    await serviceCommand(runner, "stop", "web", root);
+    await serviceCommand(serviceRunner, "stop", "worker", root);
+    await serviceCommand(serviceRunner, "stop", "web", root);
     const cli = createRequire(import.meta.url).resolve(
       "supabase/dist/supabase.js",
     );
@@ -191,12 +196,12 @@ export async function rotateSupabaseKeys(
     replaceEnvValue(workerFile, "SUPABASE_SERVICE_ROLE_KEY", status.service);
     buildAttempted = true;
     await build();
-    await serviceCommand(runner, "start", "worker", root);
-    await serviceCommand(runner, "start", "web", root);
+    await serviceCommand(serviceRunner, "start", "worker", root);
+    await serviceCommand(serviceRunner, "start", "web", root);
   } catch {
     try {
-      await serviceCommand(runner, "stop", "worker", root);
-      await serviceCommand(runner, "stop", "web", root);
+      await serviceCommand(serviceRunner, "stop", "worker", root);
+      await serviceCommand(serviceRunner, "stop", "web", root);
       for (const [file, content] of previous) {
         if (file === webFile || file === workerFile)
           writeFileSync(file, content);
@@ -205,8 +210,8 @@ export async function rotateSupabaseKeys(
       if (!previous.has(jwtFile) && existsSync(jwtFile)) unlinkSync(jwtFile);
       if (stackAttempted) await restartStack();
       if (buildAttempted) await build();
-      await serviceCommand(runner, "start", "worker", root);
-      await serviceCommand(runner, "start", "web", root);
+      await serviceCommand(serviceRunner, "start", "worker", root);
+      await serviceCommand(serviceRunner, "start", "web", root);
     } catch {
       preserveBackup = true;
       throw new Error(
