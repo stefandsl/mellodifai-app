@@ -29,6 +29,7 @@ import {
   stopAll,
 } from "./lib/services.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
+import { workerEnvFile } from "./lib/worker-env.js";
 import { probe } from "./probe.js";
 import { reapplyDbPasswords } from "./rotate-db-passwords.js";
 import { planStackCommand } from "./stack.js";
@@ -289,7 +290,7 @@ export async function launchHostedService(opts: {
         MELLODIFAI_ROOT: root,
         HOST: "127.0.0.1",
         ...(service === "worker"
-          ? { WORKER_ENV_FILES: runtimePath(join(root, "config/worker.env")) }
+          ? { WORKER_ENV_FILES: runtimePath(workerEnvFile(root)) }
           : {}),
         TEMP: temp,
         TMP: temp,

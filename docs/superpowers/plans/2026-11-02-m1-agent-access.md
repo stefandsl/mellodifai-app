@@ -1418,6 +1418,12 @@ Full report: `.superpowers/sdd/2026-11-02-m1-agent-access/task-3-report.md`.
 - Validation from an isolated E: source copy: focused worker service test failed before the env handoff fix and passed after it; lint, both typechecks and the full unit suite passed. The shared e2e database gate had 278 passed and 11 failed due to its unreconciled alignment migration and newer web-flow fixtures. The browser gate on API 45621 and Next 3219 had 14 passed and 5 failed; one failure came from the sign-in test still writing the old CLI fixture path, which was fixed and passed on focused rerun. The other four were karaoke, owner journey, rerender and a mobile remake layout timeout. No browser test used the live stack.
 - SMTP, DNS and tunnel owner actions remain open. The empty, inaccessible deploy worker `.env.local` still needs an administrator ACL repair before it can become the canonical worker file; the working owner-only config file is the production source in the meantime.
 
+### Task 33 review R1, 2026-11-05
+
+- Worker startup and owner administration now share canonical-file selection: prefer `deploy/apps/worker/.env.local`, with `config/worker.env` as a temporary fallback only for missing, empty or unreadable canonical files. Native service and sign-in browser tests exercise the canonical path. The administrator ACL repair remains pending; use the updated ops checkout for the next restart or deploy after moving credentials.
+- Backed up the isolated e2e database to `E:/mellodifai/tmp/task33-r1-e2e-before-reset.sql`, then rebuilt it from checked-in migrations with `pnpm ops stack.ts reset --env e2e` followed by `pnpm ops stack.ts migrate --env e2e`. The latter restores fake mode after reset. Migration head is `20261103080001`. Production was not changed.
+- The full database gate now passes 289/289 and the full browser gate passes 19/19 on API 45621 and Next 3219, including all four previously failing journeys and canonical-path sign-in. No assertions were weakened and no browser baseline was replaced. Detailed RED/GREEN commands and output are in the Task 33 report.
+
 ## Major to task
 
 | Round-5 Major | Task(s) and the test that proves it | Deadline in the round-5 report |

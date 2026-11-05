@@ -245,12 +245,16 @@ The deploy web and auth env files now have the production Supabase settings.
 The install-created deploy worker `.env.local` is empty and inaccessible to the
 non-elevated owner session, so the running worker reads the owner-and-SYSTEM-only
 `E:/mellodifai/config/worker.env`. An administrator must repair the original
-file's ACL before moving these values to that canonical path. The service host
+file's ACL before moving these values to that canonical path. Updated ops tooling
+prefers the canonical file and uses the temporary file only when the canonical
+file is missing, empty or unreadable. Use the updated invoking checkout for the
+next service restart or deploy after the repair. The service host
 starts Next directly under `mdf-web`, because pnpm could not resolve that
-account's home directory. The shared e2e stack still has migration-history and
-schema drift: the latest database gate had 278 pass and 11 fail; the browser
-gate had 14 pass and 5 fail before a sign-in fixture correction, then that
-focused sign-in case passed. SMTP, DNS and tunnel setup remain owner actions.
+account's home directory. Review R1 reconciled the shared e2e schema from the
+checked-in migrations after a private backup. Run `stack.ts reset --env e2e`
+followed by `stack.ts migrate --env e2e` to restore fake mode before tests.
+The database gate now passes 289/289 and the browser gate passes 19/19 on API
+45621 and Next 3219. SMTP, DNS and tunnel setup remain owner actions.
 
 Docker Desktop's disk image is still on C:. Moving it to G: through Docker
 Desktop > Settings > Resources > Advanced > Disk image location is an owner

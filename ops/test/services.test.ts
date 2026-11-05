@@ -549,7 +549,8 @@ it.skipIf(process.platform !== "win32")(
       const app = join(root, "deploy/apps/worker");
       mkdirSync(app, { recursive: true });
       mkdirSync(join(root, "config"), { recursive: true });
-      writeFileSync(join(root, "config/worker.env"), "worker-test-config");
+      writeFileSync(join(root, "config/worker.env"), "obsolete-worker-config");
+      writeFileSync(join(app, ".env.local"), "worker-test-config");
       writeFileSync(
         join(app, "package.json"),
         JSON.stringify({ scripts: { start: "node fake.cjs" } }),

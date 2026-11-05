@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { readDbPasswords } from "../rotate-db-passwords.js";
 import { ENV_TABLE } from "./envs.js";
 import { databaseUrl, ownerConnection } from "./pg.js";
-import { runtimeRoot } from "./runtime.js";
+import { workerEnvFile } from "./worker-env.js";
 
 export function validateEmail(email: string): void {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -23,9 +22,7 @@ export function localOwnerSql() {
 }
 
 export function userAdmin() {
-  const file = parseEnv(
-    readFileSync(join(runtimeRoot(), "config/worker.env"), "utf8"),
-  );
+  const file = parseEnv(readFileSync(workerEnvFile(), "utf8"));
   const url = file.SUPABASE_URL;
   const key = file.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key)
