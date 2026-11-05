@@ -43,7 +43,12 @@ export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
 
 export async function createFrenchProject(page: Page, topic: string) {
   localSupabaseUrl();
-  await page.goto("/create");
+  if (new URL(page.url()).pathname !== "/create") await page.goto("/create");
+  // The form fades in only after hydration and persisted draft restoration.
+  await expect(page.getByRole("form", { name: "Crea canzone" })).toHaveCSS(
+    "opacity",
+    "1",
+  );
   await page.getByRole("radio", { name: "Avanzato" }).click();
   await page.getByRole("textbox", { name: "Stili" }).fill("Pop luminoso");
   await page.getByPlaceholder("Titolo della canzone (facoltativo)").fill(topic);

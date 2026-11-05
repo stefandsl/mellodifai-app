@@ -237,8 +237,10 @@ headers, marks production requests remote, refuses other server-action paths,
 and enforces section 6.7 per-IP limits. `--mode local` uses edge 3212, auth
 3211 and Next `E2E_PORT` (3210 by default), without adding the remote marker.
 `--listen`, `--next` and `--auth` override those local testing addresses.
-Both modes retain the M1 allowlist; API/OAuth query strings and streamed
-responses are preserved. Encoded or noncanonical paths are refused before
+Production retains the M1 allowlist. Per design section 19, local mode routes
+OAuth/discovery to auth and other paths, including `/create`, to Next.
+API/OAuth query strings and streamed responses are preserved.
+Encoded or noncanonical paths are refused before
 forwarding. Copy `ops/cloudflared/config.template.yml` into the private
 runtime secrets folder and fill the owner-created tunnel ID and credentials
 path; keep ingress unchanged for the existing drift check. DNS, tunnel login

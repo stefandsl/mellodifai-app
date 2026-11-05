@@ -223,7 +223,9 @@ async function compareFrame(
     scale,
     browserExecutable: SHELL,
   });
-  const pub = `${origin}/public`;
+  // Compare pixels, without a second HTTP fetch of the same generated PNG fixtures.
+  const picture = async (file: string) =>
+    `data:image/png;base64,${(await readFile(join(dir, "public", file))).toString("base64")}`;
   const preview = await page.evaluate(
     ([job, files]) =>
       (
@@ -241,9 +243,9 @@ async function compareFrame(
         duration: props.duration,
       },
       {
-        background: `${pub}/background.png`,
-        center: `${pub}/${centerFile}`,
-        logos: JSON.stringify(logos.map((file) => `${pub}/${file}`)),
+        background: await picture("background.png"),
+        center: await picture(centerFile),
+        logos: JSON.stringify(await Promise.all(logos.map(picture))),
         fonts: JSON.stringify(fonts()),
       },
     ] as const,

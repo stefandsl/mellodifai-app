@@ -149,6 +149,31 @@ it("Next-Action on /api/v1 is refused", async () => {
   }
 });
 
+it("local mode routes UI destinations to Next while production denies them", async () => {
+  const local = await ready(
+    createEdgeProxy({ listen: 0, next, auth, mode: "local" }),
+  );
+  for (const path of [
+    "/create",
+    "/library",
+    "/",
+    "/_next/data/build/create.json",
+  ]) {
+    expect((await send(path)).status, path).toBe(404);
+    const result = await send(path, {}, "GET", "", local);
+    expect(result.status, path).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({ name: "next", url: path });
+  }
+  for (const path of [
+    "/oauth/auth",
+    "/.well-known/oauth-authorization-server/oauth",
+    "/.well-known/openid-configuration/oauth",
+  ]) {
+    const result = await send(path, {}, "GET", "", local);
+    expect(JSON.parse(result.body)).toMatchObject({ name: "auth", url: path });
+  }
+});
+
 it("the 11th registration in an hour from one IP gets 429", async () => {
   let now = 1_000_000;
   vi.spyOn(Date, "now").mockImplementation(() => now);

@@ -91,7 +91,8 @@ export function createEdgeProxy(opts: {
     const upstream =
       oauth || authPaths.has(path)
         ? auth
-        : nextPaths.has(path) ||
+        : opts.mode === "local" ||
+            nextPaths.has(path) ||
             path.startsWith("/api/v1/") ||
             path.startsWith("/_next/static/")
           ? next

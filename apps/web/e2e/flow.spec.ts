@@ -23,6 +23,8 @@ test.afterAll(async () => {
 test("admin completes the French song-to-public-video flow", async ({
   page,
 }) => {
+  // Several fake-worker stages and cold dev compilation share this journey's budget.
+  test.setTimeout(180_000);
   const topic = `E2E flow ${Date.now()}`;
   await signIn(page, E2E_ADMIN_EMAIL);
   await createFrenchProject(page, topic);
@@ -80,7 +82,11 @@ test("admin completes the French song-to-public-video flow", async ({
     .update({ metadata: { ...publication.metadata, title: publicationTitle } })
     .eq("id", publication.id);
   if (metadataError) throw metadataError;
-  await page.reload();
+  await page.getByRole("link", { name: "Libreria", exact: true }).click();
+  await page
+    .locator(`a[href="/projects/${projectId}?lang=fr"]`)
+    .first()
+    .click();
   const { count: beforeConfirm, error: beforeError } = await db
     .from("jobs")
     .select("id", { count: "exact", head: true })

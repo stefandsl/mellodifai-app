@@ -95,13 +95,15 @@ test("brief, AI lyrics, take, branded Video Studio render and private publicatio
     .single();
   expect(chosen?.chosen_take_id).toBe(selectedTake.id);
 
-  await page.goto("/library");
+  await page.getByRole("link", { name: "Libreria", exact: true }).click();
+  await expect(page).toHaveURL(/\/library$/u);
   const song = page.getByRole("article", { name: title });
   await expect(song).toBeVisible();
   await song
     .getByRole("button", { name: `Crea video visualizer: ${title}` })
     .click();
   const studio = page.getByTestId("video-studio");
+  await expect(studio).toBeVisible();
   await studio.getByRole("radio", { name: /Contorni/u }).click();
   await studio.getByRole("tab", { name: "Stile" }).click();
   const logo = await page.evaluate(() => {
