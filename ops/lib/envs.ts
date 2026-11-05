@@ -88,7 +88,6 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   dev: {
     projectId: "mellodifai_dev",
     ...AUTH_ORIGINS.dev,
-    issuer: null,
     ports: {
       api: 55321,
       db: 55322,
@@ -109,7 +108,6 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   e2e: {
     projectId: "mellodifai_e2e",
     ...AUTH_ORIGINS.e2e,
-    issuer: "http://127.0.0.1:3212/oauth",
     ports: {
       api: 45621,
       db: 45622,
@@ -130,7 +128,6 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   ci: {
     projectId: "mellodifai_ci",
     ...AUTH_ORIGINS.ci,
-    issuer: "http://127.0.0.1:3212/oauth",
     ports: {
       api: 54321,
       db: 54322,
@@ -151,7 +148,6 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   prod: {
     projectId: "mellodifai",
     ...AUTH_ORIGINS.prod,
-    issuer: "https://app.mellodifai.com/oauth",
     ports: {
       api: 54321,
       db: 54322,

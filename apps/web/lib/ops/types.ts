@@ -12,6 +12,8 @@ export type OpsCtx = {
   session_id?: string;
   token_hash?: string;
   access_token_hash?: string;
+  resource?: string;
+  token_id?: string;
   remote: boolean;
   request_id: string;
   idempotency_key?: string;
