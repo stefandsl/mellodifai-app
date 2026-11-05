@@ -43,12 +43,12 @@ test("sign-in-link prints a link that verifies on the target stack", async ({
       join(copy, "ops/node_modules"),
       process.platform === "win32" ? "junction" : "dir",
     );
-    const config = join(copy, "apps/worker/.env.local");
+    const config = join(copy, "config/worker.env");
     await writePrivate(
       config,
       `SUPABASE_URL=${localSupabaseUrl()}\nSUPABASE_SERVICE_ROLE_KEY=${process.env.SUPABASE_SERVICE_ROLE_KEY}\n`,
     );
-    const env = { ...process.env };
+    const env: NodeJS.ProcessEnv = { ...process.env, MELLODIFAI_ROOT: copy };
     delete env.FORCE_COLOR;
     const result = spawnSync(
       process.execPath,

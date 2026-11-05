@@ -548,13 +548,15 @@ it.skipIf(process.platform !== "win32")(
     try {
       const app = join(root, "deploy/apps/worker");
       mkdirSync(app, { recursive: true });
+      mkdirSync(join(root, "config"), { recursive: true });
+      writeFileSync(join(root, "config/worker.env"), "worker-test-config");
       writeFileSync(
         join(app, "package.json"),
         JSON.stringify({ scripts: { start: "node fake.cjs" } }),
       );
       writeFileSync(
         join(app, "fake.cjs"),
-        "const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' }); require('node:fs').writeFileSync('grandchild.pid', String(child.pid)); child.unref(); console.log('fake service ready'); console.error('fake stderr'); setInterval(() => {}, 1000);",
+        "if (require('node:fs').readFileSync(process.env.WORKER_ENV_FILES, 'utf8') !== 'worker-test-config') throw Error('worker env missing'); const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' }); require('node:fs').writeFileSync('grandchild.pid', String(child.pid)); child.unref(); console.log('fake service ready'); console.error('fake stderr'); setInterval(() => {}, 1000);",
       );
       writeFileSync(
         join(root, "fake-pnpm.cjs"),

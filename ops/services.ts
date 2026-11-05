@@ -202,6 +202,16 @@ export async function managedService(
       throw new Error("Port owner mismatch; cloudflared start refused");
     cmd = "cloudflared";
     args = ["tunnel", "--config", config, "run"];
+  } else if (service === "web") {
+    cwd = join(deploy, "apps/web");
+    args = [
+      join(cwd, "node_modules/next/dist/bin/next"),
+      "start",
+      "-H",
+      "127.0.0.1",
+      "-p",
+      "3000",
+    ];
   } else {
     cwd = join(deploy, "apps", service);
     const pnpm = process.env.npm_execpath;
@@ -278,6 +288,9 @@ export async function launchHostedService(opts: {
       env: {
         MELLODIFAI_ROOT: root,
         HOST: "127.0.0.1",
+        ...(service === "worker"
+          ? { WORKER_ENV_FILES: runtimePath(join(root, "config/worker.env")) }
+          : {}),
         TEMP: temp,
         TMP: temp,
         TMPDIR: temp,
