@@ -4,7 +4,7 @@ Read this first if you are picking up the work without the previous Claude sessi
 the single source for where things stand, the rules, and how to continue. Keep it current:
 when you finish or change something listed here, edit this file and commit it.
 
-Last updated: 2026-11-03.
+Last updated: 2026-11-05.
 
 ## 1. What the product is
 
@@ -229,6 +229,21 @@ Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in t
 cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
+
+Task 33 cut over the live Supabase stack to `E:/mellodifai/stacks/prod` after
+verifying a fresh data backup. All 52 original table counts matched before and
+after cutover. The first `m1-floor` deploy applied migrations and rotated database
+passwords, but failed at worker startup. The reviewed restore imported the fresh
+backup, and a read-only check found all 52 original table counts still equal,
+11,409 rows total. Its final service startup failed for the same reason. The
+production database and gateway are running at schema `20261103080001`; the
+security probe passes, the legacy storage volume is mounted, and application
+writers are stopped. The worker log reports missing `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`. The deploy worker `.env.local` is unreadable by
+this non-elevated session; the web and auth env files currently list only their
+database URL keys. The owner must finish production env provisioning and access
+before another deploy. The exact backup, recovery command and checks are in the
+plan's Task 33 Deploy log. No owner browser smoke or paid action ran.
 
 Docker Desktop's disk image is still on C:. Moving it to G: through Docker
 Desktop > Settings > Resources > Advanced > Disk image location is an owner
