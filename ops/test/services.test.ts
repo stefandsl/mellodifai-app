@@ -527,7 +527,7 @@ describe("services", () => {
 it.skipIf(process.platform !== "win32")(
   "manages a detached fake service and applies an owner-only ACL",
   async () => {
-    const base = join(runtimeRoot(), "tmp");
+    const base = "G:/claude-data";
     mkdirSync(base, { recursive: true });
     const root = mkdtempSync(join(base, "services-test-"));
     const cli = (args: string[]) =>
@@ -546,7 +546,7 @@ it.skipIf(process.platform !== "win32")(
         },
       );
     try {
-      const app = join(root, "deploy/apps/web");
+      const app = join(root, "deploy/apps/worker");
       mkdirSync(app, { recursive: true });
       writeFileSync(
         join(app, "package.json"),
@@ -560,27 +560,28 @@ it.skipIf(process.platform !== "win32")(
         join(root, "fake-pnpm.cjs"),
         "require(process.cwd() + '/fake.cjs');",
       );
-      expect([...presentServices(root)]).toEqual(["web"]);
+      expect([...presentServices(root)]).toEqual(["worker"]);
       expect((await cli(["acl"])).code).toBe(0);
       expect(existsSync(join(root, "logs"))).toBe(false);
-      expect((await cli(["start"])).code).toBe(0);
-      expect((await cli(["status"])).stdout.trim()).toBe("web: running");
+      const started = await cli(["start"]);
+      expect(started.code, started.stderr).toBe(0);
+      expect((await cli(["status"])).stdout.trim()).toBe("worker: running");
       await vi.waitFor(
         () =>
-          expect(readFileSync(join(root, "logs/web.log"), "utf8")).toContain(
+          expect(readFileSync(join(root, "logs/worker.log"), "utf8")).toContain(
             "fake service ready",
           ),
         { timeout: 15000 },
       );
-      expect(readFileSync(join(root, "logs/web.error.log"), "utf8")).toContain(
-        "fake stderr",
-      );
+      expect(
+        readFileSync(join(root, "logs/worker.error.log"), "utf8"),
+      ).toContain("fake stderr");
       const grandchild = Number(
         readFileSync(join(app, "grandchild.pid"), "utf8"),
       );
       expect(grandchild).toBeGreaterThan(0);
       const state = JSON.parse(
-        readFileSync(join(root, "logs/web.pid.json"), "utf8").replace(
+        readFileSync(join(root, "logs/worker.pid.json"), "utf8").replace(
           /^\uFEFF/,
           "",
         ),
@@ -614,9 +615,9 @@ it.skipIf(process.platform !== "win32")(
       expect((await cli(["start"])).code).toBe(0);
       expect((await cli(["start"])).code).toBe(1);
       expect((await cli(["stop"])).code).toBe(0);
-      expect((await cli(["status"])).stdout.trim()).toBe("web: stopped");
+      expect((await cli(["status"])).stdout.trim()).toBe("worker: stopped");
       writeFileSync(
-        join(root, "logs/web.pid.json"),
+        join(root, "logs/worker.pid.json"),
         JSON.stringify({ pid: process.pid, identity: "stale" }),
       );
       expect((await cli(["stop"])).code).toBe(0);
