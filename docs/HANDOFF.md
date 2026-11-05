@@ -232,18 +232,25 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 Task 33 cut over the live Supabase stack to `E:/mellodifai/stacks/prod` after
 verifying a fresh data backup. All 52 original table counts matched before and
-after cutover. The first `m1-floor` deploy applied migrations and rotated database
-passwords, but failed at worker startup. The reviewed restore imported the fresh
-backup, and a read-only check found all 52 original table counts still equal,
-11,409 rows total. Its final service startup failed for the same reason. The
-production database and gateway are running at schema `20261103080001`; the
-security probe passes, the legacy storage volume is mounted, and application
-writers are stopped. The worker log reports missing `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY`. The deploy worker `.env.local` is unreadable by
-this non-elevated session; the web and auth env files currently list only their
-database URL keys. The owner must finish production env provisioning and access
-before another deploy. The exact backup, recovery command and checks are in the
-plan's Task 33 Deploy log. No owner browser smoke or paid action ran.
+after cutover and after the reviewed restore, 11,409 rows total. The production
+app now runs at `m1-floor` (`12cecd6`), with schema `20261103080001`. Local
+health reports `web`, `db` and `ops` as `ok`, and the worker heartbeat is fresh.
+The post-deploy security probe passes. The owner signed in with a local link,
+opened the RLS-backed library and renamed one song through `ops.song_rename` as
+`mdf_web`; its original title was restored. No paid action ran. The older target
+was refused without interrupting health. The exact backup, recovery command and
+checks are in the plan's Task 33 Deploy log.
+
+The deploy web and auth env files now have the production Supabase settings.
+The install-created deploy worker `.env.local` is empty and inaccessible to the
+non-elevated owner session, so the running worker reads the owner-and-SYSTEM-only
+`E:/mellodifai/config/worker.env`. An administrator must repair the original
+file's ACL before moving these values to that canonical path. The service host
+starts Next directly under `mdf-web`, because pnpm could not resolve that
+account's home directory. The shared e2e stack still has migration-history and
+schema drift: the latest database gate had 278 pass and 11 fail; the browser
+gate had 14 pass and 5 fail before a sign-in fixture correction, then that
+focused sign-in case passed. SMTP, DNS and tunnel setup remain owner actions.
 
 Docker Desktop's disk image is still on C:. Moving it to G: through Docker
 Desktop > Settings > Resources > Advanced > Disk image location is an owner
