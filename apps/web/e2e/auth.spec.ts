@@ -8,16 +8,18 @@ test("sign in with the 6-digit code from the mail catcher", async ({
 }) => {
   const email = `e2e-code-${Date.now()}@mellodifai.test`;
   const db = serviceClient();
-  const { error: allowError } = await db
-    .from("admin_allowlist")
-    .insert({ email, role: "customer" });
-  if (allowError) throw new Error("Could not allowlist OTP test user");
-  const { data, error } = await db.auth.admin.createUser({
-    email,
-    email_confirm: true,
-  });
-  if (error || !data.user) throw new Error("Could not create OTP test user");
+  let userId: string | undefined;
   try {
+    const { error: allowError } = await db
+      .from("admin_allowlist")
+      .insert({ email, role: "customer" });
+    if (allowError) throw new Error("Could not allowlist OTP test user");
+    const { data, error } = await db.auth.admin.createUser({
+      email,
+      email_confirm: true,
+    });
+    userId = data.user?.id;
+    if (error || !userId) throw new Error("Could not create OTP test user");
     await page.goto("/login?next=%2Flibrary");
     // Fail before requesting mail if the code UI is missing.
     await expect(page.getByLabel("Codice a 6 cifre")).toBeVisible({
@@ -55,8 +57,20 @@ test("sign in with the 6-digit code from the mail catcher", async ({
     await page.reload();
     await expect(page).toHaveURL(/\/library$/u);
   } finally {
-    await db.auth.admin.deleteUser(data.user.id);
-    await db.from("admin_allowlist").delete().eq("email", email);
+    try {
+      if (userId) {
+        const { error } = await db.auth.admin.deleteUser(userId);
+        expect.soft(error, "Could not delete OTP test user").toBeNull();
+      }
+    } finally {
+      const { error } = await db
+        .from("admin_allowlist")
+        .delete()
+        .eq("email", email);
+      expect
+        .soft(error, "Could not delete OTP test allowlist entry")
+        .toBeNull();
+    }
   }
 });
 
