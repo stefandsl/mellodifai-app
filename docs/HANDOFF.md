@@ -230,6 +230,20 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 36 adds the loopback edge proxy and the Cloudflare tunnel template.
+`pnpm ops edge-proxy.ts` listens on 3080, forwarding the section 5.2 M1
+allowlist to Next on 3000 and auth on 3010. It overwrites the public forwarding
+headers, marks production requests remote, refuses other server-action paths,
+and enforces section 6.7 per-IP limits. `--mode local` uses edge 3212, auth
+3211 and Next `E2E_PORT` (3210 by default), without adding the remote marker.
+`--listen`, `--next` and `--auth` override those local testing addresses.
+Both modes retain the M1 allowlist; API/OAuth query strings and streamed
+responses are preserved. Encoded or noncanonical paths are refused before
+forwarding. Copy `ops/cloudflared/config.template.yml` into the private
+runtime secrets folder and fill the owner-created tunnel ID and credentials
+path; keep ingress unchanged for the existing drift check. DNS, tunnel login
+and tunnel creation remain owner actions. Task 36 does not start a live tunnel.
+
 Task 33 cut over the live Supabase stack to `E:/mellodifai/stacks/prod` after
 verifying a fresh data backup. All 52 original table counts matched before and
 after cutover and after the reviewed restore, 11,409 rows total. The production
