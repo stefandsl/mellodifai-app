@@ -13,6 +13,13 @@ const base = `http://127.0.0.1:${port}`;
 const stack = process.env.CI === "true" ? "ci" : "e2e";
 const runtime =
   process.env.RUNNER_TEMP || process.env.MELLODIFAI_ROOT || "E:/mellodifai";
+// The provisioned runtime directory already exists, including RUNNER_TEMP in CI.
+const serverEnv = {
+  ...process.env,
+  TEMP: runtime,
+  TMP: runtime,
+  TMPDIR: runtime,
+};
 const authSecrets = join(runtime, "secrets/auth", stack).replaceAll("\\", "/");
 // Both service roles must target the same guarded stack before any server starts.
 assertTestWebStack(process.env);
@@ -45,7 +52,7 @@ export default defineConfig({
       timeout: 240_000,
       reuseExistingServer: false,
       env: {
-        ...process.env,
+        ...serverEnv,
         NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
         SUPABASE_INTERNAL_URL: process.env.SUPABASE_INTERNAL_URL ?? supabaseUrl,
@@ -60,7 +67,7 @@ export default defineConfig({
       timeout: 60_000,
       reuseExistingServer: false,
       env: {
-        ...process.env,
+        ...serverEnv,
         HOST: "127.0.0.1",
         PORT: "3211",
         MDF_AUTH_ISSUER: AUTH_ORIGINS[stack].issuer,
@@ -73,6 +80,7 @@ export default defineConfig({
       url: "http://127.0.0.1:3212/.well-known/oauth-authorization-server/oauth",
       timeout: 60_000,
       reuseExistingServer: false,
+      env: serverEnv,
     },
   ],
 });

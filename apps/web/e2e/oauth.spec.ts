@@ -165,9 +165,49 @@ test("OAuth pairs once, binds read-only consent to the browser, and revokes MCP 
           body: "Collegamento completato.",
         }),
       );
+      const resume = `${OAUTH_ORIGIN}/oauth/interaction/${uid}/resume`;
+      // Pause navigation after consent, before the provider consumes the Interaction.
+      await page.route(resume, (route) =>
+        route.fulfill({
+          contentType: "text/plain",
+          body: "Consenso ricevuto.",
+        }),
+      );
       await page
         .getByRole("button", { name: "Autorizza", exact: true })
         .click();
+      await expect
+        .poll(() => new URL(page.url()).pathname)
+        .toBe(new URL(resume).pathname);
+      await test.step("SQL refuses nonce replay while the matching Interaction remains live", async () => {
+        const rollback = new Error("Rollback nonce replay probe");
+        await sql
+          .begin(async (tx) => {
+            await tx`grant mdf_auth to postgres with set true`;
+            await tx`set local role mdf_auth`;
+            const [decision] =
+              await tx`select ops.oauth_interaction_result(${uid}, ${nonce}) as result`;
+            expect(decision.result.scopes).toEqual(["read"]);
+            await tx`reset role`;
+            const [interaction] = await tx`select expires_at > now() as live,
+            flow_nonce_hash = ${digest(nonce)} as matches
+            from public.oauth_store where model = 'Interaction' and uid = ${uid}`;
+            expect(interaction).toEqual({ live: true, matches: true });
+            await tx`set local role mdf_auth`;
+            await expect(
+              tx.savepoint(async (sp) => {
+                await sp`select ops.oauth_interaction_result(${uid}, ${nonce})`;
+              }),
+            ).rejects.toMatchObject({ code: "MDF03" });
+            throw rollback;
+          })
+          .catch((error: unknown) => {
+            if (error !== rollback) throw error;
+          });
+      });
+      // Rollback preserves the unused consent for the real provider round trip.
+      await page.unroute(resume);
+      await page.goto(resume);
       await expect
         .poll(() => new URL(page.url()).pathname)
         .toBe("/oauth-client/callback");
@@ -183,7 +223,7 @@ test("OAuth pairs once, binds read-only consent to the browser, and revokes MCP 
       expect(consent.used_at).not.toBeNull();
     });
 
-    await test.step("the consumed nonce cannot resume or yield another decision", async () => {
+    await test.step("the completed interaction cannot resume again", async () => {
       expect(
         (
           await page.request.get(
@@ -192,15 +232,6 @@ test("OAuth pairs once, binds read-only consent to the browser, and revokes MCP 
           )
         ).status(),
       ).toBe(403);
-      // Exercise SQL too: the provider may already have removed its Interaction cookie.
-      await expect(
-        sql.begin(async (tx) => {
-          await tx`grant mdf_auth to postgres with set true`;
-          await tx`set local role mdf_auth`;
-          await tx`select ops.oauth_interaction_result(${uid}, ${nonce})`;
-          throw new Error("A reused nonce was accepted");
-        }),
-      ).rejects.toMatchObject({ code: "MDF03" });
     });
 
     await test.step("PKCE exchange, song_get, and immediate revocation", async () => {

@@ -20,6 +20,8 @@ function environment(ci = false) {
   vi.stubEnv("MDF_AUTH_DATABASE_URL", `postgresql://mdf_auth@${db}`);
   vi.stubEnv("MELLODIFAI_ROOT", "E:/mellodifai");
   vi.stubEnv("RUNNER_TEMP", ci ? "/tmp/mellodifai-ci" : "");
+  for (const name of ["TEMP", "TMP", "TMPDIR"])
+    vi.stubEnv(name, "C:/Users/Asus/AppData/Local/Temp");
 }
 
 it.each([false, true])(
@@ -33,6 +35,11 @@ it.each([false, true])(
       throw new Error("Three webServer entries required");
     expect(servers.length).toBe(3);
     const [next, auth, proxy] = servers;
+    for (const server of servers)
+      for (const name of ["TEMP", "TMP", "TMPDIR"])
+        expect(server.env?.[name]).toBe(
+          ci ? "/tmp/mellodifai-ci" : "E:/mellodifai",
+        );
     expect(next.url).toBe(`http://127.0.0.1:${ci ? 3210 : 3219}`);
     expect(next.env?.SITE_URL).toBe("http://127.0.0.1:3210");
     expect(auth.url).toBe(
