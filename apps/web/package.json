@@ -15,6 +15,7 @@
     "@base-ui/react": "^1.9.0",
     "@fontsource/oswald": "^5.2.8",
     "@mellodifai/shared": "workspace:^",
+    "@modelcontextprotocol/server": "2.4.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "class-variance-authority": "^0.7.1",

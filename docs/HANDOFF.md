@@ -230,6 +230,17 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 41 adds stateless JSON MCP at `/api/mcp` using the spike-confirmed
+`@modelcontextprotocol/server` 2.4.0 transport. Its sixteen tools use
+`TOKEN_OPS` and the shared token runner, including rate limits, validation,
+idempotency and operation errors. It also exposes the SongDetail resource
+`mellodifai://songs/{version_id}` and the Italian `new_song` prompt
+("Create a new song"). Both protected-resource metadata paths and the 401
+challenge use the canonical OAuth resource from `ops/lib/auth-origins.ts`.
+Next route smoke checks and focused unit tests pass. Database/browser gates
+and the Inspector CLI run with a real dev PAT remain pending Docker recovery
+and isolated stack startup. No live deployment or paid provider call was made.
+
 Task 40 adds the sixteen PAT-only `/api/v1` operations and the shared
 `TOKEN_OPS` registry with HTTP method/path metadata. Routes use the existing
 token runner for authentication, rate limits, idempotency and error mapping.
