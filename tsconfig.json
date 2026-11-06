@@ -3,6 +3,7 @@
   "references": [
     { "path": "./ops" },
     { "path": "./apps/auth" },
+    { "path": "./packages/cli" },
     { "path": "./packages/shared" },
     { "path": "./packages/shared/tsconfig.test.json" },
     { "path": "./packages/remake" },

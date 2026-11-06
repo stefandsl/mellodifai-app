@@ -230,6 +230,20 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 46 adds the bundled `@mellodifai/cli`, its PAT-authenticated stdio MCP
+bridge and the M1 agent skill. All twelve token mutations receive idempotency
+keys, including create-scoped operations; ambiguous spend is never retried.
+Windows login restricts the credentials file with icacls before replacing an
+existing login. Use the same private E: APPDATA profile for login and MCP to
+keep credentials off C:. The package has no runtime dependencies.
+With pinned pnpm 10.2.1, pack from an off-C source copy using
+`pnpm --filter @mellodifai/cli exec pnpm pack`, then install the tarball with
+an E: npm prefix/cache. The direct filtered pack syntax in the design is not
+supported by that pnpm version. The installed CLI passes inspector tools/list
+against a fake HTTP server. Real dev-server inspector, database and browser
+validation remain pending Docker recovery and dev/e2e stack startup; the
+e2e API on 45621 still refuses connections. No production or paid call ran.
+
 Task 45 wires Playwright's three-server OAuth topology: Next on 3210 (the
 local E2E_PORT=3219 ruling still applies), auth on 3211, and the local edge
 proxy on 3212. OAuth browser traffic and the canonical MCP resource use
