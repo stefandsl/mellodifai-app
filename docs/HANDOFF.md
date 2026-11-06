@@ -4,7 +4,7 @@ Read this first if you are picking up the work without the previous Claude sessi
 the single source for where things stand, the rules, and how to continue. Keep it current:
 when you finish or change something listed here, edit this file and commit it.
 
-Last updated: 2026-11-05.
+Last updated: 2026-11-06.
 
 ## 1. What the product is
 
@@ -229,6 +229,17 @@ Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in t
 cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
+
+Task 40 adds the sixteen PAT-only `/api/v1` operations and the shared
+`TOKEN_OPS` registry with HTTP method/path metadata. Routes use the existing
+token runner for authentication, rate limits, idempotency and error mapping.
+Token schemas retain the section 7.3 names and exclude upload sources and
+video approval overrides. The database API suite is separate from unit tests:
+`pnpm test:integration apps/web/app/api/v1/api.integration.test.ts`, with the
+guarded e2e env loaded. Docker's Linux engine is still unavailable, so real
+database/API/browser validation remains pending owner recovery of Docker,
+e2e stack startup and application of Task 39's pending migration. No live
+deployment or paid provider call was made.
 
 Task 37 moves sign-in to server actions with neutral email responses and separate
 five-attempt, fifteen-minute limits for sending and verifying a six-digit code.

@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 import { assertTestStack } from "./ops/test-db-guard";
 
@@ -6,6 +6,7 @@ import { assertTestStack } from "./ops/test-db-guard";
 assertTestStack(process.env);
 
 export default defineConfig({
+  resolve: { alias: { "@": resolve(import.meta.dirname, "apps/web") } },
   cacheDir: join(
     process.env.RUNNER_TEMP ?? process.env.MELLODIFAI_ROOT ?? "E:/mellodifai",
     "cache/integration-vitest",
