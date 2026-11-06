@@ -240,6 +240,12 @@ challenge use the canonical OAuth resource from `ops/lib/auth-origins.ts`.
 Next route smoke checks and focused unit tests pass. Database/browser gates
 and the Inspector CLI run with a real dev PAT remain pending Docker recovery
 and isolated stack startup. No live deployment or paid provider call was made.
+Task 41 review R1 adds migration `20261102000043_resolve_pat.sql` and checks
+PATs before every MCP POST, including discovery. The narrowly granted resolver
+reuses `ops._actor` without requiring an operation scope; invalid, expired or
+revoked PATs receive HTTP 401 with the resource metadata challenge. Apply this
+additive migration before deploying the updated route. Its database tests and
+the real-stack gates remain pending Docker recovery.
 
 Task 40 adds the sixteen PAT-only `/api/v1` operations and the shared
 `TOKEN_OPS` registry with HTTP method/path metadata. Routes use the existing

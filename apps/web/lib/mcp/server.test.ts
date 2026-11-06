@@ -258,6 +258,51 @@ it("GET answers 405", async () => {
   expect(response.headers.get("Allow")).toBe("POST");
 });
 
+it.each(["initialize", "tools/list", "tools/call"])(
+  "invalid PATs receive a 401 challenge before %s dispatch",
+  async (method) => {
+    mocks.sql.mockRejectedValueOnce(new Error("private database refusal"));
+    const response = await POST(request(method, {}, "mdf_pat_invalid"));
+    expect(response.status).toBe(401);
+    expect(response.headers.get("WWW-Authenticate")).toBe(
+      'Bearer resource_metadata="http://127.0.0.1:3212/.well-known/oauth-protected-resource/api/mcp"',
+    );
+    expect(await response.json()).toEqual({
+      error: { code: "unauthorized", message: "Authentication required" },
+    });
+    expect(mocks.callOps).not.toHaveBeenCalled();
+  },
+);
+
+it("a revoked PAT receives 401 on the next request, including discovery", async () => {
+  const token = newPat().token;
+  await rpc("tools/list", {}, token);
+  mocks.sql.mockRejectedValueOnce(new Error("authentication required"));
+  const response = await POST(request("tools/list", {}, token));
+  expect(response.status).toBe(401);
+  expect(response.headers.get("WWW-Authenticate")).toContain(
+    "resource_metadata=",
+  );
+  expect(mocks.sql).toHaveBeenCalledTimes(2);
+  expect(mocks.sql).toHaveBeenLastCalledWith(
+    "select ops.resolve_pat($1) as result",
+    [
+      expect.objectContaining({
+        actor_kind: "pat",
+        token_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
+      }),
+    ],
+  );
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
+it("an invalid PAT resolver response fails closed", async () => {
+  mocks.sql.mockResolvedValueOnce([{ result: null }]);
+  expect((await POST(request("tools/list", {}, newPat().token))).status).toBe(
+    401,
+  );
+});
+
 it.each(["http://127.0.0.1:3210", "https://app.mellodifai.com"])(
   "both metadata paths use the canonical resource for %s",
   async (site) => {
