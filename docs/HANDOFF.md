@@ -230,6 +230,15 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 44 adds Settings > Agenti for local administrators: token creation with
+one-time display, confirmed revocation, the remote MCP switch and pairing
+status with a countdown and the claiming client's name, redirect host and time.
+The page and actions use the existing admin-only ops functions; no migration
+or paid call is needed. Remote PATs default to a 90-day expiry and test mode
+is explicit. The settings navigation hides agent management from customers
+and remote requests. Database/browser validation still needs the owner to
+recover Docker and start the isolated e2e stack on API 45621.
+
 Task 43 adds `/consent` and the authenticated `consentDecide` remote action.
 The page requires a verified session and the starting browser's flow cookie,
 shows escaped stored client details, and defaults to read-only permission.

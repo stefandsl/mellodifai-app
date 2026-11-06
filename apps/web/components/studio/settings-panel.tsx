@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useLocale } from "@/components/locale-provider";
@@ -23,12 +24,28 @@ function Row({
   );
 }
 
-export function SettingsPanel({ email }: { email: string }) {
+export function SettingsPanel({
+  email,
+  canManageAgents = false,
+}: {
+  email: string;
+  canManageAgents?: boolean;
+}) {
   const lang = useLocale();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   return (
     <section className="rounded-2xl bg-[var(--surface-1)] px-6 py-2">
+      {canManageAgents && (
+        <Row label="Agenti">
+          <Link
+            href="/settings/agents"
+            className="rounded-full px-3 py-2 outline-none hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+          >
+            Gestisci agenti
+          </Link>
+        </Row>
+      )}
       <Row label={st(lang, "settings.language")}>
         <Segmented
           label={st(lang, "settings.language")}
