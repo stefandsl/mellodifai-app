@@ -15,7 +15,7 @@
   "scripts": {
     "build": "node build.mjs",
     "prepack": "node build.mjs",
-    "test": "vitest run"
+    "test": "vitest run --configLoader runner --no-cache --no-fsModuleCache"
   },
   "devDependencies": {
     "@mellodifai/shared": "workspace:*",

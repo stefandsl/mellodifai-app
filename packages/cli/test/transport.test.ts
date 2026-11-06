@@ -293,4 +293,51 @@ describe("transports", () => {
     await bridge(Readable.from(input), new PassThrough(), credentials);
     expect(versions).toEqual([undefined, "2025-03-26", "2025-03-26"]);
   });
+
+  it.each(["interrupted", "malformed", "wrong-id", "missing-result"])(
+    "reports ambiguous_spend for a %s mutation reply after successful headers",
+    async (failure) => {
+      const { credentials } = await fake();
+      const server = servers[0];
+      server?.removeAllListeners("request");
+      let calls = 0;
+      server?.on("request", (_req, res) => {
+        calls++;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.flushHeaders();
+        if (failure === "interrupted") {
+          res.write('{"jsonrpc":"2.0",');
+          setTimeout(() => res.destroy(), 30);
+        } else {
+          res.end(
+            failure === "malformed"
+              ? "not JSON"
+              : JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: failure === "wrong-id" ? 99 : 8,
+                  ...(failure === "missing-result" ? {} : { result: {} }),
+                }),
+          );
+        }
+      });
+      for (const name of ["song_create", "take_pick"]) {
+        expect(
+          await rpc(credentials, {
+            jsonrpc: "2.0",
+            id: 8,
+            method: "tools/call",
+            params: { name, arguments: {} },
+          }),
+        ).toMatchObject({
+          id: 8,
+          error: { data: { code: "ambiguous_spend" } },
+        });
+      }
+      expect(calls).toBe(2);
+      expect(
+        await rpc(credentials, { jsonrpc: "2.0", id: 8, method: "tools/list" }),
+      ).toMatchObject({ error: { data: { code: "internal" } } });
+      expect(calls).toBe(3);
+    },
+  );
 });

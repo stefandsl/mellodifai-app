@@ -1,5 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { run } from "../src/commands.js";
@@ -9,6 +8,7 @@ import {
   saveCredentials,
   validateCredentials,
 } from "../src/credentials.js";
+import { fixtureDirectory } from "./runtime.js";
 
 const credentials = {
   url: "http://127.0.0.1:3001",
@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 it("stores credentials privately without returning the PAT", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "cli-credentials-"));
+  const dir = await fixtureDirectory("credentials-");
   const file = join(dir, "credentials.json");
   try {
     await saveCredentials(credentials, file);

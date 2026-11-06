@@ -62,6 +62,10 @@ export async function bridge(
       continue;
     }
     const notification = !("id" in message);
+    const mutation =
+      message.method === "tools/call" &&
+      mutations.has(message.params?.name ?? "");
+    let readingReply = false;
     try {
       if (
         message.method === "tools/call" &&
@@ -89,6 +93,7 @@ export async function bridge(
       });
       if (!response.ok) throw await responseError(response);
       if (notification) continue;
+      readingReply = true;
       const reply = await response.json();
       if (
         reply?.jsonrpc !== "2.0" ||
@@ -104,7 +109,12 @@ export async function bridge(
       output.write(`${JSON.stringify(reply)}\n`);
     } catch (error) {
       if (notification) continue;
-      const code = error instanceof ClientError ? error.code : "internal";
+      const code =
+        mutation && readingReply
+          ? "ambiguous_spend"
+          : error instanceof ClientError
+            ? error.code
+            : "internal";
       output.write(
         `${JSON.stringify(rpcError(message.id, -32000, code, { code }))}\n`,
       );
