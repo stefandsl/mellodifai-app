@@ -230,6 +230,19 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 45 wires Playwright's three-server OAuth topology: Next on 3210 (the
+local E2E_PORT=3219 ruling still applies), auth on 3211, and the local edge
+proxy on 3212. OAuth browser traffic and the canonical MCP resource use
+3212. CI provisions private auth material before starting the same topology.
+The new oauth.spec.ts covers pairing, redirect validation, S256 PKCE,
+read-only consent, missing/reused flow nonce refusals, token exchange,
+song_get, revocation and a database refusal without matching consent.
+Fixtures create no jobs and use test mode. The topology unit tests pass;
+database and browser validation still need Docker recovery and the isolated
+e2e stack on API 45621. GitHub Actions also reports an account billing or
+spending-limit issue that prevents jobs from starting. The owner must resolve
+that separately; no billing setting or paid service was changed.
+
 Task 44 adds Settings > Agenti for local administrators: token creation with
 one-time display, confirmed revocation, the remote MCP switch and pairing
 status with a countdown and the claiming client's name, redirect host and time.

@@ -70,8 +70,11 @@ jobs:
           done < "$env_file"
       - run: pnpm test:db
       - run: pnpm test:integration
+      - name: Provision private OAuth test material
+        run: pnpm ops rotate-auth-keys.ts --env ci
       - run: pnpm --filter @mellodifai/web exec playwright install --with-deps chromium
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm e2e
         env:
           E2E_ALLOW_LIVE_STACK: "1"
+          E2E_PORT: "3210"
