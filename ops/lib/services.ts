@@ -19,6 +19,19 @@ export const SERVICE_ORDER = [
   "cloudflared",
 ] as const;
 export type Service = (typeof SERVICE_ORDER)[number];
+export function authServiceCommand(root: string) {
+  const cwd = join(runtimePath(root), "deploy/apps/auth");
+  return {
+    cmd: process.execPath,
+    cwd,
+    args: [
+      `--env-file=${join(cwd, ".env.local")}`,
+      "--import",
+      "tsx",
+      "src/main.ts",
+    ],
+  };
+}
 export const LISTENERS = {
   3000: "mdf-web",
   3010: "mdf-auth",

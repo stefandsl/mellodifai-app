@@ -17,6 +17,7 @@ import { realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
 import {
   aclCommands,
+  authServiceCommand,
   expectedPortOwners,
   icaclsProbe,
   installCommands,
@@ -203,6 +204,8 @@ export async function managedService(
       throw new Error("Port owner mismatch; cloudflared start refused");
     cmd = "cloudflared";
     args = ["tunnel", "--config", config, "run"];
+  } else if (service === "auth") {
+    ({ cmd, args, cwd } = authServiceCommand(root));
   } else if (service === "web") {
     cwd = join(deploy, "apps/web");
     args = [

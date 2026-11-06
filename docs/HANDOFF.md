@@ -230,6 +230,30 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 42 adds `apps/auth` on pinned `oidc-provider@9.13.3`, with the Task 15
+`mdf_auth` storage functions, hashed adapter IDs, browser-bound consent resume,
+atomic pairing claims, exact connector callbacks and explicit MCP resources.
+The provider records unchecked consent scopes as rejected, so a read-only
+decision does not prompt again for create/spend. HTTPS uses `__Host-mdf_flow`;
+loopback HTTP uses `mdf_flow`. Token validity follows the SQL grant rather
+than the short browser session. Registration management is disabled.
+`ops/rotate-auth-keys.ts --env prod|e2e|ci` provisions signing keys, cookie keys,
+issuer and the role connection. Existing keys remain available for verification;
+production rotations stop/restart auth and restore prior material on failure.
+The service launcher starts auth directly with its canonical private env file.
+
+Initial production and e2e auth material was provisioned on 2026-11-06, without
+starting production services or changing database credentials. The existing
+`mdf-auth` account is enabled. The production JWKS and auth env file have only
+owner and `mdf-auth` ACL entries. E2E material lives under
+`E:/mellodifai/secrets/auth/e2e/`; its `auth.env` selects port 3211 and issuer
+`http://127.0.0.1:3212/oauth`. The actual entrypoint passed a discovery smoke
+check using that file. Production service-account execution, the tunnel/connector
+round trip and confirmation of the actual ChatGPT management-page callback
+remain for owner setup and Task 47. Docker's Linux engine is still unavailable;
+Task 42 database and browser gates fail at the e2e API connection on 45621.
+Lint, both typechecks and the unit suite pass (1,967 tests, one existing skip).
+
 Task 41 adds stateless JSON MCP at `/api/mcp` using the spike-confirmed
 `@modelcontextprotocol/server` 2.4.0 transport. Its sixteen tools use
 `TOKEN_OPS` and the shared token runner, including rate limits, validation,
