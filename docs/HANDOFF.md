@@ -230,6 +230,17 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
+Task 43 adds `/consent` and the authenticated `consentDecide` remote action.
+The page requires a verified session and the starting browser's flow cookie,
+shows escaped stored client details, and defaults to read-only permission.
+Spend requires the exact stored client name, checked again on the server.
+Only the database-authorized admin receives the fake-provider checkbox.
+Successful consent navigates to the auth service's same-browser resume route.
+The web cookie selection matches Task 42: `__Host-mdf_flow` on HTTPS and
+`mdf_flow` on HTTP. The focused consent and server-action guard tests pass.
+Database and browser gates remain pending owner Docker recovery: the e2e API
+on 45621 refuses connections. No production deployment or paid call was made.
+
 Task 42 adds `apps/auth` on pinned `oidc-provider@9.13.3`, with the Task 15
 `mdf_auth` storage functions, hashed adapter IDs, browser-bound consent resume,
 atomic pairing claims, exact connector callbacks and explicit MCP resources.
