@@ -246,6 +246,10 @@ reuses `ops._actor` without requiring an operation scope; invalid, expired or
 revoked PATs receive HTTP 401 with the resource metadata challenge. Apply this
 additive migration before deploying the updated route. Its database tests and
 the real-stack gates remain pending Docker recovery.
+Task 41 review R2 supports the PAT-only dev origin (127.0.0.1:3001): its
+metadata uses the dev MCP resource and omits authorization_servers, and its
+401 challenge points to dev metadata. Opaque OAuth bearers remain refused on
+dev; e2e/CI and production keep their canonical OAuth origins.
 
 Task 40 adds the sixteen PAT-only `/api/v1` operations and the shared
 `TOKEN_OPS` registry with HTTP method/path metadata. Routes use the existing

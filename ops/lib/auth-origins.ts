@@ -28,6 +28,9 @@ export const AUTH_ORIGINS = {
 
 // Shared by bearer resolution, protected-resource metadata and the auth service.
 export function mcpResource(siteUrl: string | undefined): string {
+  // Dev exposes PAT-only MCP without an OAuth service.
+  if (siteUrl === AUTH_ORIGINS.dev.siteUrl)
+    return new URL("/api/mcp", siteUrl).href;
   const env = Object.values(AUTH_ORIGINS).find(
     (value) => value.siteUrl === siteUrl,
   );

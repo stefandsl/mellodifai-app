@@ -333,6 +333,51 @@ it("fails closed without exposing configuration for an unknown origin", async ()
   }
 });
 
+it("PAT-only dev metadata has no invented OAuth authorization server", async () => {
+  vi.stubEnv("SITE_URL", "http://127.0.0.1:3001");
+  for (const response of [rootMetadata(), pathMetadata()]) {
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      resource: "http://127.0.0.1:3001/api/mcp",
+      scopes_supported: ["read", "create", "spend"],
+      bearer_methods_supported: ["header"],
+    });
+  }
+});
+
+it.each([undefined, "mdf_pat_revoked"])(
+  "missing or revoked dev PAT returns 401 with dev metadata: %s",
+  async (token) => {
+    vi.stubEnv("SITE_URL", "http://127.0.0.1:3001");
+    mocks.sql.mockRejectedValueOnce(new Error("authentication required"));
+    const response = await POST(request("tools/list", {}, token));
+    expect(response.status).toBe(401);
+    expect(response.headers.get("WWW-Authenticate")).toBe(
+      'Bearer resource_metadata="http://127.0.0.1:3001/.well-known/oauth-protected-resource/api/mcp"',
+    );
+    expect(await response.json()).toMatchObject({
+      error: { code: "unauthorized" },
+    });
+    expect(mocks.callOps).not.toHaveBeenCalled();
+  },
+);
+
+it("dev accepts database-validated PAT discovery", async () => {
+  vi.stubEnv("SITE_URL", "http://127.0.0.1:3001");
+  expect((await rpc("tools/list")).result.tools).toHaveLength(16);
+  expect(mocks.sql).toHaveBeenCalledWith(
+    "select ops.resolve_pat($1) as result",
+    [expect.objectContaining({ actor_kind: "pat" })],
+  );
+});
+
+it("dev remains PAT-only when an opaque bearer is supplied", async () => {
+  vi.stubEnv("SITE_URL", "http://127.0.0.1:3001");
+  const response = await POST(request("tools/list", {}, "opaque-access"));
+  expect(response.status).toBe(401);
+  expect(mocks.sql).not.toHaveBeenCalled();
+});
+
 it("registers the SongDetail resource and uses the token runner to read it", async () => {
   const { result: list } = await rpc("resources/templates/list");
   expect(list.resourceTemplates).toEqual([

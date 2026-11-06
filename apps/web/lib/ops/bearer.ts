@@ -3,7 +3,7 @@ import { HTTP_STATUS, type OpsResult } from "@mellodifai/shared";
 import { opsSql } from "@/lib/db/ops-client";
 import { rateLimit } from "@/lib/rate-limit";
 import { isRemote } from "@/lib/remote";
-import { mcpResource } from "../../../../ops/lib/auth-origins";
+import { AUTH_ORIGINS, mcpResource } from "../../../../ops/lib/auth-origins";
 import { runOp } from "./run";
 import type { OpDef, OpsCtx } from "./types";
 
@@ -26,6 +26,7 @@ export async function bearerCtx(
   };
   // PAT validity, scope and revocation are checked by every database operation.
   if (kind === "pat") return { ...ctx, token_hash: hash };
+  if (process.env.SITE_URL === AUTH_ORIGINS.dev.siteUrl) return null;
   try {
     const resource = mcpResource(process.env.SITE_URL);
     // This infrastructure function returns identity directly, not an OpsResult.
