@@ -301,6 +301,25 @@ describe("authorization service", () => {
     expect((await app.request(flow.path, {}, new CookieJar())).status).toBe(
       403,
     );
+    const resumeUrl = `${app.origin}${flow.path}/resume`;
+    const libraryCookies = (await app.jar.getCookies(resumeUrl)).filter(
+      (cookie) => cookie.key !== "mdf_flow",
+    );
+    expect(libraryCookies.some((cookie) => cookie.key === "_interaction")).toBe(
+      true,
+    );
+    await app.jar.setCookie("mdf_flow=; Path=/; Max-Age=0", app.origin);
+    expect(await app.jar.getCookies(resumeUrl)).toEqual(libraryCookies);
+    const readsBefore = app.db.calls.filter(
+      (call) => call.name === "oauth_find",
+    ).length;
+    expect((await app.request(`${flow.path}/resume`)).status).toBe(403);
+    expect(
+      app.db.calls.filter((call) => call.name === "oauth_find").length,
+    ).toBeGreaterThan(readsBefore);
+    expect(
+      app.db.calls.some((call) => call.name === "oauth_interaction_result"),
+    ).toBe(false);
   });
 
   it("uses the HTTPS Host cookie and rejects the older of two browser flows", async () => {

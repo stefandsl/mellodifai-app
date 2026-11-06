@@ -253,6 +253,12 @@ round trip and confirmation of the actual ChatGPT management-page callback
 remain for owner setup and Task 47. Docker's Linux engine is still unavailable;
 Task 42 database and browser gates fail at the e2e API connection on 45621.
 Lint, both typechecks and the unit suite pass (1,967 tests, one existing skip).
+Task 42 review R1 strengthens the missing-flow-cookie test while preserving
+the signed provider cookies. A normal Docker Desktop startup still crashes
+on the existing `AppData/Local/Docker/run/dockerInference` socket with
+"The file cannot be accessed by the system"; starting `com.docker.service`
+also fails. Owner recovery is required before the database/browser gates
+can pass. No existing socket or Docker volume was deleted.
 
 Task 41 adds stateless JSON MCP at `/api/mcp` using the spike-confirmed
 `@modelcontextprotocol/server` 2.4.0 transport. Its sixteen tools use
