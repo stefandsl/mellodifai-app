@@ -36,7 +36,7 @@ beforeEach(async () => {
     const [version] =
       await tx`insert into public.versions(owner_id,project_id,lang,status,test_run,lyric_pack,generation_count) values(${userId},${project.id},'it','lyrics_review',true,${tx.json(pack)},1) returning id`;
     const [take] =
-      await tx`insert into public.takes(owner_id,version_id,audio_preview_path,generation) values(${userId},${version.id},'fixture.mp3',1) returning id`;
+      await tx`insert into public.takes(owner_id,version_id,audio_preview_path,generation,take_number) values(${userId},${version.id},'fixture.mp3',1,1) returning id`;
     const [job] =
       await tx`insert into public.jobs(owner_id,version_id,stage,status,fake_providers,idempotency_key) values(${userId},${version.id},'timing','done',true,${randomUUID()}) returning id`;
     params = { version_id: version.id, job_id: job.id, take_id: take.id };
@@ -108,8 +108,13 @@ it.each(apiCases)(
 );
 
 it("cursor pagination defaults to 20, caps at 100 and traverses descending tuples", async () => {
-  await sql`insert into public.versions(owner_id,project_id,lang,status,test_run,updated_at)
-    select ${userId},project_id,'it','lyrics_review',true,'2026-11-01T00:00:00Z'::timestamptz from public.versions v cross join generate_series(1,21) where v.id=${params.version_id}`;
+  await sql`with projects as (
+      insert into public.projects(owner_id,topic)
+      select ${userId},'Task 40 pagination ' || n from generate_series(1,21) as n
+      returning id
+    )
+    insert into public.versions(owner_id,project_id,lang,status,test_run,updated_at)
+    select ${userId},id,'it','lyrics_review',true,'2026-11-01T00:00:00Z'::timestamptz from projects`;
   const first = await (await invoke(apiCases[0])).json();
   expect(first.data.songs).toHaveLength(20);
   const last = first.data.songs.at(-1);
