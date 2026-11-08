@@ -113,8 +113,8 @@ afterEach(() => {
 function loop(
   db: InMemoryDb,
   engine: RemakeEngine = fakeRemakeEngine(async () => {}),
+  root = scratch(),
 ) {
-  const root = scratch();
   return new WorkerLoop({
     db,
     workerId: "test",
@@ -189,6 +189,106 @@ describe("remake stages", () => {
     await worker.runOnce();
     expect(db.jobs[1]?.status).toBe("done");
     expect(db.remakes[0]?.cost.analysisUsd).toBe(0.009636);
+  });
+
+  it("records the spend of an analysis that fails after a paid call", async () => {
+    const engine = fakeRemakeEngine(async () => {});
+    const working = engine.analyse;
+    let failing = true;
+    engine.analyse = async (dir, options) => {
+      if (!failing) return working(dir, options);
+      options.client.ledger.add({
+        step: "vision",
+        model: "google/gemini-3.8-flash",
+        usd: 0.0042,
+        promptTokens: 1000,
+        completionTokens: 100,
+        estimated: false,
+      });
+      throw new Error("vision model returned no JSON");
+    };
+    const db = setup({ stage: "analyse" }, [job("remake_analyse")]);
+    const worker = loop(db, engine);
+    await worker.runOnce();
+    expect(db.jobs[0]?.status).toBe("failed");
+    expect(db.remakes[0]).toMatchObject({
+      stage: "failed",
+      error_code: "failed",
+    });
+    expect(db.remakes[0]?.cost).toEqual({ failedUsd: 0.0042 });
+
+    // The retry pays for its own analysis; the failed spend stays on the remake.
+    failing = false;
+    db.versions[0] = { ...version };
+    db.jobs.push(job("remake_analyse"));
+    await worker.runOnce();
+    expect(db.jobs[1]?.status).toBe("done");
+    expect(db.remakes[0]?.cost).toEqual({
+      failedUsd: 0.0042,
+      analysisUsd: 0.009636,
+    });
+  });
+
+  it("restores each remake's own analysis spend when two workers analyse one video at once", async () => {
+    // Two workers share the remakes folder; both start before either analysis is on file.
+    let release = () => {};
+    const bothStarted = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const engine = fakeRemakeEngine(async () => {});
+    const working = engine.analyse;
+    let calls = 0;
+    engine.analyse = async (dir, options) => {
+      const call = ++calls;
+      if (call === 2) release();
+      await bothStarted;
+      const analysis = await working(dir, options);
+      // The two runs cost different amounts, so each remake's own spend can be told apart.
+      const usd = call === 1 ? 0.009636 : 0.011;
+      return { ...analysis, cost: { ...analysis.cost, usd } };
+    };
+    const db = setup({ stage: "analyse" }, [job("remake_analyse")]);
+    db.versions.push({ ...version, id: "version-2" });
+    db.remakes.push(
+      remakeRow({ id: "remake-2", version_id: "version-2", stage: "analyse" }),
+    );
+    db.jobs.push({ ...job("remake_analyse"), version_id: "version-2" });
+    // The first remake's database update fails after its analysis was written.
+    const patch = db.patchRemake.bind(db);
+    let lost: number | undefined;
+    vi.spyOn(db, "patchRemake").mockImplementation((id, update, revision) => {
+      if (
+        lost === undefined &&
+        id === "remake-1" &&
+        update.stage === "rewrite"
+      ) {
+        lost = update.cost?.analysisUsd;
+        throw new Error("database unavailable");
+      }
+      return patch(id, update, revision);
+    });
+    const root = scratch();
+    const first = loop(db, engine, root);
+    const second = loop(db, engine, root);
+    await Promise.all([first.runOnce(), second.runOnce()]);
+    expect(calls).toBe(2);
+    expect(db.jobs.slice(0, 2).map((j) => j.status)).toEqual([
+      "failed",
+      "done",
+    ]);
+    db.jobs.splice(2); // the second remake's rewrite job is not under test
+    const paidBySecond = db.remakes[1]?.cost.analysisUsd;
+    expect(lost).toBeGreaterThan(0);
+    expect(paidBySecond).toBeGreaterThan(0);
+    expect(lost).not.toBe(paidBySecond);
+
+    db.versions[0] = { ...version };
+    db.jobs.push(job("remake_analyse"));
+    await first.runOnce();
+    expect(db.jobs[2]?.status).toBe("done");
+    expect(calls).toBe(2);
+    expect(db.remakes[0]?.cost.analysisUsd).toBe(lost);
+    expect(db.remakes[1]?.cost.analysisUsd).toBe(paidBySecond);
   });
   it("runs R1, R2 and R3 as chained jobs and stops at the review", async () => {
     const db = setup({}, [job("remake_ingest")]);
