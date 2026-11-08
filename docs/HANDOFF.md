@@ -4,7 +4,7 @@ Read this first if you are picking up the work without the previous Claude sessi
 the single source for where things stand, the rules, and how to continue. Keep it current:
 when you finish or change something listed here, edit this file and commit it.
 
-Last updated: 2026-11-06.
+Last updated: 2026-11-08.
 
 ## 1. What the product is
 
@@ -229,6 +229,20 @@ Per-language publishing hub (11 languages; planned in M4); milestones M2-M7 in t
 cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
+
+Production recovery on 2026-11-08 is blocked by Windows TCP exclusion
+`54231-54330`, which covers production API/DB ports 54321/54322. Containers are
+healthy internally, but Windows connections are refused and binds return EACCES.
+An administrator must repair that host reservation. No database reset or restore
+was attempted, and the deploy clone remains at `m1-floor` (no auth package).
+The limited per-user `MellodifAI production logon` task is installed using a pinned
+ops copy on E:; it retries normal startup and logs safe diagnostics. See
+`docs/production-logon.md` for its path, disable command, and remaining deploy and
+health checks. Evidence: `E:/mellodifai/codex-streams/prod-restore/report.md`.
+The isolated e2e stack received pending additive migrations with `--include-all`;
+its database gate now passes 296/296. Unit tests pass 2,042 with one skip. The
+browser gate has 21 passes and one OAuth registration failure (expected 403,
+received 500 at `apps/web/e2e/oauth.spec.ts:67`); it remains an integration concern.
 
 Task 46 adds the bundled `@mellodifai/cli`, its PAT-authenticated stdio MCP
 bridge and the M1 agent skill. All twelve token mutations receive idempotency

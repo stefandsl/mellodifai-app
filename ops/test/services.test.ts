@@ -616,7 +616,14 @@ it.skipIf(process.platform !== "win32")(
       );
       expect((await cli(["stop"])).code).toBe(0);
       expect((await cli(["start"])).code).toBe(0);
-      expect((await cli(["start"])).code).toBe(1);
+      const runningState = readFileSync(
+        join(root, "logs/worker.pid.json"),
+        "utf8",
+      );
+      expect((await cli(["start"])).code).toBe(0);
+      expect(readFileSync(join(root, "logs/worker.pid.json"), "utf8")).toBe(
+        runningState,
+      );
       expect((await cli(["stop"])).code).toBe(0);
       expect((await cli(["status"])).stdout.trim()).toBe("worker: stopped");
       writeFileSync(

@@ -15,6 +15,7 @@ import { composeEnvironment } from "./lib/compose.js";
 import { ENV_TABLE, runtimePath, stackDir } from "./lib/envs.js";
 import { realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
+import { serviceErrorMessage } from "./lib/service-error.js";
 import {
   aclCommands,
   authServiceCommand,
@@ -175,8 +176,7 @@ export async function managedService(
     if (existsSync(stateFile)) unlinkSync(stateFile);
     return;
   }
-  if (running)
-    throw new Error("Service already running; stop it before restarting");
+  if (running) return;
   const deploy = runtimePath(join(root, "deploy"));
   let cwd = deploy;
   let cmd = process.execPath;
@@ -411,11 +411,7 @@ if (
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   main(process.argv.slice(2)).catch((error: unknown) => {
-    // Commands never carry secret values (credentials stay in Export-Clixml files), so the cause is safe to show.
-    const cause = error instanceof Error ? error.message : String(error);
-    process.stderr.write(
-      `Service command failed: ${cause}\nCheck prerequisites, service logs and owner ACL permissions.\n`,
-    );
+    process.stderr.write(`${serviceErrorMessage(error)}\n`);
     process.exitCode = 1;
   });
 }

@@ -9,6 +9,10 @@ import { runtimePath } from "./envs.js";
 import type { Runner } from "./run.js";
 import { realRunner } from "./run.js";
 import { runtimeRoot } from "./runtime.js";
+import {
+  ServiceOperationError,
+  serviceFailureReason,
+} from "./service-error.js";
 
 export const SERVICE_ORDER = [
   "supabase",
@@ -347,7 +351,7 @@ export async function serviceCommand(
     { env: { MELLODIFAI_ROOT: runtimePath(root) } },
   );
   if (result.code !== 0)
-    throw new Error(`Service ${action} failed: ${service}`);
+    throw new ServiceOperationError(action, service, `exit ${result.code}`);
   return result.stdout.trim();
 }
 
@@ -379,11 +383,19 @@ export async function startAll(
     }
     await serviceCommand(runner, "start", service, opts.root);
     if (service === "supabase") {
-      await reapplyDbPasswords("prod", runner);
-      if (!(await probe("prod", runner)).ok)
-        throw new Error(
-          "Production database probe failed; tunnel start refused",
+      try {
+        await reapplyDbPasswords("prod", runner);
+        if (!(await probe("prod", runner)).ok)
+          throw new Error(
+            "Production database probe failed; tunnel start refused",
+          );
+      } catch (error) {
+        throw new ServiceOperationError(
+          "database provisioning/probe",
+          service,
+          `${serviceFailureReason(error)}; verify 127.0.0.1:54321/54322 and Windows excluded port ranges; tunnel start refused`,
         );
+      }
     }
   }
 }
