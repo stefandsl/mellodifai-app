@@ -29,6 +29,7 @@
 | `ops/lib/native/host-windows.ts`, `host-darwin.ts`, `host-linux.ts` | Thin startup hook installers and permission checks called by `ops/services.ts`. |
 | `ops/test/native/*.test.ts` | Artifact, process, gateway, migration and security unit tests. |
 | `supabase/tests/native-stack.test.ts`, `apps/web/e2e/native-runtime.spec.ts` | Full stack behavior and critical UI flow on the private native stack. |
+| `apps/worker/src/**` | Replace the existing fixed Windows engine, model, font and runtime paths before the platform exit gate. |
 
 `type StackRuntime = 'docker' | 'native'`. `stack.ts <render|start|stop|migrate|reset|env-file|status> --env <env> [--runtime <StackRuntime>]` uses the M1 environment table. `nativeInstall(manifest, platform, root): Promise<ArtifactPaths>` verifies and atomically installs binaries. `nativePlan(env): NativeService[]` is pure and testable; each service has `id`, `command`, `args`, `envFile`, `dependsOn`, `ready`, and `stopTimeoutMs`. `startNative(env)` returns only after all required health probes pass. `stopNative(env)` shuts down in reverse dependency order. `nativeGateway` accepts only `/auth/v1`, `/rest/v1`, `/storage/v1`, `/realtime/v1` and their documented health checks.
 
@@ -57,8 +58,8 @@
 **Files:** create `ops/native-gateway.ts`, `ops/lib/native/processes.ts`, `ops/test/native/gateway.test.ts`, `ops/test/native/processes.test.ts`; modify `ops/stack.ts`, M1 `ops/lib/envs.ts` and existing stack tests.
 
 - [ ] **Step 1:** Add `--runtime` dispatch without changing Docker defaults. Use M1 ports and URL names for the public API; allocate private loopback service ports from the native environment. Start Postgres, Auth, REST, Storage, Realtime, gateway in dependency order. Shut down in reverse order and reap child processes on failure, Ctrl+C or restart. Bound restart attempts and write logs under the runtime root.
-- [ ] **Step 2:** Gateway tests cover missing/invalid `apikey`, service-role and anon routing, Authorization preservation, forged identity headers, streamed uploads, signed URL query, Range download, unsupported routes, service failure and WebSocket upgrade. Compare responses with Docker on fake data. Do not log keys or tokens.
-- [ ] **Step 3:** Integration tests call Auth admin and OTP endpoints, REST RLS and RPC, Storage upload/download/delete/signed URL, and Realtime `postgres_changes`. Run `pnpm --filter @mellodifai/ops exec vitest run test/native/gateway.test.ts test/native/processes.test.ts`, then `pnpm test:db`.
+- [ ] **Step 2:** Gateway tests cover missing/invalid `apikey`, narrow public GET routes for `/auth/v1/verify` magic-link navigation and `/storage/v1/object/sign/...` signed playback, public CORS on signed images after a `/media` redirect, browser CORS preflight including `X-Supabase-Api-Version`, `Accept-Profile` and `X-Retry-Count`, service-role and anon routing, Authorization preservation, forged identity headers, streamed uploads, signed URL query, Range download, unsupported routes, service failure and WebSocket upgrade. Compare responses with Docker on fake data. Do not log keys or tokens.
+- [ ] **Step 3:** Integration tests call Auth admin and OTP endpoints, REST RLS and RPC, Storage upload/download/delete/signed URL, and Realtime `postgres_changes`. The isolated e2e Auth configuration permits repeated OTP emails to the fixed test account with a small positive SMTP frequency; keep production limits unchanged. Run `pnpm --filter @mellodifai/ops exec vitest run test/native/gateway.test.ts test/native/processes.test.ts`, then `pnpm test:db`.
 - [ ] **Step 4:** Commit `feat(ops): run native Supabase services behind gateway`.
 
 ## Task 4: Host startup, permissions and secret handling
@@ -76,7 +77,17 @@
 - [ ] **Step 1:** Native backup includes database roles, schema and data plus object bytes. Verify a restore into a fresh isolated root and compare row counts and object hashes. Preserve signed URL and key rotation behavior. Docker-to-native migration stops writers, verifies backup, imports, runs probes, and only then changes the target runtime. On any failure, restore backup before resuming the old runtime.
 - [ ] **Step 2:** Test interrupted copy, incompatible schema, wrong object hash, missing extension, and rollback. Run targeted restore tests and a full rehearsal using fake providers. Commit `feat(ops): migrate and restore native stacks`.
 
-## Task 6: App, e2e and platform exit
+## Task 6: Portable worker paths and external tools
+
+**Files:** modify `apps/worker/src/stages/utils.ts`, `workspace.ts`, `legacy-import.ts`, `engine.ts`, `main.ts`, `fake/index.ts`, `comfy/config.ts`, `stages/align-lyrics.ts`, `stages/lyric-jury.ts`, `stages/remake.ts`, `stages/stems.ts`, `stages/visualizer.ts`, `stages/thumbnail.py`, and the existing worker tests and fixtures that exercise them. Check any additional worker source path found by a fresh fixed-drive scan before closing the task.
+
+- [ ] **Step 1:** Resolve runtime files from `MELLODIFAI_ROOT` and the external engine from `MELLODIFAI_ENGINE_ROOT`. Keep one engine-root resolver shared by `ENGINE_ROOT`, workspace fonts, and legacy version imports. Require an explicit engine root for real engine stages on a new host; fake mode can use its isolated test root. Resolve legacy render output, ComfyUI, render temp, lyric state, and local model/venv paths through the existing config or explicit environment, with no fallback to an owner's drive. Preserve path validation, secret handling, and behavior for an explicitly configured existing Windows installation.
+- [ ] **Step 2:** Replace `Scripts/python` and Windows-only process assumptions with a configured executable or a PATH lookup that works on Windows and POSIX. Make thumbnail font discovery use configured font files or OS font directories; check Japanese, Chinese, Korean and Latin glyph selection on each host. Do not bundle fonts without their licence notices.
+- [ ] **Step 3:** Add focused worker tests for Windows and POSIX roots, missing required engine configuration, isolated fake mode, font lookup and process launch. Scan `apps/worker/src` for remaining fixed `C:`/`E:` paths and run `pnpm --filter @mellodifai/worker test` plus `pnpm typecheck`. Commit `fix(worker): resolve engine and runtime paths from config`.
+
+**Gate:** M8 leaves no hard-coded drive path in worker runtime code; `MELLODIFAI_ENGINE_ROOT` controls every engine call and no worker temp or cache lands on C:.
+
+## Task 7: App, e2e and platform exit
 
 **Files:** create `apps/web/e2e/native-runtime.spec.ts`; modify CI workflow, README and `docs/HANDOFF.md`; update existing fixtures only where the native URL changes them.
 
@@ -86,8 +97,8 @@
 
 ## Open findings to settle before release
 
-1. Storage v1.84.19 cannot install unmodified on Windows (`fs-xattr` excludes win32); the file backend uses POSIX xattrs for metadata. A durable Windows implementation and restart test are mandatory.
+1. Storage v1.84.19 cannot install unmodified on Windows (`fs-xattr` excludes win32); the file backend uses POSIX xattrs for metadata. The spike's NTFS alternate data stream adapter passed the app database suite, but a maintained implementation, rename/copy, restart and backup/restore tests are mandatory.
 2. Auth v2.197.0 compiles on Windows only after replacing its Unix-only socket option in the spike. The implementation needs a maintained source patch or upstream fix, with equivalent behavior verified on Unix.
-3. Realtime native Windows packaging, WebSocket upgrade and Postgres change delivery have not been tested. Its presence is required by the app.
+3. Realtime source compiled and ran on Windows; the temporary gateway passed the app's French song-to-video flow with Postgres change subscriptions. A pinned Windows BEAM release, reconnect behavior, `wal2json` packaging and production load tests remain. Its presence is required by the app.
 4. Supabase's native archives do not currently cover Windows or macOS x64 and do not prove a complete Dockerless stack. Do not infer compatibility from service smoke.
 5. The first app migration fails without Storage service schema. Test and pin the full bootstrap order before running app migrations.
