@@ -167,6 +167,16 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
   },
 };
 
+export function redirectUrls(env: StackEnv): string[] {
+  const urls = ENV_TABLE[env].redirectUrls;
+  if (env !== "e2e" || process.env.E2E_PORT === undefined) return urls;
+  const port = Number(process.env.E2E_PORT);
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error("Invalid E2E_PORT");
+  const callback = `http://127.0.0.1:${port}/**`;
+  return urls.includes(callback) ? urls : [...urls, callback];
+}
+
 /** Accepted image ruling. Compose consumers must pin all twelve images. */
 export const IMAGE_PINS = {
   postgres: "17.11.0.006",

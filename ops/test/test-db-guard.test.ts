@@ -43,6 +43,18 @@ describe("assertTestWebStack", () => {
 });
 
 describe("assertTestStack", () => {
+  it.each(["?port=44322", "?host=example.com", "#port=44322"])(
+    "refuses database URL suffix %s before connecting",
+    (suffix) => {
+      expect(() =>
+        assertTestStack({
+          ...e2e,
+          TEST_DB_URL: `${e2e.TEST_DB_URL}${suffix}`,
+        }),
+      ).toThrow("TEST_DB_URL");
+    },
+  );
+
   it("refuses 54321 and 54322 outside CI", () => {
     for (const name of ["TEST_DB_URL", "SUPABASE_URL"]) {
       for (const port of [54321, 54322]) {
@@ -114,6 +126,18 @@ it("refuses new production ports even in CI", () => {
       expect(() =>
         assertTestStack({ ...e2e, CI: "true", [name]: url.href }),
       ).toThrow();
+    }
+  }
+});
+
+it("refuses the development stack even in CI", () => {
+  for (const port of [55321, 55322]) {
+    for (const name of ["TEST_DB_URL", "SUPABASE_URL"]) {
+      const url = new URL(e2e[name as keyof typeof e2e]);
+      url.port = String(port);
+      expect(() =>
+        assertTestStack({ ...e2e, CI: "true", [name]: url.href }),
+      ).toThrow("non-test stack");
     }
   }
 });

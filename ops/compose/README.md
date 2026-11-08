@@ -43,8 +43,8 @@ Startup creates the empty postgres-owned `ops` namespace because Task 5 exposes
 it and PostgREST refuses its entire schema cache if it is absent. Task 14 still
 owns all ops functions, grants, tables and `stack_settings.fake_stack`.
 
-For the accepted port-conflict ruling, start e2e with `E2E_PORT=3219` to allow
-that local browser callback in addition to the canonical 3210/3212 URLs.
+Set `E2E_PORT` when a browser test uses another local port; the e2e stack adds
+that callback alongside the canonical 3210/3212 URLs.
 Production is never affected by this override.
 
 Load the generated private `test.env` and run role integration fixtures with

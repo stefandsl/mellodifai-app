@@ -9,7 +9,13 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
-import { ENV_TABLE, IMAGE_PINS, type StackEnv, stackDir } from "./envs.js";
+import {
+  ENV_TABLE,
+  IMAGE_PINS,
+  redirectUrls,
+  type StackEnv,
+  stackDir,
+} from "./envs.js";
 import { smtpEnvironment } from "./smtp.js";
 import type { StackSecrets } from "./stack-secrets.js";
 
@@ -327,14 +333,7 @@ export function composeEnvironment(
     API_EXTERNAL_URL: `http://127.0.0.1:${v.ports.api}`,
     SUPABASE_PUBLIC_URL: `http://127.0.0.1:${v.ports.api}`,
     SITE_URL: v.siteUrl,
-    // Accepted progress ruling: the owner's launcher retains 3210; isolated
-    // browser validation may use 3219. The canonical environment table stays fixed.
-    ADDITIONAL_REDIRECT_URLS: [
-      ...v.redirectUrls,
-      ...(env === "e2e" && process.env.E2E_PORT === "3219"
-        ? ["http://127.0.0.1:3219/**"]
-        : []),
-    ].join(","),
+    ADDITIONAL_REDIRECT_URLS: redirectUrls(env).join(","),
     DISABLE_SIGNUP: "true",
     ENABLE_EMAIL_SIGNUP: "true",
     ENABLE_ANONYMOUS_USERS: "false",

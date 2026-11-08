@@ -15,11 +15,12 @@ export function assertTestStack(env: Record<string, string | undefined>): void {
         : ["http:", "https:"];
     if (
       !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) ||
-      !protocols.includes(url.protocol)
+      !protocols.includes(url.protocol) ||
+      (name === "TEST_DB_URL" && (url.search !== "" || url.hash !== ""))
     )
       throw new Error(`${name} must be a loopback test-stack URL`);
-    if (["44321", "44322"].includes(url.port))
-      throw new Error(`${name} refuses the production port block`);
+    if (["44321", "44322", "55321", "55322"].includes(url.port))
+      throw new Error(`${name} refuses a non-test stack`);
     if (["54321", "54322"].includes(url.port) && env.CI !== "true")
       throw new Error(`${name} refuses the production port block outside CI`);
   }

@@ -9,7 +9,13 @@ import {
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify, type TomlTable } from "smol-toml";
-import { ENV_TABLE, IMAGE_PINS, runtimePath, type StackEnv } from "./envs.js";
+import {
+  ENV_TABLE,
+  IMAGE_PINS,
+  redirectUrls,
+  runtimePath,
+  type StackEnv,
+} from "./envs.js";
 import { PRODUCTION_SMTP } from "./smtp.js";
 
 function table(parent: TomlTable, key: string): TomlTable {
@@ -77,7 +83,7 @@ export function renderConfig(
 
   const auth = table(config, "auth");
   auth.site_url = values.siteUrl;
-  auth.additional_redirect_urls = [...values.redirectUrls];
+  auth.additional_redirect_urls = redirectUrls(env);
   auth.enable_signup = false;
   auth.signing_keys_path = values.signingKeysPath.replaceAll("\\", "/");
   if (values.jwtSecretFromEnv) auth.jwt_secret = "env(MDF_SUPABASE_JWT_SECRET)";

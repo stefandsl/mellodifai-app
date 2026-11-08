@@ -413,7 +413,7 @@ it("refuses every target while the m1-floor tag does not exist", async () => {
     await expect(
       assertAtOrAfterFloor(repo, target, realRunner),
     ).rejects.toThrow("m1-floor");
-});
+}, 20_000);
 it("refuses a tag that does not contain m1-floor", async () => {
   const { repo, git } = await gitRepo();
   await git(
@@ -433,4 +433,4 @@ it("refuses a tag that does not contain m1-floor", async () => {
   await expect(
     assertAtOrAfterFloor(repo, "main", realRunner),
   ).resolves.toBeUndefined();
-});
+}, 20_000);

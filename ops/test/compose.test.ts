@@ -9,7 +9,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { renderCompose } from "../lib/compose.js";
+import { composeEnvironment, renderCompose } from "../lib/compose.js";
 import { ENV_TABLE, runtimePath, stackDir } from "../lib/envs.js";
 import { renderConfig } from "../lib/render.js";
 import { loadStackSecrets } from "../lib/stack-secrets.js";
@@ -87,6 +87,21 @@ it("pins every enabled service and only publishes the environment's loopback por
   expect(JSON.stringify(output)).not.toContain("spikes");
 });
 
+it("allows the selected e2e browser callback in both stack configurations", async () => {
+  vi.stubEnv("E2E_PORT", "3238");
+  const toml = renderConfig(base, "e2e", stackDir("e2e"));
+  const callback = "http://127.0.0.1:3238/**";
+  expect(toml).toContain(callback);
+  const secrets = await loadStackSecrets("e2e", true);
+  expect(composeEnvironment("e2e", secrets).ADDITIONAL_REDIRECT_URLS).toContain(
+    callback,
+  );
+  vi.stubEnv("E2E_PORT", "0");
+  expect(() => renderConfig(base, "e2e", stackDir("e2e"))).toThrow(
+    "Invalid E2E_PORT",
+  );
+});
+
 it("production disables local tools and enforces session lifetimes", () => {
   const output = renderCompose(
     "prod",
@@ -142,11 +157,7 @@ it("serves configured email templates on an internal-only endpoint", () => {
   const path = join(stackDir("e2e"), "compose/templates/magic_link.html");
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, "<p>{{ .ConfirmationURL }}</p>");
-  const toml = renderConfig(
-    `${base}\n[auth.email.template.magic_link]\ncontent_path = "./supabase/templates/magic.html"\n`,
-    "e2e",
-    stackDir("e2e"),
-  );
+  const toml = renderConfig(base, "e2e", stackDir("e2e"));
   const output = renderCompose("e2e", toml);
   expect(output.services.templates?.ports).toBeUndefined();
   expect(output.services.templates?.entrypoint).toEqual([
