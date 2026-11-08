@@ -259,7 +259,7 @@ export function remakeStages(
     const report = reporter(context);
     const env = envOf(context);
     let analysis = await readAnalysis(dirOf(remake));
-    let spent = 0;
+    let spent = analysis?.cost.usd ?? 0;
     if (analysis) report("analyse: analysis already on file");
     else {
       await context.progress(3, "analyse.stems");
