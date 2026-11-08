@@ -80,6 +80,14 @@ Merged into `build/studio-ui` and pushed (all unit gates green after each merge)
   clean-room from a GPL app; never copy its code).
 - Plans: M2a, M2b, M3, M4 in `docs/superpowers/plans/2026-11-03-*.md`, each with an
   `*-open-review-findings.md` file to settle in the execution preflight.
+- OCR code review (2026-11-08): `feat/ocr-packages`, `feat/ocr-web`, `feat/ocr-ops-db` and
+  `feat/ocr-worker` merged, no migrations. The parked worker review's last findings were
+  fixed: an analysis that fails after paid calls now adds them to the remake's `failedUsd`,
+  and the shared analysis payer marker became one receipt per remake
+  (`<video>/analysis-paid/<remakeId>.json`), so concurrent remakes of one video keep their own
+  cost on retry. Kie media downloads accept only verified delivery hosts (`cdn1.suno.ai`,
+  `cdn2.suno.ai`, `tempfile.aiquickdraw.com`); add a host only after verifying it. Evidence:
+  `E:/mellodifai/codex-streams/ocr-merge/report.md`. Production was not redeployed.
 - Not merged on purpose: `feat/perf` (tiny gains, a behaviour change, an untested index).
 - Every studio-ui migration up to `20261103070002` (and rerender `20261103050001-3`) is applied
   to the live stack.
@@ -183,6 +191,14 @@ production and development port blocks. Database URL query parameters and
 fragments are refused so a client cannot override the guarded connection target.
 `supabase/tests/song-assets.test.ts` now accepts any local non-live stack through the same
 URL guard as Playwright.
+A fresh CLI stack lacks three things the Compose stacks have: run
+`create extension if not exists pg_net with schema extensions` as postgres (as
+`ops/compose/volumes/db/webhooks.sql` does, or `ops_acl.test.ts` fails), give `mdf_web` and
+`mdf_auth` login passwords and set `public.stack_settings.fake_stack = true`. Browser tests
+also need `<MELLODIFAI_ROOT>/secrets/auth/e2e/{auth.env,jwks.json}`. Check
+`netsh interface ipv4 show excludedportrange protocol=tcp` before choosing ports: Windows
+reserves moving blocks in the dynamic range (52569-52668 on 2026-11-08), so prefer ports
+below 49152.
 
 
 ## 5. Later work
