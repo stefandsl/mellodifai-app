@@ -168,6 +168,9 @@ file under the stack folder, then map its `API_URL`, `ANON_KEY`, `SERVICE_ROLE_K
 commit the status or test env files. `supabase start` prints development credentials, so
 discard its output instead of saving an unfiltered startup log. For suite evidence, record
 command exit codes and test summary lines without saving raw output.
+The e2e stack renderer adds any valid `E2E_PORT` to its local callback allowlist;
+the canonical 3210/3212 callbacks remain. The test guard refuses the known
+production and development port blocks.
 `supabase/tests/song-assets.test.ts` now accepts any local non-live stack through the same
 URL guard as Playwright.
 

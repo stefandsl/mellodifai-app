@@ -138,6 +138,7 @@ it("dev is mellodifai_dev on 55321-55327 with SITE_URL 127.0.0.1:3001", () => {
 it.each(["e2e", "ci"] as const)(
   "%s has its exact project, ports, redirects and issuer",
   (env) => {
+    vi.stubEnv("E2E_PORT", undefined);
     const t = rendered(env);
     expect(t.project_id).toBe(`mellodifai_${env}`);
     expect([
