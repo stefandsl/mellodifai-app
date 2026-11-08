@@ -115,22 +115,21 @@ beforeEach(() => {
 
 describe("RemakeCard", () => {
   it("checks the link before starting and starts with the language and country", async () => {
+    const user = userEvent.setup();
     card();
     const link = await screen.findByLabelText("Link YouTube");
-    await userEvent.type(link, "https://vimeo.com/123");
-    await userEvent.click(screen.getByRole("button", { name: "Analizza" }));
+    await user.click(link);
+    await user.paste("https://vimeo.com/123");
+    await user.click(screen.getByRole("button", { name: "Analizza" }));
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Non è un link a un video di YouTube.",
     );
     expect(mock.start).not.toHaveBeenCalled();
-    await userEvent.clear(link);
-    await userEvent.type(link, "https://youtu.be/49rDdMbXd_w");
-    await userEvent.selectOptions(
-      screen.getByLabelText("Lingua del testo"),
-      "en",
-    );
-    await userEvent.selectOptions(screen.getByLabelText("Paese"), "IE");
-    await userEvent.click(screen.getByRole("button", { name: "Analizza" }));
+    await user.clear(link);
+    await user.paste("https://youtu.be/49rDdMbXd_w");
+    await user.selectOptions(screen.getByLabelText("Lingua del testo"), "en");
+    await user.selectOptions(screen.getByLabelText("Paese"), "IE");
+    await user.click(screen.getByRole("button", { name: "Analizza" }));
     expect(mock.start).toHaveBeenCalledWith({
       url: "https://youtu.be/49rDdMbXd_w",
       lang: "en",
