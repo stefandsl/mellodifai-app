@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { ENV_TABLE, IMAGE_PINS, type StackEnv, stackDir } from "./envs.js";
+import { smtpEnvironment } from "./smtp.js";
 import type { StackSecrets } from "./stack-secrets.js";
 
 interface Service {
@@ -183,24 +184,7 @@ export function renderCompose(env: StackEnv, toml: string): Compose {
     email?.double_confirm_changes ?? true,
   );
   if (env === "prod" && email?.smtp?.enabled) {
-    const smtp = email.smtp;
-    for (const [field, name] of Object.entries({
-      host: "HOST",
-      port: "PORT",
-      user: "USER",
-      pass: "PASS",
-      admin_email: "ADMIN_EMAIL",
-      sender_name: "SENDER_NAME",
-    })) {
-      const value = smtp[field as keyof typeof smtp];
-      if (value === undefined) continue;
-      const reference = /^env\(([A-Z_][A-Z0-9_]*)\)$/.exec(String(value));
-      if (field === "pass" && !reference)
-        throw new Error("SMTP credentials must use an environment reference");
-      authEnvironment[`GOTRUE_SMTP_${name}`] = reference
-        ? "$" + `{${reference[1]}}`
-        : String(value);
-    }
+    Object.assign(authEnvironment, smtpEnvironment(email.smtp));
   }
   if (values.ports.inbucket !== null) {
     s.mailpit = {

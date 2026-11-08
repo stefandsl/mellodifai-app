@@ -57,6 +57,8 @@ $env:npm_config_store_dir = Join-Path $Root 'cache/pnpm'
 $env:TSX_DISABLE_CACHE = '1'
 New-Item -ItemType Directory -Force -Path $env:TEMP,(Join-Path $Root 'logs') | Out-Null
 $log = Join-Path $Root 'logs/logon.log'
+$smtpNotice = 'SMTP disabled: create secrets/smtp.env under MELLODIFAI_ROOT (default E:/mellodifai) with MDF_SMTP_PASS and owner-only ACL.'
+$smtpNoticeLogged = $false
 function Write-Log([string]$message) { Add-Content -LiteralPath $log -Value ((Get-Date).ToUniversalTime().ToString('o') + ' ' + $message) }
 $mutex = New-Object Threading.Mutex($false, 'Local\MellodifAI-production-logon')
 $locked = $false
@@ -78,6 +80,10 @@ try {
       $ErrorActionPreference = $previousPreference
       # Only our fixed diagnostic is retained; pnpm and child output is discarded.
       $diagnostic = @($output | ForEach-Object { [string]$_ } | Where-Object { $_ -match '^Service (command|database provisioning/probe|start) failed:' })
+      if (-not $smtpNoticeLogged -and @($output | ForEach-Object { [string]$_ }) -contains $smtpNotice) {
+        Write-Log $smtpNotice
+        $smtpNoticeLogged = $true
+      }
       $output = $null
       if ($startExit -eq 0) {
         try {

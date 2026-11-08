@@ -30,6 +30,7 @@ import {
   stopAll,
   waitForPortOwners,
 } from "./lib/services.js";
+import { loadSmtpEnvironment, refreshProductionSmtp } from "./lib/smtp.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
 import { workerEnvFile } from "./lib/worker-env.js";
 import { probe } from "./probe.js";
@@ -105,6 +106,10 @@ export async function managedService(
   if (service === "supabase") {
     const secrets = await loadStackSecrets("prod", true);
     const env = composeEnvironment("prod", secrets);
+    if (action === "start") {
+      Object.assign(env, await loadSmtpEnvironment("prod"));
+      refreshProductionSmtp();
+    }
     if (action === "status") {
       const result = await realRunner(
         "docker",

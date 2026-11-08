@@ -32,7 +32,8 @@ beforeEach(() => {
   mkdirSync(tmp, { recursive: true });
   root = mkdtempSync(join(tmp, "compose-test-"));
   vi.stubEnv("MELLODIFAI_ROOT", root);
-  for (const env of ["e2e", "prod"] as const) {
+  vi.stubEnv("RUNNER_TEMP", join(root, "runner"));
+  for (const env of ["dev", "e2e", "ci", "prod"] as const) {
     const path = join(stackDir(env), "compose/templates");
     mkdirSync(path, { recursive: true });
     cpSync(
@@ -99,6 +100,28 @@ it("production disables local tools and enforces session lifetimes", () => {
   expect(
     output.services.auth?.environment?.GOTRUE_SESSIONS_INACTIVITY_TIMEOUT,
   ).toBe("24h");
+});
+
+it("only production auth receives SMTP secret references; dev/e2e/ci retain Mailpit", () => {
+  for (const env of ["dev", "e2e", "ci", "prod"] as const) {
+    const output = renderCompose(env, renderConfig(base, env, stackDir(env)));
+    const auth = output.services.auth?.environment;
+    if (env === "prod") {
+      expect(auth?.GOTRUE_SMTP_PASS).toBe("$" + "{MDF_SMTP_PASS:-}");
+      expect(auth?.GOTRUE_SMTP_HOST).toBe(
+        "$" + "{MDF_SMTP_PASS:+smtp.resend.com}",
+      );
+      expect(auth?.GOTRUE_SMTP_PORT).toBe("465");
+      for (const [name, service] of Object.entries(output.services)) {
+        if (name !== "auth")
+          expect(JSON.stringify(service)).not.toContain("MDF_SMTP");
+      }
+    } else {
+      expect(JSON.stringify(output)).not.toContain("MDF_SMTP");
+      expect(output.services.mailpit).toBeDefined();
+      expect(auth?.GOTRUE_SMTP_HOST).toBe("$" + "{SMTP_HOST}");
+    }
+  }
 });
 
 it("bootstraps production signing material once outside stacks without activating production", async () => {

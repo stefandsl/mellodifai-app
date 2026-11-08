@@ -10,6 +10,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify, type TomlTable } from "smol-toml";
 import { ENV_TABLE, IMAGE_PINS, runtimePath, type StackEnv } from "./envs.js";
+import { PRODUCTION_SMTP } from "./smtp.js";
 
 function table(parent: TomlTable, key: string): TomlTable {
   const value = parent[key];
@@ -88,9 +89,9 @@ export function renderConfig(
       ? { inactivity_timeout: values.sessions.inactivityTimeout }
       : {}),
   };
-  // Never inherit an external SMTP sender into a fake/test environment. Owner
-  // SMTP provisioning is deliberately separate; this renderer invents no credentials.
+  // Never inherit an external sender into a fake/test environment.
   if (values.smtp === "catcher") delete table(auth, "email").smtp;
+  else table(auth, "email").smtp = { ...PRODUCTION_SMTP };
   table(table(table(auth, "email"), "template"), "magic_link").content_path =
     "./compose/templates/magic_link.html";
   return stringify(config);

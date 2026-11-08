@@ -13,6 +13,7 @@ import {
   ServiceOperationError,
   serviceFailureReason,
 } from "./service-error.js";
+import { SMTP_SETUP_NOTICE } from "./smtp.js";
 
 export const SERVICE_ORDER = [
   "supabase",
@@ -355,6 +356,12 @@ export async function serviceCommand(
   );
   if (result.code !== 0)
     throw new ServiceOperationError(action, service, `exit ${result.code}`);
+  if (
+    service === "supabase" &&
+    action === "start" &&
+    result.stderr.split(/\r?\n/).includes(SMTP_SETUP_NOTICE)
+  )
+    console.warn(SMTP_SETUP_NOTICE);
   return result.stdout.trim();
 }
 

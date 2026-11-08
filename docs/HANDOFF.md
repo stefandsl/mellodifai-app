@@ -118,6 +118,15 @@ The separate local engine repository needs environment-only credential commit
 
 ## 4. Next steps for Codex, in order
 
+Production SMTP workstream (2026-11-08): the renderer selects Resend on port 465
+with `env(MDF_SMTP_PASS)`, leaving dev/e2e/CI on Mailpit. Stack startup and logon
+recovery load the owner-only `E:/mellodifai/secrets/smtp.env` without logging or
+persisting its key. A missing key or unsafe ACL disables SMTP with a fixed notice
+while startup continues. The file was absent during implementation, so production
+deployment, replacing the pinned logon copy, and one real sign-in email remain
+pending. See `docs/production-logon.md` and
+`E:/mellodifai/codex-streams/smtp-resend/report.md` for setup and gate evidence.
+
 1. M1 Tasks 1-46 and the final release are complete. Do not rerun the completed
    cutover, rotations or final-review driver.
 2. Task 47 stays pending owner DNS/Cloudflare setup and external connector

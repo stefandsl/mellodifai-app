@@ -15,6 +15,7 @@ import {
 } from "./lib/roles.js";
 import { type Runner, realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
+import { loadSmtpEnvironment } from "./lib/smtp.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
 
 import { assertWindowsPorts } from "./lib/windows-ports.js";
@@ -169,6 +170,9 @@ function actions(env: StackEnv, runner: Runner): StackActions {
       PGPASSWORD: secrets.postgres,
       SUPABASE_DB_PASSWORD: secrets.postgres,
     };
+    const smtp = plan.some(([cmd]) => cmd === "docker")
+      ? await loadSmtpEnvironment(env)
+      : { MDF_SMTP_PASS: "" };
     for (const [cmd, ...args] of plan) {
       if (!cmd) throw new Error("Empty stack command");
       // CLI 3 ignores PGPASSWORD for explicit URL targets. Keep credentials out
@@ -185,6 +189,7 @@ function actions(env: StackEnv, runner: Runner): StackActions {
       const result = await runner(cmd, privateArgs, {
         env: {
           ...privateEnv,
+          ...(cmd === "docker" ? smtp : { MDF_SMTP_PASS: "" }),
           ...(args.includes("reset")
             ? {
                 SUPABASE_DB_PORT: "1",

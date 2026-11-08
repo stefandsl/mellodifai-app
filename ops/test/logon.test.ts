@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { realRunner } from "../lib/run.js";
+import { SMTP_SETUP_NOTICE } from "../lib/smtp.js";
 
 it.skipIf(process.platform !== "win32")(
   "logon waits for Docker and a fresh heartbeat, suppressing raw child output",
@@ -20,7 +21,7 @@ it.skipIf(process.platform !== "win32")(
       const fakePnpm = join(root, "pnpm.ps1");
       writeFileSync(
         fakePnpm,
-        "if ($args[-2] -ne 'run' -or $args[-1] -ne 'start:production') { exit 9 }; 'private child output'; $global:LASTEXITCODE=0\n",
+        `if ($args[-2] -ne 'run' -or $args[-1] -ne 'start:production') { exit 9 }; 'private child output'; '${SMTP_SETUP_NOTICE}'; $global:LASTEXITCODE=0\n`,
       );
       const script = fileURLToPath(new URL("../logon.ps1", import.meta.url));
       const result = await realRunner(
@@ -41,6 +42,7 @@ it.skipIf(process.platform !== "win32")(
         "Production ready: web/db/ops ok; worker heartbeat fresh",
       );
       expect(log).not.toContain("private");
+      expect(log.split(SMTP_SETUP_NOTICE)).toHaveLength(2);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

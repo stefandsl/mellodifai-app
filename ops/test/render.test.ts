@@ -86,7 +86,10 @@ function rendered(env: keyof typeof ENV_TABLE, input = base) {
       enable_signup: boolean;
       sessions: Record<string, string>;
       rate_limit: { email_sent: number };
-      email: { template?: { magic_link: { content_path: string } } };
+      email: {
+        smtp?: Record<string, unknown>;
+        template?: { magic_link: { content_path: string } };
+      };
     };
   };
 }
@@ -114,6 +117,23 @@ it("prod keeps project mellodifai on 44321/44322 and turns Studio, mail catcher 
   expect(ENV_TABLE.prod.issuer).toBe("https://app.mellodifai.com/oauth");
   expect(ENV_TABLE.prod.smtp).toBe("owner");
   expect(ENV_TABLE.prod.fakeStack).toBe(false);
+});
+
+it("renders Resend only in production and strips inherited SMTP from every test stack", () => {
+  expect(rendered("prod").auth.email.smtp).toEqual({
+    enabled: true,
+    host: "smtp.resend.com",
+    port: 465,
+    user: "resend",
+    pass: "env(MDF_SMTP_PASS)",
+    admin_email: "no-reply@mellodifai.com",
+    sender_name: "MellodifAI",
+  });
+  const input = `${base}\n[auth.email.smtp]\nenabled = true\nhost = "external.test"\npass = "env(MDF_SMTP_PASS)"\n`;
+  for (const env of ["dev", "e2e", "ci"] as const) {
+    expect(rendered(env, input).auth.email.smtp).toBeUndefined();
+    expect(rendered(env, input).local_smtp.enabled).toBe(true);
+  }
 });
 
 it("dev is mellodifai_dev on 55321-55327 with SITE_URL 127.0.0.1:3001", () => {
