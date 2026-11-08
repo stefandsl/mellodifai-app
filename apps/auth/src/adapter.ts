@@ -6,12 +6,14 @@ import redirects from "../redirect-allowlist.json" with { type: "json" };
 const functions = {
   oauth_find: "$1, $2",
   oauth_find_by_uid: "$1",
-  oauth_upsert: "$1, $2, $3::jsonb, $4, $5, $6::timestamptz",
+  // OpsCall carries serialized JSON strings. Infer text so postgres.js does not
+  // encode those strings a second time before PostgreSQL parses the JSON.
+  oauth_upsert: "$1, $2, $3::text::jsonb, $4, $5, $6::timestamptz",
   oauth_consume: "$1, $2",
   oauth_destroy: "$1, $2",
   oauth_revoke_by_grant: "$1",
   oauth_registration_claim:
-    "$1, $2, array(select jsonb_array_elements_text($3::jsonb))",
+    "$1, $2, array(select jsonb_array_elements_text($3::text::jsonb))",
   oauth_flow_nonce_set: "$1, $2",
   oauth_interaction_result: "$1, $2",
   oauth_bind_grant: "$1, $2",
