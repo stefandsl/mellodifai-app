@@ -19,7 +19,10 @@ export class LabseEmbedder {
   private child: ChildProcessWithoutNullStreams | null = null;
   private ready: Promise<void> | null = null;
   private buffer = "";
-  private waiting: ((line: string) => void)[] = [];
+  private waiting: {
+    resolve: (line: string) => void;
+    reject: (error: Error) => void;
+  }[] = [];
   private queue: Promise<unknown> = Promise.resolve();
   private cache = new Map<string, number[]>();
 
@@ -49,17 +52,27 @@ export class LabseEmbedder {
     });
     this.child = child;
     child.stdout.on("data", (d: Buffer) => {
+      if (this.child !== child) return;
       this.buffer += d.toString("utf8");
       let nl = this.buffer.indexOf("\n");
       while (nl >= 0) {
         const line = this.buffer.slice(0, nl);
         this.buffer = this.buffer.slice(nl + 1);
-        this.waiting.shift()?.(line);
+        this.waiting.shift()?.resolve(line);
         nl = this.buffer.indexOf("\n");
       }
     });
     this.ready = new Promise((resolve, reject) => {
       let err = "";
+      const fail = (error: Error) => {
+        if (this.child === child) {
+          this.child = null;
+          this.ready = null;
+          this.buffer = "";
+          for (const waiter of this.waiting.splice(0)) waiter.reject(error);
+        }
+        reject(error);
+      };
       const onData = (d: Buffer) => {
         err = (err + d.toString("utf8")).slice(-4000);
         if (/^ready$/mu.test(err)) {
@@ -68,11 +81,9 @@ export class LabseEmbedder {
         }
       };
       child.stderr.on("data", onData);
-      child.on("error", reject);
+      child.on("error", fail);
       child.on("exit", (code) =>
-        reject(
-          new Error(`LaBSE embedder exited (${code}): ${err.slice(-600)}`),
-        ),
+        fail(new Error(`LaBSE embedder exited (${code}): ${err.slice(-600)}`)),
       );
     });
     return this.ready;
@@ -83,10 +94,12 @@ export class LabseEmbedder {
     if (missing.length > 0) {
       const job = this.queue.then(async () => {
         await this.start();
-        const answer = new Promise<string>((resolve) =>
-          this.waiting.push(resolve),
+        const child = this.child;
+        if (!child) throw new Error("LaBSE embedder stopped");
+        const answer = new Promise<string>((resolve, reject) =>
+          this.waiting.push({ resolve, reject }),
         );
-        this.child?.stdin.write(`${JSON.stringify({ texts: missing })}\n`);
+        child.stdin.write(`${JSON.stringify({ texts: missing })}\n`);
         const reply = JSON.parse(await answer) as {
           vectors?: number[][];
           error?: string;
@@ -105,6 +118,8 @@ export class LabseEmbedder {
   };
 
   close(): void {
+    for (const waiter of this.waiting.splice(0))
+      waiter.reject(new Error("LaBSE embedder closed"));
     this.child?.stdin.end();
     this.child?.kill();
     this.child = null;

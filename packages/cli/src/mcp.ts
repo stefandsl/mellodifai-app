@@ -109,12 +109,9 @@ export async function bridge(
       output.write(`${JSON.stringify(reply)}\n`);
     } catch (error) {
       if (notification) continue;
-      const code =
-        mutation && readingReply
-          ? "ambiguous_spend"
-          : error instanceof ClientError
-            ? error.code
-            : "internal";
+      let code = error instanceof ClientError ? error.code : "internal";
+      if (mutation && readingReply) code = "ambiguous_spend";
+      else if (!mutation && code === "ambiguous_spend") code = "internal";
       output.write(
         `${JSON.stringify(rpcError(message.id, -32000, code, { code }))}\n`,
       );

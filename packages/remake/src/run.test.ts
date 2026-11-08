@@ -22,4 +22,14 @@ describe("run", () => {
       run(process.execPath, ["-e", "1"], { signal: controller.signal }),
     ).rejects.toThrow(/cancelled/u);
   });
+
+  it("bounds captured stdout while keeping its tail", async () => {
+    const result = await run(process.execPath, [
+      "-e",
+      "process.stdout.write('x'.repeat(250000) + 'END')",
+    ]);
+    expect(result.code).toBe(0);
+    expect(result.stdout.length).toBe(200_000);
+    expect(result.stdout.endsWith("END")).toBe(true);
+  });
 });

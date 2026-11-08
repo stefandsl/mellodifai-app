@@ -47,7 +47,7 @@ export const run: Run = (command, args, options = {}) =>
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d: Buffer) => {
-      stdout += d.toString("utf8");
+      stdout = (stdout + d.toString("utf8")).slice(-200_000);
     });
     child.stderr.on("data", (d: Buffer) => {
       stderr = (stderr + d.toString("utf8")).slice(-200_000);
