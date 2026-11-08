@@ -120,11 +120,19 @@ beforeAll(async () => {
   const api = new URL(process.env.SUPABASE_URL);
   if (
     database.hostname !== "127.0.0.1" ||
-    database.port !== "45622" ||
-    api.hostname !== "127.0.0.1" ||
-    api.port !== "45621"
+    api.hostname !== database.hostname ||
+    !["postgres:", "postgresql:"].includes(database.protocol) ||
+    api.protocol !== "http:" ||
+    !api.port ||
+    Number(database.port) !== Number(api.port) + 1 ||
+    ["44321", "44322", "54321", "54322"].includes(api.port) ||
+    ["44321", "44322", "54321", "54322"].includes(database.port) ||
+    database.search ||
+    database.hash ||
+    api.search ||
+    api.hash
   )
-    throw new Error("ledger test requires the loopback e2e stack");
+    throw new Error("ledger test requires a private loopback test stack");
   sql = postgres(databaseUrl, { max: 2 });
   const [setting] =
     await sql`select fake_stack from public.stack_settings where id=true`;

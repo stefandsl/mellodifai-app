@@ -1,4 +1,6 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { runtimeRoot } from "../lib/runtime.js";
 import {
   backupTag,
   planRestore,
@@ -56,10 +58,12 @@ describe("restore", () => {
   });
   it("accepts only the legacy backup in the runtime backup directory", () => {
     expect(
-      backupTag("E:/mellodifai/backups/2026-11-03-task-33-pre-cutover.sql"),
+      backupTag(
+        join(runtimeRoot(), "backups/2026-11-03-task-33-pre-cutover.sql"),
+      ),
     ).toBe("m1-floor");
     expect(() =>
-      backupTag("E:/mellodifai/tmp/2026-11-03-task-33-pre-cutover.sql"),
+      backupTag(join(runtimeRoot(), "tmp/2026-11-03-task-33-pre-cutover.sql")),
     ).toThrow();
   });
 });

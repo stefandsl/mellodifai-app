@@ -14,17 +14,34 @@ export function signInEnvironment(): RedirectEnv {
   );
   if (!values)
     throw new Error("SITE_URL must select a configured stack origin");
+  // Private stacks can reserve their own browser port. This override applies
+  // only to a test site backed by an explicit loopback, non-production API.
+  const port = Number(process.env.E2E_PORT);
+  let testRedirects: string[] = [];
+  try {
+    const api = new URL(process.env.SUPABASE_INTERNAL_URL ?? "");
+    if (
+      siteUrl === AUTH_ORIGINS.e2e.siteUrl &&
+      api.protocol === "http:" &&
+      api.hostname === "127.0.0.1" &&
+      api.port &&
+      !["44321", "44322", "54321", "54322"].includes(api.port) &&
+      !api.username &&
+      !api.password &&
+      !api.search &&
+      !api.hash &&
+      api.pathname === "/" &&
+      Number.isInteger(port) &&
+      port >= 1024 &&
+      port <= 65535
+    )
+      testRedirects = [`http://127.0.0.1:${port}/**`];
+  } catch {
+    // An unset or malformed API URL cannot authorize an additional origin.
+  }
   return {
     siteUrl,
-    redirectUrls: [
-      ...values.redirectUrls,
-      // The accepted progress ruling reserves 3210 for the owner's launcher.
-      ...(siteUrl === AUTH_ORIGINS.e2e.siteUrl &&
-      process.env.SUPABASE_INTERNAL_URL === "http://127.0.0.1:45621" &&
-      process.env.E2E_PORT === "3219"
-        ? ["http://127.0.0.1:3219/**"]
-        : []),
-    ],
+    redirectUrls: [...values.redirectUrls, ...testRedirects],
   };
 }
 

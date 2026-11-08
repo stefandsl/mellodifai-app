@@ -1,9 +1,44 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from "vitest";
 import { AUTH_ORIGINS } from "../../../ops/lib/auth-origins";
-import { emailRedirect, redirectUrl, safeNext } from "./redirect-url";
+import {
+  emailRedirect,
+  redirectUrl,
+  safeNext,
+  signInEnvironment,
+} from "./redirect-url";
 
 afterEach(() => vi.unstubAllEnvs());
+
+it("accepts the configured browser origin on a private test stack", () => {
+  vi.stubEnv("SITE_URL", AUTH_ORIGINS.e2e.siteUrl);
+  vi.stubEnv("SUPABASE_INTERNAL_URL", "http://127.0.0.1:46621");
+  vi.stubEnv("E2E_PORT", "3241");
+  expect(
+    emailRedirect(
+      "http://127.0.0.1:3241",
+      signInEnvironment(),
+      false,
+      "/create",
+    ),
+  ).toBe("http://127.0.0.1:3241/auth/confirm?next=%2Fcreate");
+});
+
+it.each([
+  [AUTH_ORIGINS.prod.siteUrl, "http://127.0.0.1:46621", "3241"],
+  [AUTH_ORIGINS.e2e.siteUrl, "http://127.0.0.1:44321", "3241"],
+  [AUTH_ORIGINS.e2e.siteUrl, "http://127.0.0.1:54321", "3241"],
+  [AUTH_ORIGINS.e2e.siteUrl, "http://remote.test:46621", "3241"],
+  [AUTH_ORIGINS.e2e.siteUrl, "http://127.0.0.1:46621", "3241/evil"],
+  [AUTH_ORIGINS.e2e.siteUrl, "http://127.0.0.1:46621", "65536"],
+])("does not expand origins for %s, %s, %s", (site, api, port) => {
+  vi.stubEnv("SITE_URL", site);
+  vi.stubEnv("SUPABASE_INTERNAL_URL", api);
+  vi.stubEnv("E2E_PORT", port);
+  expect(signInEnvironment().redirectUrls).not.toContain(
+    "http://127.0.0.1:3241/**",
+  );
+});
 
 it("a local origin outside additional_redirect_urls is refused (Major 18)", () => {
   for (const origin of [

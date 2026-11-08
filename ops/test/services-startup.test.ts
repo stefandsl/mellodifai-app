@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { beforeEach, expect, it, vi } from "vitest";
 import { realRunner } from "../lib/run.js";
 import { runtimeRoot } from "../lib/runtime.js";
@@ -11,6 +11,8 @@ vi.mock("node:fs", async (original) => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
+  // The filesystem is mocked: declared paths need not exist on the host.
+  realpathSync: (path: string) => resolve(path),
 }));
 vi.mock("../lib/run.js", () => ({ realRunner: vi.fn() }));
 
