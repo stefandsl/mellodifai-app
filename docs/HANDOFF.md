@@ -86,33 +86,43 @@ Merged into `build/studio-ui` and pushed (all unit gates green after each merge)
 
 M1 Tasks 1-46 are implemented. Task 47 (Cloudflare tunnel/DNS and the external
 connector round trip) remains an owner gate and is out of scope for this release.
-The final review and fix pass is being validated on an isolated stack before
-integration and deployment. Current production remains at
-`m1-prod-ports-20261108-r3` (`bbcfb00`) until that release succeeds.
+The final review and fix pass is complete. M1, `build/studio-ui` and `main`
+are integrated and pushed. Production runs reviewed tag
+`m1-final-20261108-r1` (code commit `2a64315`), deployed through the normal ops
+command on 2026-11-08. Health reports web/db/ops ok, schema `20261103080001`,
+an empty queue and a fresh worker heartbeat. The owner sign-in link opened
+create, library and local admin agent settings; reuse was rejected.
+Rollback remains `m1-prod-ports-20261108-r3` (`bbcfb00`). No rollback was needed.
 
 Final-review evidence: `E:/mellodifai/codex-streams/m1-final/review.md` and
 `report.md`. The private project is `mellodifai_m1_final`, API 46621, DB 46622,
-Next 3241, auth 3211 and edge 3212; runtime and source copy are under
+Next 3241, auth 3211 and edge 3212. The private stack is stopped with data preserved;
+runtime and source copy are under
 `E:/mellodifai/tmp/m1-final-*`. Launcher 3210 must never be stopped. Unit tests
 use real dispatch with fake test dependencies; only browser tests set
-WORKER_FAKE=1. Limit Vitest workers to four on this shared machine.
+WORKER_FAKE=1. Limit unit tests to four Vitest workers on this shared machine;
+database/integration gates require one worker because VITEST_MAX_WORKERS overrides
+no-file-parallelism.
 
 The final review fixed real OAuth adapter JSON serialization, consent/control
 labels, static chunk forwarding, ambiguous-spend operation flags, tunnel
-readiness and independent-stack test fixtures. The last migration remains
+readiness, remake progress announcements, the local development hydration channel,
+and independent-stack test fixtures. Final gates passed: lint, root typecheck,
+web tsc, 2,094 unit tests (one existing skip), 297 database tests, 23 browser journeys
+and the production build. Ledger integration passed 18/18, REST integration 19/19,
+and authenticated MCP Inspector passed discovery, a read-only call and revoked-token
+refusal. The last migration remains
 `20261103080001_ops_alignment_lockdown.sql`; a test enforces that ordering.
 The separate local engine repository needs environment-only credential commit
 `38556c8234519fd04ac3edc2a1351cb6cb034421` (18 tests independently passed).
 
 ## 4. Next steps for Codex, in order
 
-1. Complete the final merged-tree gates, integrate into studio-ui/main and deploy
-   a reviewed tag using `pnpm ops deploy.ts --to <tag>`. Record production health
-   and the owner sign-in result in the final report. If release verification
-   fails, restore `m1-prod-ports-20261108-r3` through the normal deployment command.
-2. Task 47 stays pending owner DNS/Cloudflare setup. Do not create or start a
-   tunnel as part of the final M1 release.
-3. Then M2a: read its plan and open-review-findings file before implementation.
+1. M1 Tasks 1-46 and the final release are complete. Do not rerun the completed
+   cutover, rotations or final-review driver.
+2. Task 47 stays pending owner DNS/Cloudflare setup and external connector
+   verification. No tunnel was created or started in the final release.
+3. Continue with M2a only after reading its plan and open-review-findings file.
 
 The M1 ledger is `.superpowers/sdd/2026-11-02-m1-agent-access/progress.md` in the
 M1 worktree. Its PARKED rows and R4 artifacts are historical findings, with final
@@ -120,6 +130,7 @@ dispositions in the review report. Do not rerun completed production cutovers or
 key rotations because an old task note below says they are pending.
 The task driver remains `scripts/codex-sdd/run.sh`; `PLAN=` selects a later plan.
 Owner actions are never faked. Migrations are additive and the lockdown stays last.
+
 ## 4b. Parallel workstreams runner
 
 `bash E:/mellodifai/codex-streams/stream4.sh <name> <e2e-port>` creates `E:/mellodifai/wt/<name>`
@@ -181,6 +192,7 @@ ACL repair described below remains an owner administration task if still needed.
 These records preserve implementation and recovery evidence from both branches.
 The current state in sections 3-6 supersedes their old pending-gate and deployment
 statements. Do not replay a historical destructive recovery procedure.
+
 Production port recovery (2026-11-08): production now uses API 44321 and DB
 44322, with shadow 44326, inspector 44328 and pooler 44329. The original
 54321/54322 bindings were blocked by Windows exclusion 54231-54330. Windows
