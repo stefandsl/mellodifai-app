@@ -101,11 +101,13 @@ export function useRemake() {
   const [loaded, setLoaded] = useState(false);
   const busy = remakeBusy(view);
   const tick = useRef(0);
+  const applied = useRef(0);
   const refresh = useCallback(async () => {
     const mine = ++tick.current;
     try {
       const result = await readRemake();
-      if (!result.ok || mine !== tick.current) return;
+      if (!result.ok || mine < applied.current) return;
+      applied.current = mine;
       const data = result.data;
       setView(toView(data as Row));
       setLoaded(true);
