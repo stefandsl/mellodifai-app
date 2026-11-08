@@ -395,6 +395,34 @@ describe("visualizer stage", () => {
     ).toBe(false);
   });
 
+  it("never reads another user's background or centre image", async () => {
+    const params = defaultVisualizerParams();
+    params.background = {
+      mode: "image",
+      seed: 0,
+      assetUrl: "/media/uploads/stranger/background.png",
+      dimming: 40,
+    };
+    params.centerImage = {
+      ...params.centerImage,
+      mode: "upload",
+      assetUrl: "/media/uploads/stranger/centre.png",
+    };
+    const { ctx, calls, storage } = await setup(params);
+    await stages.visualizer?.(ctx);
+    expect(
+      calls.find((call) => call.cmd === process.execPath)?.props,
+    ).toMatchObject({
+      background: { file: "cover.jpg", kind: "image" },
+      center: "cover.jpg",
+    });
+    expect(
+      storage.download.mock.calls.some((call) =>
+        String(call[0]).startsWith("stranger/"),
+      ),
+    ).toBe(false);
+  });
+
   it("drops the old default artist and website of a render saved before the logos", async () => {
     const { logos: _logos, ...old } = {
       ...defaultVisualizerParams(),

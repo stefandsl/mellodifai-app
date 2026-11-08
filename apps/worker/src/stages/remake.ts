@@ -5,8 +5,8 @@
 // Runtime files live in <MELLODIFAI_ROOT>/remakes/<videoId>/ (E:, never C:); the package
 // deletes the source media once the analysis passed.
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import {
   analyse,
   type Client,
@@ -158,6 +158,66 @@ async function readAnalysis(dir: string): Promise<RemakeAnalysis | null> {
   return parsed.success ? parsed.data : null;
 }
 
+// Each remake that pays for a video's shared analysis keeps its own receipt next to it, so a
+// retry after a failed database update restores only that remake's spend. Receipts are per
+// remake: two remakes of one video, even on two workers, never overwrite each other's.
+function receiptPath(dir: string, remakeId: string): string {
+  return join(dir, "analysis-paid", `${encodeURIComponent(remakeId)}.json`);
+}
+
+async function readReceipt(
+  dir: string,
+  remakeId: string,
+): Promise<number | null> {
+  try {
+    const { usd } = JSON.parse(
+      await readFile(receiptPath(dir, remakeId), "utf8"),
+    ) as { usd?: unknown };
+    return typeof usd === "number" && Number.isFinite(usd) && usd >= 0
+      ? usd
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeReceipt(dir: string, remakeId: string, usd: number) {
+  const path = receiptPath(dir, remakeId);
+  await mkdir(dirname(path), { recursive: true });
+  const temp = `${path}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(temp, JSON.stringify({ usd }));
+  await rename(temp, path);
+}
+
+// A failed run was still paid for: its calls go on the remake's ledger. Failing to record them
+// is logged and never replaces the error that failed the run.
+async function recordFailedSpend(
+  context: StageContext,
+  remake: Remake,
+  client: Client,
+) {
+  if (client.ledger.usd <= 0) return;
+  try {
+    const fresh = await context.db.getRemakeByVersion(context.version.id);
+    await context.db.patchRemake(remake.id, {
+      cost: {
+        ...(fresh?.cost ?? remake.cost),
+        failedUsd:
+          Math.round(((fresh?.cost.failedUsd ?? 0) + client.ledger.usd) * 1e6) /
+          1e6,
+      },
+    });
+    await context.log(`failed run cost: ${costLine(client.ledger.toJSON())}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await context
+      .log(
+        `failed run cost not recorded (${client.ledger.usd} USD): ${context.secrets.redact(message)}`,
+      )
+      .catch(() => {});
+  }
+}
+
 // Runs one stage; a failure is stored on the remake as a code and a short message, then
 // rethrown so the job fails (a review step keeps the remake in review, see keepsStatusOnFailure).
 function guarded(
@@ -258,20 +318,31 @@ export function remakeStages(
   const remakeAnalyse = guarded(async (context, remake) => {
     const report = reporter(context);
     const env = envOf(context);
-    let analysis = await readAnalysis(dirOf(remake));
-    let spent = 0;
-    if (analysis) report("analyse: analysis already on file");
-    else {
+    const dir = dirOf(remake);
+    let analysis = await readAnalysis(dir);
+    let spent = remake.cost.analysisUsd ?? 0;
+    if (analysis) {
+      // Only this remake's own receipt counts: reusing another remake's analysis costs nothing.
+      spent = (await readReceipt(dir, remake.id)) ?? spent;
+      report("analyse: analysis already on file");
+    } else {
       await context.progress(3, "analyse.stems");
+      await mkdir(dir, { recursive: true });
       const client = engine.client(env, context.signal, context);
-      analysis = await engine.analyse(dirOf(remake), {
-        env,
-        client,
-        models: modelsFromEnv(env.get),
-        signal: context.signal,
-        log: report,
-      });
+      try {
+        analysis = await engine.analyse(dir, {
+          env,
+          client,
+          models: modelsFromEnv(env.get),
+          signal: context.signal,
+          log: report,
+        });
+      } catch (error) {
+        await recordFailedSpend(context, remake, client);
+        throw error;
+      }
       spent = analysis.cost.usd;
+      await writeReceipt(dir, remake.id, spent);
       await context.log(`analysis cost: ${costLine(analysis.cost)}`);
     }
     if (analysis.lines.length === 0)
@@ -328,7 +399,11 @@ export function remakeStages(
       try {
         if (mode === "full") {
           await context.progress(5, "rewrite.write");
-          const lyrics = await engine.rewrite(analysis, options, deps);
+          const pricedAnalysis = {
+            ...analysis,
+            cost: { ...analysis.cost, usd: remake.cost.analysisUsd ?? 0 },
+          };
+          const lyrics = await engine.rewrite(pricedAnalysis, options, deps);
           await context.log(`lyrics cost: ${costLine(lyrics.cost)}`);
           await store(
             remake,
@@ -393,22 +468,7 @@ export function remakeStages(
         }
         throw new Error(`unknown remake_rewrite mode ${mode}`);
       } catch (error) {
-        // A failed run was still paid for: its calls go on the remake's ledger.
-        if (client.ledger.usd > 0) {
-          const fresh = await context.db.getRemakeByVersion(context.version.id);
-          await context.db.patchRemake(remake.id, {
-            cost: {
-              ...(fresh?.cost ?? remake.cost),
-              failedUsd:
-                Math.round(
-                  ((fresh?.cost.failedUsd ?? 0) + client.ledger.usd) * 1e6,
-                ) / 1e6,
-            },
-          });
-          await context.log(
-            `failed run cost: ${costLine(client.ledger.toJSON())}`,
-          );
-        }
+        await recordFailedSpend(context, remake, client);
         throw error;
       } finally {
         embedder.close();

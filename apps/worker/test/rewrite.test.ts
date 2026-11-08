@@ -396,10 +396,18 @@ describe("kie replace-section", () => {
       "/jobs/createTask": () => ({ code: 200, data: { taskId: "replace-1" } }),
       "/jobs/recordInfo": () =>
         done([
-          { id: "alt-a", audio_url: "https://cdn/a.mp3", duration: 281.2 },
-          { id: "alt-b", audio_url: "https://cdn/b.mp3", duration: 280.6 },
+          {
+            id: "alt-a",
+            audio_url: "https://cdn2.suno.ai/a.mp3",
+            duration: 281.2,
+          },
+          {
+            id: "alt-b",
+            audio_url: "https://cdn2.suno.ai/b.mp3",
+            duration: 280.6,
+          },
         ]),
-      "cdn/": () => new Response("mp3"),
+      "cdn2.suno.ai/": () => new Response("mp3"),
     });
     await rewrite(ctx);
     const create = requests.find((r) => r.url.includes("createTask"));
@@ -452,8 +460,14 @@ describe("kie replace-section", () => {
       }),
       "/jobs/createTask": () => ({ code: 200, data: { taskId: "replace-2" } }),
       "/jobs/recordInfo": () =>
-        done([{ id: "alt-a", audio_url: "https://cdn/a.mp3", duration: 12 }]),
-      "cdn/": () => new Response("mp3"),
+        done([
+          {
+            id: "alt-a",
+            audio_url: "https://cdn2.suno.ai/a.mp3",
+            duration: 12,
+          },
+        ]),
+      "cdn2.suno.ai/": () => new Response("mp3"),
     });
     await rewrite(ctx);
     const create = requests.find((r) => r.url.includes("createTask"));
@@ -534,8 +548,10 @@ describe("kie replace-section", () => {
     });
     const requests = stubKie({
       "/jobs/recordInfo": () =>
-        done([{ id: "x", audio_url: "https://cdn/x.mp3", duration: 281 }]),
-      "cdn/": () => new Response("mp3"),
+        done([
+          { id: "x", audio_url: "https://cdn2.suno.ai/x.mp3", duration: 281 },
+        ]),
+      "cdn2.suno.ai/": () => new Response("mp3"),
     });
     await rewrite(ctx);
     expect(requests.some((r) => r.url.includes("createTask"))).toBe(false);

@@ -310,6 +310,7 @@ export const visualizer: StageHandler = async (context) => {
       kind: "image" | "video";
       frames?: number;
     } | null = null;
+    const owner = context.job.owner_id;
     const bg = params.background;
     if (bg.mode === "random") {
       const file = await fetchStored(
@@ -321,7 +322,9 @@ export const visualizer: StageHandler = async (context) => {
       );
       if (file) background = { file: local(file) as string, kind: "image" };
     } else {
-      const path = uploadPathOf(bg.assetUrl);
+      const candidate = uploadPathOf(bg.assetUrl);
+      const path =
+        owner && candidate?.startsWith(`${owner}/`) ? candidate : null;
       const file = path
         ? await fetchStored(context, path, pub, "background", "uploads")
         : null;
@@ -340,7 +343,9 @@ export const visualizer: StageHandler = async (context) => {
     let center: string | null = null;
     if (params.centerImage.mode === "cover") center = coverName;
     else if (params.centerImage.mode === "upload") {
-      const path = uploadPathOf(params.centerImage.assetUrl);
+      const candidate = uploadPathOf(params.centerImage.assetUrl);
+      const path =
+        owner && candidate?.startsWith(`${owner}/`) ? candidate : null;
       // No upload yet: the cover, as in the preview.
       center =
         local(
@@ -366,7 +371,6 @@ export const visualizer: StageHandler = async (context) => {
     if (center) center = await readyImage(center);
     // The user's logos, fetched like the centre upload. A logo whose file is gone is left out,
     // not a failed render; only the user's own uploads are read.
-    const owner = render.owner_id ?? context.job.owner_id;
     const logos: (string | null)[] = [];
     for (const [i, logo] of params.logos.entries()) {
       const path = uploadPathOf(logo.assetUrl);

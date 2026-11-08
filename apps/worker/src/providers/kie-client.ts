@@ -28,6 +28,70 @@ export type KieTrack = {
   image?: string;
 };
 
+const DELIVERY_HOSTS = new Set([
+  "cdn1.suno.ai",
+  "cdn2.suno.ai",
+  "tempfile.aiquickdraw.com",
+]);
+
+// Kie returns media URLs in task records. Keep every hop on known delivery hosts.
+export async function readKieDelivery(
+  url: string,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal | undefined,
+  maxBytes: number,
+): Promise<Buffer> {
+  for (let redirects = 0; redirects <= 3; redirects++) {
+    const target = new URL(url);
+    if (
+      target.protocol !== "https:" ||
+      target.port ||
+      target.username ||
+      target.password ||
+      !DELIVERY_HOSTS.has(target.hostname)
+    )
+      throw new Error("kie delivery URL is not trusted");
+    const response = await fetchImpl(target, {
+      redirect: "manual",
+      ...(signal ? { signal } : {}),
+    });
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      if (!location || redirects === 3)
+        throw new Error("kie delivery redirect is invalid");
+      url = new URL(location, target).href;
+      await response.body?.cancel();
+      continue;
+    }
+    if (!response.ok) throw new Error(`kie delivery ${response.status}`);
+    const length = Number(response.headers.get("content-length"));
+    if (length > maxBytes) {
+      await response.body?.cancel();
+      throw new Error("kie delivery is too large");
+    }
+    if (!response.body) throw new Error("kie delivery has no body");
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBytes) throw new Error("kie delivery is too large");
+        chunks.push(value);
+      }
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
+    return Buffer.concat(chunks, size);
+  }
+  throw new Error("kie delivery redirect is invalid");
+}
+
 function safeJson(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -216,10 +280,9 @@ export class KieClient {
     return url;
   }
   async download(url: string, file: string, signal?: AbortSignal) {
-    const response = await this.fetchImpl(url, {
-      ...(signal ? { signal } : {}),
-    });
-    if (!response.ok) throw new Error(`kie audio download ${response.status}`);
-    await writeFile(file, Buffer.from(await response.arrayBuffer()));
+    await writeFile(
+      file,
+      await readKieDelivery(url, this.fetchImpl, signal, 128 * 1024 * 1024),
+    );
   }
 }
