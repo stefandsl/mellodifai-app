@@ -17,6 +17,7 @@ import {
 } from "@mellodifai/shared";
 import { assertKieAllowed } from "../kie/guard.js";
 import type { StageContext, StageHandler } from "../loop.js";
+import { readKieDelivery } from "../providers/kie-client.js";
 import {
   ensureReservation,
   extendStageReservation,
@@ -72,12 +73,13 @@ async function saveCover(
   generation: number,
   take: number,
 ): Promise<string | null> {
-  if (!url?.startsWith("https://")) return null;
+  if (!url) return null;
   try {
-    const response = await fetch(url, { signal: context.signal });
-    if (!response.ok) throw new Error(`cover download ${response.status}`);
     const file = join(context.ws.outDir, `cover-${generation}-${take}.jpg`);
-    await writeFile(file, Buffer.from(await response.arrayBuffer()));
+    await writeFile(
+      file,
+      await readKieDelivery(url, fetch, context.signal, 10 * 1024 * 1024),
+    );
     return await upload(context, file, "image/jpeg");
   } catch (error) {
     await context.log(
