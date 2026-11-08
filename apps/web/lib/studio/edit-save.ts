@@ -27,7 +27,9 @@ export async function saveEdit(
   onStep?.("saving");
   const result = await saveEditedTake({ versionId, path });
   if (!result.ok) {
-    await bucket.remove([path]);
+    // A lost reply may follow a committed save; deleting its file would break the chosen take.
+    if (result.code !== "internal" && result.code !== "ambiguous_spend")
+      await bucket.remove([path]);
     return { ok: false };
   }
   return { ok: true };

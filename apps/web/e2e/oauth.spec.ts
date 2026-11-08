@@ -78,11 +78,9 @@ test("OAuth pairs once, binds read-only consent to the browser, and revokes MCP 
       expect(typeof clientId).toBe("string");
       expect((await registerClient(request)).status()).toBe(403);
       const [claimed] =
-        await sql`select client_id, open_until from public.oauth_pairing where id`;
+        await sql`select client_id, open_until <= clock_timestamp() as closed from public.oauth_pairing where id`;
       expect(claimed.client_id === clientId).toBe(true);
-      expect(new Date(claimed.open_until).getTime()).toBeLessThanOrEqual(
-        Date.now(),
-      );
+      expect(claimed.closed).toBe(true);
     });
 
     const flow = authorization(clientId as string);
