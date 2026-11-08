@@ -127,6 +127,25 @@ describe("Suno share link", () => {
     expect(response.status).toBe(422);
     expect(calls).toHaveLength(1);
   });
+  it("returns an upstream error when the Suno page stream fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              pull(controller) {
+                controller.error(new Error("connection lost"));
+              },
+            }),
+          ),
+      ),
+    );
+    expect(
+      (await sunoLink(json({ url: "https://suno.com/s/AbCd1234" }))).status,
+    ).toBe(502);
+    expect(mock.uploads).toEqual([]);
+  });
   it("checks each page redirect before fetching it", async () => {
     for (const destination of [
       "http://127.0.0.1:45621/private",
@@ -226,6 +245,15 @@ describe("transcription", () => {
     expect(mock.check).toHaveBeenCalledWith("transcribe_check", [
       expect.objectContaining({ user_id: mock.user?.id }),
     ]);
+  });
+  it("returns an upstream error for malformed Whisper JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ segments: [null] }))),
+    );
+    const response = await transcribe(form());
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "failed" });
   });
   it("needs a signed-in studio user and a key", async () => {
     mock.groq = null;

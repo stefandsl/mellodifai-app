@@ -81,13 +81,26 @@ export async function POST(request: NextRequest) {
     console.error("Transcription failed:", response.status);
     return NextResponse.json({ error: "failed" }, { status: 502 });
   }
-  const result = (await response.json()) as {
-    segments?: { text?: string }[];
-    words?: { word?: string; start?: number; end?: number }[];
-  };
+  const result = (await response.json().catch(() => null)) as {
+    segments?: unknown;
+    words?: unknown;
+  } | null;
+  if (
+    !Array.isArray(result?.segments) ||
+    !result.segments.every(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        (item.text === undefined || typeof item.text === "string"),
+    )
+  )
+    return NextResponse.json({ error: "failed" }, { status: 502 });
+  const words = Array.isArray(result.words) ? result.words : [];
   return NextResponse.json({
-    lyrics: segmentsToLyrics(result.segments ?? []),
-    words: (result.words ?? []).flatMap((item) =>
+    lyrics: segmentsToLyrics(result.segments),
+    words: words.flatMap((item) =>
+      item &&
+      typeof item === "object" &&
       typeof item.word === "string" &&
       typeof item.start === "number" &&
       typeof item.end === "number"

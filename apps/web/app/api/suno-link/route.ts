@@ -47,15 +47,19 @@ async function readLimited(
   if (!reader) return null;
   const parts: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > limit) {
-      await reader.cancel();
-      return null;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        return null;
+      }
+      parts.push(value);
     }
-    parts.push(value);
+  } catch {
+    return null;
   }
   const out = new Uint8Array(total);
   let offset = 0;
