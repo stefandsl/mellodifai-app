@@ -103,6 +103,15 @@ describe("transports", () => {
       error: { data: { code: "unauthorized" } },
     });
   });
+  it("reports an interrupted read as internal, not ambiguous spend", async () => {
+    const { credentials } = await fake();
+    const server = servers[0];
+    server?.removeAllListeners("request");
+    server?.on("request", (req) => req.socket.destroy());
+    expect(
+      await rpc(credentials, { jsonrpc: "2.0", id: 6, method: "tools/list" }),
+    ).toMatchObject({ error: { data: { code: "internal" } } });
+  });
   it("spend commands always send an idempotency key", async () => {
     const { credentials, received } = await fake();
     for (const path of [
