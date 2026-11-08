@@ -926,8 +926,6 @@ describe("round 2 hardening", () => {
       const engine = original(...args);
       vi.spyOn(engine, "run").mockResolvedValue({
         code: 1,
-        stdout: "",
-        stderr: "",
       });
       return engine;
     });
