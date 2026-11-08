@@ -69,10 +69,16 @@ export function createEdgeProxy(opts: {
   const server = createServer((req, res) => {
     const target = req.url ?? "";
     const path = target.split("?", 1)[0] ?? "";
+    // Next's development chunks contain encoded brackets and @package names.
+    // Permit only that static filename punctuation; keep separators, dots and
+    // double-encoding subject to the same fail-closed path checks.
+    const checkedPath = path.startsWith("/_next/static/")
+      ? path.replace(/%(?:5b|5d|40)/gi, "_")
+      : path;
     // Reject ambiguous paths before either framework can decode or normalize them.
     if (
       !path.startsWith("/") ||
-      /[%\\]/.test(path) ||
+      /[%\\]/.test(checkedPath) ||
       path.includes("//") ||
       new URL(target, "http://edge").pathname !== path
     ) {

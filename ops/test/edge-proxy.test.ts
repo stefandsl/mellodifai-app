@@ -130,6 +130,32 @@ it("local mode does not set x-mdf-remote and forwards its actual http origin", a
   expect(headers["x-forwarded-proto"]).toBe("http");
 });
 
+it("allows Next's encoded static filenames without permitting path escapes", async () => {
+  const path = "/_next/static/chunks/%5Broot-of-the-server%5D__abc.css";
+  const result = await send(path);
+  expect(result.status).toBe(200);
+  expect(JSON.parse(result.body)).toMatchObject({ name: "next", url: path });
+  const font = "/_next/static/chunks/12nf_%40fontsource_oswald_abc.css";
+  const fontResult = await send(font);
+  expect(fontResult.status).toBe(200);
+  expect(JSON.parse(fontResult.body)).toMatchObject({
+    name: "next",
+    url: font,
+  });
+  for (const refused of [
+    "/consent%5Buid%5D",
+    "/consent%40user",
+    "/_next/static/%2e%2e/consent",
+    "/_next/static/%5Bchunk%5D%2f..%2fconsent",
+    "/_next/static/%255Bchunk%255D.css",
+    "/_next/static/%5Bchunk%5D%5c..%5cconsent",
+  ])
+    expect((await send(refused)).status, refused).toBe(404);
+  expect((await send(path, { "Next-Action": "action" }, "POST")).status).toBe(
+    403,
+  );
+});
+
 it("Next-Action on /api/v1 is refused", async () => {
   for (const path of [
     "/api/v1",
