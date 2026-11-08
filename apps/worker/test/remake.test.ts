@@ -138,7 +138,7 @@ function setup(remake: Partial<Remake>, jobs: ReturnType<typeof job>[]) {
 }
 
 describe("remake stages", () => {
-  it("keeps the analysis cost when a cached analysis is resumed", async () => {
+  it("keeps a remake's analysis cost without charging another remake for the cached file", async () => {
     const db = setup({ stage: "analyse" }, [job("remake_analyse")]);
     const worker = loop(db);
     await worker.runOnce();
@@ -147,6 +147,16 @@ describe("remake stages", () => {
     db.jobs.push(job("remake_analyse"));
     await worker.runOnce();
     expect(db.remakes[0]?.cost.analysisUsd).toBe(0.009636);
+    db.versions.push({ ...version, id: "version-2" });
+    db.remakes.push(
+      remakeRow({ id: "remake-2", version_id: "version-2", stage: "analyse" }),
+    );
+    db.jobs.splice(2);
+    db.jobs.push({ ...job("remake_analyse"), version_id: "version-2" });
+    await worker.runOnce();
+    expect(db.jobs[2]?.status).toBe("done");
+    expect(db.remakes[1]?.stage).toBe("rewrite");
+    expect(db.remakes[1]?.cost.analysisUsd).toBe(0);
   });
   it("runs R1, R2 and R3 as chained jobs and stops at the review", async () => {
     const db = setup({}, [job("remake_ingest")]);
