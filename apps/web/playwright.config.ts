@@ -47,21 +47,6 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: `pnpm --workspace-root ops e2e-server.ts ${port}`,
-      url: base,
-      timeout: 240_000,
-      reuseExistingServer: false,
-      env: {
-        ...serverEnv,
-        NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
-        SUPABASE_INTERNAL_URL: process.env.SUPABASE_INTERNAL_URL ?? supabaseUrl,
-        MDF_WEB_DATABASE_URL: process.env.MDF_WEB_DATABASE_URL ?? "",
-        // The canonical resource remains on 3212 even with the local 3219 override.
-        SITE_URL: AUTH_ORIGINS[stack].siteUrl,
-      },
-    },
-    {
       command: `pnpm --filter @mellodifai/auth exec node --env-file="${authSecrets}/auth.env" --import tsx src/main.ts`,
       url: "http://127.0.0.1:3211/oauth/.well-known/openid-configuration",
       timeout: 60_000,
@@ -81,6 +66,21 @@ export default defineConfig({
       timeout: 60_000,
       reuseExistingServer: false,
       env: serverEnv,
+    },
+    {
+      command: `pnpm --workspace-root ops e2e-server.ts ${port}`,
+      url: base,
+      timeout: 240_000,
+      reuseExistingServer: false,
+      env: {
+        ...serverEnv,
+        NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
+        SUPABASE_INTERNAL_URL: process.env.SUPABASE_INTERNAL_URL ?? supabaseUrl,
+        MDF_WEB_DATABASE_URL: process.env.MDF_WEB_DATABASE_URL ?? "",
+        // The canonical resource remains on 3212 even with the local 3219 override.
+        SITE_URL: AUTH_ORIGINS[stack].siteUrl,
+      },
     },
   ],
 });

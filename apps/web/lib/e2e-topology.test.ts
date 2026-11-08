@@ -34,7 +34,7 @@ it.each([false, true])(
     if (!Array.isArray(servers))
       throw new Error("Three webServer entries required");
     expect(servers.length).toBe(3);
-    const [next, auth, proxy] = servers;
+    const [auth, proxy, next] = servers;
     for (const server of servers)
       for (const name of ["TEMP", "TMP", "TMPDIR"])
         expect(server.env?.[name]).toBe(
