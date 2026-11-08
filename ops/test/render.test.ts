@@ -230,10 +230,7 @@ it("links sources and stages a template inside the stack root for CLI 3", () => 
   );
   prepareStackDir(dir, source);
   prepareStackDir(dir, source);
-  const t = rendered(
-    "e2e",
-    `${base}\n[auth.email.template.magic_link]\ncontent_path = "./supabase/templates/magic_link.html"\n`,
-  );
+  const t = rendered("e2e", base);
   expect(realpathSync(join(dir, "supabase/migrations"))).toBe(
     realpathSync(join(source, "supabase/migrations")),
   );

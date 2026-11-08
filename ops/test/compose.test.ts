@@ -134,11 +134,7 @@ it("serves configured email templates on an internal-only endpoint", () => {
   const path = join(stackDir("e2e"), "compose/templates/magic_link.html");
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, "<p>{{ .ConfirmationURL }}</p>");
-  const toml = renderConfig(
-    `${base}\n[auth.email.template.magic_link]\ncontent_path = "./supabase/templates/magic.html"\n`,
-    "e2e",
-    stackDir("e2e"),
-  );
+  const toml = renderConfig(base, "e2e", stackDir("e2e"));
   const output = renderCompose("e2e", toml);
   expect(output.services.templates?.ports).toBeUndefined();
   expect(output.services.templates?.entrypoint).toEqual([
