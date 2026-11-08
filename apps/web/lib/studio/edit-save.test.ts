@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ActionResult } from "@/lib/action-result";
 import { saveEdit } from "./edit-save";
 
 const mock = vi.hoisted(() => ({
-  saveEditedTake: vi.fn(async (_input: unknown) => ({ ok: true as boolean })),
+  saveEditedTake: vi.fn(
+    async (_input: unknown): Promise<ActionResult> => ({ ok: true }),
+  ),
 }));
 vi.mock("@/app/actions/audio-tools", () => ({
   saveEditedTake: mock.saveEditedTake,
@@ -57,12 +60,29 @@ describe("saveEdit", () => {
   });
 
   it("removes the upload again when the song refuses it", async () => {
-    mock.saveEditedTake.mockResolvedValueOnce({ ok: false });
+    mock.saveEditedTake.mockResolvedValueOnce({
+      ok: false,
+      code: "validation",
+      error: "invalid",
+    });
     const { supabase, upload, remove } = client();
     expect(await saveEdit(supabase as never, SONG, new Blob())).toEqual({
       ok: false,
     });
     expect(remove).toHaveBeenCalledWith([upload.mock.calls[0]?.[0]]);
+  });
+
+  it("keeps the upload when the save result is uncertain", async () => {
+    mock.saveEditedTake.mockResolvedValueOnce({
+      ok: false,
+      code: "internal",
+      error: "unknown",
+    });
+    const { supabase, remove } = client();
+    expect(await saveEdit(supabase as never, SONG, new Blob())).toEqual({
+      ok: false,
+    });
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("stops before recording when the upload fails or nobody is signed in", async () => {
