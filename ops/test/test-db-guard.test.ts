@@ -43,6 +43,18 @@ describe("assertTestWebStack", () => {
 });
 
 describe("assertTestStack", () => {
+  it.each(["?port=44322", "?host=example.com", "#port=44322"])(
+    "refuses database URL suffix %s before connecting",
+    (suffix) => {
+      expect(() =>
+        assertTestStack({
+          ...e2e,
+          TEST_DB_URL: `${e2e.TEST_DB_URL}${suffix}`,
+        }),
+      ).toThrow("TEST_DB_URL");
+    },
+  );
+
   it("refuses 54321 and 54322 outside CI", () => {
     for (const name of ["TEST_DB_URL", "SUPABASE_URL"]) {
       for (const port of [54321, 54322]) {
