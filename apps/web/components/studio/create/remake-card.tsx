@@ -241,7 +241,8 @@ function Progress({
     ? job?.queuePosition && job.queuePosition > 1
       ? stf(lang, "remake.queue", { n: String(job.queuePosition) })
       : st(lang, "remake.waiting")
-    : (stepText(lang, job?.message ?? null) ?? "");
+    : (stepText(lang, job?.message ?? null) ??
+      st(lang, `remake.stage.${view.stage}` as StudioKey));
   return (
     <div className="space-y-3">
       <SourceLine view={view} />

@@ -163,6 +163,28 @@ describe("RemakeCard", () => {
     expect(mock.cancel).toHaveBeenCalled();
   });
 
+  it.each([null, "unrecognized.step"])(
+    "announces the active stage before a known progress message arrives (%s)",
+    async (message) => {
+      mock.row = remake(
+        { stage: "analyse", analysis: null, lyrics: null },
+        {
+          id: "j1",
+          stage: "remake_analyse",
+          status: "running",
+          progress: 0,
+          message,
+        },
+      );
+      card();
+      expect(await screen.findByRole("progressbar")).toHaveAttribute(
+        "aria-valuetext",
+        "Analisi",
+      );
+      expect(screen.getByRole("status")).toHaveTextContent("Analisi");
+    },
+  );
+
   it("explains the privacy filter and links to the OpenRouter setting", async () => {
     mock.row = remake({
       stage: "failed",

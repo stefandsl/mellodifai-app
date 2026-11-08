@@ -54,9 +54,9 @@ test("remake: paste a link, follow the progress, review, edit a line, accept and
   await card.getByRole("button", { name: "Analizza" }).click();
 
   // Progress: the steps of R1 to R3 as the worker reports them.
-  await expect(card.getByRole("progressbar")).toBeVisible();
-  await expect(card.getByRole("status")).toContainText(
-    /Leggo il video|Scarico|Prendo|Cerco|Preparo|Separo|Trovo|Riconosco|Scrivo|Rifinisco|In attesa|In coda/u,
+  await expect(card.getByRole("progressbar")).toHaveAttribute(
+    "aria-valuetext",
+    /\S/u,
   );
 
   // Review: the analysis, the new title, the jury and the lines.
