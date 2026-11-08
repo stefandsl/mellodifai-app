@@ -195,7 +195,16 @@ export function deployCommands(
       return [
         {
           cmd: process.execPath,
-          args: [pnpm, "install", "--frozen-lockfile", "--ignore-scripts"],
+          args: [
+            pnpm,
+            "install",
+            "--frozen-lockfile",
+            "--ignore-scripts",
+            // pnpm hardlinks retain the owner-only cache ACL on Windows.
+            // Copies inherit the deploy clone's restricted service read grants.
+            "--package-import-method",
+            "copy",
+          ],
           cwd: repo,
         },
       ];

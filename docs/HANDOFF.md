@@ -239,7 +239,9 @@ ports remain unchanged; their historical dynamic ports cannot start on Windows.
 Database and browser test guards always reject the new production ports,
 including with CI overrides. Auth now has the build script required by deploy. Deployment builds ops too;
 production auth and edge launch compiled JavaScript because tsx fails in
-`os.userInfo()` under the restricted Windows service accounts.
+`os.userInfo()` under the restricted Windows service accounts. Deployment
+installs dependencies with `--package-import-method copy` so new package files
+inherit the clone read ACL instead of the owner-only pnpm cache ACL.
 Production deployment and health evidence is recorded in
 `E:/mellodifai/codex-streams/prod-ports/report.md`. Startup task instructions
 are in `docs/production-logon.md`. Existing production volumes must be reused.

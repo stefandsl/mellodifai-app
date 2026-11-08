@@ -40,3 +40,20 @@ it("builds the edge runtime before starting any application services", () => {
     "--build",
   ]);
 });
+
+it("copies deployment packages so cache ACLs cannot deny service accounts", () => {
+  const command = deployCommands(
+    { kind: "install", target: "m1-test", hasAuth: true },
+    "E:/mellodifai/deploy",
+    "unused",
+    "pnpm.cjs",
+  )[0];
+  expect(command?.args).toEqual([
+    "pnpm.cjs",
+    "install",
+    "--frozen-lockfile",
+    "--ignore-scripts",
+    "--package-import-method",
+    "copy",
+  ]);
+});
