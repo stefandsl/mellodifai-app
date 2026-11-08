@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   access,
   mkdir,
@@ -171,8 +172,12 @@ export const generateSong: StageHandler = async (context) => {
         file === "takes.json" ||
         /^(take-|aligned-take|submitting-)/u.test(file)
       ) {
-        if (!(await exists(join(archive, file))))
-          await rename(join(context.ws.outDir, file), join(archive, file));
+        if (await exists(join(archive, file)))
+          await rename(
+            join(context.ws.outDir, file),
+            join(archive, `${file}.${randomUUID()}`),
+          );
+        else await rename(join(context.ws.outDir, file), join(archive, file));
       }
     await context.db.patchVersion(context.version.id, {
       kie_task_id: null,

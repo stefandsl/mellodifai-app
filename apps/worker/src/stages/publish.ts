@@ -143,20 +143,12 @@ export const publish: StageHandler = async (context) => {
     },
     context.signal,
   );
-  const result = await runner.run(
+  await runner.run(
     "python",
     ["-I", "-X", "utf8", "publish/yt.py", "upload", file],
     { cwd: ENGINE_ROOT, allowNonZero: true },
   );
   const videoId = /video id\s+([\w-]+)/iu.exec(output)?.[1];
-  if (result.code !== 0 && !videoId) {
-    await context.db.releaseUpload(
-      reservation.publication.id,
-      workerId,
-      "YouTube upload failed before a video id was returned",
-    );
-    throw new Error("YouTube upload failed before a video id was returned");
-  }
   if (!videoId)
     throw new Error("YouTube upload outcome unknown; check YouTube Studio");
   await context.db.patchPublication(reservation.publication.id, {

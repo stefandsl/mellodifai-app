@@ -1,5 +1,12 @@
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runtimeRoot } from "@mellodifai/remake";
@@ -620,6 +627,35 @@ describe("round 2 hardening", () => {
     ).toBe("old take");
     expect(db.takes.filter((t) => t.generation === 2)).toHaveLength(2);
   });
+  it("does not resume an old task when its archive already exists", async () => {
+    const { ctx, calls } = await setup();
+    ctx.version.generation_count = 2;
+    await mkdir(join(ctx.ws.outDir, "gen-1"));
+    await writeFile(
+      join(ctx.ws.outDir, "gen-1", "task.json"),
+      JSON.stringify({ taskId: "archived-task" }),
+    );
+    await writeFile(
+      join(ctx.ws.outDir, "task.json"),
+      JSON.stringify({ taskId: "stale-task" }),
+    );
+    await stages.generate_song?.(ctx);
+    expect(calls.filter((call) => call.args[1] === "generate")).toHaveLength(1);
+    expect(
+      JSON.parse(
+        await readFile(join(ctx.ws.outDir, "gen-1", "task.json"), "utf8"),
+      ),
+    ).toMatchObject({ taskId: "archived-task" });
+    const recovered = (await readdir(join(ctx.ws.outDir, "gen-1"))).find(
+      (file) => file.startsWith("task.json."),
+    );
+    if (!recovered) throw new Error("archived task copy missing");
+    expect(
+      JSON.parse(
+        await readFile(join(ctx.ws.outDir, "gen-1", recovered), "utf8"),
+      ),
+    ).toMatchObject({ taskId: "stale-task" });
+  });
   it("refuses a local submitting marker even when the database state was lost", async () => {
     const { ctx, calls } = await setup();
     await writeFile(join(ctx.ws.outDir, "submitting-1.json"), "{}");
@@ -880,6 +916,24 @@ describe("round 2 hardening", () => {
       return e;
     });
     await expect(stages.publish?.(ctx)).rejects.toThrow("connection lost");
+    await expect(stages.publish?.(ctx)).rejects.toThrow("upload state unknown");
+  });
+  it("keeps an upload reserved when the command exits without a video id", async () => {
+    const { ctx, db } = await setup();
+    approvePublish(ctx, db);
+    const original = ctx.engine.withWorkspace.bind(ctx.engine);
+    vi.spyOn(ctx.engine, "withWorkspace").mockImplementation((...args) => {
+      const engine = original(...args);
+      vi.spyOn(engine, "run").mockResolvedValue({
+        code: 1,
+        stdout: "",
+        stderr: "",
+      });
+      return engine;
+    });
+    await expect(stages.publish?.(ctx)).rejects.toThrow("outcome unknown");
+    expect(db.publications[0]?.upload_state).toBe("uploading");
+    expect((await db.getWorker("worker"))?.youtube_uploads_today).toBe(1);
     await expect(stages.publish?.(ctx)).rejects.toThrow("upload state unknown");
   });
   it("rejects publishing paths outside workspace", async () => {
