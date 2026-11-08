@@ -50,6 +50,32 @@ describe("LabseEmbedder", () => {
     await expect(pending).rejects.toThrow(/LaBSE embedder stopped/u);
   });
 
+  it("ignores a late reply from an exited process after restart", async () => {
+    const embedder = new LabseEmbedder("python");
+    const first = embedder.embed(["first"]);
+    await vi.waitFor(() => expect(children).toHaveLength(1));
+    const old = children[0];
+    if (!old) throw new Error("Missing first test process");
+    old.stderr.write("ready\n");
+    await new Promise((resolve) => setImmediate(resolve));
+    old.emit("exit", 1);
+    await expect(first).rejects.toThrow(/LaBSE embedder exited/u);
+
+    const second = embedder.embed(["second"]);
+    await vi.waitFor(() => expect(children).toHaveLength(2));
+    const replacement = children[1];
+    if (!replacement) throw new Error("Missing replacement test process");
+    const request = vi.fn();
+    replacement.stdin.on("data", request);
+    replacement.stderr.write("ready\n");
+    await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+
+    old.stdout.write('{"vectors":[[1]]}\n');
+    replacement.stdout.write('{"vectors":[[2]]}\n');
+    await expect(second).resolves.toEqual([[2]]);
+    embedder.close();
+  });
+
   it("rejects an in-flight embedding when the embedder closes", async () => {
     const embedder = new LabseEmbedder("python");
     const pending = embedder.embed(["line"]);

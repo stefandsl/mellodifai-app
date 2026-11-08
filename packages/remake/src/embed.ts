@@ -52,6 +52,7 @@ export class LabseEmbedder {
     });
     this.child = child;
     child.stdout.on("data", (d: Buffer) => {
+      if (this.child !== child) return;
       this.buffer += d.toString("utf8");
       let nl = this.buffer.indexOf("\n");
       while (nl >= 0) {
