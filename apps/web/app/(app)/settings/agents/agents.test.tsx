@@ -187,6 +187,29 @@ it("Revoca asks for confirmation", async () => {
   expect(mock.refresh).toHaveBeenCalled();
 });
 
+it("explicitly names permission and remote access controls", async () => {
+  render(await AgentsPage());
+  const controls = [
+    screen.getByRole("switch", { name: "MCP remoto" }),
+    ...[
+      "Leggere",
+      "Creare",
+      "Spendere",
+      "Uso remoto",
+      "Test (provider simulati)",
+    ].map((name) => screen.getByRole("checkbox", { name })),
+  ];
+  for (const control of controls) {
+    const labelId = control.getAttribute("aria-labelledby");
+    expect(labelId).toBeTruthy();
+    const label = document.getElementById(
+      labelId as string,
+    ) as HTMLLabelElement;
+    expect(label.control).toHaveAttribute("type", "checkbox");
+    expect(control).toHaveAccessibleName(label.textContent ?? "");
+  }
+});
+
 it("the remote_mcp switch calls admin_flag_set", async () => {
   render(await AgentsPage());
   fireEvent.click(screen.getByRole("switch", { name: "MCP remoto" }));

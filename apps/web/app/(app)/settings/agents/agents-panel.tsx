@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +40,7 @@ export function AgentsPanel({
   now: number;
 }) {
   const router = useRouter();
+  const id = useId();
   const { pending, run } = useAction();
   const [token, setToken] = useState<string | null>(null);
   const [remote, setRemote] = useState(false);
@@ -76,8 +77,14 @@ export function AgentsPanel({
         className="space-y-4 rounded-2xl bg-[var(--surface-1)] p-6"
         aria-label="Accesso remoto"
       >
-        <Label className="flex items-center gap-3">
+        <Label
+          id={`${id}-mcp-label`}
+          htmlFor={`${id}-mcp`}
+          className="flex items-center gap-3"
+        >
           <Checkbox
+            id={`${id}-mcp`}
+            aria-labelledby={`${id}-mcp-label`}
             role="switch"
             checked={remoteMcp}
             disabled={pending}
@@ -160,8 +167,15 @@ export function AgentsPanel({
             ["create", "Creare"],
             ["spend", "Spendere"],
           ].map(([value, label]) => (
-            <Label className="flex items-center gap-2" key={value}>
+            <Label
+              id={`${id}-${value}-label`}
+              htmlFor={`${id}-${value}`}
+              className="flex items-center gap-2"
+              key={value}
+            >
               <Checkbox
+                id={`${id}-${value}`}
+                aria-labelledby={`${id}-${value}-label`}
                 name="scope"
                 value={value}
                 defaultChecked={value === "read"}
@@ -170,8 +184,17 @@ export function AgentsPanel({
             </Label>
           ))}
         </fieldset>
-        <Label className="flex items-center gap-2">
-          <Checkbox checked={remote} onCheckedChange={setRemote} />
+        <Label
+          id={`${id}-remote-label`}
+          htmlFor={`${id}-remote`}
+          className="flex items-center gap-2"
+        >
+          <Checkbox
+            id={`${id}-remote`}
+            aria-labelledby={`${id}-remote-label`}
+            checked={remote}
+            onCheckedChange={setRemote}
+          />
           Uso remoto
         </Label>
         {remote && (
@@ -185,8 +208,16 @@ export function AgentsPanel({
             />
           </Label>
         )}
-        <Label className="flex items-center gap-2">
-          <Checkbox name="test" />
+        <Label
+          id={`${id}-test-label`}
+          htmlFor={`${id}-test`}
+          className="flex items-center gap-2"
+        >
+          <Checkbox
+            id={`${id}-test`}
+            aria-labelledby={`${id}-test-label`}
+            name="test"
+          />
           Test (provider simulati)
         </Label>
         {error && <p role="alert">{error}</p>}

@@ -95,6 +95,26 @@ it("only read is ticked by default", async () => {
   ]);
 });
 
+it("explicitly associates every permission checkbox with its visible label", async () => {
+  render(await page());
+  for (const name of [
+    "Leggere",
+    "Creare",
+    "Spendere",
+    "Test (provider simulati)",
+  ]) {
+    const checkbox = screen.getByRole("checkbox", { name });
+    const labelId = checkbox.getAttribute("aria-labelledby");
+    expect(labelId).toBeTruthy();
+    const label = document.getElementById(labelId as string);
+    expect(label).toHaveTextContent(name);
+    expect((label as HTMLLabelElement).control).toHaveAttribute(
+      "type",
+      "checkbox",
+    );
+  }
+});
+
 it("spend needs the typed client name", async () => {
   for (const confirmation of [undefined, "wrong", "Agente musicale "])
     expect(

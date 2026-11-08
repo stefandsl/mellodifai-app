@@ -20,6 +20,7 @@ test.use({
   trace: "off",
   screenshot: "off",
   video: "off",
+  actionTimeout: 30_000,
 });
 
 test("OAuth pairs once, binds read-only consent to the browser, and revokes MCP access", async ({
@@ -99,6 +100,21 @@ test("OAuth pairs once, binds read-only consent to the browser, and revokes MCP 
     });
 
     await signIn(page);
+    await page.goto("/settings/agents");
+    await expect(
+      page.getByRole("switch", { name: "MCP remoto", exact: true }),
+    ).toBeVisible();
+    for (const name of [
+      "Leggere",
+      "Creare",
+      "Spendere",
+      "Uso remoto",
+      "Test (provider simulati)",
+    ]) {
+      await expect(
+        page.getByRole("checkbox", { name, exact: true }),
+      ).toBeVisible();
+    }
     await page.goto(flow.url.href);
     await expect(
       page.getByRole("heading", { name: "Collega un agente" }),

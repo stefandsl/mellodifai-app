@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ const permissions = {
 type Scope = keyof typeof permissions;
 
 export function ConsentForm({ uid, info }: { uid: string; info: ConsentInfo }) {
+  const id = useId();
   const [scopes, setScopes] = useState<Scope[]>(
     info.requested_scopes.includes("read") ? ["read"] : [],
   );
@@ -56,8 +57,15 @@ export function ConsentForm({ uid, info }: { uid: string; info: ConsentInfo }) {
       <fieldset disabled={pending} className="space-y-3">
         <legend className="mb-3 font-medium">Permessi da concedere</legend>
         {(Object.keys(permissions) as Scope[]).map((scope) => (
-          <Label key={scope} className="flex items-center gap-3">
+          <Label
+            key={scope}
+            id={`${id}-${scope}-label`}
+            htmlFor={`${id}-${scope}`}
+            className="flex items-center gap-3"
+          >
             <Checkbox
+              id={`${id}-${scope}`}
+              aria-labelledby={`${id}-${scope}-label`}
               name="scopes"
               value={scope}
               checked={scopes.includes(scope)}
@@ -91,8 +99,14 @@ export function ConsentForm({ uid, info }: { uid: string; info: ConsentInfo }) {
             />
           </div>
         )}
-        <Label className="flex items-center gap-3">
+        <Label
+          id={`${id}-test-label`}
+          htmlFor={`${id}-test`}
+          className="flex items-center gap-3"
+        >
           <Checkbox
+            id={`${id}-test`}
+            aria-labelledby={`${id}-test-label`}
             name="test-mode"
             checked={testMode}
             onCheckedChange={setTestMode}
