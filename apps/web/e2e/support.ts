@@ -9,8 +9,6 @@ import { localSupabaseUrl } from "./local-env";
 export const E2E_ADMIN_EMAIL =
   process.env.E2E_ADMIN_EMAIL ?? "e2e-admin@mellodifai.test";
 const workerId = process.env.E2E_WORKER_ID ?? "e2e-worker";
-// The e2e stack's Mailpit (supabase_inbucket_mellodifai_e2e); the live one is on 54324.
-const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:45624";
 const workerRoot = fileURLToPath(new URL("../../worker/", import.meta.url));
 const workerRequire = createRequire(
   new URL("../../worker/package.json", import.meta.url),

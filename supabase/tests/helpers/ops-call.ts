@@ -164,8 +164,12 @@ const wrappers: Record<string, [string, string[], string?]> = {
 export async function opsRpc(
   client: SupabaseClient,
   name: string,
-  params: Record<string, any>,
-): Promise<{ data: any; error: { code: string; message: string } | null }> {
+  params: Record<string, unknown>,
+): Promise<{
+  // biome-ignore lint/suspicious/noExplicitAny: the legacy assertions read arbitrary result fields
+  data: any;
+  error: { code: string; message: string } | null;
+}> {
   const {
     data: { session },
   } = await client.auth.getSession();
@@ -175,7 +179,7 @@ export async function opsRpc(
   );
   if (!claims.session_id) throw new Error("Session ID missing from test token");
   let entry = wrappers[name];
-  let input: Record<string, any> = params;
+  let input: Record<string, unknown> = params;
   if (name === "create_song") {
     entry = ["song_create", ["p_input"], "project_id"];
     input = {
@@ -207,7 +211,9 @@ export async function opsRpc(
       data: null,
       error: { code: result.code, message: result.message },
     };
-  const data = result.data as Record<string, any>;
+  const data = result.data as Record<string, unknown> & {
+    jobs?: { job_id?: unknown }[];
+  };
   return {
     data:
       entry[2] === "job_id"
