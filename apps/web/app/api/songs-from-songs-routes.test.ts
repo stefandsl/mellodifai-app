@@ -249,6 +249,15 @@ describe("transcription", () => {
   it("returns an upstream error for malformed Whisper JSON", async () => {
     vi.stubGlobal(
       "fetch",
+      vi.fn(async () => new Response("{invalid json")),
+    );
+    const response = await transcribe(form());
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "failed" });
+  });
+  it("returns an upstream error for malformed Whisper segments", async () => {
+    vi.stubGlobal(
+      "fetch",
       vi.fn(async () => new Response(JSON.stringify({ segments: [null] }))),
     );
     const response = await transcribe(form());

@@ -67,13 +67,20 @@ it("shows a completed remake poll while a newer poll is still pending", async ()
 
 it("clears old job events and ignores a late event after the job changes", async () => {
   const oldEvent = { id: 1, message: "old", progress: 90, at: "2026-11-01" };
+  const rendered: number[][] = [];
   const { result, rerender } = renderHook(
-    ({ jobId, initial }) => useJobEvents(jobId, true, initial),
+    ({ jobId, initial }) => {
+      const events = useJobEvents(jobId, true, initial);
+      rendered.push(events.map((event) => event.id));
+      return events;
+    },
     { initialProps: { jobId: "j1", initial: [oldEvent] } },
   );
   await waitFor(() => expect(mock.callbacks).toHaveLength(1));
   const oldCallback = mock.callbacks[0];
+  const beforeChange = rendered.length;
   rerender({ jobId: "j2", initial: [] });
+  expect(rendered.slice(beforeChange)).not.toContainEqual([oldEvent.id]);
   expect(result.current).toEqual([]);
   act(() => oldCallback?.({ new: { ...oldEvent, job_id: "j1" } }));
   expect(result.current).toEqual([]);

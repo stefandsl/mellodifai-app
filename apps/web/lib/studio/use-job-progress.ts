@@ -76,7 +76,7 @@ export function useJobEvents(
       void supabase.removeChannel(channel);
     };
   }, [jobId, active]);
-  return events;
+  return previousJobId.current === jobId ? events : initial;
 }
 
 // The newest progress value among `events` at or after `since` (an ISO time), else null.
