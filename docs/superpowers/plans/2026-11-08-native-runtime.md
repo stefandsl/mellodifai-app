@@ -10,7 +10,7 @@
 
 ## Global constraints
 
-- All development, spikes, stack data, caches, logs and test output stay on E:/G:. If C: drops below 20 GB free, stop. No secrets printed or committed. No paid provider calls; `WORKER_FAKE=1` in e2e.
+- On this Windows machine, keep spikes, stack data, caches, logs and test output on E:/G:; stop if C: drops below 20 GB free. On macOS and Linux, require a configured non-system `MELLODIFAI_ROOT` and keep those files under it. No secrets printed or committed. No paid provider calls; `WORKER_FAKE=1` in e2e.
 - Do not touch the live Supabase API 54321, shared e2e API 45621, live Next 3000, or owner launcher 3210. The M8 test stack needs its own API, DB and Next ports. Use `E2E_PORT=3234` only if it is free.
 - No app-code changes belong to this documentation stream. For implementation, every migration is additive with a database test and unique `20261103<NN>00XX_<name>.sql` name from the assigned migration prefix. Do not renumber an applied migration.
 - Keep M1's remote ACL, role password, ledger, token, default-password, backup and tunnel gates. A Docker-to-native switch is explicit and backup-first. Plain commits, no co-author lines or em dash characters.
@@ -21,7 +21,7 @@
 | File | Responsibility |
 | --- | --- |
 | `ops/stack.ts` | Existing CLI plus `--runtime native|docker`; dispatch, readiness and refusal rules. |
-| `ops/lib/native/artifacts.ts`, `manifest.json` | Download, SHA-256, platform and licence checks; atomic E:/G: cache. |
+| `ops/lib/native/artifacts.ts`, `manifest.json` | Download, SHA-256, platform and licence checks; atomic cache under `MELLODIFAI_ROOT`. |
 | `ops/lib/native/config.ts` | Convert M1 `ENV_TABLE` to loopback service ports, data paths and environment files. No secret values in generated public config. |
 | `ops/lib/native/postgres.ts`, `migrate.ts` | First boot, pinned Supabase roles/schema/extension bootstrap, service and app migrations, pending witness. |
 | `ops/lib/native/processes.ts` | Dependency ordering, readiness, shutdown, restart and status. |
@@ -67,7 +67,7 @@
 **Files:** create `ops/lib/native/host-windows.ts`, `host-darwin.ts`, `host-linux.ts`, their tests; modify `ops/services.ts` and its tests.
 
 - [ ] **Step 1:** Windows installer uses the existing M1 accounts, NTFS ACL and firewall checks, then installs owner-approved startup hooks. Use Scheduled Tasks or Windows services with hidden windows; prove port ownership and clean shutdown. macOS uses `launchd` agents; Linux uses `systemd --user` units. Wrappers invoke TypeScript stack commands and hold no copied passwords.
-- [ ] **Step 2:** Test permission refusal, non-system root validation, C: free-space stop, no key in process args/logs, restart after power loss, and tunnel refusal until health and M1 probes pass. Owner elevation remains a recorded owner action, never simulated as complete.
+- [ ] **Step 2:** Test permission refusal, non-system root validation, the Windows C: free-space stop, no key in process args/logs, restart after power loss, and tunnel refusal until health and M1 probes pass. Owner elevation remains a recorded owner action, never simulated as complete.
 - [ ] **Step 3:** Run `pnpm --filter @mellodifai/ops exec vitest run test/native/host-*.test.ts` plus an OS-specific install/start/stop smoke on an isolated root. Commit `feat(ops): supervise native stack on each host`.
 
 ## Task 5: Backup, Docker migration and rollback
@@ -85,7 +85,7 @@
 - [ ] **Step 2:** Replace `Scripts/python` and Windows-only process assumptions with a configured executable or a PATH lookup that works on Windows and POSIX. Make thumbnail font discovery use configured font files or OS font directories; check Japanese, Chinese, Korean and Latin glyph selection on each host. Do not bundle fonts without their licence notices.
 - [ ] **Step 3:** Add focused worker tests for Windows and POSIX roots, missing required engine configuration, isolated fake mode, font lookup and process launch. Scan `apps/worker/src` for remaining fixed `C:`/`E:` paths and run `pnpm --filter @mellodifai/worker test` plus `pnpm typecheck`. Commit `fix(worker): resolve engine and runtime paths from config`.
 
-**Gate:** M8 leaves no hard-coded drive path in worker runtime code; `MELLODIFAI_ENGINE_ROOT` controls every engine call and no worker temp or cache lands on C:.
+**Gate:** M8 leaves no hard-coded drive path in worker runtime code; `MELLODIFAI_ENGINE_ROOT` controls every engine call and no worker temp or cache lands on C: on this Windows machine.
 
 ## Task 7: App, e2e and platform exit
 
