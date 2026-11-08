@@ -63,6 +63,11 @@
   --surface-2: #252529;
   --surface-glass: rgb(255 255 255 / 0.04);
   --surface-glass-hover: rgb(255 255 255 / 0.1);
+  --glass-panel: rgb(16 16 18 / 0.84);
+  --glass-dialog: rgb(28 28 31 / 0.9);
+  --ambient-1: #422a3b;
+  --ambient-2: #23374b;
+  --ambient-3: #443248;
   --fg: #f7f4ef;
   --fg-muted: rgb(247 244 239 / 0.62);
   --fg-subtle: rgb(247 244 239 / 0.56);
@@ -130,6 +135,8 @@
   --surface-2: #ebe8e3;
   --surface-glass: rgb(16 16 18 / 0.035);
   --surface-glass-hover: rgb(16 16 18 / 0.07);
+  --glass-panel: rgb(246 244 241 / 0.88);
+  --glass-dialog: rgb(255 255 255 / 0.93);
   --fg: #141416;
   --fg-muted: rgb(20 20 22 / 0.66);
   --fg-subtle: rgb(20 20 22 / 0.64);
@@ -145,6 +152,122 @@
   --stem-bass: #6f45d8;
   --stem-other: #1478c2;
   --input: rgb(16 16 18 / 0.14);
+}
+
+.glass .studio-sidebar,
+.glass .studio-player {
+  background: var(--glass-panel);
+  backdrop-filter: blur(18px);
+}
+.glass:not(.light) {
+  --surface-glass: rgb(16 16 18 / 0.65);
+  --surface-glass-hover: rgb(16 16 18 / 0.76);
+}
+.glass.light {
+  --surface-glass: rgb(255 255 255 / 0.72);
+  --surface-glass-hover: rgb(255 255 255 / 0.84);
+}
+.glass .studio-date-heading {
+  background: var(--glass-panel);
+}
+.glass [data-slot="dialog-content"],
+.glass [data-slot="alert-dialog-content"],
+.glass [data-slot="now-playing"] {
+  background: var(--glass-dialog);
+  backdrop-filter: blur(18px);
+}
+.glass .cover-enter {
+  animation: ambient-cover-in 400ms ease-out both;
+}
+.ambient-enter {
+  animation: ambient-in 480ms ease-out both;
+}
+@keyframes ambient-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ambient-cover-in {
+  from {
+    opacity: 0.3;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.karaoke-theme-glass,
+.karaoke-theme-neon {
+  background: var(--bg);
+  isolation: isolate;
+}
+.karaoke-theme-glass::before,
+.karaoke-theme-neon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  will-change: opacity;
+  background:
+    radial-gradient(ellipse at 16% 20%, var(--ambient-1), transparent 56%),
+    radial-gradient(ellipse at 84% 15%, var(--ambient-2), transparent 57%),
+    radial-gradient(ellipse at 45% 90%, var(--ambient-3), transparent 62%);
+}
+.karaoke-theme-glass::before {
+  animation: karaoke-breathe 12s ease-in-out infinite alternate;
+}
+.karaoke-theme-glass header,
+.karaoke-theme-glass footer {
+  background: var(--glass-panel);
+}
+.karaoke-theme-neon::before {
+  filter: saturate(1.6);
+  animation: karaoke-breathe 9s ease-in-out infinite alternate;
+}
+.karaoke-theme-neon [aria-current="true"] {
+  text-shadow: 0 0 24px var(--ambient-2);
+}
+@keyframes karaoke-breathe {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-enter,
+  .glass .cover-enter,
+  .karaoke-theme-glass::before,
+  .karaoke-theme-neon::before {
+    animation: none;
+  }
+}
+[data-page-hidden="true"] .ambient-backdrop,
+[data-page-hidden="true"] .karaoke-theme-glass::before,
+[data-page-hidden="true"] .karaoke-theme-neon::before {
+  display: none;
+}
+[data-page-hidden="true"] .ambient-enter,
+[data-page-hidden="true"].glass .cover-enter,
+[data-page-hidden="true"] .karaoke-theme-glass::before,
+[data-page-hidden="true"] .karaoke-theme-neon::before {
+  animation: none;
+}
+[data-page-hidden="true"] .studio-sidebar,
+[data-page-hidden="true"] .studio-player,
+[data-page-hidden="true"] [data-slot="dialog-content"],
+[data-page-hidden="true"] [data-slot="alert-dialog-content"],
+[data-page-hidden="true"] [data-slot="now-playing"],
+[data-page-hidden="true"] .karaoke-theme-glass header,
+[data-page-hidden="true"] .karaoke-theme-glass footer {
+  backdrop-filter: none;
 }
 
 @layer base {

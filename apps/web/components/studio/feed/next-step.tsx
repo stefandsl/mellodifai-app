@@ -300,6 +300,7 @@ function TakesDialog({
                       videoUrl: null,
                       href: clip.href,
                       art: clip.art,
+                      coverUrl: clip.coverUrl,
                       reaction: null,
                       detail: detailFor(clip, take.number),
                     });

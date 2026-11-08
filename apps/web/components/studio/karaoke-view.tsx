@@ -15,6 +15,7 @@ import {
 } from "@/lib/studio/karaoke";
 import { createClient } from "@/lib/supabase/browser";
 import { formatTime, type TrackDetail, usePlayer } from "@/store/player";
+import { useGlass } from "./ambient-backdrop";
 
 export function KaraokeView() {
   const track = usePlayer((state) => state.queue[state.index]);
@@ -38,6 +39,7 @@ function KaraokeSession({
   take: TrackDetail["takes"][number] | undefined;
 }) {
   const lang = useLocale();
+  const { enabled: glassEnabled } = useGlass();
   const p = usePlayer();
   const track = p.queue[p.index];
   const detail = track?.detail;
@@ -53,6 +55,8 @@ function KaraokeSession({
   const [job, setJob] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [theme, setTheme] = useState<"classic" | "glass" | "neon">("classic");
+  const visibleTheme = glassEnabled ? theme : "classic";
 
   useEffect(() => {
     if (!p.showLyrics || active < 0) return;
@@ -164,9 +168,9 @@ function KaraokeSession({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Popup
           data-slot="karaoke-view"
-          className="fixed inset-0 z-50 flex flex-col bg-[var(--bg)] text-[var(--fg)] outline-none"
+          className={`fixed inset-0 z-50 flex flex-col bg-[var(--bg)] text-[var(--fg)] outline-none karaoke-theme-${visibleTheme}`}
         >
-          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--hairline)] px-5 py-3 sm:px-10">
+          <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--hairline)] px-5 py-3 sm:px-10">
             <div className="min-w-0">
               <DialogPrimitive.Title className="flex items-center gap-2 text-lg font-semibold">
                 <MicVocal className="size-5 text-[var(--brand)]" />
@@ -176,6 +180,24 @@ function KaraokeSession({
                 {track?.title} · {track?.subtitle}
               </p>
             </div>
+            {glassEnabled && (
+              <fieldset
+                aria-label={st(lang, "karaoke.theme")}
+                className="flex items-center gap-1 rounded-full bg-[var(--surface-2)] p-1"
+              >
+                {(["classic", "glass", "neon"] as const).map((choice) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    aria-pressed={visibleTheme === choice}
+                    onClick={() => setTheme(choice)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium focus-visible:ring-2 focus-visible:ring-[var(--brand)] ${visibleTheme === choice ? "bg-[var(--fg)] text-[var(--bg)]" : "text-[var(--fg-muted)] hover:text-[var(--fg)]"}`}
+                  >
+                    {st(lang, `karaoke.${choice}`)}
+                  </button>
+                ))}
+              </fieldset>
+            )}
             <DialogPrimitive.Close
               aria-label={st(lang, "karaoke.close")}
               className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"

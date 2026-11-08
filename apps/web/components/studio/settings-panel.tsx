@@ -7,6 +7,7 @@ import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
 import { st } from "@/lib/studio/i18n";
 import { createClient } from "@/lib/supabase/browser";
+import { useGlass } from "./ambient-backdrop";
 import { Segmented } from "./ui";
 
 function Row({
@@ -34,6 +35,7 @@ export function SettingsPanel({
   const lang = useLocale();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { enabled, setGlass } = useGlass();
   return (
     <section className="rounded-2xl bg-[var(--surface-1)] px-6 py-2">
       {canManageAgents && (
@@ -70,6 +72,17 @@ export function SettingsPanel({
           options={[
             { value: "dark", label: st(lang, "theme.dark") },
             { value: "light", label: st(lang, "theme.light") },
+          ]}
+        />
+      </Row>
+      <Row label={st(lang, "settings.appearance")}>
+        <Segmented
+          label={st(lang, "settings.appearance")}
+          value={enabled ? "glass" : "classic"}
+          onChange={(next) => setGlass(next === "glass")}
+          options={[
+            { value: "classic", label: st(lang, "appearance.classic") },
+            { value: "glass", label: st(lang, "appearance.glass") },
           ]}
         />
       </Row>

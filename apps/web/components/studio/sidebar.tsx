@@ -201,7 +201,7 @@ export function StudioSidebar({ email }: { email: string }) {
     <aside
       data-collapsed={collapsed}
       className={cn(
-        "group/sidebar hidden h-full shrink-0 flex-col overflow-x-hidden overflow-y-auto scrollbar-thin border-r border-[var(--hairline)] bg-[var(--bg)] px-3 pt-4 pb-3 min-[900px]:flex",
+        "studio-sidebar group/sidebar hidden h-full shrink-0 flex-col overflow-x-hidden overflow-y-auto scrollbar-thin border-r border-[var(--hairline)] bg-[var(--bg)] px-3 pt-4 pb-3 min-[900px]:flex",
         "w-[72px] xl:w-[var(--sidebar-w)]",
         collapsed && "xl:w-[72px]",
       )}
