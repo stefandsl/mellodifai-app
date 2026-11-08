@@ -75,32 +75,26 @@ it("keeps local render artifacts separate across attempts", async () => {
   await mkdir(scratch, { recursive: true });
   const root = await mkdtemp(join(scratch, "song-assets-"));
   roots.push(root);
-  const previous = process.env.WORKER_FAKE;
-  process.env.WORKER_FAKE = "1";
-  try {
-    const factory = new WorkspaceFactory(root);
-    const first = await factory.forVersion("project", "it", false, 1);
-    const second = await factory.forVersion("project", "it", false, 2);
-    expect(first.renderDir).not.toBe(second.renderDir);
-    expect(first.versionsDir).toBe(second.versionsDir);
-  } finally {
-    if (previous === undefined) delete process.env.WORKER_FAKE;
-    else process.env.WORKER_FAKE = previous;
-  }
+  const factory = new WorkspaceFactory(root);
+  const first = await factory.forVersion("project", "it", true, 1);
+  const second = await factory.forVersion("project", "it", true, 2);
+  expect(first.renderDir).not.toBe(second.renderDir);
+  expect(first.versionsDir).toBe(second.versionsDir);
 });
 
-it("keeps thumbnail text readable, contrasted and inside the 90 percent safe box at 320 px", () => {
-  const script = fileURLToPath(
-    new URL("../src/stages/thumbnail.py", import.meta.url),
-  );
-  for (const title of [
-    "Luce sul porto",
-    "Pioggia di novembre",
-    "A very long song title about the dawn after the last autumn storm",
-    "Tokyo 東京 😀",
-    "Voice 👩‍🎤",
-    "--Night",
-  ]) {
+it.each([
+  "Luce sul porto",
+  "Pioggia di novembre",
+  "A very long song title about the dawn after the last autumn storm",
+  "Tokyo 東京 😀",
+  "Voice 👩‍🎤",
+  "--Night",
+])(
+  "keeps thumbnail %s readable, contrasted and inside the 90 percent safe box at 320 px",
+  (title) => {
+    const script = fileURLToPath(
+      new URL("../src/stages/thumbnail.py", import.meta.url),
+    );
     const output = spawnSync(
       "python",
       [script, `--title=${title}`, "--lang", "en", "--check"],
@@ -124,8 +118,8 @@ it("keeps thumbnail text readable, contrasted and inside the 90 percent safe box
       expect(plan.fonts).toContain("seguiemj.ttf");
     }
     if (title === "Voice 👩‍🎤") expect(plan.fonts).toContain("seguiemj.ttf");
-  }
-});
+  },
+);
 
 it("rejects thumbnail characters without a real glyph", () => {
   const script = fileURLToPath(

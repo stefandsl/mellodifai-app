@@ -367,21 +367,19 @@ describe("stems through the worker loop", () => {
     expect(s.db.versions[0]?.status).toBe("takes_review");
   });
 
-  it("runs in every status that has a chosen take", async () => {
-    for (const status of [
-      "producing",
-      "video_review",
-      "approved",
-      "publishing",
-      "published",
-    ] as const) {
-      const s = await setup();
-      s.db.versions[0] = { ...(s.db.versions[0] as Version), status };
-      const loop = await loopFor(s);
-      await loop.runOnce();
-      expect(s.db.jobs[0]?.status, status).toBe("done");
-      expect(s.db.versions[0]?.status).toBe(status);
-    }
+  it.each([
+    "producing",
+    "video_review",
+    "approved",
+    "publishing",
+    "published",
+  ] as const)("runs in %s with a chosen take", async (status) => {
+    const s = await setup();
+    s.db.versions[0] = { ...(s.db.versions[0] as Version), status };
+    const loop = await loopFor(s);
+    await loop.runOnce();
+    expect(s.db.jobs[0]?.status, status).toBe("done");
+    expect(s.db.versions[0]?.status).toBe(status);
   });
 
   it("has a fake stage with the same shape", async () => {
