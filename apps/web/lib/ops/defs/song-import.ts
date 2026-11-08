@@ -8,5 +8,5 @@ export const songImport = define(
   (v) => [v.title, v.style, v.lyrics, v.lang, v.upload, v.source],
   JobsResult.extend({ project_id: z.string().uuid() }),
   "create",
-  false,
+  true,
 );

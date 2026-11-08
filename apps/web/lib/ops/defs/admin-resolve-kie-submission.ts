@@ -7,5 +7,5 @@ export const adminResolveKieSubmission = define(
   (v) => [v.versionId, v.charged, v.taskId ?? null, v.editId ?? null],
   JobsResult,
   "admin",
-  false,
+  true,
 );

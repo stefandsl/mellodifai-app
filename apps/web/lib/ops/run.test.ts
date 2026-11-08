@@ -2,6 +2,10 @@
 import { OPS_ERROR_CODES, t } from "@mellodifai/shared";
 import { beforeEach, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { adminProjectCreate } from "./defs/admin-project-create";
+import { adminResolveKieSubmission } from "./defs/admin-resolve-kie-submission";
+import { songImport } from "./defs/song-import";
+import type { OpDef } from "./types";
 
 const mocks = vi.hoisted(() => ({
   headers: vi.fn(async () => new Headers()),
@@ -428,6 +432,57 @@ it("treats uncertain create-scoped paid work as ambiguous spend", async () => {
     idempotency_key: keyedCtx.idempotency_key,
   });
 });
+
+it.each([
+  [
+    adminProjectCreate,
+    { topic: "Project", languages: ["it"], style: "pop", vocalGender: "f" },
+  ],
+  [
+    adminResolveKieSubmission,
+    {
+      versionId: "00000000-0000-4000-8000-000000000001",
+      charged: true,
+      taskId: "submitted-task",
+    },
+  ],
+  [
+    songImport,
+    {
+      title: "Import",
+      style: "",
+      lyrics: "",
+      lang: "it",
+      upload:
+        "00000000-0000-4000-8000-000000000001/audio/00000000-0000-4000-8000-000000000002.mp3",
+      source: { kind: "upload" },
+    },
+  ],
+])(
+  "retains ambiguous-spend recovery for paid cookie operation %#",
+  async (operation, input) => {
+    const { runAction } = await import("@/lib/run-action");
+    expect(operation.input.safeParse(input).success).toBe(true);
+    mocks.callOps.mockResolvedValueOnce({ ok: true, data: { status: "new" } });
+    mocks.callOps.mockResolvedValueOnce({
+      ok: false,
+      code: "internal",
+      message: "Internal error",
+      details: { reason: "completion_unknown" },
+    });
+    expect(
+      await runAction(operation as OpDef<unknown, unknown>, input, {
+        idempotencyKey: keyedCtx.idempotency_key,
+      }),
+    ).toEqual({
+      ok: false,
+      code: "ambiguous_spend",
+      error: t("it", "error.ambiguous_spend"),
+      idempotencyKey: keyedCtx.idempotency_key,
+    });
+    expect(mocks.callOps).toHaveBeenCalledTimes(2);
+  },
+);
 
 it("keeps the recovery key on in-progress action responses", async () => {
   const { runAction } = await import("@/lib/run-action");

@@ -15,5 +15,5 @@ export const adminProjectCreate = define(
   ],
   JobsResult.extend({ project_id: z.string().uuid() }),
   "admin",
-  false,
+  true,
 );
