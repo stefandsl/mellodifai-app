@@ -14,6 +14,9 @@ requires HTTP health with web/db/ops all `ok` and a worker heartbeat younger tha
 60 seconds. It logs fixed diagnostics to `E:/mellodifai/logs/logon.log`.
 Raw Docker output, subprocess output and health response bodies are not logged.
 Concurrent recovery runs are prevented by a per-session mutex.
+The updated pinned task passed a live one-attempt recovery on 2026-11-08:
+exit 0, web/db/ops ok and a fresh worker heartbeat. Production runs reviewed
+tag `m1-prod-ports-20261108-r3`. A real reboot was not part of this verification.
 
 The installation on 2026-11-08 uses:
 

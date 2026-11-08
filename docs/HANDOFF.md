@@ -245,8 +245,16 @@ inherit the clone read ACL instead of the owner-only pnpm cache ACL.
 Production deployment and health evidence is recorded in
 `E:/mellodifai/codex-streams/prod-ports/report.md`. Startup task instructions
 are in `docs/production-logon.md`. Existing production volumes must be reused.
+Recovery deployed tag `m1-prod-ports-20261108-r3` (`bbcfb00`) through the
+normal backup/deploy command. Health reports web/db/ops ok, schema
+`20261103080001`, an empty queue and a fresh worker heartbeat. The owner link
+established a session and `/library` returned 200. All 69 original data-table
+counts (11,484 rows) matched after deployment; the same external database and
+storage volumes remain attached. No reset, restore or paid call ran. The updated
+Limited/Interactive logon task passed a live recovery attempt with exit 0.
 The isolated e2e stack received pending additive migrations with `--include-all`;
-its database gate now passes 296/296. Unit tests pass 2,042 with one skip. The
+its database gate now passes 296/296. The full unit suite passed 2,058 with one skip; final runtime/deploy
+regression tests also pass. The previously recorded
 browser gate has 21 passes and one OAuth registration failure (expected 403,
 received 500 at `apps/web/e2e/oauth.spec.ts:67`); it remains an integration concern.
 
