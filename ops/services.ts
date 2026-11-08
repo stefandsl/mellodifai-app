@@ -23,12 +23,12 @@ import {
   icaclsProbe,
   installCommands,
   planStart,
-  portOwners,
   SERVICE_ORDER,
   type Service,
   serviceCommand,
   startAll,
   stopAll,
+  waitForPortOwners,
 } from "./lib/services.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
 import { workerEnvFile } from "./lib/worker-env.js";
@@ -191,13 +191,7 @@ export async function managedService(
     if (!(await probe("prod", realRunner)).ok)
       throw new Error("Production database probe failed; tunnel start refused");
     const expectedOwners = await expectedPortOwners();
-    const actualOwners = await portOwners();
-    if (
-      Object.entries(expectedOwners).some(
-        ([port, owner]) => actualOwners[Number(port)] !== owner,
-      )
-    )
-      throw new Error("Port owner mismatch; cloudflared start refused");
+    await waitForPortOwners(realRunner, expectedOwners);
     cmd = "cloudflared";
     args = ["tunnel", "--config", config, "run"];
   } else if (service === "auth") {

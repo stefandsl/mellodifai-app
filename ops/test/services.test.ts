@@ -24,6 +24,7 @@ import {
   SERVICE_ORDER,
   startAll,
   stopAll,
+  waitForPortOwners,
   watchPorts,
 } from "../lib/services.js";
 import { probe } from "../probe.js";
@@ -258,6 +259,66 @@ describe("services", () => {
       "ports",
       "cloudflared",
     ]);
+  });
+
+  it("waits for delayed upstream listeners before allowing the tunnel", async () => {
+    vi.useFakeTimers();
+    try {
+      const runner = recordingRunner([
+        { code: 0, stdout: "[]", stderr: "" },
+        {
+          code: 0,
+          stdout: '[{"port":3000,"owner":"PC\\\\mdf-web"}]',
+          stderr: "",
+        },
+        {
+          code: 0,
+          stdout:
+            '[{"port":3000,"owner":"PC\\\\mdf-web"},{"port":3010,"owner":"PC\\\\mdf-auth"}]',
+          stderr: "",
+        },
+      ]);
+      let ready = false;
+      const waiting = waitForPortOwners(runner, {
+        3000: "pc\\mdf-web",
+        3010: "pc\\mdf-auth",
+      }).then(() => {
+        ready = true;
+      });
+      await vi.advanceTimersByTimeAsync(500);
+      expect(ready).toBe(false);
+      await vi.advanceTimersByTimeAsync(500);
+      await waiting;
+      expect(ready).toBe(true);
+      expect(runner.calls).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds the wait for missing listeners and refuses a wrong owner immediately", async () => {
+    vi.useFakeTimers();
+    try {
+      const runner = recordingRunner();
+      const waiting = expect(
+        waitForPortOwners(runner, { 3000: "pc\\mdf-web" }),
+      ).rejects.toThrow("readiness timed out");
+      await vi.advanceTimersByTimeAsync(60_000);
+      await waiting;
+      const wrong = recordingRunner([
+        {
+          code: 0,
+          stdout: '[{"port":3000,"owner":"OTHER\\\\mdf-web"}]',
+          stderr: "",
+        },
+      ]);
+      await expect(
+        waitForPortOwners(wrong, { 3000: "pc\\mdf-web" }),
+      ).rejects.toThrow("Port owner mismatch");
+      expect(wrong.calls).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("watchPorts reports a later owner mismatch", async () => {

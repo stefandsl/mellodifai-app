@@ -374,14 +374,11 @@ export async function startAll(
   for (const service of planStart(opts.present)) {
     if (service === "cloudflared") {
       const expected = await expectedPortOwners(runner);
-      const actual = await portOwners(runner);
-      if (
-        Object.entries(expected).some(
-          ([port, owner]) => actual[Number(port)] !== owner,
-        )
-      ) {
+      try {
+        await waitForPortOwners(runner, expected);
+      } catch (error) {
         await serviceCommand(runner, "stop", "cloudflared", opts.root);
-        throw new Error("Port owner mismatch; cloudflared start refused");
+        throw error;
       }
     }
     await serviceCommand(runner, "start", service, opts.root);
@@ -400,6 +397,32 @@ export async function startAll(
         );
       }
     }
+  }
+}
+
+/** Process creation precedes listener readiness. Never wait on a wrong owner. */
+export async function waitForPortOwners(
+  runner: Runner,
+  expected: Record<number, string>,
+): Promise<void> {
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const actual = await portOwners(runner);
+    const entries = Object.entries(expected);
+    if (
+      entries.some(
+        ([port, owner]) =>
+          actual[Number(port)] && actual[Number(port)] !== owner,
+      )
+    )
+      throw new Error("Port owner mismatch; cloudflared start refused");
+    if (entries.every(([port, owner]) => actual[Number(port)] === owner))
+      return;
+    if (Date.now() >= deadline)
+      throw new Error(
+        "Upstream listener readiness timed out; cloudflared start refused",
+      );
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
 
