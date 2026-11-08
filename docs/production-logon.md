@@ -18,7 +18,7 @@ Concurrent recovery runs are prevented by a per-session mutex.
 The installation on 2026-11-08 uses:
 
 ```powershell
-$ops = 'E:/mellodifai/ops-pinned/prod-restore-logon-2026-11-08-r1'
+$ops = 'E:/mellodifai/ops-pinned/prod-ports-logon-2026-11-08'
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$ops/logon.ps1" -Action install
 # Run one diagnostic attempt without waiting for another logon:
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$ops/logon.ps1" -Attempts 1
@@ -39,26 +39,22 @@ directory while the task references it. To adopt newer startup code, create a ne
 pinned copy and run its installer. The application clone remains independently
 managed by `pnpm ops deploy.ts --to <reviewed-tag>`; never raw-checkout that clone.
 
-## Current host blocker, 2026-11-08
+## Production port recovery, 2026-11-08
 
-Docker reports the production database and gateway healthy, but Windows lists
-dynamic TCP exclusion `54231-54330`. It covers production ports 54321 and 54322.
-Both host connections return `ECONNREFUSED`, and binding either port returns
-`EACCES`. The dev/e2e bindings are reachable. Restarting only the production
-database and gateway did not repair the host bindings. No data reset or restore
-was performed.
+Production uses API 44321 and DB 44322, outside Windows dynamic range
+49152-65535. Shadow/inspector/pooler use 44326/44328/44329. The former
+54321/54322 bindings fell inside exclusion 54231-54330 after a reboot.
+The port move keeps the same Compose project, database volume and storage volume.
+`ops/stack.ts start` checks the configured ports against dynamic and excluded
+ranges before rendering. Inspect exclusions with
+`netsh interface ipv4 show excludedportrange protocol=tcp`.
 
-An administrator must repair the Windows networking reservation and make the
-production port block available persistently. This non-elevated session cannot
-do that. Inspect with `netsh interface ipv4 show excludedportrange protocol=tcp`.
-After the administrator repair, run the diagnostic attempt above, inspect
-`http://127.0.0.1:3000/api/health`, and require a fresh worker heartbeat.
-
-The deploy clone is still at `m1-floor` (`12cecd6`) and has no `apps/auth` package.
-The pinned startup code can start only the services present in that clone.
-Deploying the tested branch through `pnpm ops deploy.ts` and validating auth
-remain pending until the production database is reachable and a normal backup
-and deployment can succeed. Recovery is **BLOCKED**, not complete.
+Deploy the tested tag using `pnpm ops deploy.ts --to <reviewed-tag>` after the
+new bindings are reachable for the normal backup. Regenerate application env
+URLs privately before building, reusing all existing credentials. The deploy
+password step rewrites the web/auth database URLs. Verify local health reports
+web/db/ops ok with a worker heartbeat under 60 seconds. Recovery evidence and
+the installed task revision are in `E:/mellodifai/codex-streams/prod-ports/report.md`.
 
 The root `pnpm ops` script now uses `pnpm --dir ops exec tsx`: the previous
 recursive filtered exec printed a stray `undefined` after failed commands.

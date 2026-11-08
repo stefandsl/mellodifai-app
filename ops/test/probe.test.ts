@@ -79,8 +79,8 @@ it("probe fails a role that still accepts the password postgres", async () => {
   expect(result.ok).toBe(false);
   expect(result.failures).toContain("postgres: default login accepted");
 });
-it("probe requires 54323, 54324 and 54327 to refuse connections from a container (Major 2)", async () => {
-  for (const port of ["54323", "54324", "54327"]) {
+it("probe requires 44323, 44324 and 44327 to refuse connections from a container (Major 2)", async () => {
+  for (const port of ["44323", "44324", "44327"]) {
     const f = fixture(port);
     expect((await probe("prod", f.runner)).failures).toContain(`${port}: open`);
     expect(
@@ -119,9 +119,9 @@ it("fails passwordless app access and distinguishes TCP timeouts from refusal", 
     expect.arrayContaining([
       "mdf_web: empty login accepted",
       "mdf_auth: empty login accepted",
-      "54323: refusal unverified",
-      "54324: refusal unverified",
-      "54327: refusal unverified",
+      "44323: refusal unverified",
+      "44324: refusal unverified",
+      "44327: refusal unverified",
     ]),
   );
 });
@@ -129,7 +129,7 @@ it("fails passwordless app access and distinguishes TCP timeouts from refusal", 
 it("fails every host-only exposed port even when Docker refuses every connection", async () => {
   for (const address of ["127.0.0.1", "::1"]) {
     host.address = address;
-    for (const port of [54323, 54324, 54327]) {
+    for (const port of [44323, 44324, 44327]) {
       host.port = port;
       const result = await probe("prod", fixture().runner);
       expect(result.ok).toBe(false);
@@ -139,13 +139,13 @@ it("fails every host-only exposed port even when Docker refuses every connection
 });
 
 it("does not count host timeouts or permission errors as connection refusal", async () => {
-  host.port = 54323;
+  host.port = 44323;
   for (const result of ["timeout", "error"]) {
     host.result = result;
     const checked = await probe("prod", fixture().runner);
     expect(checked.ok).toBe(false);
     expect(checked.failures).toEqual([
-      "54323: host 127.0.0.1 refusal unverified",
+      "44323: host 127.0.0.1 refusal unverified",
     ]);
     expect(JSON.stringify(checked)).not.toContain("private-network-detail");
   }

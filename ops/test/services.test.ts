@@ -294,7 +294,7 @@ describe("services", () => {
       );
       writeFileSync(
         config,
-        "ingress:\n  - service: http://127.0.0.1:54321\n  - service: http_status:404\n",
+        "ingress:\n  - service: http://127.0.0.1:44321\n  - service: http_status:404\n",
       );
       await expect(
         managedService("start", "cloudflared", base),
@@ -639,7 +639,7 @@ it.skipIf(process.platform !== "win32")(
       );
       writeFileSync(
         join(root, "secrets/cloudflared/config.yml"),
-        "ingress:\n  - service: http://127.0.0.1:54321\n",
+        "ingress:\n  - service: http://127.0.0.1:44321\n",
       );
       expect((await cli(["__start", "cloudflared"])).code).toBe(1);
       expect(existsSync(join(root, "logs/cloudflared.pid.json"))).toBe(false);

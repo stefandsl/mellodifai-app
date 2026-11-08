@@ -105,3 +105,15 @@ describe("assertTestStack", () => {
     }
   });
 });
+
+it("refuses new production ports even in CI", () => {
+  for (const port of [44321, 44322]) {
+    for (const name of ["TEST_DB_URL", "SUPABASE_URL"]) {
+      const url = new URL(e2e[name as keyof typeof e2e]);
+      url.port = String(port);
+      expect(() =>
+        assertTestStack({ ...e2e, CI: "true", [name]: url.href }),
+      ).toThrow();
+    }
+  }
+});

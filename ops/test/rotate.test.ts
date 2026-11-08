@@ -128,7 +128,7 @@ it("rewrites MDF_WEB_DATABASE_URL in apps/web/.env.local and MDF_AUTH_DATABASE_U
     await rewriteEnvUrl(
       file,
       name,
-      "postgresql://mdf_web:test@127.0.0.1:54322/postgres",
+      "postgresql://mdf_web:test@127.0.0.1:44322/postgres",
     );
     const updated = readFileSync(file, "utf8");
     expect(updated).toContain("# keep\nOTHER=value\n");

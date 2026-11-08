@@ -361,7 +361,7 @@ it("executes only against the deploy clone, keeps the database running for its e
   expect(
     new URL(dump?.args[(dump?.args.indexOf("--db-url") ?? -1) + 1] as string)
       .port,
-  ).toBe("54322");
+  ).toBe("44322");
   expect(dump?.args[dump.args.indexOf("-f") + 1]).toMatch(/-m1-previous\.sql$/);
   expect(
     calls.some(

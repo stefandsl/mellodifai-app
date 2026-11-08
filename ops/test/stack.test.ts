@@ -53,6 +53,9 @@ it("start runs the pinned compose equivalent, passwords, then test.env", async (
     "e2e",
     {},
     {
+      checkPorts: async () => {
+        calls.push("ports");
+      },
       render: async () => {
         calls.push("render");
       },
@@ -72,6 +75,7 @@ it("start runs the pinned compose equivalent, passwords, then test.env", async (
     },
   );
   expect(calls).toEqual([
+    "ports",
     "render",
     "docker",
     "migration up",
@@ -88,6 +92,9 @@ it("migrate runs migration up then re-applies role passwords", async () => {
     "e2e",
     {},
     {
+      checkPorts: async () => {
+        calls.push("ports");
+      },
       render: async () => {},
       execute: async () => {},
       migrate: async () => {
@@ -112,7 +119,7 @@ it("env-file returns only a path and the file holds no prod values", async () =>
   const content = readFileSync(path, "utf8");
   expect(content).toContain("http://127.0.0.1:45621");
   expect(content).toContain("TEST_MDF_AUTH_URL=");
-  expect(content).not.toMatch(/54321|54322|app\.mellodifai\.com/);
+  expect(content).not.toMatch(/44321|44322|app\.mellodifai\.com/);
   await expect(
     writeTestEnv(
       "prod",

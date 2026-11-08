@@ -17,6 +17,8 @@ import { type Runner, realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
 
+import { assertWindowsPorts } from "./lib/windows-ports.js";
+
 import { isRestoreAuthorization } from "./restore.js";
 
 type Flags = { noBackup?: boolean; restore?: unknown };
@@ -131,6 +133,7 @@ export async function writeTestEnv(
 }
 
 interface StackActions {
+  checkPorts(): Promise<void>;
   render(): Promise<void>;
   execute(plan: string[][]): Promise<void>;
   migrate(): Promise<void>;
@@ -141,7 +144,9 @@ interface StackActions {
 function actions(env: StackEnv, runner: Runner): StackActions {
   const execute = async (plan: string[][]) => {
     if (env === "ci" && process.env.CI !== "true")
-      throw new Error("CI stack requires CI=true; port 54321 is live locally");
+      throw new Error(
+        "CI stack requires CI=true; CI ports are reserved for isolated runners",
+      );
     const secrets = await loadStackSecrets(env);
     const runtime =
       env === "ci" ? dirname(stackDir(env)) : runtimePath(runtimeRoot());
@@ -197,6 +202,7 @@ function actions(env: StackEnv, runner: Runner): StackActions {
     }
   };
   return {
+    checkPorts: () => assertWindowsPorts(ENV_TABLE[env], runner),
     async render() {
       const dir = stackDir(env);
       prepareStackDir(dir);
@@ -291,6 +297,7 @@ export async function runStackCommand(
   if (cmd === "render") await ops.render();
   else if (cmd === "env-file") return ops.envFile();
   else if (cmd === "start") {
+    await ops.checkPorts();
     await ops.render();
     await ops.execute(plan);
     await ops.migrate();

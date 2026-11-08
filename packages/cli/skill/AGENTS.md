@@ -3,7 +3,7 @@
 Read SKILL.md before using the CLI or MCP. Stay within the M1 tool schemas.
 Read costs and existing state before requesting paid work. Obtain the user's
 intent before spending. Never spend paid credits in tests; use test-mode PATs
-and isolated fake stacks. Never test against the live API on 54321.
+and isolated fake stacks. Never test against the live API on 44321.
 
 Always send an 8-100 character idempotency_key on every mutation, including
 create-scoped tools. Reuse a key only for the identical operation and input.

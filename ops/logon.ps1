@@ -93,7 +93,7 @@ try {
     } else { Write-Log ('Attempt ' + $attempt + ': Docker not ready.') }
     if ($attempt -lt $Attempts) { Start-Sleep -Seconds $RetrySeconds }
   }
-  Write-Log 'Recovery timed out. Check production ports 54321/54322, Windows excluded port ranges, and service logs. No reset or restore was attempted.'
+  Write-Log 'Recovery timed out. Check production ports 44321/44322, Windows excluded port ranges, and service logs. No reset or restore was attempted.'
   exit 1
 } catch {
   Write-Log 'Recovery failed; verify the pinned ops installation and prerequisites. Exception output withheld.'

@@ -149,13 +149,13 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
     projectId: "mellodifai",
     ...AUTH_ORIGINS.prod,
     ports: {
-      api: 54321,
-      db: 54322,
+      api: 44321,
+      db: 44322,
       studio: null,
       inbucket: null,
       analytics: null,
     },
-    listeners: { shadow: 54320, inspector: 54328, pooler: 54329 },
+    listeners: { shadow: 44326, inspector: 44328, pooler: 44329 },
     smtp: "owner",
     get signingKeysPath() {
       return signingKey("prod");

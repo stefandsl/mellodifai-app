@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc --build",
     "start": "node --env-file=.env.local --import tsx src/main.ts",
     "test": "vitest run"
   },

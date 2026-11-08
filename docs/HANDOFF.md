@@ -33,7 +33,7 @@ Gemini) drive the app through a CLI and MCP on the owner's own subscriptions.
   Use `E:/mellodifai/...` (runtime, reports, render-tmp, logs) or `G:\caches`. If C: has
   less than 20 GB free, stop and report. Never delete files you did not create.
 - Playwright / e2e only on an isolated test stack (normally Next on 3210, Supabase API 45621).
-  Never on the live stack (Supabase API 54321).
+  Never on the live stack (Supabase API 44321).
 - The Supabase CLI is `npx supabase` (cached v3.0.0). Never factory-reset Docker. Migrations are additive only, each with database tests.
 - No em dash characters anywhere (use "-"). Plain commit messages, no co-author lines.
 - Do not commit `apps/web/AGENTS.md`. Do not change the owner's account settings.
@@ -230,15 +230,17 @@ cleanup of the suno-remake worktree `agent-a9f66bcbe8615fa5b`.
 
 ## 6. Waiting on the owner
 
-Production recovery on 2026-11-08 is blocked by Windows TCP exclusion
-`54231-54330`, which covers production API/DB ports 54321/54322. Containers are
-healthy internally, but Windows connections are refused and binds return EACCES.
-An administrator must repair that host reservation. No database reset or restore
-was attempted, and the deploy clone remains at `m1-floor` (no auth package).
-The limited per-user `MellodifAI production logon` task is installed using a pinned
-ops copy on E:; it retries normal startup and logs safe diagnostics. See
-`docs/production-logon.md` for its path, disable command, and remaining deploy and
-health checks. Evidence: `E:/mellodifai/codex-streams/prod-restore/report.md`.
+Production port recovery (2026-11-08): production now uses API 44321 and DB
+44322, with shadow 44326, inspector 44328 and pooler 44329. The original
+54321/54322 bindings were blocked by Windows exclusion 54231-54330. Windows
+`stack.ts start` refuses configured ports in dynamic range 49152-65535 or any
+netsh IPv4 TCP exclusion before rendering or starting containers. Dev and CI
+ports remain unchanged; their historical dynamic ports cannot start on Windows.
+Database and browser test guards always reject the new production ports,
+including with CI overrides. Auth now has the build script required by deploy.
+Production deployment and health evidence is recorded in
+`E:/mellodifai/codex-streams/prod-ports/report.md`. Startup task instructions
+are in `docs/production-logon.md`. Existing production volumes must be reused.
 The isolated e2e stack received pending additive migrations with `--include-all`;
 its database gate now passes 296/296. Unit tests pass 2,042 with one skip. The
 browser gate has 21 passes and one OAuth registration failure (expected 403,

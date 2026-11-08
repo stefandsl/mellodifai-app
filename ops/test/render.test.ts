@@ -91,10 +91,10 @@ function rendered(env: keyof typeof ENV_TABLE, input = base) {
   };
 }
 
-it("prod keeps project mellodifai on 54321/54322 and turns Studio, mail catcher and analytics off", () => {
+it("prod keeps project mellodifai on 44321/44322 and turns Studio, mail catcher and analytics off", () => {
   const t = rendered("prod");
   expect(t.project_id).toBe("mellodifai");
-  expect([t.api.port, t.db.port]).toEqual([54321, 54322]);
+  expect([t.api.port, t.db.port]).toEqual([44321, 44322]);
   // CLI 3.0.0 rejects inbucket; Spike 2 verified local_smtp is its replacement.
   expect([t.studio.enabled, t.local_smtp.enabled, t.analytics.enabled]).toEqual(
     [false, false, false],
@@ -202,7 +202,7 @@ it("isolates every configured listener and removes optional SMTP listeners", () 
     ["dev", 55320, 55328, 55329],
     ["e2e", 45620, 45628, 45629],
     ["ci", 54320, 54328, 54329],
-    ["prod", 54320, 54328, 54329],
+    ["prod", 44326, 44328, 44329],
   ] as const) {
     const t = rendered(env, input);
     expect([

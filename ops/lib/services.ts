@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { probe } from "../probe.js";
 import { reapplyDbPasswords } from "../rotate-db-passwords.js";
-import { runtimePath } from "./envs.js";
+import { ENV_TABLE, runtimePath } from "./envs.js";
 import type { Runner } from "./run.js";
 import { realRunner } from "./run.js";
 import { runtimeRoot } from "./runtime.js";
@@ -142,7 +142,7 @@ export function installCommands(opts: { root: string }): string[][] {
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      "$ErrorActionPreference='Stop'; $rules=Get-NetFirewallRule -DisplayName 'MellodifAI block LAN' -ErrorAction SilentlyContinue; if ($rules) { $rules | Set-NetFirewallRule -Enabled True -Profile Any -Direction Inbound -Action Block -Protocol TCP -LocalPort 3000,3001,3010,3080,4007,8188,54321-54329 -RemoteAddress LocalSubnet } else { New-NetFirewallRule -DisplayName 'MellodifAI block LAN' -Enabled True -Profile Any -Direction Inbound -Action Block -Protocol TCP -LocalPort 3000,3001,3010,3080,4007,8188,54321-54329 -RemoteAddress LocalSubnet }",
+      `$ErrorActionPreference='Stop'; $rules=Get-NetFirewallRule -DisplayName 'MellodifAI block LAN' -ErrorAction SilentlyContinue; if ($rules) { $rules | Set-NetFirewallRule -Enabled True -Profile Any -Direction Inbound -Action Block -Protocol TCP -LocalPort 3000,3001,3010,3080,4007,8188,${ENV_TABLE.prod.ports.api}-${ENV_TABLE.prod.listeners.pooler} -RemoteAddress LocalSubnet } else { New-NetFirewallRule -DisplayName 'MellodifAI block LAN' -Enabled True -Profile Any -Direction Inbound -Action Block -Protocol TCP -LocalPort 3000,3001,3010,3080,4007,8188,${ENV_TABLE.prod.ports.api}-${ENV_TABLE.prod.listeners.pooler} -RemoteAddress LocalSubnet }`,
     ],
   ];
 }
@@ -393,7 +393,7 @@ export async function startAll(
         throw new ServiceOperationError(
           "database provisioning/probe",
           service,
-          `${serviceFailureReason(error)}; verify 127.0.0.1:54321/54322 and Windows excluded port ranges; tunnel start refused`,
+          `${serviceFailureReason(error)}; verify 127.0.0.1:${ENV_TABLE.prod.ports.api}/${ENV_TABLE.prod.ports.db} and Windows excluded port ranges; tunnel start refused`,
         );
       }
     }

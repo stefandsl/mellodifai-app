@@ -206,7 +206,7 @@ check-list migration, an entry in `STAGES` and a `STAGE_STATUS` entry
 known balance.
 
 **Web side.** `/media/[...path]` signs a storage URL as the session user, returns 404 without a
-session, and redirects to the storage host (`127.0.0.1:54321`). Some pages build signed URLs on the
+session, and redirects to the storage host (`127.0.0.1:44321`). Some pages build signed URLs on the
 server too (`lib/studio/clips.ts:498`, `lib/studio/stems.ts:153`,
 `app/(app)/projects/[id]/page.tsx:66,143`). The browser talks to Supabase directly for sign-in,
 storage uploads and Realtime. All three Supabase clients read `NEXT_PUBLIC_SUPABASE_URL`
@@ -283,7 +283,7 @@ Production is the owner's PC, with these services. Every service runs from the d
 | Edge proxy (`ops/edge-proxy.ts`, run with `tsx`) | `127.0.0.1:3080` | `mdf-web` | the checkout |
 | Authorization server (`apps/auth`, `HOST=127.0.0.1`) | `127.0.0.1:3010` | `mdf-auth` | the checkout, `apps/auth/.env.local`, `<runtime root>/secrets/auth/` |
 | Worker | none | the owner's account | everything, as today |
-| Supabase (Docker) | `127.0.0.1:54321-54329` | Docker Desktop (owner) | its own volumes; `<runtime root>/secrets/supabase/` |
+| Supabase (Docker) | `127.0.0.1:44321-44329` | Docker Desktop (owner) | its own volumes; `<runtime root>/secrets/supabase/` |
 | `cloudflared` | outbound only | service | `<runtime root>/secrets/cloudflared/` |
 
 - NTFS ACLs (set by `ops/services.ts install`, owner action because it needs administrator
@@ -348,14 +348,14 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
   action posts carry no such header, which is why `runAction` is the real control).
 - `next.config` sets `experimental.serverActions.allowedOrigins` to `app.mellodifai.com`,
   `127.0.0.1:3000` and `localhost:3000`.
-- **Never exposed:** Postgres 54322, Supabase Studio 54323, the mail catcher 54324, the Supabase
+- **Never exposed:** Postgres 44322, Supabase Studio 44323, the mail catcher 44324, the Supabase
   meta and functions routes, ComfyUI, the worker, the dev server, the Docker API. A Windows
   Firewall rule (owner action) blocking LAN access to 3000, 3001, 3010, 3080, 4007, 8188 and
-  54321-54329 is defence in depth against the LAN only; against containers the controls are the
+  44321-44329 is defence in depth against the LAN only; against containers the controls are the
   rotated database passwords and the probe (5.3).
 - **Unauthenticated Supabase services are off in production (revision 6, round-5 Major 2).** The
   prod render sets `[studio]`, `[inbucket]` and `[analytics]` to `enabled = false`; the probe
-  asserts that 54323, 54324 and 54327 refuse connections from a container and from `mdf-web`.
+  asserts that 44323, 44324 and 44327 refuse connections from a container and from `mdf-web`.
   Until SMTP is set up, the owner-run `ops/sign-in-link.ts <email>` prints a local sign-in link
   (service key, `auth.admin.generateLink`) as the no-SMTP fallback.
 
@@ -376,12 +376,19 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
    | `SITE_URL` (`auth.site_url`, and Next's server-only `SITE_URL`) | `http://127.0.0.1:3001` (revision 6, round-5 Major 18) | `http://127.0.0.1:3210` | `http://127.0.0.1:3210` | `https://app.mellodifai.com` |
    | `additional_redirect_urls` | `http://127.0.0.1:3001/**`, `http://localhost:3001/**` | `http://127.0.0.1:3210/**`, `http://127.0.0.1:3212/**` | `http://127.0.0.1:3210/**`, `http://127.0.0.1:3212/**` | `https://app.mellodifai.com/**`, `http://127.0.0.1:3000/**`, `http://localhost:3000/**` |
    | OAuth issuer (`apps/auth`, revision 6, round-5 Major 16) | not run (OAuth is tested on the e2e topology) | `http://127.0.0.1:3212/oauth` | `http://127.0.0.1:3212/oauth` | `https://app.mellodifai.com/oauth` |
-   | Port block: API, db, Studio, mail catcher, analytics (revision 6) | 55321, 55322, 55323, 55324, 55327 | 45621, 45622, 45623, 45624, 45627 | 54321, 54322, 54323, 54324, 54327 | 54321, 54322, Studio off, mail catcher off, analytics off |
+   | Port block: API, db, Studio, mail catcher, analytics (revision 6) | 55321, 55322, 55323, 55324, 55327 | 45621, 45622, 45623, 45624, 45627 | 54321, 54322, 54323, 54324, 54327 | 44321, 44322, Studio off, mail catcher off, analytics off |
    | SMTP | mail catcher | mail catcher (45624) | mail catcher (54324) | the owner's SMTP sender (owner action); `email_sent = 30` per hour |
    | `signing_keys_path` | throwaway key in the stack folder | throwaway key in the stack folder | throwaway key in `$RUNNER_TEMP` | `<runtime root>/secrets/supabase/signing_keys.json` |
    | `jwt_secret` | default | default | default | `env(MDF_SUPABASE_JWT_SECRET)`, read from `<runtime root>/secrets/supabase/` at start; never written into the stack folder (revision 6, round-5 Major 1) |
    | `[auth.sessions]` | default | default | default | `timebox = "168h"`, `inactivity_timeout = "24h"` |
    | `public.stack_settings.fake_stack` (revision 6, replaces the `app.fake_stack` database setting; round-5 Major 3) | off | on | on | off (the deploy refuses to run if on) |
+
+   **Production port note (2026-11-08).** Production uses 44321-44329, outside
+   Windows dynamic TCP range 49152-65535. API=44321, DB=44322, shadow=44326,
+   inspector=44328, pooler=44329; Studio, mail and analytics remain disabled.
+   Windows stack start checks every configured port against that dynamic range
+   and netsh exclusions before rendering or starting containers. Dev and CI
+   historical ports remain unchanged and are refused on Windows; CI runs on Linux.
 
    **Revision 6 (round-5 Major 17).** `ops/stack.ts` refuses `reset`, `db reset` and
    `stop --no-backup` on the project id `mellodifai`; the only path that may reset the production
@@ -413,7 +420,7 @@ paths below and returns 404 for everything else; the `cloudflared` ingress ends 
    per-role passwords, spike 2's written fallback runs the production database stack from
    Supabase's pinned self-hosting compose files, which template every service role from one
    `POSTGRES_PASSWORD`, rendered into `<runtime root>/stacks/prod`. **Exit probe:** from a throwaway
-   container on Docker's default bridge network, a login to `host.docker.internal:54322` as every
+   container on Docker's default bridge network, a login to `host.docker.internal:44322` as every
    listed role with the default password `postgres` must fail; so must `mdf_web` and `mdf_auth`
    without their passwords. M1 does not exit until it does.
    **Revision 6 (round-5 Major 20).** The CLI recreates its service containers with built-in
@@ -1897,7 +1904,7 @@ Four roles; only the first two touch credentials, and neither runs candidate cod
   configuration (port 45621 and its neighbours, separate project id and volume) and a Docker
   network `mdf-gate-net` created with `--internal` (no gateway, so no `host.docker.internal` and no
   internet). The sandbox joins only `mdf-gate-net`. Before each night the supervisor runs a probe
-  inside the sandbox that must fail to connect to `host.docker.internal:54322`, `:54321`, `:3000`,
+  inside the sandbox that must fail to connect to `host.docker.internal:44322`, `:44321`, `:3000`,
   `:8188`, `:4007` and to any internet host; if any probe succeeds, the night aborts. The host
   firewall rule (5.2) is the second layer.
 - **Scorer network:** only the OpenRouter API through the egress proxy. Its OpenRouter key has a
@@ -1905,7 +1912,7 @@ Four roles; only the first two touch credentials, and neither runs candidate cod
   `openrouter-eval`.
 - **Production never reachable:** neither container mounts the production checkout, the worker env
   files, `<runtime root>/secrets/`, the kill switch or the Docker socket.
-- `test:db` refuses to run against port 54321, reusing the guard of `apps/web/e2e/local-env.ts`
+- `test:db` refuses to run against port 44321, reusing the guard of `apps/web/e2e/local-env.ts`
   (fixed for everyone in M1).
 - The standing owner rules (2.2) bind the loop: kie is faked; a secret scanner (gitleaks) runs on
   the diff.

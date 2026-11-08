@@ -18,6 +18,8 @@ export function assertTestStack(env: Record<string, string | undefined>): void {
       !protocols.includes(url.protocol)
     )
       throw new Error(`${name} must be a loopback test-stack URL`);
+    if (["44321", "44322"].includes(url.port))
+      throw new Error(`${name} refuses the production port block`);
     if (["54321", "54322"].includes(url.port) && env.CI !== "true")
       throw new Error(`${name} refuses the production port block outside CI`);
   }

@@ -34,7 +34,7 @@ backups, logs, temporary files and secrets stay under that runtime root, never C
 | Edge proxy (`ops/edge-proxy.ts`) | `127.0.0.1:3080` | `mdf-web` |
 | Authorization server (`apps/auth`, when present in the target) | `127.0.0.1:3010` | `mdf-auth` |
 | Worker | none | owner |
-| Supabase in Docker | loopback API `54321`, database `54322` | Docker Desktop (owner) |
+| Supabase in Docker | loopback API `44321`, database `44322` | Docker Desktop (owner) |
 | `cloudflared` | outbound only | dedicated tunnel service account |
 
 Production Studio, mail catcher and analytics are disabled. The tunnel sends
@@ -61,7 +61,7 @@ records what has actually been completed and what remains pending.
   The runtime root is owner/SYSTEM only; each service gets only its prescribed
   files. Web/auth may not read stacks, backups or other services' secrets, or write
   executable paths. Block LAN access to 3000, 3001, 3010, 3080, 4007, 8188 and
-  54321-54329. Running everything as the owner voids the isolation guarantees:
+  44321-44329. Running everything as the owner voids the isolation guarantees:
   compromising Next or auth then compromises the PC.
 - Provision production env files, Supabase signing material and rotated database
   passwords outside source control, plus auth signing/cookie keys before running
@@ -199,5 +199,5 @@ pnpm test
 
 Follow [HANDOFF.md](docs/HANDOFF.md#2-rules-you-must-follow-owners-standing-instructions)
 for the complete commit gates and off-C validation setup. Database and browser
-tests use the isolated e2e stack at API 45621, never live API 54321. Set
+tests use the isolated e2e stack at API 45621, never live API 44321. Set
 `E2E_PORT=3219` while the owner's launcher holds 3210. Never spend paid credits in tests.

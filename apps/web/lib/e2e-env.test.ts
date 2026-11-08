@@ -35,3 +35,15 @@ it.each([
     `${url}/`,
   );
 });
+
+it.each([44321, 44322])(
+  "refuses production port %s even with both CI flags",
+  (port) => {
+    expect(() =>
+      localSupabaseUrl(`http://127.0.0.1:${port}`, {
+        CI: "true",
+        E2E_ALLOW_LIVE_STACK: "1",
+      }),
+    ).toThrow("live Supabase stack");
+  },
+);

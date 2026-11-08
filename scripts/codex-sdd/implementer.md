@@ -11,7 +11,7 @@ Read these first, in this order:
 Then:
 - Implement exactly what the brief specifies, test first where the brief gives tests (write the failing test, see it fail, implement, see it pass).
 - Follow the existing patterns of the repo. Keep files focused. No em dash characters anywhere.
-- Never spend kie or other paid credits; never run e2e or Playwright against the live stack (API 54321); never print or commit keys or passwords; runtime files under E:/mellodifai, never C:.
+- Never spend kie or other paid credits; never run e2e or Playwright against the live stack (API 44321); never print or commit keys or passwords; runtime files under E:/mellodifai, never C:.
 - If a step needs an owner action that is still open (Windows accounts, admin rights, DNS, tunnel, SMTP, keys the owner must create), do not fake it: do everything else, mark that step pending in your report, and finish with STATUS: DONE_WITH_CONCERNS.
 - Do not touch other worktrees under .claude/worktrees or E:/mellodifai/wt.
 - Run the focused tests while iterating, then before committing run what the Global Constraints require for this commit (lint, typecheck, unit tests, database tests on the e2e stack, e2e when the task touches the web app). If a gate is red for a reason outside your task, say so and show the output.
