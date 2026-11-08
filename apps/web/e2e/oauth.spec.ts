@@ -223,7 +223,24 @@ test("OAuth pairs once, binds read-only consent to the browser, and revokes MCP 
       });
       // Rollback preserves the unused consent for the real provider round trip.
       await page.unroute(resume);
-      await page.goto(resume);
+      // Playwright routes only the first URL in an HTTP redirect chain. Follow
+      // the provider redirects with this browser's cookie jar, then navigate to
+      // the callback as a new request so the in-memory client can receive it.
+      let target = resume;
+      for (let hop = 0; hop < 3; hop++) {
+        const response = await page.request.get(target, { maxRedirects: 0 });
+        expect([302, 303]).toContain(response.status());
+        const location = response.headers().location;
+        expect(Boolean(location)).toBe(true);
+        const next = new URL(location as string, OAUTH_ORIGIN);
+        expect(next.origin === OAUTH_ORIGIN).toBe(true);
+        if (next.pathname === "/oauth-client/callback") {
+          await page.goto(next.href);
+          break;
+        }
+        expect(next.pathname).toMatch(/^\/oauth\/auth\/[A-Za-z0-9_-]+$/u);
+        target = next.href;
+      }
       await expect
         .poll(() => new URL(page.url()).pathname)
         .toBe("/oauth-client/callback");
