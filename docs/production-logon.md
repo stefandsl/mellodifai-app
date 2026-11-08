@@ -18,7 +18,7 @@ Concurrent recovery runs are prevented by a per-session mutex.
 The installation on 2026-11-08 uses:
 
 ```powershell
-$ops = 'E:/mellodifai/ops-pinned/prod-ports-logon-2026-11-08'
+$ops = 'E:/mellodifai/ops-pinned/prod-ports-logon-2026-11-08-r2'
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$ops/logon.ps1" -Action install
 # Run one diagnostic attempt without waiting for another logon:
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$ops/logon.ps1" -Attempts 1

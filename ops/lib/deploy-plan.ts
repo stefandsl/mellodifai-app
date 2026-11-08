@@ -15,6 +15,7 @@ export type DeployStep = {
     | "migrate"
     | "passwords"
     | "set-owner"
+    | "build-ops"
     | "build-web"
     | "build-auth"
     | "start"
@@ -32,7 +33,7 @@ export function planDeploy(input: DeployInput): DeployStep[] {
     "install",
   ];
   if (!input.skipMigrations) kinds.push("migrate");
-  kinds.push("passwords", "set-owner", "build-web");
+  kinds.push("passwords", "set-owner", "build-ops", "build-web");
   if (input.hasAuth) kinds.push("build-auth");
   kinds.push("start", "health");
   return kinds.map((kind) => ({

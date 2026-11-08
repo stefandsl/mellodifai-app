@@ -28,12 +28,15 @@ export function authServiceCommand(root: string) {
   return {
     cmd: process.execPath,
     cwd,
-    args: [
-      `--env-file=${join(cwd, ".env.local")}`,
-      "--import",
-      "tsx",
-      "src/main.ts",
-    ],
+    args: [`--env-file=${join(cwd, ".env.local")}`, "dist/src/main.js"],
+  };
+}
+export function edgeServiceCommand(root: string) {
+  const cwd = join(runtimePath(root), "deploy");
+  return {
+    cmd: process.execPath,
+    cwd,
+    args: [join(cwd, "ops/dist/edge-proxy.js")],
   };
 }
 export const LISTENERS = {

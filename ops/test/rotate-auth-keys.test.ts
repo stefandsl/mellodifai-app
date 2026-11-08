@@ -124,8 +124,6 @@ it("auth service starts Node directly with its canonical private env and TypeScr
   expect(command.cwd).toBe(join(root, "deploy/apps/auth"));
   expect(command.args).toEqual([
     `--env-file=${join(command.cwd, ".env.local")}`,
-    "--import",
-    "tsx",
-    "src/main.ts",
+    "dist/src/main.js",
   ]);
 });

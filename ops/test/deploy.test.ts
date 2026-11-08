@@ -191,6 +191,7 @@ describe("deploy", () => {
       "migrate",
       "passwords",
       "set-owner",
+      "build-ops",
       "build-web",
       "build-auth",
       "start",

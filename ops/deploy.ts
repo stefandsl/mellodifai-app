@@ -201,6 +201,14 @@ export function deployCommands(
       ];
     case "set-owner":
       return [tool("set-owner.ts", [])];
+    case "build-ops":
+      return [
+        {
+          cmd: process.execPath,
+          args: [pnpm, "--dir", join(repo, "ops"), "exec", "tsc", "--build"],
+          cwd: repo,
+        },
+      ];
     case "build-web":
     case "build-auth":
       return [
@@ -354,6 +362,7 @@ export async function productionDeploy(
         "install",
         "passwords",
         "set-owner",
+        "build-ops",
         "build-web",
       ];
       if (hasAuth) kinds.push("build-auth");

@@ -6,7 +6,6 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -19,6 +18,7 @@ import { serviceErrorMessage } from "./lib/service-error.js";
 import {
   aclCommands,
   authServiceCommand,
+  edgeServiceCommand,
   expectedPortOwners,
   icaclsProbe,
   installCommands,
@@ -182,11 +182,7 @@ export async function managedService(
   let cmd = process.execPath;
   let args: string[] = [];
   if (service === "edge") {
-    cmd = process.execPath;
-    args = [
-      createRequire(join(deploy, "ops/package.json")).resolve("tsx/cli"),
-      join(deploy, "ops/edge-proxy.ts"),
-    ];
+    ({ cmd, args, cwd } = edgeServiceCommand(root));
   } else if (service === "cloudflared") {
     const config = join(root, "secrets/cloudflared/config.yml");
     const template = join(deploy, "ops/cloudflared/config.template.yml");
