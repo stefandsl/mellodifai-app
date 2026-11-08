@@ -5,7 +5,7 @@
 // Runtime files live in <MELLODIFAI_ROOT>/remakes/<videoId>/ (E:, never C:); the package
 // deletes the source media once the analysis passed.
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   analyse,
@@ -258,13 +258,22 @@ export function remakeStages(
   const remakeAnalyse = guarded(async (context, remake) => {
     const report = reporter(context);
     const env = envOf(context);
-    let analysis = await readAnalysis(dirOf(remake));
+    const dir = dirOf(remake);
+    let analysis = await readAnalysis(dir);
     let spent = remake.cost.analysisUsd ?? 0;
-    if (analysis) report("analyse: analysis already on file");
-    else {
+    if (analysis) {
+      const payerPath = join(dir, "analysis-payer.txt");
+      const payer = existsSync(payerPath)
+        ? await readFile(payerPath, "utf8")
+        : "";
+      if (payer === remake.id) spent = analysis.cost.usd;
+      report("analyse: analysis already on file");
+    } else {
       await context.progress(3, "analyse.stems");
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, "analysis-payer.txt"), remake.id);
       const client = engine.client(env, context.signal, context);
-      analysis = await engine.analyse(dirOf(remake), {
+      analysis = await engine.analyse(dir, {
         env,
         client,
         models: modelsFromEnv(env.get),
@@ -328,7 +337,11 @@ export function remakeStages(
       try {
         if (mode === "full") {
           await context.progress(5, "rewrite.write");
-          const lyrics = await engine.rewrite(analysis, options, deps);
+          const pricedAnalysis = {
+            ...analysis,
+            cost: { ...analysis.cost, usd: remake.cost.analysisUsd ?? 0 },
+          };
+          const lyrics = await engine.rewrite(pricedAnalysis, options, deps);
           await context.log(`lyrics cost: ${costLine(lyrics.cost)}`);
           await store(
             remake,

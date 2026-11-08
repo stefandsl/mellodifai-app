@@ -140,7 +140,9 @@ function setup(remake: Partial<Remake>, jobs: ReturnType<typeof job>[]) {
 describe("remake stages", () => {
   it("keeps a remake's analysis cost without charging another remake for the cached file", async () => {
     const db = setup({ stage: "analyse" }, [job("remake_analyse")]);
-    const worker = loop(db);
+    const engine = fakeRemakeEngine(async () => {});
+    const rewrite = vi.spyOn(engine, "rewrite");
+    const worker = loop(db, engine);
     await worker.runOnce();
     expect(db.remakes[0]?.cost.analysisUsd).toBe(0.009636);
     db.jobs.splice(1);
@@ -157,6 +159,36 @@ describe("remake stages", () => {
     expect(db.jobs[2]?.status).toBe("done");
     expect(db.remakes[1]?.stage).toBe("rewrite");
     expect(db.remakes[1]?.cost.analysisUsd).toBe(0);
+    await worker.runOnce();
+    expect(rewrite).toHaveBeenCalledWith(
+      expect.objectContaining({ cost: expect.objectContaining({ usd: 0 }) }),
+      expect.objectContaining({ costCapUsd: 0.12 }),
+      expect.anything(),
+    );
+    expect(db.remakes[1]?.stage).toBe("review");
+  });
+
+  it("restores analysis spend after the cache was written but the database update failed", async () => {
+    const db = setup({ stage: "analyse" }, [job("remake_analyse")]);
+    const patch = db.patchRemake.bind(db);
+    let failed = false;
+    vi.spyOn(db, "patchRemake").mockImplementation((id, update, revision) => {
+      if (!failed && update.stage === "rewrite") {
+        failed = true;
+        throw new Error("database unavailable");
+      }
+      return patch(id, update, revision);
+    });
+    const worker = loop(db);
+    await worker.runOnce();
+    expect(db.jobs[0]?.status).toBe("failed");
+    expect(db.remakes[0]?.cost.analysisUsd).toBeUndefined();
+
+    db.versions[0] = { ...version };
+    db.jobs.push(job("remake_analyse"));
+    await worker.runOnce();
+    expect(db.jobs[1]?.status).toBe("done");
+    expect(db.remakes[0]?.cost.analysisUsd).toBe(0.009636);
   });
   it("runs R1, R2 and R3 as chained jobs and stops at the review", async () => {
     const db = setup({}, [job("remake_ingest")]);
