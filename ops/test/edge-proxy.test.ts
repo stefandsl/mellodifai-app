@@ -156,6 +156,86 @@ it("allows Next's encoded static filenames without permitting path escapes", asy
   );
 });
 
+it("relays the local HMR upgrade and bytes with trusted local forwarding headers", async () => {
+  let received: import("node:http").IncomingHttpHeaders | undefined;
+  const dev = createServer();
+  dev.on("upgrade", (req, socket) => {
+    received = req.headers;
+    socket.write(
+      "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+    );
+    socket.once("data", (data) => socket.end(`echo:${data.toString()}`));
+  });
+  const local = await ready(
+    createEdgeProxy({
+      listen: 0,
+      next: await ready(dev.listen(0, "127.0.0.1")),
+      auth,
+      mode: "local",
+    }),
+  );
+  const echoed = await new Promise<string>((resolve, reject) => {
+    const req = request(`${local}/_next/hmr?id=test`, {
+      headers: {
+        connection: "Upgrade",
+        upgrade: "websocket",
+        "x-mdf-remote": "1",
+        "x-forwarded-host": "attacker.invalid",
+        "x-forwarded-proto": "https",
+        forwarded: "host=attacker.invalid",
+      },
+    });
+    req.on("error", reject);
+    req.on("response", () => reject(new Error("Expected upgrade")));
+    req.on("upgrade", (_response, socket, head) => {
+      socket.on("error", reject);
+      socket.once("data", (data) => {
+        resolve(Buffer.concat([head, data]).toString());
+        socket.destroy();
+      });
+      socket.write("ping");
+    });
+    req.end();
+  });
+  expect(echoed).toBe("echo:ping");
+  expect(received).toMatchObject({
+    host: new URL(local).host,
+    "x-forwarded-host": new URL(local).host,
+    "x-forwarded-proto": "http",
+  });
+  expect(received?.["x-mdf-remote"]).toBeUndefined();
+  expect(received?.forwarded).toBeUndefined();
+});
+
+it("refuses production upgrades and every local upgrade except HMR", async () => {
+  const local = await ready(
+    createEdgeProxy({ listen: 0, next, auth, mode: "local" }),
+  );
+  const headers = { connection: "Upgrade", upgrade: "websocket" };
+  expect((await send("/_next/hmr?id=test", headers)).status).toBe(404);
+  for (const path of [
+    "/api/mcp",
+    "/oauth/auth",
+    "/_next/%68mr",
+    "/_next/hmr/other",
+  ]) {
+    expect((await send(path, headers, "GET", "", local)).status, path).toBe(
+      404,
+    );
+  }
+  expect(
+    (
+      await send(
+        "/_next/hmr",
+        { ...headers, "next-action": "action" },
+        "GET",
+        "",
+        local,
+      )
+    ).status,
+  ).toBe(404);
+});
+
 it("Next-Action on /api/v1 is refused", async () => {
   for (const path of [
     "/api/v1",

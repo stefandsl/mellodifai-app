@@ -177,6 +177,59 @@ export function createEdgeProxy(opts: {
     res.on("close", () => outgoing.destroy());
     req.pipe(outgoing);
   });
+  // Next dev's React debug stream travels over HMR and is needed for hydration.
+  // This transport is exclusively local; production never exposes an upgrade.
+  server.on("upgrade", (req, socket, head) => {
+    if (
+      opts.mode !== "local" ||
+      req.method !== "GET" ||
+      req.url?.split("?", 1)[0] !== "/_next/hmr" ||
+      req.headers["next-action"] !== undefined ||
+      req.headers.upgrade?.toLowerCase() !== "websocket"
+    ) {
+      socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    const address = server.address();
+    const host = `127.0.0.1:${typeof address === "object" && address ? address.port : opts.listen}`;
+    const headers = endToEndHeaders(req.headers);
+    headers.host = host;
+    headers["x-forwarded-host"] = host;
+    headers["x-forwarded-proto"] = "http";
+    headers["x-forwarded-for"] = req.socket.remoteAddress ?? "127.0.0.1";
+    delete headers.forwarded;
+    delete headers["x-mdf-remote"];
+    headers.connection = "Upgrade";
+    headers.upgrade = "websocket";
+    const outgoing = request(next, { method: "GET", path: req.url, headers });
+    socket.on("error", () => outgoing.destroy());
+    socket.on("close", () => outgoing.destroy());
+    outgoing.on("error", () => socket.destroy());
+    outgoing.on("response", (response) => {
+      response.resume();
+      socket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
+    });
+    outgoing.on("upgrade", (response, upstream, upstreamHead) => {
+      const lines = response.rawHeaders.reduce<string[]>(
+        (lines, value, index, all) => {
+          if (index % 2 === 0) lines.push(`${value}: ${all[index + 1]}`);
+          return lines;
+        },
+        [],
+      );
+      socket.write(
+        `HTTP/1.1 101 Switching Protocols\r\n${lines.join("\r\n")}\r\n\r\n`,
+      );
+      if (upstreamHead.length) socket.write(upstreamHead);
+      if (head.length) upstream.write(head);
+      upstream.on("error", () => socket.destroy());
+      socket.on("error", () => upstream.destroy());
+      socket.on("close", () => upstream.destroy());
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    });
+    outgoing.end();
+  });
   return server.listen(opts.listen, "127.0.0.1");
 }
 
