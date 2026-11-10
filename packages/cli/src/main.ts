@@ -32,7 +32,7 @@ async function main() {
       data: {
         commands,
         usage:
-          "login --url <origine> (PAT da stdin); songs|costs [--input filtri.json]; create --input canzone.json; status <job> [--watch]; approve <versione> --input testo.json; regenerate <versione> --input generazione.json; video <versione>; mcp. --json su tutti; --idempotency-key <chiave> sulle scritture. --input - legge JSON da stdin.",
+          "login --url <origine> (PAT da stdin); songs|costs|remakes [--input filtri.json]; create --input canzone.json; status <job> [--watch]; approve <versione> --input testo.json; regenerate <versione> --input generazione.json; video <versione>; pick <versione> <take>; approve-video <versione>; remake <link> [--lang it] [--country IT]; remake-status <rifacimento> [--watch]; remake-edit <rifacimento> --input modifiche.json; remake-accept <rifacimento> --input accetta.json; remake-cancel <rifacimento>; remake-retry <rifacimento>; tools; call <strumento> [--input argomenti.json]; mcp. --json su tutti; --idempotency-key <chiave> sulle scritture. --input - legge JSON da stdin.",
       },
     });
     return;
@@ -43,6 +43,8 @@ async function main() {
       !values.url ||
       values.input ||
       values.watch ||
+      values.lang ||
+      values.country ||
       values["idempotency-key"]
     )
       throw new ClientError(
@@ -65,6 +67,8 @@ async function main() {
       values.url ||
       values.input ||
       values.watch ||
+      values.lang ||
+      values.country ||
       values["idempotency-key"]
     )
       throw new ClientError("validation", "Usa mcp [--json].");
