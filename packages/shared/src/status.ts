@@ -4,7 +4,7 @@ export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 export type VersionStatus =
   // A "Rifai da YouTube" remake: R1 to R3 run and the person reviews the new lyrics in the
-  // create panel; accepting moves the song to song_queued (migration 20261102000025).
+  // create panel; accepting moves the song to song_queued (migration 20261102000026).
   | "analysing"
   | "drafting"
   | "lyrics_review"

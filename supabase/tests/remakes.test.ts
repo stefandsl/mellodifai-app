@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { remakeLyricsText } from "../../packages/shared/src/remake/workflow";
 import { opsRpc } from "./helpers/ops-call";
 
-// "Rifai da YouTube" and the AI lyric buttons (migration 20261102000025): remake_start and the
+// "Rifai da YouTube" and the AI lyric buttons (migration 20261102000026): remake_start and the
 // review RPCs (edit, regenerate a section, accept, cancel, dismiss, retry), the originality gate
 // on accept, the revision conflict, my_remake, and the songless lyrics_assist jobs.
 //

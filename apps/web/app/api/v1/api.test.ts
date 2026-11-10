@@ -10,7 +10,13 @@ import {
   type Handler,
   jobId,
   pack,
+  pathParams,
+  remakeAcceptBody,
+  remakeId,
+  remakeLyricsText,
+  remakeUrl,
   requestFor,
+  sectionId,
   takeId,
   versionId,
   visualizer,
@@ -23,7 +29,22 @@ vi.mock("@/lib/db/ops-client", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const routes = import.meta.glob<Record<string, Handler>>("./**/route.ts");
-const params = { version_id: versionId, job_id: jobId, take_id: takeId };
+const params = pathParams;
+const remakePack = {
+  title: "Mille volti",
+  lyrics: remakeLyricsText,
+  style: "rock, 79 bpm",
+  exclude: "",
+  settings: {
+    model: "V6",
+    styleWeight: 0.7,
+    weirdness: 0.35,
+    variety: 1,
+    duration: null,
+  },
+  displayMap: {},
+  l10n: {},
+};
 const expectedArgs: Record<string, unknown[]> = {
   songs_list: [null, 20, null, false],
   song_get: [versionId],
@@ -41,6 +62,21 @@ const expectedArgs: Record<string, unknown[]> = {
   job_cancel: [jobId],
   stems_request: [versionId],
   visualizer_request: [versionId, visualizer],
+  remakes_list: [20],
+  remake_get: [remakeId],
+  remake_start: [remakeUrl, "49rDdMbXd_w", "it", null],
+  remake_edit: [remakeId, 3, [{ index: 0, text: "Una riga nuova" }], null],
+  remake_regenerate_section: [remakeId, 3, sectionId],
+  remake_accept: [
+    remakeId,
+    3,
+    remakePack,
+    { model: "V6", engine: "kie", title: "Mille volti" },
+    null,
+  ],
+  remake_retry: [remakeId],
+  remake_cancel: [remakeId],
+  remake_dismiss: [remakeId],
 };
 async function handler(row: (typeof apiCases)[number]) {
   const file = `.${row.path.replace(/\{([^}]+)\}/g, "[$1]")}/route.ts`;
@@ -57,7 +93,8 @@ beforeEach(() => {
   }));
 });
 
-it("registers exactly the sixteen 7.3 operations with their HTTP metadata", () => {
+it("registers exactly the twenty-five 7.3 and 7.3b operations with their HTTP metadata", () => {
+  expect(TOKEN_OPS).toHaveLength(25);
   expect(TOKEN_OPS.map((def) => ({ name: def.name, ...def.http }))).toEqual(
     apiCases.map(({ name, method, path }) => ({
       name,
@@ -229,4 +266,274 @@ it("maps ambiguous_spend to 409 without retrying", async () => {
     },
   });
   expect(mocks.callOps).toHaveBeenCalledTimes(2);
+});
+
+it("every token operation says what it does, its scope and what to call next", () => {
+  for (const def of TOKEN_OPS) {
+    expect(def.description.length, def.name).toBeGreaterThanOrEqual(20);
+    expect(def.description.length, def.name).toBeLessThanOrEqual(300);
+    expect(def.description, def.name).toMatch(/^[A-Z][^\n]*\.$/u);
+    expect(def.description, def.name).toMatch(/\(scope (read|create|spend)/u);
+    expect(def.description).not.toContain(String.fromCodePoint(0x2014));
+  }
+  // The scope a tool names is the one the database asks of a token.
+  const scopes = Object.fromEntries(
+    TOKEN_OPS.filter((def) => def.name.startsWith("remake")).map((def) => [
+      def.name,
+      def.scope,
+    ]),
+  );
+  expect(scopes).toEqual({
+    remakes_list: "read",
+    remake_get: "read",
+    remake_start: "spend",
+    remake_edit: "spend",
+    remake_regenerate_section: "spend",
+    remake_accept: "spend",
+    remake_retry: "spend",
+    remake_cancel: "create",
+    remake_dismiss: "create",
+  });
+  for (const def of TOKEN_OPS.filter((d) => d.name.startsWith("remake")))
+    expect(def.description, def.name).toContain(`(scope ${def.scope}`);
+});
+
+const remakeRow = (name: string) => {
+  const row = apiCases.find((item) => item.name === name);
+  if (!row) throw new Error(`No API case for ${name}`);
+  return row;
+};
+async function post(name: string, body: unknown) {
+  const row = remakeRow(name);
+  const response = await (await handler(row))(
+    new Request(requestFor(row, newPat().token), {
+      body: JSON.stringify(body),
+    }),
+    { params: Promise.resolve(params) },
+  );
+  return {
+    status: response.status,
+    args: mocks.callOps.mock.calls.at(-1)?.[1].slice(1) as
+      | unknown[]
+      | undefined,
+  };
+}
+
+it.each([
+  ["49rDdMbXd_w", "https://www.youtube.com/watch?v=49rDdMbXd_w"],
+  ["  youtu.be/49rDdMbXd_w ", "https://youtu.be/49rDdMbXd_w"],
+  [
+    "www.youtube.com/watch?v=49rDdMbXd_w&t=5",
+    "https://www.youtube.com/watch?v=49rDdMbXd_w&t=5",
+  ],
+  [
+    "http://music.youtube.com/watch?v=49rDdMbXd_w",
+    "http://music.youtube.com/watch?v=49rDdMbXd_w",
+  ],
+])("remake_start maps the link %s like the create panel", async (url, sent) => {
+  const result = await post("remake_start", {
+    url,
+    lang: "ja",
+    country: "JP",
+  });
+  expect(result.status).toBe(200);
+  expect(result.args).toEqual([sent, "49rDdMbXd_w", "ja", "JP"]);
+});
+it.each([
+  { url: "https://example.com/watch?v=49rDdMbXd_w", lang: "it" },
+  { url: "not a link", lang: "it" },
+  { url: "", lang: "it" },
+  { url: `https://youtu.be/49rDdMbXd_w?${"x".repeat(500)}`, lang: "it" },
+  { url: remakeUrl, lang: "xx" },
+  { url: remakeUrl, lang: "it", country: "it" },
+  { url: remakeUrl },
+])("remake_start refuses %j before any database call", async (body) => {
+  expect((await post("remake_start", body)).status).toBe(422);
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
+it("remake_edit trims lines and the title like the cookie review", async () => {
+  const result = await post("remake_edit", {
+    revision: 0,
+    lines: [
+      { index: 4, text: "  Una riga nuova  " },
+      { index: 7, text: "x".repeat(200) },
+    ],
+    title: "  Nuovo titolo ",
+  });
+  expect(result.status).toBe(200);
+  expect(result.args).toEqual([
+    remakeId,
+    0,
+    [
+      { index: 4, text: "Una riga nuova" },
+      { index: 7, text: "x".repeat(200) },
+    ],
+    "Nuovo titolo",
+  ]);
+  expect((await post("remake_edit", { revision: 2, lines: [] })).args).toEqual([
+    remakeId,
+    2,
+    [],
+    null,
+  ]);
+});
+it.each([
+  { revision: 0, lines: [{ index: 0, text: "due\nrighe" }] },
+  { revision: 0, lines: [{ index: 0, text: "   " }] },
+  { revision: 0, lines: [{ index: 0, text: "x".repeat(201) }] },
+  {
+    revision: 0,
+    lines: [{ index: 0, text: `una ${String.fromCodePoint(0x2014)} riga` }],
+  },
+  { revision: 0, lines: [{ index: -1, text: "riga" }] },
+  { revision: 0, lines: [{ index: 0.5, text: "riga" }] },
+  {
+    revision: 0,
+    lines: Array.from({ length: 201 }, (_, index) => ({ index, text: "riga" })),
+  },
+  { revision: 0, lines: [], title: "x".repeat(101) },
+  { revision: 0, lines: [], title: " " },
+  { revision: -1, lines: [] },
+  { lines: [] },
+  { revision: 0 },
+])("remake_edit refuses invalid edits (%#)", async (body) => {
+  expect((await post("remake_edit", body)).status).toBe(422);
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
+it("remake_accept composes the pack from the echoed text and drops a source", async () => {
+  const result = await post("remake_accept", {
+    ...remakeAcceptBody,
+    title: "  Mille volti ",
+    vocal_gender: "f",
+    settings: {
+      engine: "kie",
+      model: "V5",
+      bpm: 79,
+      exclude: "rap",
+      duration: 120,
+      source: {
+        mode: "cover",
+        takeId: "22222222-2222-4222-8222-222222222222",
+        title: "t",
+      },
+    },
+  });
+  expect(result.status).toBe(200);
+  expect(result.args).toEqual([
+    remakeId,
+    3,
+    {
+      ...remakePack,
+      exclude: "rap",
+      settings: {
+        ...remakePack.settings,
+        model: "V5",
+        vocalGender: "f",
+        duration: 120,
+      },
+    },
+    {
+      engine: "kie",
+      model: "V5",
+      bpm: 79,
+      exclude: "rap",
+      duration: 120,
+      title: "Mille volti",
+    },
+    "f",
+  ]);
+  // The text is passed on untouched, also its spaces and blank lines.
+  const text = "[Intro]\n\n[Verse 1]\n Una riga \n";
+  const untouched = await post("remake_accept", {
+    ...remakeAcceptBody,
+    lyrics_text: text,
+  });
+  expect(untouched.args?.[2]).toMatchObject({ lyrics: text });
+});
+it.each([
+  { ...remakeAcceptBody, lyrics_text: "" },
+  { ...remakeAcceptBody, lyrics_text: undefined },
+  { ...remakeAcceptBody, title: "x".repeat(81) },
+  { ...remakeAcceptBody, style: "" },
+  { ...remakeAcceptBody, revision: undefined },
+  { ...remakeAcceptBody, vocal_gender: "x" },
+  { ...remakeAcceptBody, settings: { engine: "suno" } },
+])("remake_accept refuses an invalid input (%#)", async (body) => {
+  expect((await post("remake_accept", body)).status).toBe(422);
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
+it("the remake named by the path wins over the body and a malformed id is refused", async () => {
+  expect(
+    (await post("remake_cancel", { remake_id: randomUUID() })).args,
+  ).toEqual([remakeId]);
+  const row = remakeRow("remake_get");
+  const response = await (await handler(row))(
+    requestFor(row, newPat().token, { remake_id: "not-an-id" }),
+    { params: Promise.resolve({ remake_id: "not-an-id" }) },
+  );
+  expect(response.status).toBe(422);
+  const section = remakeRow("remake_regenerate_section");
+  expect(
+    (
+      await (
+        await handler(section)
+      )(
+        new Request(requestFor(section, newPat().token), {
+          body: JSON.stringify({ revision: 3 }),
+        }),
+        {
+          params: Promise.resolve({ ...params, section_id: "x".repeat(41) }),
+        },
+      )
+    ).status,
+  ).toBe(422);
+});
+
+it("remakes_list takes its limit from the query", async () => {
+  const row = remakeRow("remakes_list");
+  const call = async (query: string) =>
+    (await handler(row))(
+      new Request(`http://localhost/api/v1/remakes${query}`, {
+        headers: { authorization: `Bearer ${newPat().token}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+  expect((await call("?limit=5")).status).toBe(200);
+  expect(mocks.callOps.mock.calls.at(-1)?.[1].slice(1)).toEqual([5]);
+  for (const query of ["?limit=0", "?limit=101", "?limit=no"])
+    expect((await call(query)).status).toBe(422);
+  expect(mocks.callOps).toHaveBeenCalledTimes(1);
+});
+
+it("a lost answer is ambiguous_spend for the paid remake steps only", async () => {
+  for (const [name, status, code] of [
+    ["remake_start", 409, "ambiguous_spend"],
+    ["remake_edit", 409, "ambiguous_spend"],
+    ["remake_regenerate_section", 409, "ambiguous_spend"],
+    ["remake_accept", 409, "ambiguous_spend"],
+    ["remake_retry", 409, "ambiguous_spend"],
+    ["remake_cancel", 500, "internal"],
+    ["remake_dismiss", 500, "internal"],
+  ] as const) {
+    mocks.callOps.mockReset();
+    mocks.callOps
+      .mockResolvedValueOnce({ ok: true, data: { status: "new" } })
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "internal",
+        message: "Internal error",
+        details: { reason: "completion_unknown" },
+      });
+    const row = remakeRow(name);
+    const response = await (await handler(row))(
+      requestFor(row, newPat().token),
+      { params: Promise.resolve(params) },
+    );
+    expect(response.status, name).toBe(status);
+    expect((await response.json()).error.code, name).toBe(code);
+    expect(mocks.callOps).toHaveBeenCalledTimes(2);
+  }
 });

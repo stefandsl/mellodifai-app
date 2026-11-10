@@ -1,7 +1,7 @@
 // The AI buttons of the create panel's lyrics editor (task 27): "Scrivi con AI" writes lyrics
 // from the title, a brief and the styles; "Rigenera" writes the whole text or one section again;
 // "Migliora" keeps the meaning and improves singability and rhyme. Each request is a
-// lyrics_assist job run by the worker's lyric pipeline and jury (migration 20261102000025).
+// lyrics_assist job run by the worker's lyric pipeline and jury (migration 20261102000026).
 import { z } from "zod";
 import { LANGS } from "./stages.js";
 

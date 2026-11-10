@@ -1,26 +1,26 @@
 "use server";
 // "Rifai da YouTube" (task 27): the create panel's actions on a remake. The database functions
-// of migration 20261102000025 hold every rule; these validate the input, compose the lyric pack
+// of migration 20261102000026 hold every rule; these validate the input, compose the lyric pack
 // with shared remakeLyricsText (the database refuses any other text) and return a code the panel
 // turns into a message.
 import {
   LANGS,
-  LyricPackSchema,
   REMAKE_COUNTRIES,
   RemakeLyricsSchema,
   remakeLyricsText,
   SongSettingsSchema,
-  youtubeVideoId,
 } from "@mellodifai/shared";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { actionProfile } from "@/lib/auth";
 import { callOps } from "@/lib/db/ops-client";
 import { sessionCtx } from "@/lib/ops/context";
+import { RemakeLineText, remakeLink } from "@/lib/ops/defs/inputs";
 import { remakeAccept } from "@/lib/ops/defs/remake-accept";
 import { remakeCancel } from "@/lib/ops/defs/remake-cancel";
 import { remakeDismiss } from "@/lib/ops/defs/remake-dismiss";
 import { remakeEdit } from "@/lib/ops/defs/remake-edit";
+import { remakeLyricPack } from "@/lib/ops/defs/remake-pack";
 import { remakeRegenerateSection } from "@/lib/ops/defs/remake-regenerate-section";
 import { remakeRetry } from "@/lib/ops/defs/remake-retry";
 import { remakeStart } from "@/lib/ops/defs/remake-start";
@@ -62,7 +62,7 @@ export type RemakeActionResult =
 const Id = z.string().uuid();
 const Revision = z.number().int().nonnegative();
 
-// Database refusals the person can act on, by the words of migration 20261102000025.
+// Database refusals the person can act on, by the words of migration 20261102000026.
 function codeOf(message: string): RemakeActionError {
   if (/invalid youtube link/u.test(message)) return "invalidUrl";
   if (/already running/u.test(message)) return "busy";
@@ -132,14 +132,11 @@ export async function startRemake(input: unknown) {
     return { ok: false as const, error: "failed" as const };
   return run(async () => {
     const v = StartInput.parse(input);
-    const videoId = youtubeVideoId(v.url);
-    if (!videoId) throw new Error("invalid youtube link");
-    const url = /^https?:\/\//iu.test(v.url) ? v.url : `https://${v.url}`;
+    const link = remakeLink(v.url);
+    if (!link) throw new Error("invalid youtube link");
     return invoke(remakeStart, {
-      p_url: /^[\w-]{11}$/u.test(v.url)
-        ? `https://www.youtube.com/watch?v=${videoId}`
-        : url,
-      p_video_id: videoId,
+      p_url: link.url,
+      p_video_id: link.videoId,
       p_lang: v.lang,
       p_country: v.country,
     });
@@ -153,16 +150,7 @@ const EditInput = z.object({
     .array(
       z.object({
         index: z.number().int().nonnegative(),
-        text: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
-          // One line, and never the em dash (owner rule).
-          .refine(
-            (t) =>
-              !/[\r\n]/u.test(t) && !t.includes(String.fromCodePoint(0x2014)),
-          ),
+        text: RemakeLineText,
       }),
     )
     .max(200),
@@ -226,31 +214,20 @@ export async function acceptRemake(input: unknown) {
       .single();
     if (readError) throw readError;
     const lyrics = RemakeLyricsSchema.parse(row.lyrics);
-    const settings = { ...v.settings, title: v.title };
-    // A remake never starts from audio: the reference is the YouTube source, analysed only.
-    delete (settings as { source?: unknown }).source;
-    const pack = LyricPackSchema.parse({
+    // The same pack an agent's remake_accept composes (lib/ops/defs/remake-pack.ts).
+    const accepted = remakeLyricPack({
       title: v.title,
-      lyrics: remakeLyricsText(lyrics),
       style: v.style,
-      exclude: v.settings.exclude ?? "",
-      settings: {
-        model: v.settings.model,
-        ...(v.vocalGender ? { vocalGender: v.vocalGender } : {}),
-        styleWeight: v.settings.styleWeight ?? 0.7,
-        weirdness: v.settings.weirdness ?? 0.35,
-        variety: v.settings.variety ?? 1,
-        duration: v.settings.duration ?? null,
-      },
-      displayMap: {},
-      l10n: {},
+      lyricsText: remakeLyricsText(lyrics),
+      settings: v.settings,
+      vocalGender: v.vocalGender,
     });
     return invoke(remakeAccept, {
       p_remake: v.remakeId,
       p_revision: v.revision,
-      p_pack: pack,
-      p_settings: settings,
-      p_vocal_gender: v.vocalGender,
+      p_pack: accepted.pack,
+      p_settings: accepted.settings,
+      p_vocal_gender: accepted.vocalGender,
     });
   });
 }

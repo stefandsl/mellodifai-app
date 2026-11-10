@@ -1,6 +1,6 @@
 // "Rifai da YouTube" as the studio runs it (task 27): the remake row's stages, the error codes a
 // person can act on, the analysis summary the create panel shows and the rules for accepting
-// the rewritten lyrics. The SQL functions of migration 20261102000025 hold the same rules.
+// the rewritten lyrics. The SQL functions of migration 20261102000026 hold the same rules.
 import { z } from "zod";
 import type { RemakeAnalysis, RemakeLyrics } from "./analysis.js";
 
@@ -144,7 +144,7 @@ export function summarizeAnalysis(analysis: RemakeAnalysis): RemakeSummary {
 }
 
 // The lyrics text the song is generated from: one [Label] line per section, then its lines.
-// migration 20261102000025 (remake_lyrics_text) composes the same text in SQL.
+// migration 20261102000026 (remake_lyrics_text) composes the same text in SQL.
 export function remakeLyricsText(lyrics: Pick<RemakeLyrics, "sections">) {
   return lyrics.sections
     .map((s) =>

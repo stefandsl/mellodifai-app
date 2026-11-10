@@ -53,6 +53,74 @@ export const summary = {
 const jobs = {
   jobs: [{ job_id: jobId, version_id: versionId, stage: "timing" }],
 };
+export const remakeId = randomUUID();
+export const sectionId = "verse-1";
+export const remakeUrl = "https://youtu.be/49rDdMbXd_w";
+const remakeJobs = {
+  jobs: [{ job_id: jobId, version_id: versionId, stage: "remake_rewrite" }],
+};
+const remakeSummary = {
+  remake_id: remakeId,
+  project_id: projectId,
+  version_id: versionId,
+  stage: "review",
+  lang: "it",
+  title: "Mille volti",
+  error_code: null,
+  created_at: "2026-11-06T00:00:00Z",
+  updated_at: "2026-11-06T00:00:00Z",
+};
+export const remakeLyricsText = "[Verse 1]\nUna riga di prova\nUn'altra riga";
+export const remakeDetail = {
+  remake_id: remakeId,
+  project_id: projectId,
+  version_id: versionId,
+  stage: "review",
+  lang: "it",
+  country: null,
+  video_id: "49rDdMbXd_w",
+  url: remakeUrl,
+  error_code: null,
+  error: null,
+  revision: 3,
+  pending: false,
+  gate_ok: true,
+  accept_ready: true,
+  analysis: { title: "Source title", bpm: 79 },
+  lyrics: {
+    title: "Mille volti",
+    sections: [
+      {
+        id: sectionId,
+        label: "Verse 1",
+        lines: [
+          { index: 0, text: "Una riga di prova" },
+          { index: 1, text: "Un'altra riga" },
+        ],
+      },
+    ],
+  },
+  lyrics_text: remakeLyricsText,
+  cost: { analysisUsd: 0.01 },
+  active_job: {
+    job_id: jobId,
+    stage: "remake_rewrite",
+    status: "running",
+    mode: "check",
+    progress: 40,
+    message: "check: gates",
+  },
+  failed_job: null,
+  untrusted: true,
+  created_at: "2026-11-06T00:00:00Z",
+  updated_at: "2026-11-06T00:00:00Z",
+};
+export const remakeAcceptBody = {
+  revision: 3,
+  lyrics_text: remakeLyricsText,
+  title: "Mille volti",
+  style: "rock, 79 bpm",
+};
 
 // Independent inventory of the frozen section 7.3 contract.
 export const apiCases = [
@@ -164,6 +232,71 @@ export const apiCases = [
     body: { params: visualizer },
     output: jobs,
   },
+  // The remake operations of section 7.3b, in the order the registry lists them.
+  {
+    name: "remakes_list",
+    method: "GET",
+    path: "/remakes",
+    output: { remakes: [remakeSummary] },
+  },
+  {
+    name: "remake_get",
+    method: "GET",
+    path: "/remakes/{remake_id}",
+    output: remakeDetail,
+  },
+  {
+    name: "remake_start",
+    method: "POST",
+    path: "/remakes",
+    body: { url: remakeUrl, lang: "it" },
+    output: {
+      id: remakeId,
+      jobs: [{ job_id: jobId, version_id: versionId, stage: "remake_ingest" }],
+    },
+  },
+  {
+    name: "remake_edit",
+    method: "POST",
+    path: "/remakes/{remake_id}/lyrics",
+    body: { revision: 3, lines: [{ index: 0, text: "Una riga nuova" }] },
+    output: { revision: 4, ...remakeJobs },
+  },
+  {
+    name: "remake_regenerate_section",
+    method: "POST",
+    path: "/remakes/{remake_id}/sections/{section_id}/regenerate",
+    body: { revision: 3 },
+    output: remakeJobs,
+  },
+  {
+    name: "remake_accept",
+    method: "POST",
+    path: "/remakes/{remake_id}/accept",
+    body: remakeAcceptBody,
+    output: {
+      id: versionId,
+      jobs: [{ job_id: jobId, version_id: versionId, stage: "generate_song" }],
+    },
+  },
+  {
+    name: "remake_retry",
+    method: "POST",
+    path: "/remakes/{remake_id}/retry",
+    output: remakeJobs,
+  },
+  {
+    name: "remake_cancel",
+    method: "POST",
+    path: "/remakes/{remake_id}/cancel",
+    output: { jobs: [] },
+  },
+  {
+    name: "remake_dismiss",
+    method: "POST",
+    path: "/remakes/{remake_id}/dismiss",
+    output: { jobs: [] },
+  },
 ] as const;
 
 export type ApiCase = (typeof apiCases)[number];
@@ -171,15 +304,22 @@ export type Handler = (
   req: Request,
   context: { params: Promise<Record<string, string>> },
 ) => Promise<Response>;
+export const pathParams: Record<
+  "version_id" | "job_id" | "take_id" | "remake_id" | "section_id",
+  string
+> = {
+  version_id: versionId,
+  job_id: jobId,
+  take_id: takeId,
+  remake_id: remakeId,
+  section_id: sectionId,
+};
 export function requestFor(
   row: ApiCase,
   token: string,
-  params: { version_id: string; job_id: string; take_id: string } = {
-    version_id: versionId,
-    job_id: jobId,
-    take_id: takeId,
-  },
+  given: Partial<typeof pathParams> = {},
 ) {
+  const params = { ...pathParams, ...given };
   const path = row.path.replace(
     /\{([^}]+)\}/g,
     (_, key: keyof typeof params) => params[key],

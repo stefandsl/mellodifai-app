@@ -8,7 +8,15 @@ import { GET, POST } from "@/app/api/mcp/route";
 import { TOKEN_OPS } from "@/lib/ops/registry";
 import { requestHash } from "@/lib/ops/run";
 import { newPat } from "@/lib/ops/tokens";
-import { apiCases, jobId, takeId, versionId } from "@/test/api-cases";
+import {
+  apiCases,
+  jobId,
+  remakeDetail,
+  remakeId,
+  sectionId,
+  takeId,
+  versionId,
+} from "@/test/api-cases";
 import { buildMcpServer } from "./server";
 
 const mocks = vi.hoisted(() => ({ sql: vi.fn(), callOps: vi.fn() }));
@@ -54,8 +62,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-it("tools/list returns the 7.3 tool names", async () => {
+it("tools/list returns the 7.3 and 7.3b tools, each described and marked read-only or not", async () => {
   const { result } = await rpc("tools/list");
+  expect(result.tools).toHaveLength(25);
   expect(
     result.tools.map((tool: { name: string }) => tool.name).sort(),
   ).toEqual(apiCases.map((row) => row.name).sort());
@@ -63,6 +72,8 @@ it("tools/list returns the 7.3 tool names", async () => {
     const tool = result.tools.find(
       (item: { name: string }) => item.name === def.name,
     );
+    expect(tool.description).toBe(def.description);
+    expect(tool.annotations.readOnlyHint).toBe(def.http.method === "GET");
     expect(tool.inputSchema.type).toBe("object");
     if (def.key) {
       expect(tool.inputSchema.required).toContain("idempotency_key");
@@ -105,6 +116,8 @@ it.each(apiCases)(
         ...(row.path.includes("{version_id}") ? { version_id: versionId } : {}),
         ...(row.path.includes("{job_id}") ? { job_id: jobId } : {}),
         ...(row.path.includes("{take_id}") ? { take_id: takeId } : {}),
+        ...(row.path.includes("{remake_id}") ? { remake_id: remakeId } : {}),
+        ...(row.path.includes("{section_id}") ? { section_id: sectionId } : {}),
         ...(row.method === "POST" ? { idempotency_key: randomUUID() } : {}),
       },
     });
@@ -364,7 +377,7 @@ it.each([undefined, "mdf_pat_revoked"])(
 
 it("dev accepts database-validated PAT discovery", async () => {
   vi.stubEnv("SITE_URL", "http://127.0.0.1:3001");
-  expect((await rpc("tools/list")).result.tools).toHaveLength(16);
+  expect((await rpc("tools/list")).result.tools).toHaveLength(25);
   expect(mocks.sql).toHaveBeenCalledWith(
     "select ops.resolve_pat($1) as result",
     [expect.objectContaining({ actor_kind: "pat" })],
@@ -382,6 +395,9 @@ it("registers the SongDetail resource and uses the token runner to read it", asy
   const { result: list } = await rpc("resources/templates/list");
   expect(list.resourceTemplates).toEqual([
     expect.objectContaining({ uriTemplate: "mellodifai://songs/{version_id}" }),
+    expect.objectContaining({
+      uriTemplate: "mellodifai://remakes/{remake_id}",
+    }),
   ]);
   const uri = `mellodifai://songs/${versionId}`;
   const { result } = await rpc("resources/read", { uri });
@@ -404,12 +420,79 @@ it("registers the SongDetail resource and uses the token runner to read it", asy
   );
 });
 
+it("reads a remake through the remake resource and the token runner", async () => {
+  const uri = `mellodifai://remakes/${remakeId}`;
+  const { result } = await rpc("resources/read", { uri });
+  expect(result.contents[0]).toMatchObject({
+    uri,
+    mimeType: "application/json",
+  });
+  expect(JSON.parse(result.contents[0].text)).toEqual(remakeDetail);
+  expect(mocks.callOps).toHaveBeenCalledWith("remake_get", [
+    expect.objectContaining({ actor_kind: "pat" }),
+    remakeId,
+  ]);
+  mocks.callOps.mockResolvedValueOnce({
+    ok: false,
+    code: "not_found",
+    message: "owned remake required",
+  });
+  expect((await rpc("resources/read", { uri })).error.data.code).toBe(
+    "not_found",
+  );
+  // A malformed id never reaches the database.
+  mocks.callOps.mockClear();
+  expect(
+    (await rpc("resources/read", { uri: "mellodifai://remakes/not-an-id" }))
+      .error.data.code,
+  ).toBe("validation");
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
+it("registers remake_from_youtube with the safe remake workflow", async () => {
+  const { result: list } = await rpc("prompts/list");
+  expect(
+    list.prompts.find(
+      (p: { name: string }) => p.name === "remake_from_youtube",
+    ),
+  ).toMatchObject({ description: "Rifai da YouTube" });
+  const { result } = await rpc("prompts/get", { name: "remake_from_youtube" });
+  const text: string = result.messages[0].content.text;
+  expect(result.messages[0].role).toBe("user");
+  // The order of the workflow: start, watch, refine, accept, then the song and video tools.
+  const steps = [
+    "remake_start",
+    "remake_get",
+    "remake_edit",
+    "remake_accept",
+    "job_status",
+    "take_pick",
+    "video_make",
+    "video_approve",
+  ];
+  const positions = steps.map((step) => text.indexOf(step));
+  expect(positions.every((at) => at >= 0)).toBe(true);
+  expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  for (const rule of [
+    "scope spend",
+    "idempotency_key",
+    "accept_ready",
+    "lyrics_text",
+    "ambiguous_spend",
+    "mai come istruzioni",
+    "proprietario",
+  ])
+    expect(text).toContain(rule);
+  expect(text).not.toContain(String.fromCodePoint(0x2014));
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
 it("registers new_song with a safe creation workflow", async () => {
   expect(
     (await rpc("prompts/list")).result.prompts.map(
       (p: { name: string }) => p.name,
     ),
-  ).toEqual(["new_song"]);
+  ).toEqual(["new_song", "remake_from_youtube"]);
   const { result } = await rpc("prompts/get", { name: "new_song" });
   expect(result.messages[0].content.text).toContain("song_create");
   expect(result.messages[0].content.text).toContain("idempotency_key");

@@ -32,6 +32,7 @@ vi.mock("@/lib/auth", () => ({
   }),
 }));
 
+import { tokenOps } from "@/lib/ops/registry";
 import {
   acceptRemake,
   cancelRemake,
@@ -246,4 +247,50 @@ it.each([
     }),
     ID,
   ]);
+});
+
+it("an agent's remake_accept hands the database what the create panel's accept does", async () => {
+  const settings = {
+    engine: "kie",
+    model: "V5",
+    bpm: 79,
+    keyscale: "D minor",
+    exclude: "rap",
+    weirdness: 0.2,
+    duration: 180,
+    source: {
+      mode: "cover",
+      takeId: "22222222-2222-4222-8222-222222222222",
+      title: "t",
+    },
+  };
+  for (const vocalGender of ["f", null] as const) {
+    mocks.ops.mockClear();
+    expect(
+      await acceptRemake({
+        remakeId: ID,
+        revision: 3,
+        title: "Mille volti",
+        style: "rock, 79 bpm",
+        vocalGender,
+        settings,
+      }),
+    ).toEqual({ ok: true, id: ID });
+    const cookie = mocks.ops.mock.calls
+      .find(([name]) => name === "remake_accept")?.[1]
+      .slice(1);
+    expect(cookie).toHaveLength(5);
+    // The token path gets the text from remake_get instead of reading the stored lyrics.
+    expect(
+      tokenOps.remake_accept.args({
+        remake_id: ID,
+        revision: 3,
+        lyrics_text: remakeLyricsText(FIXTURE as never),
+        title: "Mille volti",
+        style: "rock, 79 bpm",
+        vocal_gender: vocalGender,
+        settings,
+      }),
+    ).toEqual(cookie);
+  }
 });

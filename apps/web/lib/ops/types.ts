@@ -23,6 +23,8 @@ export type OpsCtx = {
 export type OpDef<I, O> = {
   name: string;
   fn: string;
+  // What an agent reads in tools/list; every token operation has one.
+  description?: string;
   input: ZodType<I>;
   // SQL arguments after p_ctx, in the function signature's order.
   args: (input: I) => unknown[];

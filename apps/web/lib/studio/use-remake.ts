@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { readRemake } from "@/app/actions/remake";
 
-// The create panel's view of the person's current remake (my_remake, migration 20261102000025).
+// The create panel's view of the person's current remake (my_remake, migration 20261102000026).
 export type RemakeView = {
   id: string;
   projectId: string;

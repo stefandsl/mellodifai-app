@@ -1,6 +1,6 @@
 "use server";
 // "Scrivi con AI", "Rigenera" and "Migliora" (task 27): one lyrics_assist job of the worker's lyric
-// pipeline per click (migration 20261102000025). The editor polls lyrics_assist_state.
+// pipeline per click (migration 20261102000026). The editor polls lyrics_assist_state.
 import { LyricsAssistInputSchema } from "@mellodifai/shared";
 import { headers } from "next/headers";
 import { z } from "zod";
