@@ -70,7 +70,7 @@ pnpm e2e          # e2e stack only
 
 ## 3. Where things stand (2026-11-10)
 
-### Agent remake access (2026-11-10, merged and pushed, NOT deployed)
+### Agent remake access (2026-11-10, merged, pushed and deployed)
 
 An agent with a PAT or OAuth token can now drive "Rifai da YouTube" from the link to an approved
 video, over the HTTP API, the MCP server and the CLI. Before this, agents could only work on
@@ -94,7 +94,7 @@ songs that already existed. Contract: design doc section 7.3b; plan
 - Migration `20261103075001_ops_remake_tokens.sql` (sorts before the lockdown, which stays
   last): the seven remake wrappers accept scoped tokens with an idempotency key (a cookie
   session stays local only), two new reads, and `public.remake_start` counts its limits per
-  test mode. It is NOT applied to the live stack yet: `pnpm ops deploy.ts` applies it.
+  test mode. It is applied to the live stack (deploy of 2026-11-10 below).
 - Rules that hold (each has a database test): a token without the scope changes nothing;
   a test-mode token sees and changes only test remakes, on fake providers; `remake_get` never
   returns source lyric lines, the literal translation, the jury's comments, error text or event
@@ -117,6 +117,25 @@ songs that already existed. Contract: design doc section 7.3b; plan
   kept its default). No cause found; if it returns, look at how `ClockField` commits on Enter.
 - Independent review found two leaks of source text in `remake_get` (jury comments, error and
   event text) and the shared limits; all fixed before the merge.
+
+Production deploy (2026-11-10, approved by the owner): annotated tag
+`agent-remake-20261110-r1` (commit `06e2458`) through `pnpm ops deploy.ts --to
+agent-remake-20261110-r1`, exit 0. Health reports web/db/ops ok, version
+`agent-remake-20261110-r1`, schema `20261103080001`, an empty queue and a fresh worker
+heartbeat; worker, auth, web and edge are running and auth discovery answers 200.
+`/api/v1/remakes` answers 401 without a token. Migration `20261103075001` is recorded, the new
+`ops` functions belong to postgres and only `mdf_web` may execute them. Row counts of projects,
+versions, takes, remakes, jobs, users and storage objects are identical before and after
+(`E:/mellodifai/codex-streams/agent-remake-deploy/counts-*.txt`). Backup taken by the tool:
+`E:/mellodifai/backups/2026-11-10T12-04-31-911Z-m1-final-20261108-r1.sql`. Rollback is
+`pnpm ops deploy.ts --to m1-final-20261108-r1 --skip-migrations` (the new migration is
+compatible with the old code). Not done on production: a remake by a real agent token, which
+needs a PAT the owner creates in Settings > Agenti.
+Run the deploy from a source tree on E: with dependencies installed (a worktree at the tag):
+the checkout on C: has no `ops/node_modules`, so `pnpm ops deploy.ts` stops there at once with
+"Cannot find package 'yaml'", before it touches anything. Build the tag first
+(`pnpm --dir ops exec tsc --build`, `pnpm --dir apps/auth build`, `pnpm --dir apps/web build`):
+a failure after the migration step leaves the services stopped.
 
 ### Earlier state (2026-11-08)
 
@@ -186,10 +205,8 @@ deployment, replacing the pinned logon copy, and one real sign-in email remain
 pending. See `docs/production-logon.md` and
 `E:/mellodifai/codex-streams/smtp-resend/report.md` for setup and gate evidence.
 
-0. Deploy `build/studio-ui` (agent remake access, migration `20261103075001`) with
-   `pnpm ops deploy.ts` once the owner approves a production redeploy. Production still runs
-   tag `m1-final-20261108-r1`. After the deploy the owner signs in again with the Desktop
-   shortcut "Accedi MellodifAI".
+0. Production runs tag `agent-remake-20261110-r1` (agent remake access). If the app asks the
+   owner to sign in, he uses the Desktop shortcut "Accedi MellodifAI".
 1. M1 Tasks 1-46 and the final release are complete. Do not rerun the completed
    cutover, rotations or final-review driver.
 2. Task 47 stays pending owner DNS/Cloudflare setup and external connector
