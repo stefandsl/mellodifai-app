@@ -77,6 +77,10 @@ source text.
 2. `remake-status <remake_id> --watch` (MCP `remake_get`, scope read) polls
    every 3 seconds through ingest, analyse and rewrite. It stops when the stage
    is accepted, failed or cancelled, or when a review remake has no active job.
+   A failed remake says why in `error_code` (`invalid_url`, `private`,
+   `age_restricted`, `too_long`, `unavailable`, `no_lyrics`, `privacy_filter`,
+   `cost_cap` or `failed`); the error text stays with the owner in the app.
+   The jury comes as scores, categories and line numbers, without its comments.
 3. In stage review, show `lyrics_text` and the flagged lines to the owner. To
    fix lines, use `remake-edit <remake_id> --input edits.json` with
    `{ "revision": n, "lines": [{ "index": i, "text": "..." }], "title"? }`

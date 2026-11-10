@@ -241,6 +241,68 @@ it("a remote cookie session stays refused while a remote PAT follows ops._actor"
   });
 });
 
+it("a remote cookie session cannot read remakes", async () => {
+  await fixture(async (tx) => {
+    const a = await actor(tx);
+    const remake = await review(tx, a);
+    for (const [name, args] of [
+      ["remake_get", [remake.id]],
+      ["remakes_list", [20]],
+    ] as const) {
+      expect(
+        await call(tx, "mdf_web", name, [{ ...a, remote: true }, ...args]),
+        name,
+      ).toMatchObject({
+        ok: false,
+        code: "forbidden_scope",
+        message: "admin required",
+      });
+      expect(await call(tx, "mdf_web", name, [a, ...args]), name).toMatchObject(
+        { ok: true },
+      );
+    }
+  });
+});
+
+it("the remake limits count per test mode", async () => {
+  await fixture(async (tx) => {
+    const a = await actor(tx);
+    const test = await token(tx, a, undefined, { test: true });
+    const begin = (ctx: Ctx) =>
+      call(tx, "mdf_web", "remake_start", [keyed(ctx), ...start]);
+    const busy = {
+      ok: false,
+      code: "conflict",
+      message: "a remake is already running",
+    };
+    // A running test remake does not hold the owner's slot, and the reverse.
+    const first = await begin(test);
+    expect(first).toMatchObject({ ok: true });
+    expect(await begin(test)).toMatchObject(busy);
+    const live = await begin(a);
+    expect(live).toMatchObject({ ok: true });
+    expect(await begin(a)).toMatchObject(busy);
+    expect(await begin(test)).toMatchObject(busy);
+    // Twenty test remakes in a day stop the test token, not the owner.
+    await tx`update public.remakes set stage='cancelled' where owner_id=${a.user_id}`;
+    for (let i = 1; i < 20; i++) {
+      expect((await begin(test)).ok, `test remake ${i + 1}`).toBe(true);
+      await tx`update public.remakes set stage='cancelled' where owner_id=${a.user_id}`;
+    }
+    expect(await begin(test)).toMatchObject({
+      ok: false,
+      message: "daily remake limit reached",
+    });
+    expect(await begin(a)).toMatchObject({ ok: true });
+    expect(
+      await tx`select v.test_run,count(*)::int as remakes from public.remakes r join public.versions v on v.id=r.version_id where r.owner_id=${a.user_id} group by 1 order by 1`,
+    ).toEqual([
+      { test_run: false, remakes: 2 },
+      { test_run: true, remakes: 20 },
+    ]);
+  });
+});
+
 it("a token only changes remakes of its own test mode", async () => {
   await fixture(async (tx) => {
     const a = await actor(tx);
@@ -576,7 +638,6 @@ const GET_KEYS = [
   "video_id",
   "url",
   "error_code",
-  "error",
   "revision",
   "pending",
   "gate_ok",
@@ -591,12 +652,36 @@ const GET_KEYS = [
   "created_at",
   "updated_at",
 ].sort();
-// What an agent may see of stored lyrics: no source line, no literal translation, and the
-// phrase gate's detail without the source line it quotes.
+// What an agent may see of stored lyrics: no source line, no literal translation, the phrase
+// gate's detail without the source line it quotes, and the jury without its free text.
 function shown(lyrics: typeof LYRICS) {
   const { literalTranslation: _, ...rest } = lyrics;
   return {
     ...rest,
+    jury: {
+      ...lyrics.jury,
+      rounds: lyrics.jury.rounds.map((round) => ({
+        round: round.round,
+        available: round.available,
+        scores: round.scores,
+        failing: round.failing,
+        gates: round.gates,
+        passed: round.passed,
+        issues: round.issues.map(({ line }) => ({ line })),
+        devil: {
+          model: round.devil.model,
+          blocking: round.devil.blocking,
+          objections: round.devil.objections.map(
+            ({ category, severity, line }) => ({ category, severity, line }),
+          ),
+        },
+        verdicts: round.verdicts.map(({ model, ms, scores }) => ({
+          model,
+          ms,
+          scores,
+        })),
+      })),
+    },
     sections: lyrics.sections.map((s) => ({
       ...s,
       lines: s.lines.map(({ source: _source, ...line }) => line),
@@ -612,6 +697,26 @@ function shown(lyrics: typeof LYRICS) {
       },
     },
   };
+}
+// Every phrase of the source song the stored lyrics hold: the source lines and their literal
+// translation, from three words up (the phrase gate's length; the fixture also has a one-letter
+// line). None of them may appear anywhere in an agent's answer.
+const SOURCE_TEXTS = [
+  ...new Set(
+    [
+      ...LYRICS.sections.flatMap((s) => s.lines.map((l) => l.source)),
+      ...(LYRICS.literalTranslation ?? []),
+    ]
+      .map((text) => text.trim())
+      .filter((text) => text.split(/\s+/u).length >= 3),
+  ),
+];
+function expectNoSourceText(data: unknown) {
+  const answer = JSON.stringify(data).toLowerCase();
+  for (const text of SOURCE_TEXTS)
+    expect(answer, text).not.toContain(
+      JSON.stringify(text).slice(1, -1).toLowerCase(),
+    );
 }
 const hasKey = (value: unknown, key: string): boolean =>
   Array.isArray(value)
@@ -630,6 +735,13 @@ it("remake_get shows the review to a read token without the source text", async 
     expect(LYRICS.originality.phrase.detail).toContain(
       LYRICS.literalTranslation?.[8],
     );
+    // The devil's advocate read the source lines and quotes one in an objection.
+    expect(SOURCE_TEXTS.length).toBeGreaterThan(10);
+    expect(
+      SOURCE_TEXTS.some((text) =>
+        JSON.stringify(LYRICS.jury).toLowerCase().includes(text.toLowerCase()),
+      ),
+    ).toBe(true);
     const remake = await review(tx, a, LYRICS);
     await tx`update public.remakes set analysis=${tx.json({ title: "Source title" })},cost=${tx.json({ analysisUsd: 0.01 })} where id=${remake.id}`;
     const got = await call(tx, "mdf_web", "remake_get", [reader, remake.id]);
@@ -645,7 +757,6 @@ it("remake_get shows the review to a read token without the source text", async 
       video_id: start[1],
       url: start[0],
       error_code: null,
-      error: null,
       revision: 0,
       pending: false,
       gate_ok: false,
@@ -662,6 +773,14 @@ it("remake_get shows the review to a read token without the source text", async 
     expect(got.data.lyrics_text).toBe(await lyricsText(tx, remake.id));
     expect(hasKey(got.data, "source")).toBe(false);
     expect(hasKey(got.data, "literalTranslation")).toBe(false);
+    for (const key of ["problem", "text", "error", "message"])
+      expect(hasKey(got.data.lyrics.jury, key), key).toBe(false);
+    expectNoSourceText(got.data);
+    expect(got.data.lyrics.jury.rounds[0].devil.objections[0]).toEqual({
+      category: "originality",
+      severity: "must_fix",
+      line: 8,
+    });
     expect(got.data.lyrics.originality.phrase.detail).toBe(
       '"nessuno mi sente qui" shares 3 words in a row with a source line',
     );
@@ -693,9 +812,15 @@ it("remake_get shows the review to a read token without the source text", async 
         status: "queued",
         mode: "check",
         progress: 40,
-        message: "check: gates",
       },
     });
+    expect(Object.keys(waiting.data.active_job).sort()).toEqual([
+      "job_id",
+      "mode",
+      "progress",
+      "stage",
+      "status",
+    ]);
     await tx`update public.remakes set pending=null where id=${remake.id}`;
     expect(
       (await call(tx, "mdf_web", "remake_get", [reader, remake.id])).data,
@@ -728,10 +853,14 @@ it("remake_get answers in every stage and never returns source text", async () =
       expect(Object.keys(result.data).sort()).toEqual(GET_KEYS);
       expect(hasKey(result.data, "source")).toBe(false);
       expect(hasKey(result.data, "literalTranslation")).toBe(false);
+      expectNoSourceText(result.data);
       return result.data;
     };
     await tx`update public.jobs set status='running' where id=${job.job_id}`;
-    await tx`insert into public.job_events(owner_id,job_id,message,progress) values(${a.user_id},${job.job_id},'ingest: audio',40)`;
+    // The worker's event text can quote a source line (a rejected meaning map did): an agent
+    // gets the progress, never the message.
+    const quoted = SOURCE_TEXTS[0] as string;
+    await tx`insert into public.job_events(owner_id,job_id,message,progress) values(${a.user_id},${job.job_id},${`meaning map rejected: section s1 quotes the line "${quoted}"`},40)`;
     expect(await get()).toMatchObject({
       stage: "ingest",
       lyrics: null,
@@ -745,7 +874,6 @@ it("remake_get answers in every stage and never returns source text", async () =
         status: "running",
         mode: null,
         progress: 40,
-        message: "ingest: audio",
       },
       failed_job: null,
     });
@@ -753,8 +881,9 @@ it("remake_get answers in every stage and never returns source text", async () =
       await tx`update public.remakes set stage=${stage} where id=${id}`;
       expect(await get()).toMatchObject({ stage, lyrics: null });
     }
-    // A failure: the long error is cut and addresses and credentials are redacted.
-    const error = `download failed at https://example.test/private?token=abc api_key=sk-secret ${"x".repeat(400)}`;
+    // A failure is its code: the error text stays with the owner, since a model's reply quoted
+    // in it can carry source lyrics, addresses or credentials.
+    const error = `m/x returned invalid JSON near "${quoted}" at https://example.test/private?token=abc api_key=sk-secret`;
     await tx`update public.jobs set status='failed',error=${error},finished_at=now() where id=${job.job_id}`;
     await tx`update public.versions set status='failed' where id=${job.version_id}`;
     await tx`update public.remakes set stage='failed',error_code='failed',error=${error} where id=${id}`;
@@ -766,12 +895,12 @@ it("remake_get answers in every stage and never returns source text", async () =
       failed_job: { job_id: job.job_id, stage: "remake_ingest" },
       accept_ready: false,
     });
-    for (const text of [failed.error, failed.failed_job.error]) {
-      expect(text).toHaveLength(300);
-      expect(text).toContain("download failed at [redacted]");
-      expect(text).not.toContain("example.test");
-      expect(text).not.toContain("sk-secret");
-    }
+    expect(failed.failed_job).toEqual({
+      job_id: job.job_id,
+      stage: "remake_ingest",
+    });
+    for (const text of ["invalid JSON", "example.test", "sk-secret"])
+      expect(JSON.stringify(failed)).not.toContain(text);
     for (const stage of ["review", "accepted"]) {
       await tx`update public.remakes set stage=${stage},error_code=null,error=null,lyrics=${tx.json(LYRICS)} where id=${id}`;
       expect(await get()).toMatchObject({

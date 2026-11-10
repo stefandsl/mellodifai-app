@@ -333,6 +333,39 @@ describe("analyse", () => {
     expect(existsSync(join(dir, "audio.wav"))).toBe(true);
   });
 
+  it("never writes the quoted source line to the log or the error", async () => {
+    const dir = setup();
+    const line = "I walk alone through the empty streets";
+    const quoting = {
+      ...goodMeaning,
+      sections: goodMeaning.sections.map((s, i) =>
+        i === 0 ? { ...s, storyBeat: line } : s,
+      ),
+    };
+    const { client: c, calls } = client(() => quoting);
+    const logs: string[] = [];
+    const error = await analyse(dir, {
+      env: ENV,
+      client: c,
+      run: fakeRunner().runner,
+      stemsPython: `${dir}/audio.wav`,
+      log: (text) => logs.push(text),
+    }).catch((e: unknown) => e as Error);
+    expect((error as Error).message).toMatch(
+      /^meaning map failed validation: section \S+ quotes a source line$/u,
+    );
+    expect(logs.filter((l) => l.startsWith("meaning map rejected"))).toEqual([
+      expect.stringMatching(/quotes a source line$/u),
+      expect.stringMatching(/quotes a source line$/u),
+    ]);
+    for (const text of [(error as Error).message, ...logs])
+      expect(text).not.toContain("walk alone");
+    // The analyst itself is still told which line it quoted, so it can fix the retry.
+    const analyst = calls.filter((x) => role(x).startsWith("song analyst"));
+    expect(analyst).toHaveLength(2);
+    expect(JSON.stringify(analyst[1])).toContain(line);
+  });
+
   it("fails when the meaning map keeps naming the artist", async () => {
     const dir = setup();
     const naming = {

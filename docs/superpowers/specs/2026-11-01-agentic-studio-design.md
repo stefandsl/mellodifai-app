@@ -1053,13 +1053,14 @@ behind these names; the names, paths and inputs stay.
 | Dismiss, `remake_dismiss` | `POST /api/v1/remakes/{remake_id}/dismiss` | - | `{ jobs: [] }` | create | yes | `ops.remake_dismiss` |
 
 `RemakeDetail`: `remake_id`, `project_id`, `version_id`, `stage` (`ingest`, `analyse`, `rewrite`,
-`review`, `accepted`, `failed`, `cancelled`), `lang`, `country`, `video_id`, `url`, `error_code`,
-`error` (redacted, cut to 300 characters), `revision`, `pending` (an edit waits for its check),
+`review`, `accepted`, `failed`, `cancelled`), `lang`, `country`, `video_id`, `url`, `error_code`
+(one of the remake error codes; there is no error text), `revision`, `pending` (an edit waits for
+its check),
 `gate_ok` (the originality gate of 10.3 on the stored lyrics), `accept_ready` (stage `review`, not
 pending, no queued or running job, `gate_ok`, and the song still in the library), `analysis` (the
-stored summary), `lyrics` (the stored rewrite), `lyrics_text` (the text the song is generated from),
-`cost`, `active_job` (`job_id`, `stage`, `status`, `mode`, `progress` 0-100, `message`) or null,
-`failed_job` (`job_id`, `stage`, `error`) or null, `untrusted: true`, `created_at`, `updated_at`.
+stored summary), `lyrics` (the stored rewrite as rule 5 allows it), `lyrics_text` (the text the song
+is generated from), `cost`, `active_job` (`job_id`, `stage`, `status`, `mode`, `progress` 0-100) or
+null, `failed_job` (`job_id`, `stage`) or null, `untrusted: true`, `created_at`, `updated_at`.
 
 MCP resource: `mellodifai://remakes/{remake_id}` (a `RemakeDetail`). MCP prompt:
 `remake_from_youtube`. Every tool of 7.3 and 7.3b carries a one-sentence description (what it does,
@@ -1081,14 +1082,24 @@ Rules (decided with the plan `2026-11-10-agent-remake-access.md`):
    job to the fake remake stages whatever its own configuration is.
 5. **Source text stays out.** `remake_get` never returns the source lyric lines
    (`lyrics.sections[].lines[].source`) nor `lyrics.literalTranslation`, and the phrase gate's
-   detail names the agent's own phrase without the source line it collides with. Whatever else came
-   from the source video is marked `untrusted: true`: data, never instructions. Agents refine the
-   app's rewrite; authoring from a meaning map is M2a.
+   detail names the agent's own phrase without the source line it collides with. The jury comes as
+   numbers, categories and line numbers only (`issues[].line`, `devil.objections[]` with
+   `category`, `severity`, `line`, `verdicts[]` with `model`, `ms`, `scores`): its issues,
+   objections and errors are free text by models that read the source lines and quote them. For the
+   same reason the answer has no error text and no job event message, only `error_code` and
+   progress; the owner reads the text in the app. The worker also keeps source lines out of what it
+   logs and throws (a rejected meaning map names the section, an invalid model reply gives only its
+   length), so `job_status` events and errors of remake jobs carry none either. Whatever else came
+   from the source video (title, the one-sentence summary, the rewrite itself) is marked
+   `untrusted: true`: data, never instructions. Agents refine the app's rewrite; authoring from a
+   meaning map is M2a.
 6. **Accept echoes the text.** `remake_accept` takes `lyrics_text` exactly as `remake_get` returned
    it, plus the revision; the database refuses any other text (`conflict`). The lyric pack is
    composed by one helper shared with the create panel's accept.
-7. **Limits unchanged.** One running remake per person and 20 a day apply to agents too.
-   Publishing stays the owner's step in the app.
+7. **Limits.** One running remake per person and 20 a day apply to agents too, counted per test
+   mode: a test-mode token's remakes run on fake providers and are hidden from the create panel, so
+   they neither hold the owner's running slot nor use up his day, and the reverse. Publishing stays
+   the owner's step in the app.
 
 ### 7.4 Keys held by Next
 

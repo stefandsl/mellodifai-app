@@ -432,6 +432,9 @@ export async function analyse(
   ].join("\n");
   let reply: MeaningReply = {};
   let problems: string[] = [];
+  // The same problems without the quoted source line: the log and the error reach job events,
+  // the remake row and agents, and the source lyrics never go there.
+  let notes: string[] = [];
   for (let attempt = 0; attempt < 2; attempt++) {
     reply = await client.chatJson<MeaningReply>({
       step: "meaning-map",
@@ -444,10 +447,13 @@ export async function analyse(
       maxTokens: 2500,
     });
     problems = [];
+    notes = [];
     for (const id of lyricIds) {
       const e = reply.sections?.find((x) => x?.sectionId === id);
-      if (!e?.theme || !e.storyBeat || !e.emotionalArc)
+      if (!e?.theme || !e.storyBeat || !e.emotionalArc) {
         problems.push(`section ${id} is missing or incomplete`);
+        notes.push(`section ${id} is missing or incomplete`);
+      }
       const text = e
         ? [
             e.theme,
@@ -458,20 +464,25 @@ export async function analyse(
           ].join(" ")
         : "";
       const quoted = lines.find((l) => longestSharedRun(text, l.text) >= 4);
-      if (quoted)
+      if (quoted) {
         problems.push(
           `section ${id} quotes the line "${quoted.text}": describe it abstractly`,
         );
+        notes.push(`section ${id} quotes a source line`);
+      }
       const named = protectedNames.find(
         (n) => n.length >= 3 && text.toLowerCase().includes(n.toLowerCase()),
       );
-      if (named) problems.push(`section ${id} names "${named}"`);
+      if (named) {
+        problems.push(`section ${id} names "${named}"`);
+        notes.push(`section ${id} names "${named}"`);
+      }
     }
     if (problems.length === 0) break;
-    log(`meaning map rejected: ${problems.join("; ")}`);
+    log(`meaning map rejected: ${notes.join("; ")}`);
   }
   if (problems.length)
-    throw new Error(`meaning map failed validation: ${problems.join("; ")}`);
+    throw new Error(`meaning map failed validation: ${notes.join("; ")}`);
   const stringList = (v: unknown, max: number) =>
     (Array.isArray(v) ? v : [])
       .map(String)

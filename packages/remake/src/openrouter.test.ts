@@ -64,6 +64,24 @@ describe("chat", () => {
     ).rejects.toBeInstanceOf(RedactionError);
   });
 
+  it("keeps the reply out of the error when the JSON is invalid twice", async () => {
+    // An analysis reply carries the source lyrics; the error reaches the remake row and agents.
+    const reply = '{"lines": ["I walk alone through the empty streets", oops';
+    const { fetchFn, calls } = fakeFetch(() => chatReply(reply));
+    const client = createClient({ key: KEY, fetchFn });
+    const error = await client
+      .chatJson({ step: "clean", model: "m/x", system: "s", user: "u" })
+      .catch((e: unknown) => e as Error);
+    expect(calls).toHaveLength(2);
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toMatch(
+      /^m\/x returned invalid JSON twice in "clean" \((at position \d+ of )?\d+ chars\)$/u,
+    );
+    for (const word of ["walk", "alone", "streets", "oops", "lines"])
+      expect(message).not.toContain(word);
+  });
+
   it("retries a server error and never puts the key in errors", async () => {
     let n = 0;
     const { fetchFn } = fakeFetch(() =>

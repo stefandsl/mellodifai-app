@@ -317,9 +317,11 @@ export function createClient(options: {
         try {
           return parseJsonReply(again) as T;
         } catch (error) {
-          const at = Number(/position (\d+)/u.exec(String(error))?.[1] ?? 0);
+          // No part of the reply goes into the message: an analysis reply carries the source
+          // lyrics, and this error reaches the remake row, job events and agents.
+          const at = /position (\d+)/u.exec(String(error))?.[1];
           throw new Error(
-            `${request.model} returned invalid JSON twice in "${request.step}" (${String(error)}; near: ${JSON.stringify(again.slice(Math.max(0, at - 120), at + 60))}; ${again.length} chars)`,
+            `${request.model} returned invalid JSON twice in "${request.step}" (${at ? `at position ${at} of ` : ""}${again.length} chars)`,
           );
         }
       }

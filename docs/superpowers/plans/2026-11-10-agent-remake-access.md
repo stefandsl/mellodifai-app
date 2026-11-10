@@ -61,11 +61,16 @@ and 4b before running anything.
    (`lyrics.sections[].lines[].source`) nor `lyrics.literalTranslation`. Everything it returns that
    came from the source video carries `untrusted: true` at the top level. Agents refine the app's
    rewrite; authoring from a meaning map is M2a.
+   Added by the review of 2026-11-10: the jury is returned as numbers, categories and line numbers
+   only, and the answer has no error text and no event message (models that read the source lines
+   wrote them and quote them); the worker's logs and errors no longer carry source lines either.
 6. **Accept echoes the text.** `remake_accept` takes `lyrics_text` exactly as `remake_get` returned
    it, plus the revision. The database already refuses any other text
    (`lyrics differ from the reviewed ones`, a `conflict`). The pack is composed by one shared pure
    helper used by the cookie action and the token operation.
 7. **Limits unchanged.** One running remake per person and 20 a day apply to agents too.
+   Added by the review of 2026-11-10: both limits count per test mode, so a test-mode token's
+   remakes never block or use up the owner's real ones.
 
 ## Review focus
 
@@ -142,14 +147,14 @@ and 4b before running anything.
   "remake_id": "uuid", "project_id": "uuid", "version_id": "uuid",
   "stage": "ingest|analyse|rewrite|review|accepted|failed|cancelled",
   "lang": "it", "country": "IT", "video_id": "...", "url": "...",
-  "error_code": null, "error": null,
+  "error_code": null,
   "revision": 3, "pending": false, "gate_ok": true, "accept_ready": true,
   "analysis": { },
   "lyrics": { },
   "lyrics_text": "[Verse 1]\n...",
   "cost": { },
-  "active_job": { "job_id": "uuid", "stage": "remake_rewrite", "status": "running", "mode": "check", "progress": 40, "message": "..." },
-  "failed_job": { "job_id": "uuid", "stage": "remake_analyse", "error": "..." },
+  "active_job": { "job_id": "uuid", "stage": "remake_rewrite", "status": "running", "mode": "check", "progress": 40 },
+  "failed_job": { "job_id": "uuid", "stage": "remake_analyse" },
   "untrusted": true,
   "created_at": "...", "updated_at": "..."
 }
@@ -160,7 +165,8 @@ and 4b before running anything.
 the rewrite. `lyrics_text` is `public.remake_lyrics_text(lyrics)`, null when lyrics are null.
 `pending` is `remakes.pending is not null`. `gate_ok` is `public.remake_gate_ok(lyrics)`.
 `accept_ready` is stage `review` and not pending and no queued or running job and `gate_ok`.
-`error` is cut to 300 characters. `active_job` and `failed_job` are null when absent.
+`active_job` and `failed_job` are null when absent. There is no error text and no event message
+(review of 2026-11-10, ruling 5).
 
 `ops.remakes_list(p_ctx jsonb, p_limit integer default 20) returns jsonb` -> data
 `{ "remakes": [{ "remake_id", "project_id", "version_id", "stage", "lang", "title", "error_code", "created_at", "updated_at" }] }`,

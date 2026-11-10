@@ -550,9 +550,13 @@ grant execute on function ops.remake_retry(jsonb, uuid) to mdf_web;
 
 -- Agent reads for remakes (design 7.3b): any actor with the read scope, its own rows only and
 -- only the remakes of its test mode; anything else reads as not found. The source text stays
--- out: no source line, no literal translation, and the phrase gate's detail without the source
--- line it quotes. What remains of the source video (title, analysis, errors, the rewrite itself)
--- is data for the agent, never instructions: the answer says untrusted.
+-- out: no source line, no literal translation, the phrase gate's detail without the source line
+-- it quotes, and the jury as numbers, categories and line numbers only (its issues, objections
+-- and errors are free text written by models that read the source lines). For the same reason
+-- the answer carries error_code and job progress but no error text and no event message: the
+-- worker writes those and the app shows them to the owner. What remains of the source video
+-- (title, analysis, the rewrite itself) is data for the agent, never instructions: the answer
+-- says untrusted.
 
 create or replace function ops.remake_get(p_ctx jsonb, p_remake uuid) returns jsonb
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
@@ -562,6 +566,7 @@ begin
   select null::uuid user_id,null::text actor_kind,null::uuid token_id,false remote into a;
   begin
     select * into a from ops._actor(p_ctx);
+    if a.actor_kind = 'session' and a.remote then raise exception 'admin required'; end if;
     if not ('read'=any(a.scopes)) then raise exception 'admin required'; end if;
     -- A cancelled remake stays readable although its song left the library.
     select rm.* into r from public.remakes rm join public.versions v on v.id=rm.version_id
@@ -586,25 +591,32 @@ begin
         v_lyrics := jsonb_set(v_lyrics,'{originality,phrase,detail}',
           to_jsonb(regexp_replace(v_lyrics#>>'{originality,phrase,detail}',' with ".*"$',' with a source line')));
       end if;
+      if jsonb_typeof(v_lyrics#>'{jury,rounds}')='array' then
+        v_lyrics := jsonb_set(v_lyrics,'{jury,rounds}',coalesce((
+          select jsonb_agg(jsonb_build_object('round',rd->'round','available',rd->'available','scores',rd->'scores',
+              'failing',rd->'failing','gates',rd->'gates','passed',rd->'passed',
+              'issues',coalesce((select jsonb_agg(jsonb_build_object('line',i->'line') order by i_ord)
+                from jsonb_array_elements(case when jsonb_typeof(rd->'issues')='array' then rd->'issues' else '[]'::jsonb end) with ordinality as issues(i,i_ord)),'[]'::jsonb),
+              'devil',jsonb_build_object('model',rd#>'{devil,model}','blocking',rd#>'{devil,blocking}',
+                'objections',coalesce((select jsonb_agg(jsonb_build_object('category',o->'category','severity',o->'severity','line',o->'line') order by o_ord)
+                  from jsonb_array_elements(case when jsonb_typeof(rd#>'{devil,objections}')='array' then rd#>'{devil,objections}' else '[]'::jsonb end) with ordinality as objections(o,o_ord)),'[]'::jsonb)),
+              'verdicts',coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('model',vd->'model','ms',vd->'ms','scores',vd->'scores')) order by vd_ord)
+                from jsonb_array_elements(case when jsonb_typeof(rd->'verdicts')='array' then rd->'verdicts' else '[]'::jsonb end) with ordinality as verdicts(vd,vd_ord)),'[]'::jsonb)) order by rd_ord)
+          from jsonb_array_elements(v_lyrics#>'{jury,rounds}') with ordinality as rounds(rd,rd_ord)),'[]'::jsonb));
+      end if;
     end if;
     v_gate := public.remake_gate_ok(r.lyrics);
     data := jsonb_build_object('remake_id',r.id,'project_id',r.project_id,'version_id',r.version_id,
       'stage',r.stage,'lang',r.lang,'country',r.country,'video_id',r.video_id,'url',r.url,
       'error_code',r.error_code,
-      'error',case when r.error is null then null else left(regexp_replace(regexp_replace(r.error,
-        '(https?://|postgres(ql)?://)[^[:space:]]+','[redacted]','gi'),
-        '(bearer[[:space:]]+|[a-z_]*(key|token|password|secret)[[:space:]]*[:=][[:space:]]*)[^[:space:],;]+','[redacted]','gi'),300) end,
       'revision',r.revision,'pending',r.pending is not null,'gate_ok',v_gate,
       'accept_ready',r.stage='review' and r.pending is null and j.id is null and v_gate and not v_trashed,
       'analysis',r.analysis,'lyrics',v_lyrics,
       'lyrics_text',case when r.lyrics is null then null else public.remake_lyrics_text(r.lyrics) end,
       'cost',r.cost,
       'active_job',case when j.id is null then null else jsonb_build_object('job_id',j.id,'stage',j.stage,'status',j.status,
-        'mode',j.payload->>'mode','progress',ev.progress,'message',left(ev.message,300)) end,
-      'failed_job',case when failed.id is null then null else jsonb_build_object('job_id',failed.id,'stage',failed.stage,
-        'error',case when failed.error is null then null else left(regexp_replace(regexp_replace(failed.error,
-          '(https?://|postgres(ql)?://)[^[:space:]]+','[redacted]','gi'),
-          '(bearer[[:space:]]+|[a-z_]*(key|token|password|secret)[[:space:]]*[:=][[:space:]]*)[^[:space:],;]+','[redacted]','gi'),300) end) end,
+        'mode',j.payload->>'mode','progress',ev.progress) end,
+      'failed_job',case when failed.id is null then null else jsonb_build_object('job_id',failed.id,'stage',failed.stage) end,
       'untrusted',true,'created_at',r.created_at,'updated_at',r.updated_at);
   exception when others then
     err := ops.map_error(sqlstate,sqlerrm);
@@ -632,6 +644,7 @@ begin
   select null::uuid user_id,null::text actor_kind,null::uuid token_id,false remote into a;
   begin
     select * into a from ops._actor(p_ctx);
+    if a.actor_kind = 'session' and a.remote then raise exception 'admin required'; end if;
     if not ('read'=any(a.scopes)) then raise exception 'admin required'; end if;
     -- Newest first; dismissed remakes and trashed songs are left out, like the create panel does.
     select jsonb_build_object('remakes',coalesce(jsonb_agg(x.item order by x.created_at desc,x.id desc),'[]'::jsonb)) into data
@@ -659,3 +672,50 @@ $$;
 alter function ops.remakes_list(jsonb, integer) owner to postgres;
 revoke execute on function ops.remakes_list(jsonb, integer) from public, anon, authenticated, service_role, mdf_auth;
 grant execute on function ops.remakes_list(jsonb, integer) to mdf_web;
+
+
+-- The limits of a remake count per test mode: a test-mode token's remakes run on fake providers
+-- and are hidden from the create panel, so they must neither hold the owner's one running slot
+-- nor use up the 20 real remakes of a day (and the reverse). The mode is the one the versions
+-- trigger stamps from mdf.job_ctx; it is false outside an ops wrapper. The rest is the body of
+-- migration 20261102000026.
+create or replace function public.remake_start(p_url text, p_video_id text, p_lang text, p_country text default null)
+returns uuid
+language plpgsql security definer set search_path='' as $$
+declare pid uuid; vid uuid; rid uuid; url text := btrim(coalesce(p_url, ''));
+  v_test boolean := coalesce((nullif(current_setting('mdf.job_ctx', true), '')::jsonb ->> 'fake_providers')::boolean, false);
+begin
+  if not exists (select 1 from public.profiles where id = auth.uid() and role in ('admin', 'customer')) then
+    raise exception 'profile required';
+  end if;
+  if p_video_id is null or p_video_id !~ '^[A-Za-z0-9_-]{11}$' or position(p_video_id in url) = 0
+    or url !~* '^(https?://)?([a-z0-9-]+\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)/' then
+    raise exception 'invalid youtube link';
+  end if;
+  if p_lang is null or p_lang not in ('it', 'ru', 'ro', 'ja', 'en', 'es', 'de', 'zh', 'pt', 'ko', 'fr') then
+    raise exception 'invalid language';
+  end if;
+  if p_country is not null and p_country !~ '^[A-Z]{2}$' then raise exception 'invalid country'; end if;
+  if exists (
+    select 1 from public.remakes rm join public.versions v on v.id = rm.version_id
+    where rm.owner_id = auth.uid() and rm.stage in ('ingest', 'analyse', 'rewrite') and v.trashed_at is null
+      and v.test_run = v_test
+  ) then
+    raise exception 'a remake is already running';
+  end if;
+  if (select count(*) from public.remakes rm join public.versions v on v.id = rm.version_id
+      where rm.owner_id = auth.uid() and rm.created_at > now() - interval '1 day' and v.test_run = v_test) >= 20 then
+    raise exception 'daily remake limit reached';
+  end if;
+  insert into public.projects(owner_id, topic, theme, song_settings, source)
+  values (auth.uid(), 'YouTube ' || p_video_id, 'general', '{}'::jsonb,
+    jsonb_build_object('kind', 'remake', 'url', 'https://www.youtube.com/watch?v=' || p_video_id, 'licence', 'unknown'))
+  returning id into pid;
+  insert into public.versions(owner_id, project_id, lang, status)
+  values (auth.uid(), pid, p_lang, 'analysing') returning id into vid;
+  insert into public.remakes(owner_id, project_id, version_id, url, video_id, lang, country)
+  values (auth.uid(), pid, vid, left(url, 500), p_video_id, p_lang, p_country) returning id into rid;
+  insert into public.jobs(owner_id, version_id, stage, idempotency_key, payload)
+  values (auth.uid(), vid, 'remake_ingest', 'remake_ingest:' || rid, '{}'::jsonb);
+  return rid;
+end; $$;
