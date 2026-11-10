@@ -546,3 +546,116 @@ $$;
 alter function ops.remake_retry(jsonb, uuid) owner to postgres;
 revoke execute on function ops.remake_retry(jsonb, uuid) from public, anon, authenticated;
 grant execute on function ops.remake_retry(jsonb, uuid) to mdf_web;
+
+
+-- Agent reads for remakes (design 7.3b): any actor with the read scope, its own rows only and
+-- only the remakes of its test mode; anything else reads as not found. The source text stays
+-- out: no source line, no literal translation, and the phrase gate's detail without the source
+-- line it quotes. What remains of the source video (title, analysis, errors, the rewrite itself)
+-- is data for the agent, never instructions: the answer says untrusted.
+
+create or replace function ops.remake_get(p_ctx jsonb, p_remake uuid) returns jsonb
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+declare a record; data jsonb; err jsonb; r public.remakes; j public.jobs; failed public.jobs; ev public.job_events; v_lyrics jsonb; v_gate boolean; v_trashed boolean;
+begin
+  perform ops._enter();
+  select null::uuid user_id,null::text actor_kind,null::uuid token_id,false remote into a;
+  begin
+    select * into a from ops._actor(p_ctx);
+    if not ('read'=any(a.scopes)) then raise exception 'admin required'; end if;
+    -- A cancelled remake stays readable although its song left the library.
+    select rm.* into r from public.remakes rm join public.versions v on v.id=rm.version_id
+      where rm.id=p_remake and rm.owner_id=a.user_id and v.owner_id=a.user_id and v.test_run=a.test_mode;
+    if not found then raise exception 'owned remake required'; end if;
+    v_trashed := exists(select 1 from public.versions v where v.id=r.version_id and v.trashed_at is not null);
+    select * into j from public.jobs where version_id=r.version_id and owner_id=a.user_id and status in ('queued','running') order by created_at desc,id desc limit 1;
+    if j.id is not null then
+      select * into ev from public.job_events where job_id=j.id and owner_id=a.user_id order by at desc,id desc limit 1;
+    end if;
+    select * into failed from public.jobs where version_id=r.version_id and owner_id=a.user_id and status='failed' order by finished_at desc nulls last,id desc limit 1;
+    if r.lyrics is not null then
+      v_lyrics := r.lyrics - 'literalTranslation';
+      if jsonb_typeof(v_lyrics->'sections')='array' then
+        v_lyrics := jsonb_set(v_lyrics,'{sections}',coalesce((
+          select jsonb_agg(case when jsonb_typeof(s->'lines')='array' then jsonb_set(s,'{lines}',coalesce((
+              select jsonb_agg(case when jsonb_typeof(l)='object' then l - 'source' else l end order by l_ord)
+              from jsonb_array_elements(s->'lines') with ordinality as lines(l,l_ord)),'[]'::jsonb)) else s end order by s_ord)
+          from jsonb_array_elements(v_lyrics->'sections') with ordinality as sections(s,s_ord)),'[]'::jsonb));
+      end if;
+      if jsonb_typeof(v_lyrics#>'{originality,phrase,detail}')='string' then
+        v_lyrics := jsonb_set(v_lyrics,'{originality,phrase,detail}',
+          to_jsonb(regexp_replace(v_lyrics#>>'{originality,phrase,detail}',' with ".*"$',' with a source line')));
+      end if;
+    end if;
+    v_gate := public.remake_gate_ok(r.lyrics);
+    data := jsonb_build_object('remake_id',r.id,'project_id',r.project_id,'version_id',r.version_id,
+      'stage',r.stage,'lang',r.lang,'country',r.country,'video_id',r.video_id,'url',r.url,
+      'error_code',r.error_code,
+      'error',case when r.error is null then null else left(regexp_replace(regexp_replace(r.error,
+        '(https?://|postgres(ql)?://)[^[:space:]]+','[redacted]','gi'),
+        '(bearer[[:space:]]+|[a-z_]*(key|token|password|secret)[[:space:]]*[:=][[:space:]]*)[^[:space:],;]+','[redacted]','gi'),300) end,
+      'revision',r.revision,'pending',r.pending is not null,'gate_ok',v_gate,
+      'accept_ready',r.stage='review' and r.pending is null and j.id is null and v_gate and not v_trashed,
+      'analysis',r.analysis,'lyrics',v_lyrics,
+      'lyrics_text',case when r.lyrics is null then null else public.remake_lyrics_text(r.lyrics) end,
+      'cost',r.cost,
+      'active_job',case when j.id is null then null else jsonb_build_object('job_id',j.id,'stage',j.stage,'status',j.status,
+        'mode',j.payload->>'mode','progress',ev.progress,'message',left(ev.message,300)) end,
+      'failed_job',case when failed.id is null then null else jsonb_build_object('job_id',failed.id,'stage',failed.stage,
+        'error',case when failed.error is null then null else left(regexp_replace(regexp_replace(failed.error,
+          '(https?://|postgres(ql)?://)[^[:space:]]+','[redacted]','gi'),
+          '(bearer[[:space:]]+|[a-z_]*(key|token|password|secret)[[:space:]]*[:=][[:space:]]*)[^[:space:],;]+','[redacted]','gi'),300) end) end,
+      'untrusted',true,'created_at',r.created_at,'updated_at',r.updated_at);
+  exception when others then
+    err := ops.map_error(sqlstate,sqlerrm);
+    insert into public.audit_log(owner_id,actor_kind,token_id,operation,args_hash,result,error_code,remote)
+      values(a.user_id,coalesce(a.actor_kind,'unknown'),a.token_id,'remake_get',coalesce(p_ctx->>'request_hash',''),'error',err->>'code',coalesce(a.remote,false));
+    perform ops._enter();
+    return jsonb_build_object('ok',false,'code',err->>'code','message',case when err->>'code'='internal' then 'Internal error' else sqlerrm end,'details',jsonb_build_object('reason',err->>'reason'));
+  end;
+  insert into public.audit_log(owner_id,actor_kind,token_id,operation,args_hash,result,remote)
+    values(a.user_id,a.actor_kind,a.token_id,'remake_get',coalesce(p_ctx->>'request_hash',''),'ok',a.remote);
+  perform ops._enter();
+  return jsonb_build_object('ok',true,'data',data);
+end;
+$$;
+alter function ops.remake_get(jsonb, uuid) owner to postgres;
+revoke execute on function ops.remake_get(jsonb, uuid) from public, anon, authenticated, service_role, mdf_auth;
+grant execute on function ops.remake_get(jsonb, uuid) to mdf_web;
+
+
+create or replace function ops.remakes_list(p_ctx jsonb, p_limit integer default 20) returns jsonb
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+declare a record; data jsonb; err jsonb;
+begin
+  perform ops._enter();
+  select null::uuid user_id,null::text actor_kind,null::uuid token_id,false remote into a;
+  begin
+    select * into a from ops._actor(p_ctx);
+    if not ('read'=any(a.scopes)) then raise exception 'admin required'; end if;
+    -- Newest first; dismissed remakes and trashed songs are left out, like the create panel does.
+    select jsonb_build_object('remakes',coalesce(jsonb_agg(x.item order by x.created_at desc,x.id desc),'[]'::jsonb)) into data
+      from (select rm.created_at,rm.id,jsonb_build_object('remake_id',rm.id,'project_id',rm.project_id,'version_id',rm.version_id,
+          'stage',rm.stage,'lang',rm.lang,'title',rm.lyrics->>'title','error_code',rm.error_code,
+          'created_at',rm.created_at,'updated_at',rm.updated_at) as item
+        from public.remakes rm join public.versions v on v.id=rm.version_id
+        where rm.owner_id=a.user_id and v.owner_id=a.user_id and v.test_run=a.test_mode
+          and rm.dismissed_at is null and v.trashed_at is null
+        order by rm.created_at desc,rm.id desc
+        limit least(greatest(coalesce(p_limit,20),1),100)) x;
+  exception when others then
+    err := ops.map_error(sqlstate,sqlerrm);
+    insert into public.audit_log(owner_id,actor_kind,token_id,operation,args_hash,result,error_code,remote)
+      values(a.user_id,coalesce(a.actor_kind,'unknown'),a.token_id,'remakes_list',coalesce(p_ctx->>'request_hash',''),'error',err->>'code',coalesce(a.remote,false));
+    perform ops._enter();
+    return jsonb_build_object('ok',false,'code',err->>'code','message',case when err->>'code'='internal' then 'Internal error' else sqlerrm end,'details',jsonb_build_object('reason',err->>'reason'));
+  end;
+  insert into public.audit_log(owner_id,actor_kind,token_id,operation,args_hash,result,remote)
+    values(a.user_id,a.actor_kind,a.token_id,'remakes_list',coalesce(p_ctx->>'request_hash',''),'ok',a.remote);
+  perform ops._enter();
+  return jsonb_build_object('ok',true,'data',data);
+end;
+$$;
+alter function ops.remakes_list(jsonb, integer) owner to postgres;
+revoke execute on function ops.remakes_list(jsonb, integer) from public, anon, authenticated, service_role, mdf_auth;
+grant execute on function ops.remakes_list(jsonb, integer) to mdf_web;

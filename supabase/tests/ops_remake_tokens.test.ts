@@ -565,3 +565,403 @@ it("two edits racing on one revision: one wins, the other gets a conflict", asyn
     await sql.end();
   }
 });
+
+const GET_KEYS = [
+  "remake_id",
+  "project_id",
+  "version_id",
+  "stage",
+  "lang",
+  "country",
+  "video_id",
+  "url",
+  "error_code",
+  "error",
+  "revision",
+  "pending",
+  "gate_ok",
+  "accept_ready",
+  "analysis",
+  "lyrics",
+  "lyrics_text",
+  "cost",
+  "active_job",
+  "failed_job",
+  "untrusted",
+  "created_at",
+  "updated_at",
+].sort();
+// What an agent may see of stored lyrics: no source line, no literal translation, and the
+// phrase gate's detail without the source line it quotes.
+function shown(lyrics: typeof LYRICS) {
+  const { literalTranslation: _, ...rest } = lyrics;
+  return {
+    ...rest,
+    sections: lyrics.sections.map((s) => ({
+      ...s,
+      lines: s.lines.map(({ source: _source, ...line }) => line),
+    })),
+    originality: {
+      ...lyrics.originality,
+      phrase: {
+        ...lyrics.originality.phrase,
+        detail: lyrics.originality.phrase.detail.replace(
+          / with ".*"$/u,
+          " with a source line",
+        ),
+      },
+    },
+  };
+}
+const hasKey = (value: unknown, key: string): boolean =>
+  Array.isArray(value)
+    ? value.some((item) => hasKey(item, key))
+    : value !== null && typeof value === "object"
+      ? key in value || Object.values(value).some((item) => hasKey(item, key))
+      : false;
+
+it("remake_get shows the review to a read token without the source text", async () => {
+  await fixture(async (tx) => {
+    const a = await actor(tx);
+    const reader = await token(tx, a, ["read"]);
+    // The fixture as the worker stores it: source lines, a literal translation, one reused phrase.
+    expect(LYRICS.literalTranslation?.length).toBeGreaterThan(0);
+    expect(LYRICS.sections.flatMap((s) => s.lines)[0]?.source).toBeTruthy();
+    expect(LYRICS.originality.phrase.detail).toContain(
+      LYRICS.literalTranslation?.[8],
+    );
+    const remake = await review(tx, a, LYRICS);
+    await tx`update public.remakes set analysis=${tx.json({ title: "Source title" })},cost=${tx.json({ analysisUsd: 0.01 })} where id=${remake.id}`;
+    const got = await call(tx, "mdf_web", "remake_get", [reader, remake.id]);
+    expect(got).toMatchObject({ ok: true });
+    expect(Object.keys(got.data).sort()).toEqual(GET_KEYS);
+    expect(got.data).toMatchObject({
+      remake_id: remake.id,
+      project_id: expect.any(String),
+      version_id: remake.version,
+      stage: "review",
+      lang: "it",
+      country: null,
+      video_id: start[1],
+      url: start[0],
+      error_code: null,
+      error: null,
+      revision: 0,
+      pending: false,
+      gate_ok: false,
+      accept_ready: false,
+      analysis: { title: "Source title" },
+      cost: { analysisUsd: 0.01 },
+      active_job: null,
+      failed_job: null,
+      untrusted: true,
+      created_at: expect.any(String),
+      updated_at: expect.any(String),
+    });
+    expect(got.data.lyrics).toEqual(shown(LYRICS));
+    expect(got.data.lyrics_text).toBe(await lyricsText(tx, remake.id));
+    expect(hasKey(got.data, "source")).toBe(false);
+    expect(hasKey(got.data, "literalTranslation")).toBe(false);
+    expect(got.data.lyrics.originality.phrase.detail).toBe(
+      '"nessuno mi sente qui" shares 3 words in a row with a source line',
+    );
+
+    // The gates passed: ready until an edit waits for its check or a job runs.
+    await tx`update public.remakes set lyrics=${tx.json(PASSING as never)} where id=${remake.id}`;
+    const ready = await call(tx, "mdf_web", "remake_get", [a, remake.id]);
+    expect(ready.data).toMatchObject({ gate_ok: true, accept_ready: true });
+    const edit = await call(tx, "mdf_web", "remake_edit", [
+      a,
+      remake.id,
+      0,
+      [{ index: 0, text: "Una riga nuova" }],
+      null,
+    ]);
+    await tx`insert into public.job_events(owner_id,job_id,message,progress) values(${a.user_id},${edit.data.jobs[0].job_id},'check: gates',40)`;
+    const waiting = await call(tx, "mdf_web", "remake_get", [
+      reader,
+      remake.id,
+    ]);
+    expect(waiting.data).toMatchObject({
+      revision: 1,
+      pending: true,
+      gate_ok: true,
+      accept_ready: false,
+      active_job: {
+        job_id: edit.data.jobs[0].job_id,
+        stage: "remake_rewrite",
+        status: "queued",
+        mode: "check",
+        progress: 40,
+        message: "check: gates",
+      },
+    });
+    await tx`update public.remakes set pending=null where id=${remake.id}`;
+    expect(
+      (await call(tx, "mdf_web", "remake_get", [reader, remake.id])).data,
+    ).toMatchObject({ pending: false, accept_ready: false });
+    await tx`update public.jobs set status='done' where version_id=${remake.version}`;
+    expect(
+      (await call(tx, "mdf_web", "remake_get", [reader, remake.id])).data,
+    ).toMatchObject({ accept_ready: true, active_job: null });
+    // A review whose song left the library can no longer be accepted.
+    await tx`update public.versions set trashed_at=now() where id=${remake.version}`;
+    expect(
+      (await call(tx, "mdf_web", "remake_get", [reader, remake.id])).data,
+    ).toMatchObject({ gate_ok: true, accept_ready: false });
+    expect(
+      await tx`select result,count(*)::int as calls from public.audit_log where owner_id=${a.user_id} and operation='remake_get' group by result`,
+    ).toEqual([{ result: "ok", calls: 6 }]);
+  });
+});
+
+it("remake_get answers in every stage and never returns source text", async () => {
+  await fixture(async (tx) => {
+    const a = await actor(tx);
+    const reader = await token(tx, a, ["read"]);
+    const started = await call(tx, "mdf_web", "remake_start", [a, ...start]);
+    const id = started.data.id as string;
+    const job = started.data.jobs[0];
+    const get = async () => {
+      const result = await call(tx, "mdf_web", "remake_get", [reader, id]);
+      expect(result).toMatchObject({ ok: true, data: { untrusted: true } });
+      expect(Object.keys(result.data).sort()).toEqual(GET_KEYS);
+      expect(hasKey(result.data, "source")).toBe(false);
+      expect(hasKey(result.data, "literalTranslation")).toBe(false);
+      return result.data;
+    };
+    await tx`update public.jobs set status='running' where id=${job.job_id}`;
+    await tx`insert into public.job_events(owner_id,job_id,message,progress) values(${a.user_id},${job.job_id},'ingest: audio',40)`;
+    expect(await get()).toMatchObject({
+      stage: "ingest",
+      lyrics: null,
+      lyrics_text: null,
+      analysis: null,
+      gate_ok: false,
+      accept_ready: false,
+      active_job: {
+        job_id: job.job_id,
+        stage: "remake_ingest",
+        status: "running",
+        mode: null,
+        progress: 40,
+        message: "ingest: audio",
+      },
+      failed_job: null,
+    });
+    for (const stage of ["analyse", "rewrite"]) {
+      await tx`update public.remakes set stage=${stage} where id=${id}`;
+      expect(await get()).toMatchObject({ stage, lyrics: null });
+    }
+    // A failure: the long error is cut and addresses and credentials are redacted.
+    const error = `download failed at https://example.test/private?token=abc api_key=sk-secret ${"x".repeat(400)}`;
+    await tx`update public.jobs set status='failed',error=${error},finished_at=now() where id=${job.job_id}`;
+    await tx`update public.versions set status='failed' where id=${job.version_id}`;
+    await tx`update public.remakes set stage='failed',error_code='failed',error=${error} where id=${id}`;
+    const failed = await get();
+    expect(failed).toMatchObject({
+      stage: "failed",
+      error_code: "failed",
+      active_job: null,
+      failed_job: { job_id: job.job_id, stage: "remake_ingest" },
+      accept_ready: false,
+    });
+    for (const text of [failed.error, failed.failed_job.error]) {
+      expect(text).toHaveLength(300);
+      expect(text).toContain("download failed at [redacted]");
+      expect(text).not.toContain("example.test");
+      expect(text).not.toContain("sk-secret");
+    }
+    for (const stage of ["review", "accepted"]) {
+      await tx`update public.remakes set stage=${stage},error_code=null,error=null,lyrics=${tx.json(LYRICS)} where id=${id}`;
+      expect(await get()).toMatchObject({
+        stage,
+        lyrics: shown(LYRICS),
+        accept_ready: false,
+      });
+    }
+    // A cancelled remake stays readable although its song left the library.
+    await tx`update public.remakes set stage='review' where id=${id}`;
+    expect(await call(tx, "mdf_web", "remake_cancel", [a, id])).toMatchObject({
+      ok: true,
+    });
+    expect(await get()).toMatchObject({
+      stage: "cancelled",
+      accept_ready: false,
+    });
+  });
+});
+
+it("remake reads need the read scope and show only the actor's own test mode", async () => {
+  await fixture(async (tx) => {
+    const a = await actor(tx);
+    const b = await actor(tx);
+    const live = await token(tx, a, ["read"]);
+    const test = await token(tx, a, undefined, { test: true });
+    const noRead = await token(tx, a, ["create", "spend"]);
+    const other = await token(tx, b);
+    const liveRemake = await review(tx, a);
+    const testRemake = await review(tx, test);
+    const notFound = {
+      ok: false,
+      code: "not_found",
+      message: "owned remake required",
+      details: { reason: null },
+    };
+    for (const [ctx, id] of [
+      [b, liveRemake.id],
+      [other, liveRemake.id],
+      [test, liveRemake.id],
+      [live, testRemake.id],
+      [a, testRemake.id],
+      [live, randomUUID()],
+    ] as const)
+      expect(await call(tx, "mdf_web", "remake_get", [ctx, id])).toEqual(
+        notFound,
+      );
+    for (const [name, args] of [
+      ["remake_get", [liveRemake.id]],
+      ["remakes_list", []],
+    ] as const) {
+      expect(await call(tx, "mdf_web", name, [noRead, ...args])).toEqual({
+        ok: false,
+        code: "forbidden_scope",
+        message: "admin required",
+        details: { reason: null },
+      });
+      expect(
+        await call(tx, "mdf_web", name, [
+          { ...a, session_id: randomUUID() },
+          ...args,
+        ]),
+      ).toMatchObject({ ok: false, code: "unauthorized" });
+    }
+    expect(
+      await call(tx, "mdf_web", "remake_get", [test, testRemake.id]),
+    ).toMatchObject({ ok: true, data: { remake_id: testRemake.id } });
+    const ids = async (ctx: Ctx) =>
+      (await call(tx, "mdf_web", "remakes_list", [ctx])).data.remakes.map(
+        (r: { remake_id: string }) => r.remake_id,
+      );
+    expect(await ids(live)).toEqual([liveRemake.id]);
+    expect(await ids(a)).toEqual([liveRemake.id]);
+    expect(await ids(test)).toEqual([testRemake.id]);
+    expect(await ids(other)).toEqual([]);
+    expect(
+      await tx`select operation,result,error_code,count(*)::int as calls from public.audit_log
+        where owner_id=${a.user_id} and operation in ('remake_get','remakes_list') group by 1,2,3 order by 1,2,3`,
+    ).toEqual([
+      {
+        operation: "remake_get",
+        result: "error",
+        error_code: "forbidden_scope",
+        calls: 1,
+      },
+      {
+        operation: "remake_get",
+        result: "error",
+        error_code: "not_found",
+        calls: 4,
+      },
+      { operation: "remake_get", result: "ok", error_code: null, calls: 1 },
+      {
+        operation: "remakes_list",
+        result: "error",
+        error_code: "forbidden_scope",
+        calls: 1,
+      },
+      { operation: "remakes_list", result: "ok", error_code: null, calls: 3 },
+    ]);
+  });
+});
+
+it("remakes_list is newest first, clamps its limit and leaves out dismissed and trashed remakes", async () => {
+  await fixture(async (tx) => {
+    const a = await actor(tx);
+    const reader = await token(tx, a, ["read"]);
+    const made: { id: string; version: string }[] = [];
+    for (let i = 0; i < 5; i++) {
+      const remake = await review(tx, a);
+      // Distinct, known ages: the first is the oldest.
+      await tx`update public.remakes set created_at=now() - make_interval(mins => ${10 - i}) where id=${remake.id}`;
+      made.push(remake);
+    }
+    await tx`update public.remakes set lyrics=null,stage='failed',error_code='no_lyrics' where id=${made[1].id}`;
+    await tx`update public.remakes set dismissed_at=now() where id=${made[2].id}`;
+    await tx`update public.versions set trashed_at=now() where id=${made[3].version}`;
+    const list = async (...args: unknown[]) =>
+      call(tx, "mdf_web", "remakes_list", [reader, ...args]);
+    const all = await list();
+    expect(all).toMatchObject({ ok: true });
+    expect(Object.keys(all.data)).toEqual(["remakes"]);
+    expect(all.data.remakes).toEqual([
+      {
+        remake_id: made[4].id,
+        project_id: expect.any(String),
+        version_id: made[4].version,
+        stage: "review",
+        lang: "it",
+        title: PASSING.title,
+        error_code: null,
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+      },
+      {
+        remake_id: made[1].id,
+        project_id: expect.any(String),
+        version_id: made[1].version,
+        stage: "failed",
+        lang: "it",
+        title: null,
+        error_code: "no_lyrics",
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+      },
+      expect.objectContaining({ remake_id: made[0].id }),
+    ]);
+    for (const [limit, count] of [
+      [1, 1],
+      [2, 2],
+      [0, 1],
+      [-5, 1],
+      [100, 3],
+      [100000, 3],
+      [null, 3],
+    ] as const)
+      expect((await list(limit)).data.remakes, String(limit)).toHaveLength(
+        count,
+      );
+    expect((await list(1)).data.remakes[0].remake_id).toBe(made[4].id);
+    // More remakes than the cap: never more than 100 come back.
+    await tx`insert into public.projects(id,owner_id,topic) select gen_random_uuid(),${a.user_id},'Bulk ' || n from generate_series(1,120) n`;
+    await tx`insert into public.versions(owner_id,project_id,lang,status) select owner_id,id,'it','analysing' from public.projects where owner_id=${a.user_id} and topic like 'Bulk %'`;
+    await tx`insert into public.remakes(owner_id,project_id,version_id,url,video_id,lang)
+      select v.owner_id,v.project_id,v.id,${start[0]},${start[1]},'it' from public.versions v join public.projects p on p.id=v.project_id where p.owner_id=${a.user_id} and p.topic like 'Bulk %'`;
+    expect((await list(100000)).data.remakes).toHaveLength(100);
+    expect((await list()).data.remakes).toHaveLength(20);
+  });
+});
+
+it("the agent remake reads have only the web grant and fixed definer settings", async () => {
+  await fixture(async (tx) => {
+    const functions =
+      await tx`select p.oid,p.prosecdef,p.proconfig,pg_get_userbyid(p.proowner) as owner from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='ops' and p.proname in ('remake_get','remakes_list')`;
+    expect(functions).toHaveLength(2);
+    for (const fn of functions) {
+      expect(fn).toMatchObject({ prosecdef: true, owner: "postgres" });
+      expect(fn.proconfig).toContain('search_path=""');
+      expect(fn.proconfig).toContain("TimeZone=UTC");
+      for (const role of [
+        "mdf_web",
+        "mdf_auth",
+        "service_role",
+        "anon",
+        "authenticated",
+      ]) {
+        const [grant] =
+          await tx`select has_function_privilege(${role},${fn.oid}::oid,'execute') as allowed`;
+        expect(grant.allowed).toBe(role === "mdf_web");
+      }
+    }
+  });
+});
