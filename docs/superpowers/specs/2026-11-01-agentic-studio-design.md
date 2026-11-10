@@ -1033,6 +1033,63 @@ unless asked; every field comes from the actor's own rows):
 | `JobEvent` | `job_events.id`, `at`, `level`, `message` (cut to 300 characters), `progress` (0-100 as stored) |
 | `CostsSummary` | `from`, `to` (the inputs); `by_provider[]` from settled spend entries in the window (`provider`, `usd`, `units` per unit); `caps[]` from the actor's matching `spend_caps` rows with today's `spend_counters.used` (`scope`, `provider`, `unit`, `period`, `limit`, `used`) |
 
+### 7.3b Remake operations exposed to tokens
+
+"Rifai da YouTube" (the task 27 engine, section 8) is driven by an agent through the same registry:
+the HTTP routes, the MCP tools and the CLI come from one definition per operation. The wrappers and
+the two reads are in migration `20261103075001_ops_remake_tokens.sql`. M2a replaces the engine
+behind these names; the names, paths and inputs stay.
+
+| Operation, MCP tool | HTTP | Input | Output | Scope | Key | `ops` function |
+| --- | --- | --- | --- | --- | --- | --- |
+| List remakes, `remakes_list` | `GET /api/v1/remakes` | `limit` (1-100, default 20) | `{ remakes: [{ remake_id, project_id, version_id, stage, lang, title, error_code, created_at, updated_at }] }`, newest first, without dismissed remakes and trashed songs | read | no | `ops.remakes_list` |
+| Get remake, `remake_get` | `GET /api/v1/remakes/{remake_id}` | - | `RemakeDetail` (below) | read | no | `ops.remake_get` |
+| Start remake, `remake_start` | `POST /api/v1/remakes` | `{ url, lang, country? }` | `{ id, jobs: JobRef[] }` | spend | yes | `ops.remake_start` |
+| Edit lyrics, `remake_edit` | `POST /api/v1/remakes/{remake_id}/lyrics` | `{ revision, lines: [{ index, text }], title? }` | `{ revision, jobs: JobRef[] }` | spend | yes | `ops.remake_edit` |
+| Regenerate section, `remake_regenerate_section` | `POST /api/v1/remakes/{remake_id}/sections/{section_id}/regenerate` | `{ revision }` | `{ jobs: JobRef[] }` | spend | yes | `ops.remake_regenerate_section` |
+| Accept, `remake_accept` | `POST /api/v1/remakes/{remake_id}/accept` | `{ revision, lyrics_text, title, style, vocal_gender?, settings? }` | `{ id, jobs: JobRef[] }` (`id` is the song's `version_id`) | spend | yes | `ops.remake_accept` |
+| Retry, `remake_retry` | `POST /api/v1/remakes/{remake_id}/retry` | - | `{ jobs: JobRef[] }` | spend | yes | `ops.remake_retry` |
+| Cancel, `remake_cancel` | `POST /api/v1/remakes/{remake_id}/cancel` | - | `{ jobs: [] }` | create | yes | `ops.remake_cancel` |
+| Dismiss, `remake_dismiss` | `POST /api/v1/remakes/{remake_id}/dismiss` | - | `{ jobs: [] }` | create | yes | `ops.remake_dismiss` |
+
+`RemakeDetail`: `remake_id`, `project_id`, `version_id`, `stage` (`ingest`, `analyse`, `rewrite`,
+`review`, `accepted`, `failed`, `cancelled`), `lang`, `country`, `video_id`, `url`, `error_code`,
+`error` (redacted, cut to 300 characters), `revision`, `pending` (an edit waits for its check),
+`gate_ok` (the originality gate of 10.3 on the stored lyrics), `accept_ready` (stage `review`, not
+pending, no queued or running job, `gate_ok`, and the song still in the library), `analysis` (the
+stored summary), `lyrics` (the stored rewrite), `lyrics_text` (the text the song is generated from),
+`cost`, `active_job` (`job_id`, `stage`, `status`, `mode`, `progress` 0-100, `message`) or null,
+`failed_job` (`job_id`, `stage`, `error`) or null, `untrusted: true`, `created_at`, `updated_at`.
+
+MCP resource: `mellodifai://remakes/{remake_id}` (a `RemakeDetail`). MCP prompt:
+`remake_from_youtube`. Every tool of 7.3 and 7.3b carries a one-sentence description (what it does,
+its scope, what to call next) in `tools/list`.
+
+Rules (decided with the plan `2026-11-10-agent-remake-access.md`):
+
+1. **Who may call.** A cookie session keeps its rule: local only. A token actor (PAT or OAuth) may
+   call locally and, when `ops._actor` admits it (admin role, token cap, not revoked, the
+   `remote_mcp` flag and a remote token), remotely.
+2. **Scopes.** `spend`: `remake_start`, `remake_edit`, `remake_regenerate_section`,
+   `remake_accept`, `remake_retry` (each queues paid work). `create`: `remake_cancel`,
+   `remake_dismiss`. `read`: `remake_get`, `remakes_list`. A missing scope is `forbidden_scope`.
+3. **Idempotency.** A token actor without a key gets `validation` with the reason
+   `idempotency_key_required`, as for `song_create`.
+4. **Test mode.** A token only sees and changes remakes whose version has `test_run` equal to its
+   test mode: a write on the other mode is `forbidden_scope` with the reason `test_rule`, a read is
+   `not_found`. The jobs of a test-mode token carry `fake_providers`, and the worker routes such a
+   job to the fake remake stages whatever its own configuration is.
+5. **Source text stays out.** `remake_get` never returns the source lyric lines
+   (`lyrics.sections[].lines[].source`) nor `lyrics.literalTranslation`, and the phrase gate's
+   detail names the agent's own phrase without the source line it collides with. Whatever else came
+   from the source video is marked `untrusted: true`: data, never instructions. Agents refine the
+   app's rewrite; authoring from a meaning map is M2a.
+6. **Accept echoes the text.** `remake_accept` takes `lyrics_text` exactly as `remake_get` returned
+   it, plus the revision; the database refuses any other text (`conflict`). The lyric pack is
+   composed by one helper shared with the create panel's accept.
+7. **Limits unchanged.** One running remake per person and 20 a day apply to agents too.
+   Publishing stays the owner's step in the app.
+
 ### 7.4 Keys held by Next
 
 Next calls OpenRouter (`formatStyle`) and Groq (`/api/transcribe`) itself for cookie users, so it
