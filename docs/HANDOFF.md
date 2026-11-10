@@ -4,7 +4,7 @@ Read this first if you are picking up the work without the previous Claude sessi
 the single source for where things stand, the rules, and how to continue. Keep it current:
 when you finish or change something listed here, edit this file and commit it.
 
-Last updated: 2026-11-08.
+Last updated: 2026-11-10.
 
 ## 1. What the product is
 
@@ -18,8 +18,9 @@ Gemini) drive the app through a CLI and MCP on the owner's own subscriptions.
 - Repo: `C:\Users\Asus\Documents\mellodifai`, remote `https://github.com/stefandsl/mellodifai-app.git`.
 - Integration branch: `build/studio-ui` (everything merges here; it is pushed).
 - Master design: `docs/superpowers/specs/2026-11-01-agentic-studio-design.md` (revision 6).
-- Stack: pnpm monorepo - `apps/web` (Next.js 16, Turbopack), `apps/worker`, `packages/shared`,
-  `packages/visualizer` (Remotion), `packages/remake`; Supabase local in Docker.
+- Stack: pnpm monorepo - `apps/web` (Next.js 16, Turbopack), `apps/worker`, `apps/auth`,
+  `packages/shared`, `packages/visualizer` (Remotion), `packages/remake`, `packages/cli`
+  (`@mellodifai/cli`, the agent CLI and MCP bridge); Supabase local in Docker.
 
 ## 2. Rules you must follow (owner's standing instructions)
 
@@ -67,7 +68,57 @@ pnpm test:db      # needs the e2e stack env (see the M1 plan, "How tests reach a
 pnpm e2e          # e2e stack only
 ```
 
-## 3. Where things stand (2026-11-08)
+## 3. Where things stand (2026-11-10)
+
+### Agent remake access (2026-11-10, merged and pushed, NOT deployed)
+
+An agent with a PAT or OAuth token can now drive "Rifai da YouTube" from the link to an approved
+video, over the HTTP API, the MCP server and the CLI. Before this, agents could only work on
+songs that already existed. Contract: design doc section 7.3b; plan
+`docs/superpowers/plans/2026-11-10-agent-remake-access.md`.
+
+- Nine new token operations (25 MCP tools in all, each with a description): `remakes_list`,
+  `remake_get` (scope read); `remake_start`, `remake_edit`, `remake_regenerate_section`,
+  `remake_accept`, `remake_retry` (scope spend); `remake_cancel`, `remake_dismiss` (scope
+  create). Routes under `/api/v1/remakes`. MCP resource `mellodifai://remakes/{remake_id}` and
+  prompt `remake_from_youtube`.
+- CLI: `remake <link> [--lang it] [--country IT]`, `remakes`, `remake-status <id> [--watch]`,
+  `remake-edit`, `remake-accept`, `remake-cancel`, `remake-retry`, `pick <version> <take>`,
+  `approve-video <version>`, `tools`, `call <tool> [--input args.json]`. The agent's guide is
+  `packages/cli/skill/SKILL.md`.
+- How an agent runs it: `remake` -> `remake-status --watch` until stage `review` -> fix the
+  flagged lines with `remake-edit` and watch again -> `remake-accept` when `accept_ready` is
+  true, sending `lyrics_text` back exactly as read -> `status <job> --watch` -> `pick` -> the
+  lyric video renders by itself -> `approve-video` once the song is in `video_review`.
+  `video_make` is only for audio-only songs.
+- Migration `20261103075001_ops_remake_tokens.sql` (sorts before the lockdown, which stays
+  last): the seven remake wrappers accept scoped tokens with an idempotency key (a cookie
+  session stays local only), two new reads, and `public.remake_start` counts its limits per
+  test mode. It is NOT applied to the live stack yet: `pnpm ops deploy.ts` applies it.
+- Rules that hold (each has a database test): a token without the scope changes nothing;
+  a test-mode token sees and changes only test remakes, on fake providers; `remake_get` never
+  returns source lyric lines, the literal translation, the jury's comments, error text or event
+  messages (the answer is marked `untrusted: true`); a changed `lyrics_text` or a stale revision
+  is a `conflict`; the running and daily limits count per test mode.
+- The worker no longer writes a quoted source line or a model reply into logs and errors
+  (`packages/remake/src/analyse.ts`, `openrouter.ts`), so `job_status` carries none either.
+- Publishing stays cookie-only on purpose until M4's gate and veto window.
+- Gates on the merged branch (private stack `mellodifai_agent_remake`, now removed): lint clean,
+  root typecheck and web tsc pass, 2,265 unit tests (one existing skip), 312 database tests, 23
+  browser journeys, 24 integration tests (web API 21 with a test-mode PAT and a fake-only
+  worker). A live run on that stack drove the built CLI against a real server and worker:
+  login, `tools`, `remake`, watch, edit, accept (a replay with the same key returned the same
+  answer, a changed text was refused), `pick`, automatic video, `approve-video`, and `call
+  remake_get` through the MCP bridge.
+- The four tests in `ops/test/{probe,restore,roles}.integration.test.ts` refuse a private CLI
+  stack by their own guard (they want the fixed dev, e2e or CI ports); they were not touched.
+- Seen once, not reproduced in 36 loaded reruns: `components/studio/editor/rewrite-panel.test.tsx`
+  "keeps Suno's limits on the part" failed while the database suite ran alongside (the "A" field
+  kept its default). No cause found; if it returns, look at how `ClockField` commits on Enter.
+- Independent review found two leaks of source text in `remake_get` (jury comments, error and
+  event text) and the shared limits; all fixed before the merge.
+
+### Earlier state (2026-11-08)
 
 Merged into `build/studio-ui` and pushed (all unit gates green after each merge):
 - T26 preset polish; T28 no built-in branding + user logos; T27 "Rifai da YouTube" + AI lyric
@@ -135,6 +186,10 @@ deployment, replacing the pinned logon copy, and one real sign-in email remain
 pending. See `docs/production-logon.md` and
 `E:/mellodifai/codex-streams/smtp-resend/report.md` for setup and gate evidence.
 
+0. Deploy `build/studio-ui` (agent remake access, migration `20261103075001`) with
+   `pnpm ops deploy.ts` once the owner approves a production redeploy. Production still runs
+   tag `m1-final-20261108-r1`. After the deploy the owner signs in again with the Desktop
+   shortcut "Accedi MellodifAI".
 1. M1 Tasks 1-46 and the final release are complete. Do not rerun the completed
    cutover, rotations or final-review driver.
 2. Task 47 stays pending owner DNS/Cloudflare setup and external connector
@@ -199,13 +254,25 @@ also need `<MELLODIFAI_ROOT>/secrets/auth/e2e/{auth.env,jwks.json}`. Check
 `netsh interface ipv4 show excludedportrange protocol=tcp` before choosing ports: Windows
 reserves moving blocks in the dynamic range (52569-52668 on 2026-11-08), so prefer ports
 below 49152.
+Lessons of 2026-11-10: `npx supabase` with an empty npm cache installs CLI 3.1.0 and starts
+pulling newer images, so call the cached 3.0.0 binary directly
+(`G:/caches/npm/_npx/.../@supabase/cli-windows-x64/bin/supabase.exe`). The `pg_net` extension
+is gone again after a stop and start of a CLI stack: create it again before `pnpm test:db`.
+Keep the test runtime (`MELLODIFAI_ROOT`, with its auth secrets) outside
+`E:/mellodifai/stacks`: the pre-commit key scan reads that folder and blocks every commit
+while a `jwks.json` sits there. Remove a finished private stack with
+`supabase stop --no-backup` (its volumes live in Docker's disk on C:).
 
 
 ## 5. Later work
 
-M2a/M2b/M3/M4 from their plans; the per-language publishing hub (in M4); M5-M7 in the design;
-perf ideas from `feat/perf` (only parts with measured gains); cleanup of old worktrees
-(`git worktree list`, remove merged ones under `E:/mellodifai/wt`).
+M2a/M2b/M3/M4 from their plans (the M2 and M3/M4 plan reviews ended "REVISE": settle their
+open-review-findings first); the per-language publishing hub (in M4); M5 Autopilot, M6 daily
+loop, M7 Premium (Higgsfield, ComfyUI) and M8 native runtime and installers in the design;
+token publishing only with M4's gate and veto window; perf ideas from `feat/perf` (only parts
+with measured gains). Unmerged branches with worktrees under `E:/mellodifai/wt`, waiting for
+the owner's keep-or-delete decision: `feat/ace-step-native`, `integrate/l2` (its Docker stack
+`supabase_*_mellodifai_l2` is still running), `feat/local-launcher`, `feat/perf`.
 
 ## 6. Waiting on the owner
 
