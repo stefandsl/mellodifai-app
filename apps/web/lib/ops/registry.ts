@@ -142,7 +142,7 @@ export const tokenOps = {
         takePick.args({ versionId: v.version_id, takeId: v.take_id }),
     },
     "/songs/{version_id}/takes/{take_id}/pick",
-    "Chooses the take a song continues with and queues its timing (scope create); when the job is done call video_make.",
+    "Chooses the take a song continues with and queues its timing, after which the lyric video renders on its own unless the song is audio-only (scope create); poll song_get until status is video_review, then call video_approve.",
   ),
   video_make: http(
     {
@@ -151,7 +151,7 @@ export const tokenOps = {
       args: (v) => videoMake.args({ versionId: v.version_id }),
     },
     "/songs/{version_id}/video",
-    "Queues the lyric video of the chosen take (scope create); follow the job with job_status, then check the render in song_get and call video_approve.",
+    "Queues the lyric video of an audio-only song whose status is audio_ready (scope create); a song with video on renders by itself after take_pick and answers conflict here. Follow the job with job_status, then call video_approve.",
   ),
   video_rerender: http(
     {

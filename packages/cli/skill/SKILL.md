@@ -58,8 +58,11 @@ contains only newline-delimited JSON-RPC. No cookies or database access.
 4. Review generated takes. `pick <version_id> <take_id>` (MCP `take_pick`)
    chooses a take. To generate again, use
    `regenerate <version_id> --input generation.json` with `{ "generation": n }`.
-5. Run `video <version_id>`, watch its jobs and inspect the result before
-   `approve-video <version_id>` (MCP `video_approve`).
+5. After `pick` the lyric video renders on its own: poll `song_get` until the
+   status is `video_review`, then inspect the result before
+   `approve-video <version_id>` (MCP `video_approve`). `video <version_id>` is
+   only for an audio-only song (status `audio_ready`); on any other song it
+   answers `conflict`.
 6. Publishing is the owner's step in the app. Agents have no token publish,
    upload, schedule, privacy change or override.
 
@@ -94,8 +97,8 @@ source text.
    `remake-status` returned it; any change or a stale revision is a conflict.
    The result is `{ "id", "jobs" }` with the song generation queued.
 5. Continue with step 3 of the song workflow: watch jobs with `status`, then
-   `pick`, `video` and `approve-video`. Publishing stays with the owner in the
-   app.
+   `pick`, wait for `video_review` and `approve-video`. Publishing stays with
+   the owner in the app.
 
 `remake-cancel <remake_id>` (scope create) stops a running remake and
 `remake-retry <remake_id>` (scope spend) retries a failed stage. A token sees

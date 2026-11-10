@@ -460,6 +460,7 @@ it("registers remake_from_youtube with the safe remake workflow", async () => {
   const text: string = result.messages[0].content.text;
   expect(result.messages[0].role).toBe("user");
   // The order of the workflow: start, watch, refine, accept, then the song and video tools.
+  // The video renders by itself after take_pick; video_make is named only for audio-only songs.
   const steps = [
     "remake_start",
     "remake_get",
@@ -467,9 +468,10 @@ it("registers remake_from_youtube with the safe remake workflow", async () => {
     "remake_accept",
     "job_status",
     "take_pick",
-    "video_make",
+    "video_review",
     "video_approve",
   ];
+  expect(text).toContain("video_make serve solo per un brano solo audio");
   const positions = steps.map((step) => text.indexOf(step));
   expect(positions.every((at) => at >= 0)).toBe(true);
   expect([...positions].sort((a, b) => a - b)).toEqual(positions);
