@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { ClientError, request } from "./client.js";
 import type { Credentials } from "./credentials.js";
+import { callTool, listTools } from "./mcp.js";
 
 export const commands = [
   "login",
@@ -10,7 +11,18 @@ export const commands = [
   "approve",
   "regenerate",
   "video",
+  "pick",
+  "approve-video",
   "costs",
+  "remake",
+  "remakes",
+  "remake-status",
+  "remake-edit",
+  "remake-accept",
+  "remake-cancel",
+  "remake-retry",
+  "tools",
+  "call",
   "mcp",
 ];
 export const options = {
@@ -19,6 +31,8 @@ export const options = {
   watch: { type: "boolean" },
   url: { type: "string" },
   input: { type: "string" },
+  lang: { type: "string" },
+  country: { type: "string" },
   "idempotency-key": { type: "string" },
 } as const;
 export function parse(args: string[]) {
@@ -28,85 +42,174 @@ export type CommandIO = {
   credentials: Credentials;
   input: (file?: string) => Promise<unknown>;
   output: (value: unknown) => void;
+  /** Milliseconds between --watch polls; 3000 unless a test injects another. */
+  interval?: number;
 };
+
+/** Positional arguments each command takes after its name. */
+const arity: Record<string, number> = {
+  songs: 0,
+  costs: 0,
+  create: 0,
+  remakes: 0,
+  tools: 0,
+  status: 1,
+  approve: 1,
+  regenerate: 1,
+  video: 1,
+  "approve-video": 1,
+  remake: 1,
+  "remake-status": 1,
+  "remake-edit": 1,
+  "remake-accept": 1,
+  "remake-cancel": 1,
+  "remake-retry": 1,
+  call: 1,
+  pick: 2,
+};
+const watchable = ["status", "remake-status"];
+
+async function query(path: string, io: CommandIO, file?: string) {
+  if (!file) return path;
+  const filters = await io.input(file);
+  if (!filters || typeof filters !== "object" || Array.isArray(filters))
+    throw new ClientError("validation", "Filtri JSON non validi.");
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (!["string", "number", "boolean"].includes(typeof value))
+      throw new ClientError("validation", "Filtri JSON non validi.");
+    params.set(key, String(value));
+  }
+  return `${path}?${params}`;
+}
+
+/** True when a --watch poll may stop on this response. */
+function settled(command: string, result: unknown): boolean {
+  const data = (result as { data?: Record<string, unknown> }).data;
+  if (command === "status") {
+    const status = (data?.job as { status?: string } | undefined)?.status;
+    if (["done", "failed", "cancelled"].includes(status ?? "")) return true;
+    if (status !== "queued" && status !== "running")
+      throw new ClientError("internal", "Stato del job non valido.");
+    return false;
+  }
+  const stage = data?.stage;
+  if (stage === "accepted" || stage === "failed" || stage === "cancelled")
+    return true;
+  // A review remake waits for its check job; it settles once none is active.
+  if (stage === "review") return !data?.active_job;
+  if (stage === "ingest" || stage === "analyse" || stage === "rewrite")
+    return false;
+  throw new ClientError("internal", "Stato del rifacimento non valido.");
+}
 
 export async function run(args: string[], io: CommandIO): Promise<void> {
   const { values, positionals } = parse(args);
-  const [command, id] = positionals;
+  const [command = "", ...ids] = positionals;
   if (
-    !command ||
-    !commands.includes(command) ||
-    positionals.length > 2 ||
+    !Object.hasOwn(arity, command) ||
     values.url ||
-    (values.watch && command !== "status")
+    (values.watch && !watchable.includes(command)) ||
+    ((values.lang !== undefined || values.country !== undefined) &&
+      command !== "remake")
   )
     throw new ClientError(
       "validation",
       "Comando o opzioni non validi. Usa --help.",
     );
-  if (
-    ["status", "approve", "regenerate", "video"].includes(command)
-      ? !id
-      : Boolean(id)
-  )
+  if (ids.length !== arity[command] || ids.some((id) => !id))
     throw new ClientError("validation", "Identificatore mancante o inatteso.");
-  const version = encodeURIComponent(id ?? "");
+  const [first, second] = ids.map((id) => encodeURIComponent(id));
+  const key = values["idempotency-key"];
+  if (command === "tools") {
+    const tools = await listTools(io.credentials);
+    io.output({
+      data: {
+        tools: tools.map((tool) => ({
+          name: tool.name,
+          access: tool.write ? "write" : "read",
+          description: tool.description ?? null,
+        })),
+      },
+    });
+    return;
+  }
+  if (command === "call") {
+    const args = values.input ? await io.input(values.input) : {};
+    io.output({
+      data: await callTool(io.credentials, ids[0] ?? "", args, key),
+    });
+    return;
+  }
   let path: string;
   let body: unknown;
   switch (command) {
     case "songs":
-    case "costs": {
-      path = `/${command}`;
-      if (values.input) {
-        const query = await io.input(values.input);
-        if (!query || typeof query !== "object" || Array.isArray(query))
-          throw new ClientError("validation", "Filtri JSON non validi.");
-        const params = new URLSearchParams();
-        for (const [key, value] of Object.entries(query)) {
-          if (!["string", "number", "boolean"].includes(typeof value))
-            throw new ClientError("validation", "Filtri JSON non validi.");
-          params.set(key, String(value));
-        }
-        path += `?${params}`;
-      }
+    case "costs":
+    case "remakes":
+      path = await query(`/${command}`, io, values.input);
       break;
-    }
     case "create":
       path = "/songs";
       body = await io.input(values.input);
       break;
     case "approve":
-      path = `/songs/${version}/lyrics/approve`;
+      path = `/songs/${first}/lyrics/approve`;
       body = await io.input(values.input);
       break;
     case "regenerate":
-      path = `/songs/${version}/generate`;
+      path = `/songs/${first}/generate`;
       body = await io.input(values.input);
       break;
     case "video":
-      path = `/songs/${version}/video`;
+      path = `/songs/${first}/video`;
+      body = {};
+      break;
+    case "pick":
+      path = `/songs/${first}/takes/${second}/pick`;
+      body = {};
+      break;
+    case "approve-video":
+      path = `/songs/${first}/video/approve`;
       body = {};
       break;
     case "status":
-      path = `/jobs/${version}`;
+      path = `/jobs/${first}`;
+      break;
+    case "remake":
+      path = "/remakes";
+      body = {
+        url: ids[0],
+        lang: values.lang ?? "it",
+        ...(values.country === undefined ? {} : { country: values.country }),
+      };
+      break;
+    case "remake-status":
+      path = `/remakes/${first}`;
+      break;
+    case "remake-edit":
+      path = `/remakes/${first}/lyrics`;
+      body = await io.input(values.input);
+      break;
+    case "remake-accept":
+      path = `/remakes/${first}/accept`;
+      body = await io.input(values.input);
+      break;
+    case "remake-cancel":
+      path = `/remakes/${first}/cancel`;
+      body = {};
+      break;
+    case "remake-retry":
+      path = `/remakes/${first}/retry`;
+      body = {};
       break;
     default:
       throw new ClientError("validation", "Usa il comando dalla CLI.");
   }
-  do {
-    const result = await request(
-      io.credentials,
-      path,
-      body,
-      values["idempotency-key"],
-    );
+  for (;;) {
+    const result = await request(io.credentials, path, body, key);
     io.output(result);
-    if (!values.watch) return;
-    const status = (result as { data?: { job?: { status?: string } } }).data
-      ?.job?.status;
-    if (["done", "failed", "cancelled"].includes(status ?? "")) return;
-    if (status !== "queued" && status !== "running")
-      throw new ClientError("internal", "Stato del job non valido.");
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-  } while (values.watch);
+    if (!values.watch || settled(command, result)) return;
+    await new Promise((resolve) => setTimeout(resolve, io.interval ?? 3000));
+  }
 }

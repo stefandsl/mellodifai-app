@@ -5,6 +5,39 @@ import { request } from "../src/client.js";
 import { bridge } from "../src/mcp.js";
 
 const pat = "mdf_test_fixture_not_a_real_token";
+const writes = [
+  "song_create",
+  "lyrics_approve",
+  "lyrics_back",
+  "song_generate_again",
+  "take_pick",
+  "video_make",
+  "video_rerender",
+  "video_approve",
+  "stage_retry",
+  "job_cancel",
+  "stems_request",
+  "visualizer_request",
+  "remake_start",
+  "remake_edit",
+  "remake_regenerate_section",
+  "remake_accept",
+  "remake_retry",
+  "remake_cancel",
+  "remake_dismiss",
+];
+const reads = ["song_get", "songs_list", "job_status", "remake_get"];
+const catalog = [
+  ...writes.map((name) => ({ name, annotations: { readOnlyHint: false } })),
+  ...reads.map((name) => ({ name, annotations: { readOnlyHint: true } })),
+];
+function toolCalls(received: { body: Record<string, unknown> }[]) {
+  return received.filter((req) => req.body.method === "tools/call");
+}
+function argumentsOf(req: { body: Record<string, unknown> } | undefined) {
+  return (req?.body.params as { arguments?: Record<string, unknown> })
+    ?.arguments;
+}
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -45,7 +78,11 @@ async function fake(status = 200) {
               },
             }
           : req.url === "/api/mcp"
-            ? { jsonrpc: "2.0", id: body.id, result: { tools: [] } }
+            ? {
+                jsonrpc: "2.0",
+                id: body.id,
+                result: body.method === "tools/list" ? { tools: catalog } : {},
+              }
             : { data: { jobs: [] } },
       ),
     );
@@ -83,7 +120,7 @@ describe("transports", () => {
     expect(await rpc(credentials, message)).toEqual({
       jsonrpc: "2.0",
       id: 1,
-      result: { tools: [] },
+      result: { tools: catalog },
     });
     expect(received).toMatchObject([
       { path: "/api/mcp", auth: `Bearer ${pat}`, body: message },
@@ -129,34 +166,21 @@ describe("transports", () => {
     ).toBe(true);
     expect(new Set(received.map((req) => req.key)).size).toBe(4);
   });
-  it.each([
-    "song_create",
-    "lyrics_approve",
-    "lyrics_back",
-    "song_generate_again",
-    "take_pick",
-    "video_make",
-    "video_rerender",
-    "video_approve",
-    "stage_retry",
-    "job_cancel",
-    "stems_request",
-    "visualizer_request",
-  ])("sends a key for the Key=yes MCP operation %s", async (name) => {
-    const { credentials, received } = await fake();
-    await rpc(credentials, {
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/call",
-      params: { name, arguments: {} },
-    });
-    const args = (
-      received[0]?.body.params as
-        | { arguments: { idempotency_key: string } }
-        | undefined
-    )?.arguments;
-    expect(args?.idempotency_key).toMatch(/^[\w-]{8,100}$/);
-  });
+  it.each(writes)(
+    "sends a key for the write tool %s that tools/list marks",
+    async (name) => {
+      const { credentials, received } = await fake();
+      await rpc(credentials, {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name, arguments: {} },
+      });
+      expect(argumentsOf(toolCalls(received)[0])?.idempotency_key).toMatch(
+        /^[\w-]{8,100}$/,
+      );
+    },
+  );
   it("preserves explicit keys and never retries ambiguous spend", async () => {
     const { credentials, received } = await fake();
     await request(credentials, "/songs", {}, "stable-operation-key");
@@ -170,7 +194,7 @@ describe("transports", () => {
         arguments: { idempotency_key: "stable-operation-key" },
       },
     });
-    expect(received[1]?.body).toMatchObject({
+    expect(toolCalls(received)[0]?.body).toMatchObject({
       params: { arguments: { idempotency_key: "stable-operation-key" } },
     });
     const server = servers[0];
@@ -231,7 +255,7 @@ describe("transports", () => {
         params: { name: "take_pick", arguments: { idempotency_key: null } },
       }),
     ).toMatchObject({ error: { data: { code: "validation" } } });
-    expect(received).toHaveLength(0);
+    expect(received.map((req) => req.body.method)).toEqual(["tools/list"]);
   });
 
   it("never forwards credentials on redirects or retries an interrupted mutation", async () => {
@@ -342,11 +366,145 @@ describe("transports", () => {
           error: { data: { code: "ambiguous_spend" } },
         });
       }
-      expect(calls).toBe(2);
+      // Each bridge first tries tools/list once; the broken list leaves every call a write.
+      expect(calls).toBe(4);
       expect(
         await rpc(credentials, { jsonrpc: "2.0", id: 8, method: "tools/list" }),
       ).toMatchObject({ error: { data: { code: "internal" } } });
-      expect(calls).toBe(3);
+      expect(calls).toBe(5);
     },
   );
+
+  async function session(
+    credentials: { url: string; pat: string },
+    messages: unknown[],
+  ) {
+    const output = new PassThrough();
+    let text = "";
+    output.on("data", (chunk) => {
+      text += chunk;
+    });
+    await bridge(
+      Readable.from(messages.map((message) => `${JSON.stringify(message)}\n`)),
+      output,
+      credentials,
+    );
+    return text
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  }
+  const call = (id: number, name: string, args = {}) => ({
+    jsonrpc: "2.0",
+    id,
+    method: "tools/call",
+    params: { name, arguments: args },
+  });
+
+  it("adds a key to a tool the server marks as a write and not to a read-only one", async () => {
+    const { credentials, received } = await fake();
+    const lines = await session(credentials, [
+      { jsonrpc: "2.0", id: 1, method: "tools/list" },
+      call(2, "remake_get", { remake_id: "r" }),
+      call(3, "remake_start", { url: "https://youtu.be/x", lang: "it" }),
+    ]);
+    expect(lines.map((line) => line.id)).toEqual([1, 2, 3]);
+    // The list came through the bridge, so it did not fetch its own.
+    expect(received.map((req) => req.body.method)).toEqual([
+      "tools/list",
+      "tools/call",
+      "tools/call",
+    ]);
+    expect(argumentsOf(received[1])).toEqual({ remake_id: "r" });
+    expect(argumentsOf(received[2])).toMatchObject({
+      url: "https://youtu.be/x",
+      idempotency_key: expect.stringMatching(/^[\w-]{8,100}$/),
+    });
+  });
+
+  it("fetches tools/list once when the first message is a tools/call, and never forwards it", async () => {
+    const { credentials, received } = await fake();
+    const lines = await session(credentials, [
+      call(1, "song_get", { version_id: "v" }),
+      call(2, "take_pick", { version_id: "v", take_id: "t" }),
+      call(3, "remake_get", { remake_id: "r" }),
+    ]);
+    expect(lines).toEqual([
+      { jsonrpc: "2.0", id: 1, result: {} },
+      { jsonrpc: "2.0", id: 2, result: {} },
+      { jsonrpc: "2.0", id: 3, result: {} },
+    ]);
+    expect(received.map((req) => req.body.method)).toEqual([
+      "tools/list",
+      "tools/call",
+      "tools/call",
+      "tools/call",
+    ]);
+    expect(argumentsOf(received[1])).not.toHaveProperty("idempotency_key");
+    expect(argumentsOf(received[2])).toHaveProperty("idempotency_key");
+    expect(argumentsOf(received[3])).not.toHaveProperty("idempotency_key");
+  });
+
+  it("treats every call as a write when tools/list cannot be fetched, trying only once", async () => {
+    const { credentials, received } = await fake();
+    const server = servers[0];
+    server?.removeAllListeners("request");
+    server?.on("request", async (req, res) => {
+      let text = "";
+      for await (const chunk of req) text += chunk;
+      const message = JSON.parse(text);
+      received.push({ path: "", auth: "", key: undefined, body: message });
+      if (message.method === "tools/list") {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: { code: "internal" } }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: {} }));
+    });
+    const lines = await session(credentials, [
+      call(1, "song_get", { version_id: "v" }),
+      call(2, "remake_get", { remake_id: "r" }),
+    ]);
+    expect(lines.map((line) => line.id)).toEqual([1, 2]);
+    expect(received.map((req) => req.body.method)).toEqual([
+      "tools/list",
+      "tools/call",
+      "tools/call",
+    ]);
+    expect(argumentsOf(received[1])).toHaveProperty("idempotency_key");
+    expect(argumentsOf(received[2])).toHaveProperty("idempotency_key");
+  });
+
+  it("reports a lost reply of a read-only tool as internal, of a write as ambiguous_spend", async () => {
+    const { credentials } = await fake();
+    const server = servers[0];
+    server?.removeAllListeners("request");
+    server?.on("request", async (req, res) => {
+      let text = "";
+      for await (const chunk of req) text += chunk;
+      const message = JSON.parse(text);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        message.method === "tools/list"
+          ? JSON.stringify({
+              jsonrpc: "2.0",
+              id: message.id,
+              result: { tools: catalog },
+            })
+          : "not JSON",
+      );
+    });
+    const lines = await session(credentials, [
+      call(1, "remake_get", { remake_id: "r" }),
+      call(2, "remake_accept", { remake_id: "r" }),
+      call(3, "not_listed"),
+    ]);
+    expect(lines.map((line) => line.error.data.code)).toEqual([
+      "internal",
+      "ambiguous_spend",
+      "ambiguous_spend",
+    ]);
+  });
 });
