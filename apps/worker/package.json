@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:ledger": "vitest run -c vitest.ledger.config.ts"
   },
   "dependencies": {
+    "@mellodifai/remake": "workspace:^",
     "@mellodifai/shared": "workspace:^",
     "@supabase/supabase-js": "^2.118.0",
     "zod": "^4.6.7"

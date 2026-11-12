@@ -28,14 +28,14 @@ Goal: the owner double-clicks one icon and the app opens in the browser. No term
 3. Local auth: email + password for the owner; mail stays in Mailpit (no real inbox needed).
 4. Backup: nightly-free manual "Esporta backup" (pg_dump + storage copy to E:\mellodifai\backup).
 5. Apply migrations 00012+ locally; merge build/platform into main.
-   Exit: cold PC to working app in one click, e2e 3/3, all unit suites green.
+Exit: cold PC to working app in one click, e2e 3/3, all unit suites green.
 
 ## Phase L2: merge the parallel branches
 
 1. Finish the v2 studio UI on `build/studio-ui` (other session, studio brief).
 2. Merge `feat/ace-step-native` on top: reconcile generate-song.ts and db.ts, keep migrations 016 and 017.
 3. Drop the ComfyUI runtime from the v2-local-engines plan (owner chose no ComfyUI); YuE2 is parked.
-   Exit: one branch, all suites + e2e green.
+Exit: one branch, all suites + e2e green.
 
 ## Phase L3: ACE-Step for real
 
@@ -43,7 +43,7 @@ Goal: the owner double-clicks one icon and the app opens in the browser. No term
 2. Italian bake-off: 5 real topics, 2 takes each, ACE-Step vs kie, scored by ear + jury.
 3. Timing chain: `workspace_pipeline.sh` tolerates a missing aligned file (Whisper fallback).
 4. Hide the sliders ACE-Step ignores.
-   Exit: an Italian ACE-Step song goes through lyrics, takes, timing and video in the app.
+Exit: an Italian ACE-Step song goes through lyrics, takes, timing and video in the app.
 
 ## Phase L4: ACE-Step UI ideas (reimplemented, not copied)
 

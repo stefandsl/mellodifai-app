@@ -1,0 +1,2 @@
+#!/bin/sh
+pnpm -s ops check-no-keys.ts

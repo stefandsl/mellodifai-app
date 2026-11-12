@@ -8,6 +8,8 @@ import {
 } from "@mellodifai/shared";
 import { optionalText } from "../legacy-import.js";
 import type { StageHandler } from "../loop.js";
+import { isCapRefusal } from "../providers/ledger.js";
+import { openRouterCall, openRouterRequest } from "../providers/openrouter.js";
 import {
   combine,
   DEFAULT_JUDGES,
@@ -15,6 +17,7 @@ import {
   type JuryReport,
   judge,
   looksRedacted,
+  lyricsBudget,
   PASS_SCORE,
   REDACTION_NOTE,
   type Route,
@@ -27,15 +30,7 @@ import { ENGINE_ROOT } from "./utils.js";
 
 const reference = async (lang: string) =>
   Promise.all(
-    [
-      "lyrics.txt",
-      "title.txt",
-      "style.txt",
-      "settings.json",
-      "exclude.txt",
-      "display-map.json",
-      "storyboard-l10n.json",
-    ].map(
+    ["lyrics.txt", "title.txt", "style.txt"].map(
       async (name) =>
         `${name}:\n${await (["lyrics.txt", "title.txt", "style.txt"].includes(name) ? readFile(join(ENGINE_ROOT, "versions", lang, name), "utf8") : optionalText(join(ENGINE_ROOT, "versions", lang, name), name.endsWith(".json") ? "{}" : ""))}`,
     ),
@@ -72,7 +67,6 @@ const DRAFT_INSTRUCTIONS = [
   '"lyrics": string, the full lyrics with [Section] tag lines, exactly 80 sung lines in the same section structure as the reference (reference file lyrics.txt).',
   '"style": string, the music style prompt, at most 1000 characters (reference file style.txt).',
   '"exclude": string, comma-separated styles to avoid (reference file exclude.txt).',
-  '"l10n": object with the same keys as the reference storyboard-l10n.json, values written in the requested language.',
   "No other keys, no Markdown, no commentary. Never use the em dash character (U+2014).",
   REDACTION_NOTE,
 ].join("\n");
@@ -95,7 +89,6 @@ function parseReply(content: string): Record<string, unknown> {
 function buildPack(
   draft: Record<string, unknown>,
   vocalGender: string | null | undefined,
-  displayMap: Record<string, string>,
   songSettings: unknown,
 ) {
   // Studio projects carry the form settings; projects created before the studio have none.
@@ -107,7 +100,7 @@ function buildPack(
     lyrics: draft.lyrics,
     style: draft.style,
     exclude: form.exclude || (draft.exclude ?? ""),
-    l10n: draft.l10n ?? {},
+    l10n: {},
     settings: {
       model: form.model,
       ...(vocalGender === "m" || vocalGender === "f"
@@ -120,7 +113,7 @@ function buildPack(
       variety: form.variety ?? 1,
       duration: studio ? (form.duration ?? null) : 310,
     },
-    displayMap,
+    displayMap: {},
   };
 }
 
@@ -134,28 +127,6 @@ function briefLine(project: {
     ? `Lyrics written by the user (keep their words, arrange them into the reference format):
 ${project.brief}`
     : `Brief: ${project.brief ?? ""}`;
-}
-
-async function referenceDisplayMap(
-  lang: string,
-): Promise<Record<string, string>> {
-  try {
-    const value: unknown = JSON.parse(
-      await optionalText(
-        join(ENGINE_ROOT, "versions", lang, "display-map.json"),
-        "{}",
-      ),
-    );
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(
-          Object.entries(value).filter(
-            (entry): entry is [string, string] => typeof entry[1] === "string",
-          ),
-        )
-      : {};
-  } catch {
-    return {};
-  }
 }
 
 // Writer calls per draft: at most MAX_FORMAT_ATTEMPTS drafts that break the format, plus
@@ -174,34 +145,15 @@ function worst(jury: JuryReport): number {
 
 export const draftLyrics: StageHandler = async (context) => {
   const secrets = context.secrets.values;
-  const cap = Number(secrets.LYRICS_DAILY_CAP ?? "50");
-  const stateFile =
-    secrets.LYRICS_STATE_FILE ?? "E:\\mellodifai\\state\\lyrics.json";
-  const {
-    mkdir,
-    readFile: stateRead,
-    writeFile,
-  } = await import("node:fs/promises");
-  const today = new Date().toISOString().slice(0, 10);
-  let state: { day?: string; count?: number } = {};
-  try {
-    state = JSON.parse(await stateRead(stateFile, "utf8")) as typeof state;
-  } catch {}
-  const count = state.day === today ? (state.count ?? 0) : 0;
-  if (count >= cap) throw new Error("daily lyrics cap reached");
+  const budget = await lyricsBudget(secrets);
   const template = await draftReference(context.version.lang);
-  const displayMap = await referenceDisplayMap(context.version.lang);
   const referenceTitle = (
     await optionalText(
       join(ENGINE_ROOT, "versions", context.version.lang, "title.txt"),
       "",
     )
   ).trim();
-  const call = {
-    // A key without the privacy guardrail keeps lyrics intact; see REDACTION_NOTE.
-    key: secrets.LYRICS_OPENROUTER_KEY ?? secrets.OPENROUTER_API_KEY ?? "",
-    signal: context.signal,
-  };
+  const call = openRouterCall(context);
   const writers = {
     strong: secrets.LYRICS_MODEL_STRONG ?? DEFAULT_WRITERS.strong,
     fast: secrets.LYRICS_MODEL_FAST ?? DEFAULT_WRITERS.fast,
@@ -230,6 +182,7 @@ export const draftLyrics: StageHandler = async (context) => {
   let revisions = 0;
   let formatFailures = 0;
   let best: Candidate | undefined;
+  let incomplete = false;
   const rounds: {
     writer: string;
     passed: boolean;
@@ -237,38 +190,33 @@ export const draftLyrics: StageHandler = async (context) => {
   }[] = [];
 
   for (let calls = 0; calls < MAX_WRITER_CALLS; calls += 1) {
-    if (count + calls >= cap) throw new Error("daily lyrics cap reached");
     // Reserve before making the request, including requests that fail in transit.
-    await mkdir(join(stateFile, ".."), { recursive: true });
-    await writeFile(
-      stateFile,
-      JSON.stringify({ day: today, count: count + calls + 1 }),
-    );
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
+    await budget.reserve();
+    const response = await openRouterRequest(
+      "chat",
       {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${call.key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: writers[writer],
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content: DRAFT_INSTRUCTIONS,
-            },
-            {
-              role: "user",
-              content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\n${toneLine(plan.tone)}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
-            },
-          ],
-        }),
-        signal: context.signal,
+        model: writers[writer],
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: DRAFT_INSTRUCTIONS,
+          },
+          {
+            role: "user",
+            content: `Language: ${context.version.lang}\nTopic: ${context.project.topic}\n${briefLine(context.project)}\nStyle: ${context.project.style ?? ""}\nMood: ${context.project.mood ?? ""}\n${toneLine(plan.tone)}\nVocal gender: ${context.project.vocal_gender ?? "f"}\nReference (format only):\n${template}\n${correction}`,
+          },
+        ],
       },
-    );
+      call,
+    ).catch((error: unknown) => {
+      if (best && isCapRefusal(error)) {
+        incomplete = true;
+        return null;
+      }
+      throw error;
+    });
+    if (!response) break;
     if (!response.ok)
       throw new Error(`OpenRouter request failed: ${response.status}`);
     const body = (await response.json()) as {
@@ -277,7 +225,6 @@ export const draftLyrics: StageHandler = async (context) => {
     const raw = buildPack(
       parseReply(body.choices?.[0]?.message?.content ?? ""),
       context.project.vocal_gender,
-      displayMap,
       context.project.song_settings,
     );
     const parsed = LyricPackSchema.safeParse(raw);
@@ -303,7 +250,11 @@ export const draftLyrics: StageHandler = async (context) => {
           judges,
           call,
           passScore,
-        )
+        ).catch((error: unknown) => {
+          if (!isCapRefusal(error)) throw error;
+          incomplete = true;
+          return { ...combine([], 0, passScore), passed: false };
+        })
       : combine([], 0, passScore);
     rounds.push({
       writer: writers[writer],
@@ -312,7 +263,7 @@ export const draftLyrics: StageHandler = async (context) => {
     });
     if (!best || jury.passed || worst(jury) > worst(best.jury))
       best = { pack: parsed.data, jury };
-    if (jury.passed || revisions >= MAX_REVISIONS) break;
+    if (incomplete || jury.passed || revisions >= MAX_REVISIONS) break;
     revisions += 1;
     writer = jury.improver;
     correction = `${revisionBrief(jury)}\nPrevious draft:\n${JSON.stringify({ title: parsed.data.title, lyrics: parsed.data.lyrics, style: parsed.data.style })}`;
@@ -340,6 +291,7 @@ export const draftLyrics: StageHandler = async (context) => {
           best.jury.redacted ||
           looksRedacted(context.project.topic, best.pack.lyrics),
         ms: Math.round(performance.now() - started),
+        incomplete,
       },
     },
   };

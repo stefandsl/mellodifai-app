@@ -1,6 +1,7 @@
 import { cp, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Lang } from "@mellodifai/shared";
+import { workerRuntimeRoot } from "./runtime.js";
 
 export type Workspace = {
   root: string;
@@ -12,15 +13,21 @@ export type Workspace = {
 
 export class WorkspaceFactory {
   constructor(
-    private readonly projectsRoot = "E:\\mellodifai\\projects",
-    private readonly fontsSource = "C:\\Users\\Asus\\Documents\\suno-remake\\motion\\public\\fonts",
+    private readonly projectsRoot = join(workerRuntimeRoot(), "projects"),
+    private readonly fontsSource = process.env.MELLODIFAI_FONTS ??
+      join(workerRuntimeRoot(), "fonts"),
   ) {}
-  async forVersion(projectId: string, lang: Lang): Promise<Workspace> {
+  async forVersion(
+    projectId: string,
+    lang: Lang,
+    fake = process.env.WORKER_FAKE === "1",
+    renderAttempt = 1,
+  ): Promise<Workspace> {
     const root = join(this.projectsRoot, projectId, lang);
     const versionsDir = join(root, "versions", lang);
     const outDir = join(root, "out", lang);
     const publicDir = join(root, "public");
-    const renderDir = join(root, "render");
+    const renderDir = join(root, "render", String(renderAttempt));
     await Promise.all([
       mkdir(versionsDir, { recursive: true }),
       mkdir(outDir, { recursive: true }),
@@ -33,8 +40,7 @@ export class WorkspaceFactory {
     try {
       await stat(fontsDestination);
     } catch {
-      if (process.env.WORKER_FAKE === "1")
-        await mkdir(fontsDestination, { recursive: true });
+      if (fake) await mkdir(fontsDestination, { recursive: true });
       else await cp(this.fontsSource, fontsDestination, { recursive: true });
     }
     return { root, versionsDir, outDir, publicDir, renderDir };

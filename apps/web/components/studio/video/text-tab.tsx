@@ -1,6 +1,10 @@
 "use client";
 
-import { MAX_TEXT_LAYERS, TEXT_SIZE } from "@mellodifai/shared";
+import {
+  MAX_TEXT_LAYERS,
+  PRESETS_WITH_SONG_LINES,
+  TEXT_SIZE,
+} from "@mellodifai/shared";
 import { cn } from "cn";
 import { Plus, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
@@ -8,7 +12,7 @@ import { useId, useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 import { st, stf } from "@/lib/studio/i18n";
 import { useVideoStudio } from "@/store/video-studio";
-import { EditableSlider, Segmented } from "../ui";
+import { EditableSlider } from "../ui";
 import { Section } from "./style-tab";
 
 const FIELD =
@@ -32,15 +36,16 @@ function Labeled({
   );
 }
 
-// The channel template's lines, shown while MellodifAI Classico is the preset.
-function ClassicoLines() {
+// The channel template's lines, shown while MellodifAI Classico is the preset. The other
+// presets that show an artist and an album get just those two fields (`full` false).
+function ClassicoLines({ full }: { full: boolean }) {
   const lang = useLocale();
   const classico = useVideoStudio((s) => s.params.classico);
   const update = useVideoStudio((s) => s.update);
   const set = (patch: Partial<typeof classico>) =>
     update((p) => ({ ...p, classico: { ...p.classico, ...patch } }));
   return (
-    <Section title={st(lang, "vs.classico")}>
+    <Section title={st(lang, full ? "vs.classico" : "vs.songLines")}>
       <div className="grid grid-cols-2 gap-2">
         <Labeled label={st(lang, "vs.artist")}>
           {(id) => (
@@ -64,38 +69,29 @@ function ClassicoLines() {
             />
           )}
         </Labeled>
-        <div className="col-span-2">
-          <Labeled label={st(lang, "vs.website")}>
-            {(id) => (
-              <input
-                id={id}
-                value={classico.website}
-                maxLength={40}
-                onChange={(e) => set({ website: e.target.value })}
-                className={FIELD}
-              />
-            )}
-          </Labeled>
-        </div>
+        {full ? (
+          <div className="col-span-2">
+            <Labeled label={st(lang, "vs.website")}>
+              {(id) => (
+                <input
+                  id={id}
+                  value={classico.website}
+                  maxLength={40}
+                  onChange={(e) => set({ website: e.target.value })}
+                  className={FIELD}
+                />
+              )}
+            </Labeled>
+          </div>
+        ) : null}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[13px]">{st(lang, "vs.gramophone")}</span>
-        <Segmented<"red" | "black">
-          label={st(lang, "vs.gramophone")}
-          value={classico.gramophone}
-          size="sm"
-          onChange={(gramophone) => gramophone && set({ gramophone })}
-          options={[
-            { value: "red", label: st(lang, "vs.gramophone.red") },
-            { value: "black", label: st(lang, "vs.gramophone.black") },
-          ]}
+      {full ? (
+        <Toggle
+          label={st(lang, "vs.cards")}
+          checked={classico.cards}
+          onChange={(cards) => set({ cards })}
         />
-      </div>
-      <Toggle
-        label={st(lang, "vs.cards")}
-        checked={classico.cards}
-        onChange={(cards) => set({ cards })}
-      />
+      ) : null}
     </Section>
   );
 }
@@ -191,7 +187,9 @@ function SizeField({
 export function TextTab() {
   const lang = useLocale();
   const layers = useVideoStudio((s) => s.params.textLayers);
-  const classico = useVideoStudio((s) => s.params.preset === "classico");
+  const preset = useVideoStudio((s) => s.params.preset);
+  const classico = preset === "classico";
+  const songLines = PRESETS_WITH_SONG_LINES.includes(preset);
   const update = useVideoStudio((s) => s.update);
   const setLayer = (index: number, patch: Partial<(typeof layers)[number]>) =>
     update((p) => ({
@@ -203,7 +201,7 @@ export function TextTab() {
   const full = layers.length >= MAX_TEXT_LAYERS;
   return (
     <div className="space-y-6">
-      {classico ? <ClassicoLines /> : null}
+      {songLines ? <ClassicoLines full={classico} /> : null}
       <Section title={st(lang, "vs.tabText")}>
         <button
           type="button"

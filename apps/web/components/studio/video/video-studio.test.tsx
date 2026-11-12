@@ -4,8 +4,16 @@ import {
   defaultVisualizerParams,
   effectOf,
   normalizeVisualizerParams,
+  VISUALIZER_PRESETS,
 } from "@mellodifai/shared";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -151,6 +159,102 @@ describe("Video Studio", () => {
     expect(params().colors).toEqual(CLASSICO_COLORS);
   });
 
+  it("lists every preset, the catalogue looks with their Italian names", async () => {
+    const dialog = studio();
+    const group = within(dialog).getByRole("radiogroup", { name: "Preset" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(
+      VISUALIZER_PRESETS.length,
+    );
+    for (const name of [
+      "Punti",
+      "Burst",
+      "Corona",
+      "Anello a Filo",
+      "Lente",
+      "Pillole",
+      "Bordi Pixel",
+      "Cornice Cover",
+      "Scheda Player",
+      "Contorni",
+      "Synthwave",
+      "Editoriale",
+      "Particelle a Forme",
+    ])
+      expect(
+        within(group).getByRole("radio", { name: new RegExp(`^${name}`, "u") }),
+      ).toBeInTheDocument();
+    await userEvent.click(
+      within(group).getByRole("radio", { name: /^Scheda Player/u }),
+    );
+    expect(params().preset).toBe("playercard");
+    expect(within(dialog).getByTestId("visualizer-preview")).toHaveAttribute(
+      "data-preset",
+      "playercard",
+    );
+  });
+
+  it("shows a look's options only for the looks that have them", async () => {
+    const dialog = studio();
+    expect(within(dialog).queryByText("Opzioni del preset")).toBeNull();
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Corona/u }),
+    );
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Spillo" }),
+    );
+    expect(params().look.teeth).toBe("pin");
+    await userEvent.click(
+      within(dialog).getByRole("switch", { name: /Simmetrica/u }),
+    );
+    expect(params().look.mirrored).toBe(false);
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Particelle a Forme/u }),
+    );
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Cuore" }));
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Ad anello" }),
+    );
+    expect(params().look).toMatchObject({ shape: "heart", flow: "radial" });
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Contorni/u }),
+    );
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Creste" }),
+    );
+    expect(params().look.contour).toBe("ridges");
+  });
+
+  it("turns the rotating badges on over any preset, with their own text", async () => {
+    const dialog = studio();
+    expect(
+      within(dialog).queryByRole("textbox", { name: "Testo dei badge" }),
+    ).toBeNull();
+    await userEvent.click(
+      within(dialog).getByRole("switch", { name: /Badge Rotanti/u }),
+    );
+    expect(params().badges.enabled).toBe(true);
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: "Testo dei badge" }),
+      "Nuovo singolo",
+    );
+    expect(params().badges.text).toBe("Nuovo singolo");
+    expect(params().preset).toBe("circle");
+  });
+
+  it("asks for artist and album on the looks that show them", async () => {
+    const dialog = studio();
+    useVideoStudio.getState().update((p) => ({ ...p, preset: "playercard" }));
+    await userEvent.click(within(dialog).getByRole("tab", { name: "Testo" }));
+    expect(within(dialog).getByText("Artista e album")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox", { name: "Sito" })).toBeNull();
+    expect(
+      within(dialog).queryByRole("switch", { name: /Schede/u }),
+    ).toBeNull();
+    const album = within(dialog).getByRole("textbox", { name: "Album" });
+    await userEvent.type(album, "Lampioni");
+    expect(params().classico.album).toBe("Lampioni");
+  });
+
   it("switches between 16:9 and full-frame 9:16", async () => {
     const dialog = studio();
     await userEvent.click(within(dialog).getByRole("radio", { name: /9:16/u }));
@@ -159,6 +263,13 @@ describe("Video Studio", () => {
       "data-aspect",
       "9:16",
     );
+  });
+
+  it("starts at 1080p and saves the selected 4K quality", async () => {
+    const dialog = studio();
+    expect(params().quality).toBe("1080p");
+    await userEvent.click(within(dialog).getByRole("radio", { name: "4K" }));
+    expect(params().quality).toBe("4K");
   });
 
   it("plays the song through the shared player", async () => {
@@ -215,14 +326,90 @@ describe("Video Studio", () => {
     expect(
       within(dialog).getByRole("slider", { name: "Particelle" }),
     ).toHaveValue("30");
+    // The cover fit: the square crop by default, the whole picture on request; it goes away
+    // with no centre image and comes back as it was.
+    expect(
+      within(dialog).getByRole("radio", { name: "Ritaglio quadrato" }),
+    ).toBeChecked();
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: "Intera, sfondo sfocato" }),
+    );
+    expect(params().centerImage.fit).toBe("contain");
     await userEvent.click(
       within(dialog).getByRole("radio", { name: "Nessuna" }),
     );
     expect(params().centerImage.mode).toBe("none");
+    expect(params().centerImage.fit).toBe("contain");
+    expect(
+      within(dialog).queryByRole("radio", { name: "Ritaglio quadrato" }),
+    ).toBeNull();
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Ripristina/u }),
     );
-    expect(params().centerImage).toEqual({ mode: "cover", assetUrl: null });
+    expect(params().centerImage).toEqual({
+      mode: "cover",
+      assetUrl: null,
+      fit: "contain",
+    });
+  });
+
+  it("adds up to two logos, moves, resizes, fades and removes them", async () => {
+    const dialog = studio();
+    await userEvent.click(within(dialog).getByRole("tab", { name: "Stile" }));
+    expect(params().logos).toEqual([]);
+    expect(within(dialog).getByText(/Fino a 2 loghi/u)).toBeInTheDocument();
+    const input = () =>
+      within(dialog).getByTestId("upload-logo") as HTMLInputElement;
+    expect(input().accept).toBe("image/jpeg,image/png,image/webp");
+    await userEvent.upload(
+      input(),
+      new File(["x"], "logo.png", { type: "image/png" }),
+    );
+    const url = "/media/uploads/u1/11111111-2222-4333-8444-555555555555.png";
+    await waitFor(() =>
+      expect(params().logos).toEqual([
+        { assetUrl: url, position: "top-right", size: 12, opacity: 100 },
+      ]),
+    );
+    const first = within(dialog).getByRole("group", { name: "Logo 1" });
+    expect(within(first).getByRole("img", { name: "Logo 1" })).toHaveAttribute(
+      "src",
+      url,
+    );
+    await userEvent.click(
+      within(first).getByRole("radio", { name: "In basso a sinistra" }),
+    );
+    expect(params().logos[0]?.position).toBe("bottom-left");
+    const size = within(first).getByRole("slider", { name: "Dimensione" });
+    expect(size).toHaveAttribute("min", "4");
+    expect(size).toHaveAttribute("max", "30");
+    fireEvent.change(size, { target: { value: "24" } });
+    expect(params().logos[0]?.size).toBe(24);
+    fireEvent.change(within(first).getByRole("slider", { name: "Opacità" }), {
+      target: { value: "55" },
+    });
+    expect(params().logos[0]?.opacity).toBe(55);
+    // A second logo takes the first free corner; then the button goes.
+    await userEvent.upload(
+      input(),
+      new File(["x"], "logo2.png", { type: "image/png" }),
+    );
+    await waitFor(() => expect(params().logos).toHaveLength(2));
+    expect(params().logos[1]?.position).toBe("top-right");
+    expect(within(dialog).queryByTestId("upload-logo")).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: /Aggiungi logo/u }),
+    ).toBeNull();
+    // In 9:16 a bottom corner says where it goes.
+    useVideoStudio.getState().update((p) => ({ ...p, aspect: "9:16" }));
+    expect(
+      await within(dialog).findByText(/salgono in alto/u),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Togli il logo 1" }),
+    );
+    expect(params().logos.map((l) => l.position)).toEqual(["top-right"]);
+    expect(within(dialog).getByTestId("upload-logo")).toBeInTheDocument();
   });
 
   it("uploads a background picture, and refuses files over the limit or of another type", async () => {
@@ -299,8 +486,8 @@ describe("Video Studio", () => {
     const album = await within(dialog).findByRole("textbox", { name: "Album" });
     await userEvent.type(album, "Italian rap");
     expect(params().classico.album).toBe("Italian rap");
-    await userEvent.click(within(dialog).getByRole("radio", { name: "Nero" }));
-    expect(params().classico.gramophone).toBe("black");
+    // No gramophone colour any more: Classico draws no built-in marks.
+    expect(within(dialog).queryByText("Grammofono")).toBeNull();
     await userEvent.click(
       within(dialog).getByRole("switch", { name: /Schede/u }),
     );
@@ -327,7 +514,9 @@ describe("Video Studio", () => {
 
   it("queues the render with the look on screen and shows its place in the queue", async () => {
     const dialog = studio();
-    await userEvent.click(within(dialog).getByRole("radio", { name: /Onda/u }));
+    await userEvent.click(
+      within(dialog).getByRole("radio", { name: /^Onda/u }),
+    );
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Renderizza video \(MP4\)/u }),
     );

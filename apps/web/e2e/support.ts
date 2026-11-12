@@ -3,21 +3,16 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { signInLink } from "../../../ops/sign-in-link";
 import { localSupabaseUrl } from "./local-env";
 
-export const E2E_ADMIN_EMAIL = "e2e-admin@mellodifai.test";
-const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:54324";
+export const E2E_ADMIN_EMAIL =
+  process.env.E2E_ADMIN_EMAIL ?? "e2e-admin@mellodifai.test";
+const workerId = process.env.E2E_WORKER_ID ?? "e2e-worker";
 const workerRoot = fileURLToPath(new URL("../../worker/", import.meta.url));
 const workerRequire = createRequire(
   new URL("../../worker/package.json", import.meta.url),
 );
-
-type MailpitMessage = {
-  ID: string;
-  To?: { Address?: string }[];
-  HTML?: string;
-  Text?: string;
-};
 
 function required(name: string) {
   const value = process.env[name];
@@ -32,94 +27,37 @@ export function serviceClient() {
   );
 }
 
-async function messages(): Promise<MailpitMessage[]> {
-  const response = await fetch(`${MAILPIT_URL}/api/v1/messages`);
-  if (!response.ok) throw new Error("Mailpit messages request failed");
-  const body = (await response.json()) as { messages?: MailpitMessage[] };
-  return body.messages ?? [];
-}
-
-async function messageIdsFor(email: string) {
-  return new Set(
-    (await messages())
-      .filter((message) =>
-        message.To?.some(
-          (recipient) =>
-            recipient.Address?.toLowerCase() === email.toLowerCase(),
-        ),
-      )
-      .map((message) => message.ID),
-  );
-}
-
-async function magicLink(email: string, previous: Set<string>) {
-  await expect
-    .poll(
-      async () => {
-        const found = (await messages()).find(
-          (message) =>
-            !previous.has(message.ID) &&
-            message.To?.some(
-              (recipient) =>
-                recipient.Address?.toLowerCase() === email.toLowerCase(),
-            ),
-        );
-        return found?.ID;
-      },
-      { timeout: 30_000 },
-    )
-    .not.toBeUndefined();
-  const latest = (await messages()).find(
-    (message) =>
-      !previous.has(message.ID) &&
-      message.To?.some(
-        (recipient) => recipient.Address?.toLowerCase() === email.toLowerCase(),
-      ),
-  );
-  if (!latest) throw new Error("Magic link email was not found");
-  const response = await fetch(`${MAILPIT_URL}/api/v1/message/${latest.ID}`);
-  if (!response.ok) throw new Error("Mailpit message request failed");
-  const detail = (await response.json()) as MailpitMessage;
-  const body = `${detail.HTML ?? ""}\n${detail.Text ?? ""}`.replaceAll(
-    "&amp;",
-    "&",
-  );
-  const link = /https?:\/\/[^\s"'<>]+/u.exec(body)?.[0];
-  if (!link) throw new Error("Magic link was not found in the email");
-  return link.replace(/&quot;$/u, "");
-}
-
 export async function signIn(page: Page, email = E2E_ADMIN_EMAIL) {
   localSupabaseUrl();
-  const previous = await messageIdsFor(email);
   await page.goto("/login");
-  await page.getByLabel("Indirizzo email").fill(email);
-  await page
-    .getByRole("button", { name: "Ricevi un link via email", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Invia link di accesso", exact: true })
-    .click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Se l'indirizzo è abilitato riceverai un link.",
+  const link = await signInLink(
+    serviceClient().auth.admin,
+    email,
+    new URL(page.url()).origin,
   );
-  await page.goto(await magicLink(email, previous));
+  await page.goto(link);
   await expect(page).toHaveURL(/\/create$/u);
 }
 
 export async function createFrenchProject(page: Page, topic: string) {
   localSupabaseUrl();
-  await page.goto("/create");
+  if (new URL(page.url()).pathname !== "/create") await page.goto("/create");
+  // The form fades in only after hydration and persisted draft restoration.
+  await expect(page.getByRole("form", { name: "Crea canzone" })).toHaveCSS(
+    "opacity",
+    "1",
+  );
   await page.getByRole("radio", { name: "Avanzato" }).click();
   await page.getByRole("textbox", { name: "Stili" }).fill("Pop luminoso");
   await page.getByPlaceholder("Titolo della canzone (facoltativo)").fill(topic);
   await page.getByRole("button", { name: /^Lingue:/u }).click();
   const italian = page.getByRole("menuitemcheckbox", { name: /Italiano/u });
   const french = page.getByRole("menuitemcheckbox", { name: /Francese/u });
-  await expect(italian).toHaveAttribute("aria-checked", "true");
-  await italian.click();
+  if ((await italian.getAttribute("aria-checked")) === "true")
+    await italian.click();
   await expect(italian).toHaveAttribute("aria-checked", "false");
-  await french.click();
+  if ((await french.getAttribute("aria-checked")) === "false")
+    await french.click();
   await expect(french).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Crea canzone" }).click();
@@ -143,11 +81,14 @@ export async function removeE2EWorker() {
   const { error } = await serviceClient()
     .from("workers")
     .delete()
-    .eq("id", "e2e-worker");
+    .eq("id", workerId);
   if (error) throw error;
 }
 
-export async function startFakeWorker() {
+export async function startFakeWorker(
+  ownerId?: string,
+  workerId = "e2e-worker",
+) {
   const supabaseUrl = localSupabaseUrl();
   const child = spawn(
     process.execPath,
@@ -164,8 +105,8 @@ export async function startFakeWorker() {
         WORKER_FAKE: "1",
         SUPABASE_URL: supabaseUrl,
         SUPABASE_SERVICE_ROLE_KEY: required("SUPABASE_SERVICE_ROLE_KEY"),
-        WORKER_ID: "e2e-worker",
-        WORKER_OWNER_ID: await getAdminId(),
+        WORKER_ID: workerId,
+        WORKER_OWNER_ID: ownerId ?? (await getAdminId()),
       },
       stdio: "ignore",
     },
@@ -176,13 +117,13 @@ export async function startFakeWorker() {
         const { data } = await serviceClient()
           .from("workers")
           .select("id")
-          .eq("id", "e2e-worker")
+          .eq("id", workerId)
           .maybeSingle();
         return data?.id;
       },
       { timeout: 30_000 },
     )
-    .toBe("e2e-worker");
+    .toBe(workerId);
   return child;
 }
 

@@ -1,18 +1,55 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
-import { LyricPackSchema, privacyVersionStatus } from "@mellodifai/shared";
-import type { StageHandler } from "../loop.js";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  LyricPackSchema,
+  privacyVersionStatus,
+  publicationDefaults,
+  songMood,
+} from "@mellodifai/shared";
+import type { Render } from "../db.js";
+import type { StageContext, StageHandler } from "../loop.js";
 import { nextPacificQuotaTime } from "./quota.js";
 import { ENGINE_ROOT, language } from "./utils.js";
+
+export async function assertPublishRender(
+  context: StageContext,
+  render: Render | null,
+): Promise<Render & { path: string }> {
+  if (!render?.path)
+    throw new Error("approved current publish render required");
+  if (
+    render.version_id !== context.version.id ||
+    render.owner_id !== context.job.owner_id ||
+    render.render_attempt !== context.version.render_attempt ||
+    !["approved", "publishing"].includes(context.version.status)
+  )
+    throw new Error("approved current publish render required");
+  if (render.kind === "master") {
+    if (!render.approved_at) throw new Error("approved master required");
+  } else if (render.kind === "visualizer") {
+    const master = await context.db.getRender(context.version.id, "master");
+    if (
+      render.aspect !== "16:9" ||
+      !render.preview_path ||
+      master?.render_attempt !== context.version.render_attempt ||
+      !master?.approved_at
+    )
+      throw new Error("approved landscape visualizer required");
+  } else throw new Error("publish render kind is not allowed");
+  return { ...render, path: render.path };
+}
 
 export const publish: StageHandler = async (context) => {
   const workerId =
     context.secrets.values.WORKER_ID ??
     `worker-${process.env.COMPUTERNAME ?? "pc"}`;
-  const render = await context.db.getRender(context.version.id, "master");
-  if (!render?.path)
-    throw new Error("master render is required before publishing");
-  const prior = await context.db.getPublicationForVersion(context.version.id);
+  const renderId = (context.job.payload as { render_id?: string } | null)
+    ?.render_id;
+  const selected = renderId
+    ? await context.db.getRenderById(renderId)
+    : await context.db.getRender(context.version.id, "master");
+  const render = await assertPublishRender(context, selected);
+  const prior = await context.db.getPublicationForRender(render.id);
   if (prior?.render_id === render.id && prior.upload_state === "uploading")
     throw new Error("upload state unknown, check YouTube Studio");
   if (prior?.render_id === render.id && prior.upload_state === "uploaded")
@@ -36,30 +73,55 @@ export const publish: StageHandler = async (context) => {
     throw new Error("upload state unknown, check YouTube Studio");
   if (reservation.kind === "uploaded") return { versionStatus: "approved" };
   if (!reservation.publication) throw new Error("Missing upload reservation");
-  const pack = LyricPackSchema.parse(context.version.lyric_pack);
+  const assets = (
+    render.qa_results as {
+      assets?: {
+        lyric_pack?: unknown;
+        lang?: string;
+        storyboard_sections?: unknown;
+        mood?: string;
+      };
+    } | null
+  )?.assets;
+  const pack = LyricPackSchema.parse(
+    assets?.lyric_pack ?? context.version.lyric_pack,
+  );
+  const lang = assets?.lang ?? language(context);
+  const defaults = publicationDefaults(
+    pack.title,
+    pack.lyrics,
+    lang,
+    assets?.storyboard_sections ?? context.version.storyboard_sections,
+    assets?.mood ??
+      songMood(
+        context.project.mood,
+        (context.project.song_settings as { mood?: string } | null)?.mood,
+        pack.style,
+      ),
+  );
   const requested = context.job.payload?.metadata as
     | { title?: string; description?: string; tags?: string; chapters?: string }
     | undefined;
   const meta = {
     video: render.path,
-    captions: join(context.ws.renderDir, `${language(context)}.srt`),
+    captions: join(dirname(render.path), `${lang}.srt`),
     captions_name: pack.title,
-    thumbnail: join(context.ws.renderDir, "thumbnail.png"),
-    title: requested?.title ?? pack.title,
+    thumbnail: join(dirname(render.path), "thumbnail.png"),
+    title: requested?.title?.trim() || defaults.title,
     description: [
-      requested?.description ?? context.project.brief ?? "",
-      requested?.chapters ?? "",
+      requested?.description?.trim() || defaults.description,
+      requested?.chapters ?? defaults.chapters,
     ]
       .filter(Boolean)
       .join("\n\n"),
     tags:
-      requested?.tags
+      (requested?.tags?.trim() || defaults.tags)
         ?.split(",")
         .map((tag) => tag.trim())
         .filter(Boolean) ?? [],
     categoryId: "10",
-    defaultLanguage: language(context),
-    defaultAudioLanguage: language(context),
+    defaultLanguage: lang,
+    defaultAudioLanguage: lang,
     privacyStatus: "private",
     publishAt: null,
     selfDeclaredMadeForKids: false,
@@ -81,20 +143,12 @@ export const publish: StageHandler = async (context) => {
     },
     context.signal,
   );
-  const result = await runner.run(
+  await runner.run(
     "python",
     ["-I", "-X", "utf8", "publish/yt.py", "upload", file],
     { cwd: ENGINE_ROOT, allowNonZero: true },
   );
   const videoId = /video id\s+([\w-]+)/iu.exec(output)?.[1];
-  if (result.code !== 0 && !videoId) {
-    await context.db.releaseUpload(
-      reservation.publication.id,
-      workerId,
-      "YouTube upload failed before a video id was returned",
-    );
-    throw new Error("YouTube upload failed before a video id was returned");
-  }
   if (!videoId)
     throw new Error("YouTube upload outcome unknown; check YouTube Studio");
   await context.db.patchPublication(reservation.publication.id, {

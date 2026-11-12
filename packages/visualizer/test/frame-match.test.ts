@@ -20,8 +20,22 @@ import {
 import { bundle } from "@remotion/bundler";
 import { renderStill, selectComposition } from "@remotion/renderer";
 import { build } from "esbuild";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import { withSharedSources } from "../webpack-override";
+import {
+  testBackground,
+  testCenter,
+  testCenterWide,
+  testLogo,
+} from "./fixtures";
 import { SIGNAL_SECONDS, testSignal } from "./signal";
 
 // Item G's snapshot test: frame N of each preset rendered by the Remotion composition (what the
@@ -32,14 +46,11 @@ import { SIGNAL_SECONDS, testSignal } from "./signal";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = resolve(here, "..");
-const brand = resolve(pkg, "../../apps/web/public/brand");
 const require = createRequire(join(pkg, "package.json"));
 const { chromium } =
   require("@playwright/test") as typeof import("@playwright/test");
-const SHELL =
-  "C:\\Users\\Asus\\Documents\\suno-remake\\motion\\node_modules\\.remotion\\chrome-headless-shell\\win64\\chrome-headless-shell-win64\\chrome-headless-shell.exe";
+const SHELL = chromium.executablePath();
 const FRAME = 75;
-const SCALE = 0.5;
 
 let dir: string;
 let server: Server;
@@ -72,8 +83,12 @@ function wav(samples: Float32Array, rate: number): Buffer {
 }
 
 beforeAll(async () => {
-  await mkdir("E:/mellodifai/render-tmp", { recursive: true });
-  dir = resolve(await mkdtemp("E:/mellodifai/render-tmp/frame-match-"));
+  const runtime = join(
+    process.env.RUNNER_TEMP ?? process.env.MELLODIFAI_ROOT ?? "E:/mellodifai",
+    "render-tmp",
+  );
+  await mkdir(runtime, { recursive: true });
+  dir = resolve(await mkdtemp(join(runtime, "frame-match-")));
   const pub = join(dir, "public");
   await mkdir(pub, { recursive: true });
   const samples = testSignal();
@@ -82,19 +97,11 @@ beforeAll(async () => {
     join(pub, "analysis.bin"),
     analyseSong(samples, ANALYSIS_RATE, 30, SIGNAL_SECONDS * 30),
   );
-  await copyFile(
-    join(brand, "mellodifai-trumpet.png"),
-    join(pub, "trumpet.png"),
-  );
-  await copyFile(
-    join(brand, "mellodifai-logo.png"),
-    join(pub, "gramophone.png"),
-  );
-  await copyFile(join(brand, "mellodifai-logo.png"), join(pub, "center.png"));
-  await copyFile(
-    join(brand, "mellodifai-trumpet.png"),
-    join(pub, "background.png"),
-  );
+  // Neutral pictures drawn for the test (fixtures.ts), never the app's own artwork.
+  await writeFile(join(pub, "background.png"), testBackground());
+  await writeFile(join(pub, "center.png"), testCenter());
+  await writeFile(join(pub, "center169.png"), testCenterWide());
+  await writeFile(join(pub, "logo.png"), testLogo());
 
   serveUrl = await bundle({
     entryPoint: join(pkg, "src", "index.ts"),
@@ -150,9 +157,17 @@ beforeAll(async () => {
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const address = server.address();
   origin = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`;
-  browser = await chromium.launch();
+  // Compare both paths with the same browser binary and headless implementation.
+  browser = await chromium.launch({ executablePath: SHELL });
+});
+
+// Each comparison owns its fonts, canvases and suspended Web Audio contexts.
+beforeEach(async () => {
   page = await browser.newPage();
   await page.goto(`${origin}/harness.html`);
+});
+afterEach(async () => {
+  await page?.close();
 });
 
 afterAll(async () => {
@@ -169,10 +184,13 @@ const fonts = () =>
     ]),
   );
 
+let shots = 0;
 async function compareFrame(
   params: VisualizerParams,
   previewParams: VisualizerParams = params,
+  centerFile = "center.png",
 ) {
+  const logos = params.logos.map(() => "logo.png");
   const props = {
     params,
     title: "Astri lounge",
@@ -181,9 +199,8 @@ async function compareFrame(
     audio: "audio.wav",
     analysis: "analysis.bin",
     background: { file: "background.png", kind: "image" as const },
-    center: "center.png",
-    trumpet: "trumpet.png",
-    gramophone: "gramophone.png",
+    center: centerFile,
+    logos,
   };
   const composition = await selectComposition({
     serveUrl,
@@ -191,9 +208,10 @@ async function compareFrame(
     inputProps: props,
     browserExecutable: SHELL,
   });
+  const scale = params.quality === "4K" ? 0.25 : 0.5;
   const out = join(
     dir,
-    `${params.preset}-${params.aspect.replace(":", "x")}.png`,
+    `${params.preset}-${params.aspect.replace(":", "x")}-${shots++}.png`,
   );
   await renderStill({
     composition,
@@ -202,10 +220,12 @@ async function compareFrame(
     frame: FRAME,
     inputProps: props,
     imageFormat: "png",
-    scale: SCALE,
+    scale,
     browserExecutable: SHELL,
   });
-  const pub = `${origin}/public`;
+  // Compare pixels, without a second HTTP fetch of the same generated PNG fixtures.
+  const picture = async (file: string) =>
+    `data:image/png;base64,${(await readFile(join(dir, "public", file))).toString("base64")}`;
   const preview = await page.evaluate(
     ([job, files]) =>
       (
@@ -217,16 +237,15 @@ async function compareFrame(
       {
         params: previewParams,
         frame: FRAME,
-        width: Math.round(composition.width * SCALE),
-        height: Math.round(composition.height * SCALE),
+        width: Math.round(composition.width * scale),
+        height: Math.round(composition.height * scale),
         title: props.title,
         duration: props.duration,
       },
       {
-        background: `${pub}/background.png`,
-        center: `${pub}/center.png`,
-        trumpet: `${pub}/trumpet.png`,
-        gramophone: `${pub}/gramophone.png`,
+        background: await picture("background.png"),
+        center: await picture(centerFile),
+        logos: JSON.stringify(await Promise.all(logos.map(picture))),
         fonts: JSON.stringify(fonts()),
       },
     ] as const,
@@ -249,27 +268,180 @@ async function compareFrame(
 }
 
 describe("preview and render draw the same frame", () => {
-  const cases: VisualizerParams[] = [
-    ...VISUALIZER_PRESETS.map((preset) => ({
-      ...defaultVisualizerParams(),
-      preset,
-    })),
-    { ...defaultVisualizerParams(), preset: "classico", aspect: "9:16" },
-    {
-      ...defaultVisualizerParams(),
-      preset: "spectrum",
-      particles: 80,
-      effects: defaultVisualizerParams().effects.map((e) => ({
-        ...e,
-        enabled: ["grain", "scanlines", "vignette", "aberration"].includes(
-          e.id,
-        ),
-        intensity: 70,
-      })),
-    },
+  const base = defaultVisualizerParams();
+  const cases: [string, VisualizerParams][] = [
+    ...VISUALIZER_PRESETS.map((preset): [string, VisualizerParams] => [
+      `${preset} 16:9`,
+      { ...base, preset },
+    ]),
+    ["classico 9:16", { ...base, preset: "classico", aspect: "9:16" }],
+    ["circle 4K 16:9", { ...base, preset: "circle", quality: "4K" }],
+    [
+      "classico 4K 9:16",
+      { ...base, preset: "classico", aspect: "9:16", quality: "4K" },
+    ],
+    [
+      "spectrum 16:9 with effects",
+      {
+        ...base,
+        preset: "spectrum",
+        particles: 80,
+        effects: base.effects.map((e) => ({
+          ...e,
+          enabled: ["grain", "scanlines", "vignette", "aberration"].includes(
+            e.id,
+          ),
+          intensity: 70,
+        })),
+      },
+    ],
+    // The catalogue looks' variants and the badges overlay, some in 9:16.
+    [
+      "crown one-sided bars 9:16",
+      {
+        ...base,
+        preset: "crown",
+        aspect: "9:16",
+        look: { ...base.look, teeth: "bar", mirrored: false },
+      },
+    ],
+    [
+      "crown pins with badges 16:9",
+      {
+        ...base,
+        preset: "crown",
+        look: { ...base.look, teeth: "pin" },
+        badges: { enabled: true, text: "Nuovo singolo" },
+      },
+    ],
+    [
+      "contours ridges 16:9",
+      {
+        ...base,
+        preset: "contours",
+        look: { ...base.look, contour: "ridges" },
+      },
+    ],
+    [
+      "shaped hearts from a ring 9:16",
+      {
+        ...base,
+        preset: "shaped",
+        aspect: "9:16",
+        look: { ...base.look, shape: "heart", flow: "radial" },
+      },
+    ],
+    ["playercard 9:16", { ...base, preset: "playercard", aspect: "9:16" }],
+    ["synthwave 9:16", { ...base, preset: "synthwave", aspect: "9:16" }],
+    ["editorial 9:16", { ...base, preset: "editorial", aspect: "9:16" }],
   ];
-  for (const params of cases)
-    it(`${params.preset} ${params.aspect}${params.particles === 80 ? " with effects" : ""}`, async () => {
+  for (const [name, params] of cases)
+    it(name, async () => {
+      const diff = await compareFrame(params);
+      expect(diff.mean).toBeLessThan(4);
+      expect(diff.far).toBeLessThan(0.02);
+    });
+
+  // Task 26: the presets with a round or square cover, fed a 16:9 picture whose subject sits
+  // on the left, in both cover fits; the contour lines with their lifted ink; titles in 9:16.
+  const wide = (
+    preset: VisualizerParams["preset"],
+    fit: "cover" | "contain",
+    aspect: "16:9" | "9:16",
+  ): VisualizerParams => ({
+    ...base,
+    preset,
+    aspect,
+    centerImage: { ...base.centerImage, fit },
+  });
+  const polished: [string, VisualizerParams][] = [
+    ["dotline cover crop 16:9", wide("dotline", "cover", "16:9")],
+    ["wirering cover crop 9:16", wide("wirering", "cover", "9:16")],
+    ["contours cover crop 16:9", wide("contours", "cover", "16:9")],
+    ["contours contain 9:16", wide("contours", "contain", "9:16")],
+    ["circle contain 16:9", wide("circle", "contain", "16:9")],
+    ["crown contain 16:9", wide("crown", "contain", "16:9")],
+    ["coverframe cover crop 16:9", wide("coverframe", "cover", "16:9")],
+    ["coverframe contain 9:16", wide("coverframe", "contain", "9:16")],
+    ["edgebars cover crop 16:9", wide("edgebars", "cover", "16:9")],
+    ["lens 9:16", wide("lens", "cover", "9:16")],
+    ["pills 16:9", wide("pills", "cover", "16:9")],
+    ["dotline 9:16", wide("dotline", "cover", "9:16")],
+    ["burst 9:16", wide("burst", "cover", "9:16")],
+    [
+      "contours ridges on the mono colours 16:9",
+      {
+        ...wide("contours", "cover", "16:9"),
+        colors: { primary: "#ffffff", secondary: "#8a8a8a" },
+        look: { ...base.look, contour: "ridges" },
+      },
+    ],
+    [
+      "contours rings on the ocean colours, thick and faint 9:16",
+      {
+        ...wide("contours", "cover", "9:16"),
+        colors: { primary: "#1fb6ff", secondary: "#0a3d91" },
+        look: { ...base.look, contourWeight: 5, contourOpacity: 60 },
+      },
+    ],
+  ];
+  for (const [name, params] of polished)
+    it(name, async () => {
+      const diff = await compareFrame(params, params, "center169.png");
+      expect(diff.mean).toBeLessThan(4);
+      expect(diff.far).toBeLessThan(0.02);
+    });
+
+  // Task 28: the user's logos, one corner each, in both aspects, over presets with text near
+  // the corners (Classico's cards, the player looks, the centred titles).
+  const logo = (
+    preset: VisualizerParams["preset"],
+    aspect: "16:9" | "9:16",
+    position: VisualizerParams["logos"][number]["position"],
+    size = 12,
+    opacity = 100,
+  ): VisualizerParams => ({
+    ...base,
+    preset,
+    aspect,
+    classico: { ...base.classico, artist: "Lucia", album: "Lampioni" },
+    logos: [{ assetUrl: "/media/uploads/u/logo.png", position, size, opacity }],
+  });
+  const withLogos: [string, VisualizerParams][] = [
+    ["classico logo top left 16:9", logo("classico", "16:9", "top-left")],
+    [
+      "playercard logo top right 16:9",
+      logo("playercard", "16:9", "top-right", 20),
+    ],
+    [
+      "dotline logo bottom left 16:9",
+      logo("dotline", "16:9", "bottom-left", 30),
+    ],
+    [
+      "circle logo bottom right at 60% 16:9",
+      logo("circle", "16:9", "bottom-right", 12, 60),
+    ],
+    ["classico logo top right 9:16", logo("classico", "9:16", "top-right", 20)],
+    ["playercard logo top left 9:16", logo("playercard", "9:16", "top-left")],
+    [
+      "dotline logo bottom left 9:16",
+      logo("dotline", "9:16", "bottom-left", 30),
+    ],
+    ["circle logo bottom right 9:16", logo("circle", "9:16", "bottom-right")],
+    [
+      "circle 4K logo and scanlines 16:9",
+      {
+        ...logo("circle", "16:9", "top-right", 20),
+        quality: "4K",
+        effects: base.effects.map((effect) => ({
+          ...effect,
+          enabled: effect.id === "scanlines" || effect.id === "vignette",
+        })),
+      },
+    ],
+  ];
+  for (const [name, params] of withLogos)
+    it(name, async () => {
       const diff = await compareFrame(params);
       expect(diff.mean).toBeLessThan(4);
       expect(diff.far).toBeLessThan(0.02);

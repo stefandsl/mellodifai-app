@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { localSupabaseUrl } from "../../apps/web/e2e/local-env";
+import { opsRpc } from "./helpers/ops-call";
 
 let service: SupabaseClient;
 let client: SupabaseClient;
@@ -13,10 +15,11 @@ function env(k: string) {
   return v;
 }
 beforeAll(async () => {
-  service = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
+  const url = localSupabaseUrl(env("SUPABASE_URL"), {});
+  service = createClient(url, env("SUPABASE_SERVICE_ROLE_KEY"));
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const result = await service.auth.admin.createUser({
       email,
       password: "web-flow-test-password",
@@ -57,7 +60,7 @@ const args = {
   p_vocal_gender: "f",
 };
 async function fixture(status: string) {
-  const p = await client.rpc("create_project", args);
+  const p = await opsRpc(client, "create_project", args);
   expect(p.error).toBeNull();
   const v = await service
     .from("versions")
@@ -117,7 +120,7 @@ it("allows only the worker to write kie_task_state, while the owner can read it"
   ).toBe("23514");
 });
 it("deduplicates languages, enqueues drafts and rolls back invalid creation", async () => {
-  const result = await client.rpc("create_project", args);
+  const result = await opsRpc(client, "create_project", args);
   expect(result.error).toBeNull();
   const versions = await service
     .from("versions")
@@ -137,8 +140,12 @@ it("deduplicates languages, enqueues drafts and rolls back invalid creation", as
     .select("id", { count: "exact" })
     .eq("owner_id", owner);
   expect(
-    (await client.rpc("create_project", { ...args, p_languages: ["en", "xx"] }))
-      .error,
+    (
+      await opsRpc(client, "create_project", {
+        ...args,
+        p_languages: ["en", "xx"],
+      })
+    ).error,
   ).not.toBeNull();
   const after = await service
     .from("projects")
@@ -169,7 +176,7 @@ it.each(["generate_again", "back_to_lyrics"] as const)(
       .from("jobs")
       .select("id")
       .eq("version_id", v);
-    expect((await client.rpc(rpc, params)).error?.message).toBe(
+    expect((await opsRpc(client, rpc, params)).error?.message).toBe(
       "kie task may still succeed: use Retry, it is free",
     );
     expect(
@@ -204,7 +211,7 @@ it.each([
     rpc === "generate_again"
       ? { p_version: v, p_generation: 1 }
       : { p_version: v };
-  expect((await client.rpc(rpc, params)).error).toBeNull();
+  expect((await opsRpc(client, rpc, params)).error).toBeNull();
   expect(
     (
       await service
@@ -222,25 +229,25 @@ it("back_to_lyrics requires an owned failed version and preserves unknown submis
   const v = await fixture("failed");
   await service.from("jobs").update({ status: "failed" }).eq("version_id", v);
   expect(
-    (await other.rpc("back_to_lyrics", { p_version: v })).error,
+    (await opsRpc(other, "back_to_lyrics", { p_version: v })).error,
   ).not.toBeNull();
   await service
     .from("versions")
     .update({ kie_submit_state: "submitting" })
     .eq("id", v);
   expect(
-    (await client.rpc("back_to_lyrics", { p_version: v })).error,
+    (await opsRpc(client, "back_to_lyrics", { p_version: v })).error,
   ).not.toBeNull();
   await service.from("versions").update({ kie_submit_state: null }).eq("id", v);
   expect(
-    (await client.rpc("back_to_lyrics", { p_version: v })).error,
+    (await opsRpc(client, "back_to_lyrics", { p_version: v })).error,
   ).toBeNull();
   expect(
     (await service.from("versions").select("status").eq("id", v).single()).data
       ?.status,
   ).toBe("lyrics_review");
   expect(
-    (await client.rpc("back_to_lyrics", { p_version: v })).error,
+    (await opsRpc(client, "back_to_lyrics", { p_version: v })).error,
   ).not.toBeNull();
 });
 
@@ -269,15 +276,15 @@ it("generate_again from failed advances once and queues one explicit generation"
   const v = await fixture("failed");
   await service.from("jobs").update({ status: "failed" }).eq("version_id", v);
   expect(
-    (await other.rpc("generate_again", { p_version: v, p_generation: 1 }))
+    (await opsRpc(other, "generate_again", { p_version: v, p_generation: 1 }))
       .error,
   ).not.toBeNull();
   expect(
-    (await client.rpc("generate_again", { p_version: v, p_generation: 1 }))
+    (await opsRpc(client, "generate_again", { p_version: v, p_generation: 1 }))
       .error,
   ).toBeNull();
   expect(
-    (await client.rpc("generate_again", { p_version: v, p_generation: 1 }))
+    (await opsRpc(client, "generate_again", { p_version: v, p_generation: 1 }))
       .error,
   ).not.toBeNull();
   expect(
@@ -298,14 +305,19 @@ it("generate_again from failed advances once and queues one explicit generation"
 });
 
 async function uploadFixture() {
-  const version = await fixture("failed");
+  const version = await fixture("approved");
   await service
     .from("jobs")
     .update({ status: "failed" })
     .eq("version_id", version);
   const r = await service
     .from("renders")
-    .insert({ owner_id: owner, version_id: version, kind: "master" })
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "master",
+      approved_at: new Date().toISOString(),
+    })
     .select("id")
     .single();
   expect(r.error).toBeNull();
@@ -400,7 +412,6 @@ it("keeps worker RPCs inaccessible to both client roles and client recovery RPCs
       "resolve_kie_submission",
       { p_version: id, p_charged: false, p_task_id: null },
     ],
-    ["resolve_kie_submission", { p_version: id, p_outcome: "not_submitted" }],
     [
       "resolve_upload",
       { p_publication: id, p_uploaded: false, p_video_id: null },
@@ -411,6 +422,14 @@ it("keeps worker RPCs inaccessible to both client roles and client recovery RPCs
       code: "42501",
     });
   }
+  expect(
+    (
+      await anon.rpc("resolve_kie_submission", {
+        p_version: id,
+        p_outcome: "not_submitted",
+      })
+    ).error?.code,
+  ).toBe("PGRST202");
 });
 
 it.each([false, true])(
@@ -422,16 +441,20 @@ it.each([false, true])(
       p_uploaded: uploaded,
       p_video_id: uploaded ? "abc123" : null,
     };
-    expect((await other.rpc("resolve_upload", params)).error).not.toBeNull();
+    expect(
+      (await opsRpc(other, "resolve_upload", params)).error,
+    ).not.toBeNull();
     await service.from("profiles").update({ role: "customer" }).eq("id", owner);
     try {
-      expect((await client.rpc("resolve_upload", params)).error).not.toBeNull();
+      expect(
+        (await opsRpc(client, "resolve_upload", params)).error,
+      ).not.toBeNull();
     } finally {
       await service.from("profiles").update({ role: "admin" }).eq("id", owner);
     }
     expect(
       (
-        await client.rpc("resolve_upload", {
+        await opsRpc(client, "resolve_upload", {
           ...params,
           p_uploaded: true,
           p_video_id: "",
@@ -444,12 +467,14 @@ it.each([false, true])(
       stage: "publish",
       idempotency_key: `active:${version}`,
     });
-    expect((await client.rpc("resolve_upload", params)).error).not.toBeNull();
+    expect(
+      (await opsRpc(client, "resolve_upload", params)).error,
+    ).not.toBeNull();
     await service
       .from("jobs")
       .update({ status: "failed" })
       .eq("version_id", version);
-    expect((await client.rpc("resolve_upload", params)).error).toBeNull();
+    expect((await opsRpc(client, "resolve_upload", params)).error).toBeNull();
     expect(
       (
         await service
@@ -481,11 +506,11 @@ it("approves lyrics atomically, denies direct edits, bad shapes, other owners an
   ).not.toBeNull();
   for (const c of [client, other])
     expect(
-      (await c.rpc("approve_lyrics", { p_version: v, p_pack: {} })).error,
+      (await opsRpc(c, "approve_lyrics", { p_version: v, p_pack: {} })).error,
     ).not.toBeNull();
   expect(
     (
-      await other.rpc("approve_lyrics", {
+      await opsRpc(other, "approve_lyrics", {
         p_version: v,
         p_pack: { title: "Song", lyrics: "Line" },
       })
@@ -493,7 +518,7 @@ it("approves lyrics atomically, denies direct edits, bad shapes, other owners an
   ).not.toBeNull();
   const results = await Promise.all(
     [1, 2].map(() =>
-      client.rpc("approve_lyrics", {
+      opsRpc(client, "approve_lyrics", {
         p_version: v,
         p_pack: { title: "Song", lyrics: "Line" },
       }),
@@ -535,16 +560,20 @@ it("picks only current generation and transitions once to producing with timing 
     .select()
     .single();
   expect(
-    (await client.rpc("pick_take", { p_version: v, p_take: a.data.id })).error,
+    (await opsRpc(client, "pick_take", { p_version: v, p_take: a.data.id }))
+      .error,
   ).not.toBeNull();
   expect(
-    (await other.rpc("pick_take", { p_version: v, p_take: b.data.id })).error,
+    (await opsRpc(other, "pick_take", { p_version: v, p_take: b.data.id }))
+      .error,
   ).not.toBeNull();
   expect(
-    (await client.rpc("pick_take", { p_version: v, p_take: b.data.id })).error,
+    (await opsRpc(client, "pick_take", { p_version: v, p_take: b.data.id }))
+      .error,
   ).toBeNull();
   expect(
-    (await client.rpc("pick_take", { p_version: v, p_take: b.data.id })).error,
+    (await opsRpc(client, "pick_take", { p_version: v, p_take: b.data.id }))
+      .error,
   ).not.toBeNull();
   expect(
     (await service.from("versions").select().eq("id", v).single()).data,
@@ -567,14 +596,14 @@ it("keeps only the audio of the chosen take and makes the video later on request
     .select()
     .single();
   expect(
-    (await client.rpc("make_video", { p_version: v })).error,
+    (await opsRpc(client, "make_video", { p_version: v })).error,
   ).not.toBeNull();
   expect(
-    (await other.rpc("keep_audio", { p_version: v, p_take: take.data.id }))
+    (await opsRpc(other, "keep_audio", { p_version: v, p_take: take.data.id }))
       .error,
   ).not.toBeNull();
   expect(
-    (await client.rpc("keep_audio", { p_version: v, p_take: take.data.id }))
+    (await opsRpc(client, "keep_audio", { p_version: v, p_take: take.data.id }))
       .error,
   ).toBeNull();
   expect(
@@ -590,11 +619,13 @@ it("keeps only the audio of the chosen take and makes the video later on request
     ).data,
   ).toHaveLength(0);
   expect(
-    (await other.rpc("make_video", { p_version: v })).error,
+    (await opsRpc(other, "make_video", { p_version: v })).error,
   ).not.toBeNull();
-  expect((await client.rpc("make_video", { p_version: v })).error).toBeNull();
   expect(
-    (await client.rpc("make_video", { p_version: v })).error,
+    (await opsRpc(client, "make_video", { p_version: v })).error,
+  ).toBeNull();
+  expect(
+    (await opsRpc(client, "make_video", { p_version: v })).error,
   ).not.toBeNull();
   expect(
     (await service.from("versions").select().eq("id", v).single()).data,
@@ -618,25 +649,30 @@ it("lets only the admin choose a local song engine and rejects unknown engines",
     p_vocal_gender: null,
     p_settings: engine ? { model: "V6", engine } : { model: "V6" },
   });
-  expect((await client.rpc("create_song", song("yue2"))).error).toBeNull();
-  expect((await client.rpc("create_song", song("kie"))).error).toBeNull();
-  expect((await client.rpc("create_song", song())).error).toBeNull();
+  expect((await opsRpc(client, "create_song", song("yue2"))).error).toBeNull();
+  expect((await opsRpc(client, "create_song", song("kie"))).error).toBeNull();
+  expect((await opsRpc(client, "create_song", song())).error).toBeNull();
   expect(
-    (await client.rpc("create_song", song("udio"))).error?.message,
+    (await opsRpc(client, "create_song", song("udio"))).error?.message,
   ).toContain("invalid engine");
   const otherId = users[1];
   await service.from("profiles").update({ role: "customer" }).eq("id", otherId);
   try {
     expect(
-      (await other.rpc("create_song", song("ace-step"))).error?.message,
+      (await opsRpc(other, "create_song", song("ace-step"))).error?.message,
     ).toContain("admin only");
-    expect((await other.rpc("create_song", song("kie"))).error).toBeNull();
+    expect((await opsRpc(other, "create_song", song("kie"))).error).toBeNull();
   } finally {
     await service.from("profiles").update({ role: "admin" }).eq("id", otherId);
   }
 });
 it("records failed-QA override and approver, uses current attempt and rerenders atomically", async () => {
   const v = await fixture("video_review");
+  // Reaching video review means the preceding pipeline jobs have finished.
+  expect(
+    (await service.from("jobs").update({ status: "done" }).eq("version_id", v))
+      .error,
+  ).toBeNull();
   const r = await service
     .from("renders")
     .insert({
@@ -648,11 +684,11 @@ it("records failed-QA override and approver, uses current attempt and rerenders 
     .select()
     .single();
   expect(
-    (await client.rpc("approve_video", { p_version: v })).error,
+    (await opsRpc(client, "approve_video", { p_version: v })).error,
   ).not.toBeNull();
   expect(
     (
-      await other.rpc("approve_video", {
+      await opsRpc(other, "approve_video", {
         p_version: v,
         p_override_reason: "Reviewed",
       })
@@ -660,7 +696,7 @@ it("records failed-QA override and approver, uses current attempt and rerenders 
   ).not.toBeNull();
   expect(
     (
-      await client.rpc("approve_video", {
+      await opsRpc(client, "approve_video", {
         p_version: v,
         p_override_reason: "Deliberately louder",
       })
@@ -677,7 +713,7 @@ it("records failed-QA override and approver, uses current attempt and rerenders 
   });
   expect(approved.data.approved_at).toBeTruthy();
   const results = await Promise.all(
-    [1, 2].map(() => client.rpc("render_again", { p_version: v })),
+    [1, 2].map(() => opsRpc(client, "render_again", { p_version: v })),
   );
   expect(results.filter((r) => !r.error)).toHaveLength(1);
   expect(
@@ -695,12 +731,210 @@ it("records failed-QA override and approver, uses current attempt and rerenders 
   await service.from("versions").update({ status: "video_review" }).eq("id", v);
   expect(
     (
-      await client.rpc("approve_video", {
+      await opsRpc(client, "approve_video", {
         p_version: v,
         p_override_reason: "Old render",
       })
     ).error,
   ).not.toBeNull();
+});
+it.each(["approved", "published"])(
+  "starts a new render from %s without changing the publication",
+  async (status) => {
+    const v = await fixture(status);
+    await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+    await service
+      .from("versions")
+      .update({
+        storyboard_path: "current-storyboard.json",
+        storyboard_sections: [{ title: "Edited scene" }],
+      })
+      .eq("id", v);
+    const old = await service
+      .from("renders")
+      .insert({
+        owner_id: owner,
+        version_id: v,
+        kind: "master",
+        preview_path: `old-${v}.mp4`,
+        approved_at: new Date().toISOString(),
+        qa_results: { assets: { thumbnail_path: `old-${v}.png` } },
+      })
+      .select()
+      .single();
+    expect(old.error).toBeNull();
+    const publication = await service
+      .from("publications")
+      .insert({
+        owner_id: owner,
+        render_id: old.data.id,
+        privacy: "private",
+        metadata: { title: "Old video" },
+      })
+      .select()
+      .single();
+    expect(publication.error).toBeNull();
+    const look = { preset: "circle", aspect: "16:9" };
+    expect(
+      (
+        await service.from("renders").insert({
+          owner_id: owner,
+          version_id: v,
+          kind: "visualizer",
+          aspect: "16:9",
+          visualizer_params: look,
+        })
+      ).error,
+    ).toBeNull();
+    expect(
+      (
+        await client
+          .from("renders")
+          .update({
+            qa_results: {
+              assets: { thumbnail_path: "previews/other/song.png" },
+            },
+          })
+          .eq("id", old.data.id)
+          .select("id")
+      ).error,
+    ).not.toBeNull();
+    expect(
+      (await opsRpc(other, "render_again", { p_version: v })).error,
+    ).not.toBeNull();
+    expect(
+      (await opsRpc(client, "render_again", { p_version: v })).error,
+    ).toBeNull();
+    expect(
+      (
+        await service
+          .from("versions")
+          .select("status,render_attempt")
+          .eq("id", v)
+          .single()
+      ).data,
+    ).toMatchObject({ status: "producing", render_attempt: 2 });
+    expect(
+      (
+        await service
+          .from("renders")
+          .select("preview_path,approved_at,qa_results")
+          .eq("id", old.data.id)
+          .single()
+      ).data,
+    ).toMatchObject({
+      preview_path: `old-${v}.mp4`,
+      qa_results: { assets: { thumbnail_path: `old-${v}.png` } },
+    });
+    expect(
+      (
+        await service
+          .from("publications")
+          .select("render_id,metadata")
+          .eq("id", publication.data.id)
+          .single()
+      ).data,
+    ).toMatchObject({
+      render_id: old.data.id,
+      metadata: { title: "Old video" },
+    });
+    const next = await service
+      .from("renders")
+      .select("qa_results")
+      .eq("version_id", v)
+      .eq("kind", "master")
+      .eq("render_attempt", 2)
+      .single();
+    expect(next.data?.qa_results.assets).toMatchObject({
+      storyboard_path: "current-storyboard.json",
+      storyboard_sections: [{ title: "Edited scene" }],
+      thumbnail_path: `old-${v}.png`,
+      metadata: { title: "Old video" },
+      visualizer_params: look,
+    });
+    await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+    await service.from("versions").update({ status: "approved" }).eq("id", v);
+    expect(
+      (await opsRpc(client, "render_again", { p_version: v })).error,
+    ).toBeNull();
+    const third = await service
+      .from("renders")
+      .select("qa_results")
+      .eq("version_id", v)
+      .eq("kind", "master")
+      .eq("render_attempt", 3)
+      .single();
+    expect(third.data?.qa_results.assets).toMatchObject({
+      thumbnail_path: `old-${v}.png`,
+      metadata: { title: "Old video" },
+    });
+  },
+);
+it("carries the project Video Studio look before its first visualizer render", async () => {
+  const v = await fixture("approved");
+  await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+  const { data: version } = await service
+    .from("versions")
+    .select("project_id")
+    .eq("id", v)
+    .single();
+  const look = { preset: "mirror", aspect: "16:9" };
+  expect(
+    (
+      await service
+        .from("projects")
+        .update({ song_settings: { visualizer: look } })
+        .eq("id", version?.project_id)
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .insert({ owner_id: owner, version_id: v, kind: "master" })
+    ).error,
+  ).toBeNull();
+  expect(
+    (await opsRpc(client, "render_again", { p_version: v })).error,
+  ).toBeNull();
+  const { data: next } = await service
+    .from("renders")
+    .select("qa_results")
+    .eq("version_id", v)
+    .eq("render_attempt", 2)
+    .eq("kind", "master")
+    .single();
+  expect(next?.qa_results.assets.visualizer_params).toEqual(look);
+});
+it("refuses a trashed song and an active render", async () => {
+  const v = await fixture("approved");
+  await service.from("jobs").update({ status: "done" }).eq("version_id", v);
+  await service
+    .from("versions")
+    .update({ trashed_at: new Date().toISOString() })
+    .eq("id", v);
+  expect(
+    (await opsRpc(client, "render_again", { p_version: v })).error,
+  ).not.toBeNull();
+  await service.from("versions").update({ trashed_at: null }).eq("id", v);
+  await service.from("jobs").insert({
+    owner_id: owner,
+    version_id: v,
+    stage: "timing",
+    idempotency_key: `active-render:${v}`,
+  });
+  expect(
+    (await opsRpc(client, "render_again", { p_version: v })).error?.message,
+  ).toContain("job already active");
+  expect(
+    (
+      await service
+        .from("versions")
+        .select("status,render_attempt")
+        .eq("id", v)
+        .single()
+    ).data,
+  ).toMatchObject({ status: "approved", render_attempt: 1 });
 });
 it("publishes only approved current masters, deduplicates pending requests and permits failed retries", async () => {
   const v = await fixture("approved");
@@ -710,13 +944,13 @@ it("publishes only approved current masters, deduplicates pending requests and p
     .select()
     .single();
   const input = { p_render: r.data.id, p_metadata: { title: "Song" } };
-  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).not.toBeNull();
   await service
     .from("renders")
     .update({ approved_at: new Date().toISOString() })
     .eq("id", r.data.id);
   for (let i = 0; i < 2; i++)
-    expect((await client.rpc("enqueue_publish", input)).error).toBeNull();
+    expect((await opsRpc(client, "enqueue_publish", input)).error).toBeNull();
   let jobs = await service
     .from("jobs")
     .select()
@@ -728,7 +962,7 @@ it("publishes only approved current masters, deduplicates pending requests and p
     .from("jobs")
     .update({ status: "failed" })
     .eq("id", jobs.data?.[0].id);
-  expect((await client.rpc("enqueue_publish", input)).error).toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).toBeNull();
   jobs = await service
     .from("jobs")
     .select()
@@ -739,17 +973,186 @@ it("publishes only approved current masters, deduplicates pending requests and p
     .from("versions")
     .update({ render_attempt: 2, status: "approved" })
     .eq("id", v);
-  expect((await client.rpc("enqueue_publish", input)).error).not.toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).not.toBeNull();
+});
+it("publishes a completed landscape visualizer only after master approval", async () => {
+  const version = await fixture("approved");
+  const master = await service
+    .from("renders")
+    .insert({ owner_id: owner, version_id: version, kind: "master" })
+    .select("id")
+    .single();
+  expect(master.error).toBeNull();
+  const visualizer = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "visualizer",
+      aspect: "16:9",
+      visualizer_params: {},
+      path: "video.mp4",
+      preview_path: "preview.mp4",
+    })
+    .select("id")
+    .single();
+  expect(visualizer.error).toBeNull();
+  const input = {
+    p_render: visualizer.data.id,
+    p_metadata: { title: "Branded video" },
+  };
+  expect((await opsRpc(client, "enqueue_publish", input)).error).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ approved_at: new Date().toISOString() })
+        .eq("id", master.data.id)
+    ).error,
+  ).toBeNull();
+  const portrait = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "visualizer",
+      aspect: "9:16",
+      visualizer_params: {},
+      path: "portrait.mp4",
+      preview_path: "portrait-preview.mp4",
+    })
+    .select("id")
+    .single();
+  expect(portrait.error).toBeNull();
+  expect(
+    (
+      await opsRpc(client, "enqueue_publish", {
+        ...input,
+        p_render: portrait.data.id,
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ preview_path: null })
+        .eq("id", visualizer.data.id)
+    ).error,
+  ).toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("renders")
+        .update({ preview_path: "preview.mp4" })
+        .eq("id", visualizer.data.id)
+    ).error,
+  ).toBeNull();
+  expect((await opsRpc(client, "enqueue_publish", input)).error).toBeNull();
+  const job = await service
+    .from("jobs")
+    .select("payload")
+    .eq("version_id", version)
+    .eq("stage", "publish")
+    .single();
+  expect(job.data?.payload).toMatchObject({ render_id: visualizer.data.id });
+  expect(
+    (
+      await opsRpc(client, "enqueue_publish", {
+        ...input,
+        p_render: master.data.id,
+      })
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select("id")
+        .eq("version_id", version)
+        .eq("stage", "publish")
+    ).data,
+  ).toHaveLength(1);
+  const worker = `${prefix}-${version}`;
+  expect(
+    (await service.from("workers").insert({ id: worker, owner_id: owner }))
+      .error,
+  ).toBeNull();
+  expect(
+    (
+      await service.rpc("reserve_publication_upload", {
+        p_render: visualizer.data.id,
+        p_worker: worker,
+      })
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service.rpc("reserve_publication_upload", {
+        p_render: master.data.id,
+        p_worker: worker,
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await client.from("jobs").insert({
+        owner_id: owner,
+        version_id: version,
+        stage: "publish",
+        idempotency_key: `forged:${version}`,
+        payload: { render_id: master.data.id },
+      })
+    ).error,
+  ).not.toBeNull();
+  expect(
+    (
+      await service
+        .from("versions")
+        .update({ render_attempt: 2, status: "approved" })
+        .eq("id", version)
+    ).error,
+  ).toBeNull();
+  const next = await service
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version,
+      kind: "master",
+      render_attempt: 2,
+      approved_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  expect(next.error).toBeNull();
+  expect(
+    (
+      await opsRpc(client, "enqueue_publish", {
+        ...input,
+        p_render: next.data.id,
+      })
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await service
+        .from("jobs")
+        .select("id")
+        .eq("version_id", version)
+        .eq("stage", "publish")
+    ).data,
+  ).toHaveLength(2);
 });
 it("generation and retry requests cannot double enqueue on repeated clicks", async () => {
   const v = await fixture("takes_review");
-  const first = await client.rpc("generate_again", {
+  const first = await opsRpc(client, "generate_again", {
     p_version: v,
     p_generation: 1,
   });
   expect(first.error).toBeNull();
   expect(
-    (await client.rpc("generate_again", { p_version: v, p_generation: 1 }))
+    (await opsRpc(client, "generate_again", { p_version: v, p_generation: 1 }))
       .error,
   ).not.toBeNull();
   const job = await service
@@ -765,11 +1168,11 @@ it("generation and retry requests cannot double enqueue on repeated clicks", asy
     .eq("id", job.data.id);
   await service.from("versions").update({ status: "failed" }).eq("id", v);
   expect(
-    (await client.rpc("retry_stage", { p_version: v, p_job: job.data.id }))
+    (await opsRpc(client, "retry_stage", { p_version: v, p_job: job.data.id }))
       .error,
   ).toBeNull();
   expect(
-    (await client.rpc("retry_stage", { p_version: v, p_job: job.data.id }))
+    (await opsRpc(client, "retry_stage", { p_version: v, p_job: job.data.id }))
       .error,
   ).not.toBeNull();
   expect(

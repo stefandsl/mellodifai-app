@@ -1,12 +1,23 @@
 import {
-  isOnDemandStage,
+  keepsStatusOnFailure,
   type Stage,
   type VersionStatus,
 } from "@mellodifai/shared";
-import { AuthorizationDenied, authorizeStage } from "./authorization.js";
+import {
+  AuthorizationDenied,
+  authorizeSongless,
+  authorizeStage,
+} from "./authorization.js";
 import type { LocalRuntime } from "./comfy/runtime.js";
 import type { Db, Job, Project, Version } from "./db.js";
 import type { Engine } from "./engine.js";
+import {
+  ensureReservation,
+  isCapRefusal,
+  kieLedger,
+  type Ledger,
+} from "./providers/ledger.js";
+import type { LedgerForModel } from "./providers/openrouter.js";
 import type { Secrets } from "./secrets.js";
 import type { Storage } from "./storage.js";
 import type { Workspace } from "./workspace.js";
@@ -26,18 +37,43 @@ export type StageContext = {
   signal: AbortSignal;
   // The ComfyUI server of this PC, owned by main.ts; absent on workers without local engines.
   comfy?: LocalRuntime;
+  providerLedger?: LedgerForModel;
+  groqLedger?: () => Ledger;
+  kieLedger?: () => Ledger;
+  retryExtended?: boolean;
 };
 export type StageResult = {
   versionStatus?: VersionStatus;
   patch?: Partial<Version>;
-  enqueue?: { stage: Stage; idempotencyKey: string }[];
+  enqueue?: {
+    stage: Stage;
+    idempotencyKey: string;
+  }[];
   retryLater?: { reason: string; notBefore: string };
 };
 export type StageHandler = (context: StageContext) => Promise<StageResult>;
 export type StageRegistry = Partial<Record<Stage, StageHandler>>;
+// A job that belongs to no song (lyrics_assist): no version, project or workspace.
+export type SonglessContext = Pick<
+  StageContext,
+  "job" | "db" | "secrets" | "signal" | "log" | "progress" | "providerLedger"
+>;
+export type SonglessHandler = (
+  context: SonglessContext,
+) => Promise<Pick<StageResult, "retryLater">>;
+export type SonglessRegistry = Partial<Record<Stage, SonglessHandler>>;
 export type WorkspaceProvider = {
-  forVersion(projectId: string, lang: Version["lang"]): Promise<Workspace>;
+  forVersion(
+    projectId: string,
+    lang: Version["lang"],
+    fake?: boolean,
+    renderAttempt?: number,
+  ): Promise<Workspace>;
 };
+
+export function useFakes(job: Pick<Job, "fake_providers">): boolean {
+  return process.env.WORKER_FAKE === "1" || job.fake_providers === true;
+}
 
 let renderLock: Promise<void> = Promise.resolve();
 class MissingRecord extends Error {}
@@ -71,6 +107,9 @@ export class WorkerLoop {
       db: Db;
       workerId: string;
       stages: StageRegistry;
+      fakeStages?: StageRegistry;
+      songless?: SonglessRegistry;
+      fakeSongless?: SonglessRegistry;
       workspace?: WorkspaceProvider;
       engine?: Engine;
       storage?: Storage;
@@ -78,6 +117,9 @@ export class WorkerLoop {
       engineVersion?: string;
       report?: (message: string) => void;
       comfy?: LocalRuntime;
+      providerLedger?: LedgerForModel;
+      groqLedger?: () => Ledger;
+      kieLedger?: () => Ledger;
     },
   ) {}
   private redact(message: string) {
@@ -230,8 +272,46 @@ export class WorkerLoop {
     });
     // A render may still be waiting for the mutex when cancellation arrives.
     void aborted.catch(() => {});
+    const progress = async (pct: number, message?: string) => {
+      signal.throwIfAborted();
+      try {
+        await db.appendEvent(
+          job,
+          this.redact(message ?? `Progress: ${pct}%`),
+          pct,
+        );
+      } catch (error) {
+        this.report(error);
+      }
+    };
+    const executeSongless = async (): Promise<StageResult> => {
+      const handler = (
+        useFakes(job) ? this.options.fakeSongless : this.options.songless
+      )?.[job.stage];
+      if (!handler)
+        throw new Error(
+          `No handler registered for songless stage ${job.stage}`,
+        );
+      if (!(await authorizeSongless(db, job)))
+        throw new MissingRecord(`Request of job ${job.id} not found`);
+      authorized = true;
+      const { secrets } = this.options;
+      if (!secrets) throw new Error("Worker dependencies are not configured");
+      return handler({
+        job,
+        db,
+        secrets,
+        signal,
+        log,
+        progress,
+        ...(this.options.providerLedger
+          ? { providerLedger: this.options.providerLedger }
+          : {}),
+      });
+    };
     const execute = async (): Promise<StageResult> => {
       signal.throwIfAborted();
+      if (job.version_id === null) return executeSongless();
       const version = await db.getVersion(job.version_id);
       signal.throwIfAborted();
       if (!version)
@@ -243,13 +323,20 @@ export class WorkerLoop {
         throw new MissingRecord(`Project ${version.project_id} not found`);
       await authorizeStage(db, job, version, project);
       authorized = true;
-      const handler = this.options.stages[job.stage];
+      const handler = (
+        useFakes(job) ? this.options.fakeStages : this.options.stages
+      )?.[job.stage];
       if (!handler)
         throw new Error(`No handler registered for stage ${job.stage}`);
       const { engine, storage, secrets, workspace } = this.options;
       if (!engine || !storage || !secrets || !workspace)
         throw new Error("Worker dependencies are not configured");
-      const ws = await workspace.forVersion(project.id, version.lang);
+      const ws = await workspace.forVersion(
+        project.id,
+        version.lang,
+        useFakes(job),
+        version.render_attempt ?? 1,
+      );
       signal.throwIfAborted();
       active.engine = engine.withWorkspace(ws.root, log, signal);
       return handler({
@@ -263,18 +350,16 @@ export class WorkerLoop {
         db,
         signal,
         log,
-        progress: async (pct, message) => {
-          signal.throwIfAborted();
-          try {
-            await db.appendEvent(
-              job,
-              this.redact(message ?? `Progress: ${pct}%`),
-              pct,
-            );
-          } catch (error) {
-            this.report(error);
-          }
-        },
+        progress,
+        ...(this.options.providerLedger
+          ? { providerLedger: this.options.providerLedger }
+          : {}),
+        ...(this.options.groqLedger
+          ? { groqLedger: this.options.groqLedger }
+          : {}),
+        ...(this.options.kieLedger
+          ? { kieLedger: this.options.kieLedger }
+          : {}),
         ...(this.options.comfy ? { comfy: this.options.comfy } : {}),
       });
     };
@@ -313,21 +398,24 @@ export class WorkerLoop {
         return;
       }
       signal.throwIfAborted();
-      if (result.patch) await db.patchVersion(job.version_id, result.patch);
-      signal.throwIfAborted();
-      if (result.versionStatus)
-        await db.patchVersion(job.version_id, { status: result.versionStatus });
-      for (const next of result.enqueue ?? []) {
+      const versionId = job.version_id;
+      if (versionId) {
+        if (result.patch) await db.patchVersion(versionId, result.patch);
         signal.throwIfAborted();
-        await db.enqueue(job.version_id, next.stage, next.idempotencyKey);
+        if (result.versionStatus)
+          await db.patchVersion(versionId, { status: result.versionStatus });
+        for (const next of result.enqueue ?? []) {
+          signal.throwIfAborted();
+          await db.enqueue(job.id, versionId, next.stage, next.idempotencyKey);
+        }
       }
       signal.throwIfAborted();
       await db.finishJob(job.id, result, workerId);
     } catch (error) {
       if (!this.stopping && !active.lost) {
-        const message = this.redact(
-          error instanceof Error ? error.message : String(error),
-        );
+        const message = isCapRefusal(error)
+          ? "cap_exceeded"
+          : this.redact(error instanceof Error ? error.message : String(error));
         // Reads and authorization lookups can fail while Supabase/network is
         // transiently unavailable. Only a definite authorization denial is terminal.
         if (
@@ -346,6 +434,49 @@ export class WorkerLoop {
         }
         this.report(message);
         await log(message);
+        if (job.stage === "generate_song" || job.stage === "replace_section") {
+          try {
+            const submitting =
+              job.stage === "generate_song"
+                ? job.version_id &&
+                  (await db.getVersion(job.version_id))?.kie_submit_state ===
+                    "submitting"
+                : typeof job.payload?.edit_id === "string" &&
+                  (await db.getSectionEdit(job.payload.edit_id))
+                    ?.kie_submit_state === "submitting";
+            if (submitting) {
+              if (!this.options.secrets)
+                throw new Error("Worker secrets are not configured");
+              const ledger = kieLedger({
+                secrets: this.options.secrets,
+                ...(this.options.kieLedger
+                  ? { kieLedger: this.options.kieLedger }
+                  : {}),
+              });
+              try {
+                await ensureReservation(ledger, job);
+                await ledger.markAmbiguous();
+              } catch (failure) {
+                // A previous attempt may already have marked it before failJob lost its lease.
+                if (
+                  !String((failure as Error).message).includes(
+                    "reservation already closed or ambiguous",
+                  )
+                )
+                  throw failure;
+              }
+            }
+          } catch (failure) {
+            this.report(failure);
+            await db.requeue(
+              job.id,
+              workerId,
+              new Date(Date.now() + 30_000).toISOString(),
+              "mark_ambiguous pending",
+            );
+            return;
+          }
+        }
         try {
           await db.failJob(job.id, message, workerId);
         } catch (failure) {
@@ -353,8 +484,9 @@ export class WorkerLoop {
           await log(this.redact(String(failure)));
         }
         try {
-          // An on-demand stage (stems) failing says nothing about the song itself.
-          if (versionExists && !isOnDemandStage(job.stage))
+          // An on-demand stage (stems) or a remake review step failing says nothing about
+          // the song itself.
+          if (versionExists && job.version_id && !keepsStatusOnFailure(job))
             await db.patchVersion(job.version_id, { status: "failed" });
         } catch (failure) {
           this.report(failure);

@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 import {
   ANALYSIS_RATE,
   analyseSong,
+  normalizeVisualizerParams,
+  renderSize,
   stockBackground,
   uploadPathOf,
   VISUALIZER_FPS,
@@ -27,7 +29,6 @@ import { posterOf, upload } from "./utils.js";
 // Local and free: no kie credits, no GPU model, only Chrome drawing frames.
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 export const VISUALIZER_PACKAGE = join(REPO, "packages", "visualizer");
-const BRAND = join(REPO, "apps", "web", "public", "brand");
 // The bucket holds 1 GB in all: the delivered video is kept under this size.
 export const DELIVERY_LIMIT = 45 * 1024 * 1024;
 
@@ -67,6 +68,9 @@ async function wanted(
     throw new Error("Il video da creare non esiste più");
   const parsed = VisualizerParamsSchema.safeParse(render.visualizer_params);
   if (!parsed.success) throw new Error("Parametri del video non validi");
+  // Read like the studio reads saved settings: a row saved before the logos drops the old
+  // default artist and website lines nobody typed.
+  const params = normalizeVisualizerParams(render.visualizer_params);
   const takeId =
     typeof payload.take_id === "string"
       ? payload.take_id
@@ -75,15 +79,7 @@ async function wanted(
     (item) => item.id === takeId,
   );
   if (!take) throw new Error("La versione scelta non esiste più");
-  return { render, take, params: parsed.data };
-}
-
-async function exists(file: string): Promise<boolean> {
-  try {
-    return (await stat(file)).isFile();
-  } catch {
-    return false;
-  }
+  return { render, take, params };
 }
 
 async function fetchStored(
@@ -177,6 +173,85 @@ async function probeSeconds(
   return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
 }
 
+export async function upscaleImage(
+  context: StageContext,
+  file: string,
+  size: { width: number; height: number },
+): Promise<string> {
+  let output = "";
+  const probe = context.engine.withWorkspace(
+    context.ws.root,
+    async (line) => {
+      output += line;
+    },
+    context.signal,
+  );
+  await probe.run(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "info",
+      "-i",
+      file,
+      "-frames:v",
+      "1",
+      "-vf",
+      "showinfo",
+      "-f",
+      "null",
+      "-",
+    ],
+    { cwd: dirname(file) },
+  );
+  // showinfo sees the decoded frame after ffmpeg's automatic EXIF rotation.
+  const match = /\bs:(\d+)x(\d+)\b/u.exec(output);
+  if (!match) throw new Error("Dimensioni dell'immagine non disponibili");
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    !width ||
+    !height
+  )
+    throw new Error("Dimensioni dell'immagine non valide");
+  const factor = Math.max(size.width / width, size.height / height);
+  if (factor <= 1) return file;
+  const scaled = file.replace(/\.[^.]+$/u, "-upscaled.png");
+  const even = (n: number) => Math.ceil(n / 2) * 2;
+  const scaledWidth = even(width * factor);
+  const scaledHeight = even(height * factor);
+  // Bound decoded output memory while allowing standard landscape/portrait 4K crops.
+  if (
+    scaledWidth > 8192 ||
+    scaledHeight > 8192 ||
+    scaledWidth * scaledHeight > 30_000_000
+  ) {
+    throw new Error(
+      "Immagine troppo allungata per l'ingrandimento: ritagliala prima di riprovare",
+    );
+  }
+  await context.engine.run(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      file,
+      "-frames:v",
+      "1",
+      "-vf",
+      `scale=${scaledWidth}:${scaledHeight}:flags=lanczos`,
+      scaled,
+    ],
+    { cwd: dirname(file), outputs: [scaled] },
+  );
+  return scaled;
+}
+
 export const visualizer: StageHandler = async (context) => {
   const { render, take, params } = await wanted(context);
   const name = `visualizer-${aspectName(params.aspect)}`;
@@ -235,6 +310,7 @@ export const visualizer: StageHandler = async (context) => {
       kind: "image" | "video";
       frames?: number;
     } | null = null;
+    const owner = context.job.owner_id;
     const bg = params.background;
     if (bg.mode === "random") {
       const file = await fetchStored(
@@ -246,7 +322,9 @@ export const visualizer: StageHandler = async (context) => {
       );
       if (file) background = { file: local(file) as string, kind: "image" };
     } else {
-      const path = uploadPathOf(bg.assetUrl);
+      const candidate = uploadPathOf(bg.assetUrl);
+      const path =
+        owner && candidate?.startsWith(`${owner}/`) ? candidate : null;
       const file = path
         ? await fetchStored(context, path, pub, "background", "uploads")
         : null;
@@ -265,7 +343,9 @@ export const visualizer: StageHandler = async (context) => {
     let center: string | null = null;
     if (params.centerImage.mode === "cover") center = coverName;
     else if (params.centerImage.mode === "upload") {
-      const path = uploadPathOf(params.centerImage.assetUrl);
+      const candidate = uploadPathOf(params.centerImage.assetUrl);
+      const path =
+        owner && candidate?.startsWith(`${owner}/`) ? candidate : null;
       // No upload yet: the cover, as in the preview.
       center =
         local(
@@ -274,19 +354,33 @@ export const visualizer: StageHandler = async (context) => {
             : null,
         ) ?? coverName;
     }
-    const marks = {
-      trumpet: null as string | null,
-      gramophone: null as string | null,
+    const frameSize = renderSize(params.aspect, params.quality);
+    const upscaled = new Map<string, string>();
+    const readyImage = async (name: string) => {
+      if (!upscaled.has(name))
+        upscaled.set(
+          name,
+          local(
+            await upscaleImage(context, join(pub, name), frameSize),
+          ) as string,
+        );
+      return upscaled.get(name) as string;
     };
-    if (params.preset === "classico") {
-      for (const [key, file] of [
-        ["trumpet", "mellodifai-trumpet.png"],
-        ["gramophone", "mellodifai-logo.png"],
-      ] as const)
-        if (await exists(join(BRAND, file))) {
-          await copyFile(join(BRAND, file), join(pub, `${key}.png`));
-          marks[key] = `${key}.png`;
-        }
+    if (background?.kind === "image")
+      background.file = await readyImage(background.file);
+    if (center) center = await readyImage(center);
+    // The user's logos, fetched like the centre upload. A logo whose file is gone is left out,
+    // not a failed render; only the user's own uploads are read.
+    const logos: (string | null)[] = [];
+    for (const [i, logo] of params.logos.entries()) {
+      const path = uploadPathOf(logo.assetUrl);
+      logos.push(
+        owner && path?.startsWith(`${owner}/`)
+          ? local(
+              await fetchStored(context, path, pub, `logo-${i + 1}`, "uploads"),
+            )
+          : null,
+      );
     }
     const props = join(dir, "props.json");
     await writeFile(
@@ -300,7 +394,7 @@ export const visualizer: StageHandler = async (context) => {
         analysis: "analysis.bin",
         background,
         center,
-        ...marks,
+        logos,
       }),
     );
 

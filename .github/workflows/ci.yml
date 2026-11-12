@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, build/m1-agent-access]
   pull_request:
 
 concurrency:
@@ -15,6 +15,7 @@ jobs:
     outputs:
       has-supabase-config: ${{ steps.supabase-config.outputs.exists }}
     steps:
+      - run: echo "MELLODIFAI_ROOT=$RUNNER_TEMP/mellodifai" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - name: Check for Supabase config
         id: supabase-config
@@ -25,15 +26,21 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm ops check-no-keys.ts
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pnpm --filter @mellodifai/web exec playwright install --with-deps chromium
       - run: pnpm test
 
   db:
     needs: checks
     if: needs.checks.outputs.has-supabase-config == 'true'
     runs-on: ubuntu-latest
+    env:
+      WORKER_FAKE: "1"
     steps:
+      - run: echo "MELLODIFAI_ROOT=$RUNNER_TEMP/mellodifai" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -41,17 +48,33 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: supabase/setup-cli@v1
-      - run: supabase start
-      - run: pnpm test:db
+      - run: pnpm ops check-no-keys.ts
+      - run: pnpm ops stack.ts render --env ci
+      # Fetch identical pinned contents from verified upstream mirrors, avoiding ECR limits.
+      - run: pnpm ops pull-ci-images.ts
+      - run: pnpm ops stack.ts start --env ci
       - name: Export local Supabase environment
         run: |
-          eval "$(supabase status -o env)"
-          {
-            echo "SUPABASE_URL=${SUPABASE_URL:-$API_URL}"
-            echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-$ANON_KEY}"
-            echo "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-$SERVICE_ROLE_KEY}"
-          } >> "$GITHUB_ENV"
+          set +x
+          env_file="$(pnpm -s ops stack.ts env-file --env ci)"
+          set -a
+          source "$env_file"
+          set +a
+          while IFS='=' read -r name _; do
+            value="${!name}"
+            mask="${value//'%'/'%25'}"
+            mask="${mask//$'\r'/'%0D'}"
+            mask="${mask//$'\n'/'%0A'}"
+            printf '::add-mask::%s\n' "$mask"
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+          done < "$env_file"
+      - run: pnpm test:db
+      - run: pnpm test:integration
+      - name: Provision private OAuth test material
+        run: pnpm ops rotate-auth-keys.ts --env ci
       - run: pnpm --filter @mellodifai/web exec playwright install --with-deps chromium
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm e2e
+        env:
+          E2E_ALLOW_LIVE_STACK: "1"
+          E2E_PORT: "3210"

@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionClaims } from "@/lib/supabase/server";
+
+export async function getActionClaims() {
+  const claims = await getSessionClaims();
+  if (!claims) throw new Error("Unauthorized");
+  return claims;
+}
 
 export async function requireProfile() {
   const supabase = await createClient();

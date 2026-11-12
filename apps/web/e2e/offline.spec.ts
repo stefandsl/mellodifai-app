@@ -14,7 +14,9 @@ test("projects can be created while the worker is offline", async ({
   await signIn(page);
   await page.goto("/library");
   await expect(
-    page.getByRole("link", { name: /PC di render offline/u }),
+    page.getByRole("link", {
+      name: /^PC di render offline\b/u,
+    }),
   ).toBeVisible();
 
   await createFrenchProject(page, `E2E offline ${Date.now()}`);

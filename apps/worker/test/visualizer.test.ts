@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,6 +20,7 @@ import {
   DELIVERY_LIMIT,
   deliveryKbps,
   renderedPercent,
+  upscaleImage,
   VISUALIZER_PACKAGE,
 } from "../src/stages/visualizer.js";
 
@@ -35,9 +37,14 @@ type Call = { cmd: string; args: string[]; props?: Record<string, unknown> };
 // ffmpeg, ffprobe and the Remotion render would.
 async function setup(
   params: VisualizerParams,
-  { renderCode = 0, cover = true } = {},
+  { renderCode = 0, cover = true, imageSize = "4000x4000" } = {},
 ) {
-  const root = await mkdtemp(join(tmpdir(), "visualizer-tests-"));
+  const scratch =
+    process.platform === "win32"
+      ? "E:/mellodifai/codex-streams/rerender/tmp"
+      : tmpdir();
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(join(scratch, "visualizer-tests-"));
   roots.push(root);
   const ws = {
     root,
@@ -60,7 +67,15 @@ async function setup(
     setImmediate(() => {
       void (async () => {
         if (cmd === "ffprobe") {
-          child.stdout.emit("data", "4.5\n");
+          child.stdout.emit(
+            "data",
+            args.includes("format=duration") ? "4.5\n" : `${imageSize}\n`,
+          );
+        } else if (cmd === "ffmpeg" && args.includes("showinfo")) {
+          child.stderr.emit(
+            "data",
+            `[Parsed_showinfo_0] n: 0 s:${imageSize}\n`,
+          );
         } else if (cmd === process.execPath) {
           call.props = JSON.parse(await readFile(args[1] as string, "utf8"));
           for (const n of [0, 30, 60, 90])
@@ -176,8 +191,7 @@ describe("visualizer stage", () => {
       analysis: "analysis.bin",
       background: { file: "background.jpg", kind: "image" },
       center: "cover.jpg",
-      trumpet: "trumpet.png",
-      gramophone: "gramophone.png",
+      logos: [],
     });
     // Casuale reads the stock picture of the seed from the uploads bucket.
     expect(storage.download.mock.calls).toEqual(
@@ -222,6 +236,7 @@ describe("visualizer stage", () => {
       dimming: 40,
     };
     params.centerImage = {
+      ...params.centerImage,
       mode: "upload",
       assetUrl: "/media/uploads/owner/0b4f9c1e-2222-4b7a-9c2e-123456789abc.png",
     };
@@ -231,7 +246,7 @@ describe("visualizer stage", () => {
     expect(props).toMatchObject({
       background: { file: "background.mp4", kind: "video", frames: 135 },
       center: "center.png",
-      trumpet: null,
+      logos: [],
     });
     expect(storage.download.mock.calls.map((c) => [c[0], c[2]])).toEqual(
       expect.arrayContaining([
@@ -242,6 +257,196 @@ describe("visualizer stage", () => {
     expect(storage.upload.mock.calls[0]?.[0]).toBe(
       "previews/owner/project/it/visualizer-9x16.mp4",
     );
+  });
+
+  it("upscales small background and centre images for a 4K frame without changing their aspect", async () => {
+    const params = defaultVisualizerParams();
+    params.quality = "4K";
+    const { ctx, calls } = await setup(params, { imageSize: "800x400" });
+    await stages.visualizer?.(ctx);
+    const props = calls.find((c) => c.cmd === process.execPath)?.props;
+    expect(props).toMatchObject({
+      background: { file: "background-upscaled.png", kind: "image" },
+      center: "cover-upscaled.png",
+    });
+    const scales = calls.filter(
+      (c) =>
+        c.cmd === "ffmpeg" && c.args.some((a) => a.includes("flags=lanczos")),
+    );
+    expect(scales.map((c) => c.args[c.args.indexOf("-vf") + 1])).toEqual([
+      "scale=4320:2160:flags=lanczos",
+      "scale=4320:2160:flags=lanczos",
+    ]);
+  });
+
+  it("preserves a real JPEG's displayed aspect after EXIF rotation", async () => {
+    const { ctx } = await setup(defaultVisualizerParams());
+    ctx.engine = new Engine({ log: async () => {} }).withWorkspace(ctx.ws.root);
+    const source = join(ctx.ws.root, "rotated.jpg");
+    await ctx.engine.run("ffmpeg", [
+      "-v",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=red:s=800x400",
+      "-frames:v",
+      "1",
+      source,
+    ]);
+    const jpeg = await readFile(source);
+    // APP1 EXIF: little-endian TIFF with orientation 6 (90 degrees clockwise).
+    const exif = Buffer.from(
+      "ffe1002245786966000049492a0008000000010012010300010000000600000000000000",
+      "hex",
+    );
+    await writeFile(
+      source,
+      Buffer.concat([jpeg.subarray(0, 2), exif, jpeg.subarray(2)]),
+    );
+    const result = await upscaleImage(ctx, source, {
+      width: 3840,
+      height: 2160,
+    });
+    const dimensions = execFileSync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=s=x:p=0",
+        result,
+      ],
+      { encoding: "utf8", windowsHide: true },
+    ).trim();
+    expect(dimensions).toBe("3840x7680");
+  }, 30_000);
+
+  it.each(["1000x10", "10x1000", "2100x1000"])(
+    "rejects oversized enlargement of %s before scaling or rendering",
+    async (imageSize) => {
+      const params = defaultVisualizerParams();
+      params.quality = "4K";
+      params.aspect = "9:16";
+      const { ctx, calls } = await setup(params, { imageSize });
+      await expect(stages.visualizer?.(ctx)).rejects.toThrow(
+        "Immagine troppo allungata",
+      );
+      expect(
+        calls.some((c) => c.args.some((a) => a.includes("flags=lanczos"))),
+      ).toBe(false);
+      expect(calls.some((c) => c.cmd === process.execPath)).toBe(false);
+    },
+  );
+
+  it("fetches the logos like the centre upload, leaving out a missing one", async () => {
+    const params = defaultVisualizerParams();
+    const mine = (n: number) =>
+      `/media/uploads/owner/0b4f9c1e-${n}${n}${n}${n}-4b7a-9c2e-123456789abc.png`;
+    params.logos = [
+      { assetUrl: mine(3), position: "top-left", size: 12, opacity: 100 },
+      { assetUrl: mine(4), position: "bottom-right", size: 20, opacity: 60 },
+    ];
+    const { ctx, calls, storage } = await setup(params);
+    storage.download.mockImplementation(async (path: string, file: string) => {
+      if (path.includes("4444")) throw new Error("Object not found");
+      await writeFile(file, "downloaded");
+    });
+    expect(await stages.visualizer?.(ctx)).toEqual({});
+    const props = calls.find((c) => c.cmd === process.execPath)?.props as {
+      logos: unknown;
+      params: VisualizerParams;
+    };
+    expect(props.logos).toEqual(["logo-1.png", null]);
+    expect(props.params.logos).toEqual(params.logos);
+    expect(storage.download.mock.calls.map((c) => [c[0], c[2]])).toEqual(
+      expect.arrayContaining([
+        ["owner/0b4f9c1e-3333-4b7a-9c2e-123456789abc.png", "uploads"],
+        ["owner/0b4f9c1e-4444-4b7a-9c2e-123456789abc.png", "uploads"],
+      ]),
+    );
+  });
+
+  it("never reads another user's file as a logo", async () => {
+    const params = defaultVisualizerParams();
+    params.logos = [
+      {
+        assetUrl:
+          "/media/uploads/stranger/0b4f9c1e-5555-4b7a-9c2e-123456789abc.png",
+        position: "top-left",
+        size: 12,
+        opacity: 100,
+      },
+    ];
+    const { ctx, calls, storage } = await setup(params);
+    await stages.visualizer?.(ctx);
+    expect(calls.find((c) => c.cmd === process.execPath)?.props).toMatchObject({
+      logos: [null],
+    });
+    expect(
+      storage.download.mock.calls.some((c) =>
+        String(c[0]).startsWith("stranger/"),
+      ),
+    ).toBe(false);
+  });
+
+  it("never reads another user's background or centre image", async () => {
+    const params = defaultVisualizerParams();
+    params.background = {
+      mode: "image",
+      seed: 0,
+      assetUrl: "/media/uploads/stranger/background.png",
+      dimming: 40,
+    };
+    params.centerImage = {
+      ...params.centerImage,
+      mode: "upload",
+      assetUrl: "/media/uploads/stranger/centre.png",
+    };
+    const { ctx, calls, storage } = await setup(params);
+    await stages.visualizer?.(ctx);
+    expect(
+      calls.find((call) => call.cmd === process.execPath)?.props,
+    ).toMatchObject({
+      background: { file: "cover.jpg", kind: "image" },
+      center: "cover.jpg",
+    });
+    expect(
+      storage.download.mock.calls.some((call) =>
+        String(call[0]).startsWith("stranger/"),
+      ),
+    ).toBe(false);
+  });
+
+  it("drops the old default artist and website of a render saved before the logos", async () => {
+    const { logos: _logos, ...old } = {
+      ...defaultVisualizerParams(),
+      preset: "classico" as const,
+      classico: {
+        artist: "AIMELODIA",
+        website: "STEFANDSL.COM",
+        album: "Lampioni",
+        gramophone: "red",
+        cards: true,
+      },
+    };
+    const { ctx, calls } = await setup(old as unknown as VisualizerParams);
+    await stages.visualizer?.(ctx);
+    const props = calls.find((c) => c.cmd === process.execPath)?.props as {
+      params: VisualizerParams;
+    };
+    expect(props.params.classico).toEqual({
+      artist: "",
+      website: "",
+      album: "Lampioni",
+      cards: true,
+    });
+    expect(props.params.logos).toEqual([]);
   });
 
   it("falls back to the cover for Immagine without an upload, and to no picture without a cover", async () => {
@@ -305,13 +510,15 @@ describe("visualizer files and cleanup", () => {
       version_id: "version",
       kind: "master",
       render_attempt: 1,
-      preview_path: "previews/owner/project/it/master-old.mp4",
+      preview_path: "previews/owner/project/it/version/1/master-preview.mp4",
     });
     const file = join(ctx.ws.root, "new.mp4");
     await writeFile(file, "x");
     await upload(ctx, file, "video/mp4");
     const removed = storage.remove.mock.calls.flatMap((c) => c[0]);
-    expect(removed).toContain("previews/owner/project/it/master-old.mp4");
+    expect(removed).toContain(
+      "previews/owner/project/it/version/1/master-preview.mp4",
+    );
     expect(removed).not.toContain(
       "previews/owner/project/it/visualizer-16x9.mp4",
     );

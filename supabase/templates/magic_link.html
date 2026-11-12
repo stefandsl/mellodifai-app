@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="it">
+  <body>
+    <h1>Accedi a MellodifAI</h1>
+    <p>Inserisci questo codice a 6 cifre nel browser da cui hai richiesto l'accesso:</p>
+    <p><strong>{{ .Token }}</strong></p>
+    <p>Oppure apri il link nello stesso browser:</p>
+    <p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">Accedi a MellodifAI</a></p>
+    <p>Se non hai richiesto l'accesso, ignora questa email.</p>
+  </body>
+</html>

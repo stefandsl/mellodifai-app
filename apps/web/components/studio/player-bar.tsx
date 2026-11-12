@@ -6,6 +6,7 @@ import {
   Info,
   ListMusic,
   Maximize2,
+  MicVocal,
   Pause,
   Play,
   Shuffle,
@@ -26,6 +27,8 @@ import { st } from "@/lib/studio/i18n";
 import { createPlayCounter } from "@/lib/studio/play-counter";
 import { registerPlayerAudio } from "@/lib/studio/visualizer/audio-tap";
 import { formatTime, usePlayer } from "@/store/player";
+import { CrossfadeCover } from "./crossfade-cover";
+import { KaraokeView } from "./karaoke-view";
 import { NowPlaying } from "./now-playing";
 import { DownloadButton, RepeatButton, SpeedMenu } from "./player-controls";
 import { ReactionButtons } from "./reaction-buttons";
@@ -248,9 +251,10 @@ export function PlayerBar() {
       <MiniVideo audio={audio} />
       <QueueDrawer />
       <NowPlaying />
+      <KaraokeView />
       <section
         aria-label="Player"
-        className="relative z-30 grid h-[var(--player-h)] shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-t border-[var(--hairline)] bg-[var(--bg)] px-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] sm:px-4"
+        className="studio-player relative z-30 grid h-[var(--player-h)] shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-t border-[var(--hairline)] bg-[var(--bg)] px-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] sm:px-4"
       >
         <audio
           ref={audio}
@@ -285,9 +289,10 @@ export function PlayerBar() {
               type="button"
               aria-label={st(lang, "player.expand")}
               onClick={() => p.set({ showNow: true })}
-              className="size-10 shrink-0 rounded-md bg-[var(--surface-2)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
-              style={{ background: track.art }}
-            />
+              className="relative size-10 shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+            >
+              <CrossfadeCover art={track.art} coverUrl={track.coverUrl} />
+            </button>
           ) : (
             <span
               aria-hidden
@@ -385,6 +390,15 @@ export function PlayerBar() {
         </div>
 
         <div className="flex items-center justify-end gap-1">
+          <IconButton
+            label={st(lang, "karaoke.title")}
+            active={p.showLyrics}
+            onClick={() => p.set({ showLyrics: true, showNow: false })}
+            className="bg-transparent"
+            disabled={!track}
+          >
+            <MicVocal />
+          </IconButton>
           <button
             type="button"
             aria-label={st(lang, p.playing ? "player.pause" : "player.play")}

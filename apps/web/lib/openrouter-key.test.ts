@@ -1,12 +1,9 @@
 // @vitest-environment node
-import { expect, it } from "vitest";
-import { openRouterKey } from "./openrouter-key";
+import { expect, it, vi } from "vitest";
+import { groqKey, openRouterKey } from "./openrouter-key";
 
-const files = (map: Record<string, string>) => async (file: string) => {
-  const text = map[file];
-  if (text === undefined) throw new Error("ENOENT");
-  return text;
-};
+const readFile = vi.hoisted(() => vi.fn());
+vi.mock("node:fs/promises", () => ({ readFile }));
 
 it("prefers the environment, and the lyric pipeline's key over the general one", async () => {
   expect(await openRouterKey({ OPENROUTER_API_KEY: "general" })).toBe(
@@ -20,25 +17,20 @@ it("prefers the environment, and the lyric pipeline's key over the general one",
   ).toBe("lyrics");
 });
 
-it("reads the worker's env files when the environment has none", async () => {
-  const read = files({
-    "a.env": "WORKER_ID=x\nexport OPENROUTER_API_KEY='general-key'\n",
-    "b.env": 'LYRICS_OPENROUTER_KEY="lyrics-key"\r\n',
-  });
-  expect(await openRouterKey({ WORKER_ENV_FILES: "a.env;b.env" }, read)).toBe(
-    "lyrics-key",
-  );
-  expect(await openRouterKey({ WORKER_ENV_FILES: "a.env" }, read)).toBe(
-    "general-key",
-  );
+it("openrouter-key never reads apps/worker/.env.local", async () => {
+  readFile.mockClear();
+  expect(
+    await openRouterKey({ WORKER_ENV_FILES: "apps/worker/.env.local" }),
+  ).toBeNull();
+  expect(readFile).not.toHaveBeenCalled();
+  expect(await openRouterKey({})).toBeNull();
 });
 
-it("skips a missing file and returns null when there is no key anywhere", async () => {
+it("uses only the web process environment for Groq", async () => {
+  readFile.mockClear();
   expect(
-    await openRouterKey(
-      { WORKER_ENV_FILES: "nope.env;a.env" },
-      files({ "a.env": "FOO=bar\nOPENROUTER_API_KEY=\n" }),
-    ),
+    await groqKey({ WORKER_ENV_FILES: "apps/worker/.env.local" }),
   ).toBeNull();
-  expect(await openRouterKey({})).toBeNull();
+  expect(readFile).not.toHaveBeenCalled();
+  expect(await groqKey({ GROQ_API_KEY: "web-key" })).toBe("web-key");
 });

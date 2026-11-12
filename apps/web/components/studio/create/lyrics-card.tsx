@@ -9,6 +9,7 @@ import { st } from "@/lib/studio/i18n";
 import { LIMITS, LYRICS_HEIGHT, useCreateForm } from "@/store/create-form";
 import { Counter, IconButton, PanelCard } from "../ui";
 import { ClearButton } from "./clear-field";
+import { LyricsAi } from "./lyrics-ai";
 
 const TAGS = [
   "Intro",
@@ -108,10 +109,14 @@ export function LyricsCard() {
   const height = useCreateForm((s) => s.lyricsHeight);
   const [full, setFull] = useState(false);
   const [tagAt, setTagAt] = useState<number | null>(null);
+  // Where the cursor is, for "Rigenera sezione"; the AI buttons lock the box while they write.
+  const [caret, setCaret] = useState<number | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
   const it = lang === "it";
 
   function caretCheck(target: HTMLTextAreaElement) {
     const at = target.selectionStart;
+    setCaret(at);
     const lineStart = target.value.lastIndexOf("\n", at - 1) + 1;
     const before = target.value.slice(lineStart, at);
     setTagAt(/^\s*\[[^\]]*$/u.test(before) ? lineStart : null);
@@ -201,6 +206,9 @@ export function LyricsCard() {
             aria-label={st(lang, "create.lyrics")}
             placeholder={st(lang, "create.lyricsPlaceholder")}
             spellCheck={false}
+            readOnly={aiBusy}
+            aria-busy={aiBusy}
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
             onChange={(event) => {
               set({ lyrics: event.target.value });
               caretCheck(event.target);
@@ -215,6 +223,7 @@ export function LyricsCard() {
             className={cn(
               "relative block w-full resize-none bg-transparent px-0.5 leading-6 break-words whitespace-pre-wrap text-transparent caret-[var(--fg)] outline-none scrollbar-thin placeholder:text-[var(--fg-subtle)] selection:bg-[color-mix(in_oklab,var(--brand),transparent_55%)]",
               full && "h-[calc(100dvh-15rem)]",
+              aiBusy && "cursor-progress",
             )}
             style={full ? undefined : { height }}
           />
@@ -240,11 +249,14 @@ export function LyricsCard() {
               ))}
             </div>
           ) : null}
-          <div className="mt-2 flex h-7 items-center justify-between gap-2">
+          <div className="mt-1 flex h-6 items-center justify-between gap-2">
             <span className="text-xs text-[var(--fg-subtle)]">
-              {lyrics.trim() ? "" : st(lang, "create.aiLyrics")}
+              {lyrics.trim() || aiBusy ? "" : st(lang, "create.aiLyrics")}
             </span>
             <Counter value={lyrics.length} max={LIMITS.lyrics} />
+          </div>
+          <div className="mt-1.5">
+            <LyricsAi caret={caret} onBusy={setAiBusy} />
           </div>
         </div>
       </PanelCard>

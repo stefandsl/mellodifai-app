@@ -152,7 +152,7 @@ export function VideosView({
     <div className="flex h-full flex-col">
       <header className="shrink-0 space-y-1 px-4 pt-4 pb-3 sm:px-6">
         <nav
-          aria-label="Breadcrumb"
+          aria-label={st(lang, "feed.breadcrumb")}
           className="flex items-center gap-1.5 text-[15px]"
         >
           <span className="text-[var(--fg-muted)]">

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   access,
   mkdir,
@@ -9,21 +10,24 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  KIE_CREDITS,
   LyricPackSchema,
   readControls,
   withMusicTags,
 } from "@mellodifai/shared";
+import { assertKieAllowed } from "../kie/guard.js";
 import type { StageContext, StageHandler } from "../loop.js";
+import { readKieDelivery } from "../providers/kie-client.js";
+import {
+  ensureReservation,
+  extendStageReservation,
+  kieLedger,
+} from "../providers/ledger.js";
+import { callKey, openPaidEntry } from "../providers/paid.js";
 import { generateLocal, songEngine } from "./local-engine.js";
 import { scoreTakes } from "./score-takes.js";
-import {
-  ENGINE_ROOT,
-  engine,
-  key,
-  language,
-  upload,
-  writePack,
-} from "./utils.js";
+import { songSource, submitSourceTask } from "./source-audio.js";
+import { ENGINE_ROOT, key, language, upload, writePack } from "./utils.js";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -47,6 +51,20 @@ export async function sunoCoverUrls(outDir: string): Promise<string[]> {
   }
 }
 
+// Suno's track ids per take, as kie.mjs wait saved them in takes.json (the replace-section input).
+export async function kieTrackIds(outDir: string): Promise<(string | null)[]> {
+  try {
+    const tracks = JSON.parse(
+      await readFile(join(outDir, "takes.json"), "utf8"),
+    ) as { id?: unknown }[];
+    return tracks.map((track) =>
+      typeof track.id === "string" ? track.id : null,
+    );
+  } catch {
+    return [];
+  }
+}
+
 // Downloads one cover and uploads it next to the previews. A cover is a nicety: any failure
 // is logged and the take keeps no cover, never failing the song.
 async function saveCover(
@@ -55,12 +73,13 @@ async function saveCover(
   generation: number,
   take: number,
 ): Promise<string | null> {
-  if (!url?.startsWith("https://")) return null;
+  if (!url) return null;
   try {
-    const response = await fetch(url, { signal: context.signal });
-    if (!response.ok) throw new Error(`cover download ${response.status}`);
     const file = join(context.ws.outDir, `cover-${generation}-${take}.jpg`);
-    await writeFile(file, Buffer.from(await response.arrayBuffer()));
+    await writeFile(
+      file,
+      await readKieDelivery(url, fetch, context.signal, 10 * 1024 * 1024),
+    );
     return await upload(context, file, "image/jpeg");
   } catch (error) {
     await context.log(
@@ -91,6 +110,8 @@ export async function refreshBalance(
     );
     await balanceEngine.run("node", ["tools/kie.mjs", "credit"], {
       cwd: ENGINE_ROOT,
+      secretEnv: ["KIE_API_KEY"],
+      freeCall: "kie:credit",
     });
     // kie.mjs prints one JSON line: {"credits":N,"usd":..,"generate_calls_affordable":..}.
     const value = output
@@ -125,6 +146,8 @@ export const generateSong: StageHandler = async (context) => {
   // Local engines branch off before any kie state is read or written (design 5.1).
   const songEngineId = songEngine(context.project.song_settings);
   if (songEngineId !== "kie") return generateLocal(context, songEngineId);
+  // Paid from here on: never for a test account or a test song.
+  await assertKieAllowed(context);
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   // The chosen tempo, key and time signature reach kie as style tags; the stored pack keeps the
   // style as drafted.
@@ -151,8 +174,12 @@ export const generateSong: StageHandler = async (context) => {
         file === "takes.json" ||
         /^(take-|aligned-take|submitting-)/u.test(file)
       ) {
-        if (!(await exists(join(archive, file))))
-          await rename(join(context.ws.outDir, file), join(archive, file));
+        if (await exists(join(archive, file)))
+          await rename(
+            join(context.ws.outDir, file),
+            join(archive, `${file}.${randomUUID()}`),
+          );
+        else await rename(join(context.ws.outDir, file), join(archive, file));
       }
     await context.db.patchVersion(context.version.id, {
       kie_task_id: null,
@@ -168,6 +195,11 @@ export const generateSong: StageHandler = async (context) => {
     });
   }
   let taskId = context.version.kie_task_id ?? null;
+  let submittedEntry: {
+    ledger: ReturnType<typeof kieLedger>;
+    entry: string;
+    estimate: { credit: number };
+  } | null = null;
   if (context.version.kie_task_state === "failed")
     throw new Error("kie task failed; create a new generation to try again");
   if (taskId) {
@@ -190,7 +222,30 @@ export const generateSong: StageHandler = async (context) => {
   )
     throw new Error("kie submission state unknown, check the kie dashboard");
   if (!taskId && !(await exists(taskFile))) {
-    await engine(context, "node", ["tools/kie.mjs", "job", lang]);
+    const ledger = kieLedger(context);
+    await ensureReservation(ledger, context.job);
+    if ((context.job.attempts ?? 1) > 1) {
+      await extendStageReservation(ledger, context.job);
+      context.retryExtended = true;
+    }
+    await context.engine.run("node", ["tools/kie.mjs", "job", lang], {
+      cwd: ENGINE_ROOT,
+      secretEnv: ["KIE_API_KEY"],
+      freeCall: "kie:job",
+    });
+    const source = songSource(context.project.song_settings);
+    const operation =
+      source?.mode === "extend" ? "extend" : source ? "cover" : "generate";
+    const estimate = { credit: KIE_CREDITS[operation] };
+    const entry = await openPaidEntry(
+      ledger,
+      callKey("kie", {
+        op: operation,
+        attempt: context.job.attempts ?? 1,
+      }),
+      estimate,
+    );
+    submittedEntry = { ledger, entry, estimate };
     await context.db.patchVersion(context.version.id, {
       kie_submit_state: "submitting",
       kie_generation: generation,
@@ -202,27 +257,55 @@ export const generateSong: StageHandler = async (context) => {
       { flag: "wx" },
     );
     let stderr = "";
-    const submit = await context.engine.run(
-      "node",
-      ["tools/kie.mjs", "generate", lang],
-      {
-        cwd: ENGINE_ROOT,
-        allowNonZero: true,
-        onStderr: (line) => {
-          stderr += `${line}\n`;
-        },
-      },
-    );
+    // A cover, reference or extension starts from audio: kie's upload endpoints instead of
+    // `kie.mjs generate`, the same task.json and the same two outcomes on a failure.
+    const submit = source
+      ? await submitSourceTask(context, source, {
+          ...pack,
+          style: withMusicTags(
+            pack.style,
+            readControls(context.project.song_settings),
+          ),
+        }).then(
+          () => ({ code: 0 }),
+          (error: unknown) => {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            stderr = message;
+            return { code: /not charged/u.test(message) ? 4 : 1 };
+          },
+        )
+      : await context.engine.run("node", ["tools/kie.mjs", "generate", lang], {
+          cwd: ENGINE_ROOT,
+          secretEnv: ["KIE_API_KEY"],
+          entryIds: [entry],
+          allowNonZero: true,
+          onStderr: (line) => {
+            stderr += `${line}\n`;
+          },
+        });
     if (submit.code !== 0) {
+      const response =
+        /HTTP (\d{3}) \/api\/v1\/jobs\/createTask: ([^\r\n]*)/u.exec(stderr);
+      let apiCode = Number.NaN;
+      try {
+        apiCode = JSON.parse(response?.[2] ?? "null")?.code ?? Number.NaN;
+      } catch {
+        // A truncated response cannot prove that the submission was refused.
+      }
+      const httpCode = Number(response?.[1]);
       const refused =
         submit.code === 4 ||
-        /HTTP [^\r\n]*\/api\/v1\/(?:chat\/credit|jobs\/createTask)(?=[:\s])/u.test(
-          stderr,
-        );
+        /HTTP \d{3} \/api\/v1\/chat\/credit(?=[:\s])/u.test(stderr) ||
+        ((httpCode === 200 || (httpCode >= 400 && httpCode < 500)) &&
+          Number.isInteger(apiCode) &&
+          apiCode >= 400 &&
+          apiCode < 500);
       if (!refused)
         throw new Error(
           "kie submission state unknown, check the kie dashboard",
         );
+      await ledger.settle(entry, { credit: 0 });
       await context.db.patchVersion(context.version.id, {
         kie_submit_state: null,
       });
@@ -250,12 +333,20 @@ export const generateSong: StageHandler = async (context) => {
     kie_submit_state: "submitted",
     kie_generation: generation,
   });
+  // The submit is charged only after the durable task id has been written.
+  if (submittedEntry)
+    await submittedEntry.ledger.settle(
+      submittedEntry.entry,
+      submittedEntry.estimate,
+    );
   let waitError = "";
   const waited = await context.engine.run(
     "node",
     ["tools/kie.mjs", "wait", lang],
     {
       cwd: ENGINE_ROOT,
+      secretEnv: ["KIE_API_KEY"],
+      freeCall: "kie:wait",
       allowNonZero: true,
       onStderr: (line) => {
         waitError += `${line}\n`;
@@ -275,13 +366,21 @@ export const generateSong: StageHandler = async (context) => {
   }
   if (waited.code !== 0)
     throw new Error("kie task still pending: Retry checks again for free");
+  // Word timestamps of a song made from audio are a nicety: kie may not align them.
+  const fromAudio = songSource(context.project.song_settings) !== null;
   for (const take of [1, 2])
     await context.engine.run(
       "node",
       ["tools/kie.mjs", "lyrics-ts", lang, String(take)],
-      { cwd: ENGINE_ROOT },
+      {
+        cwd: ENGINE_ROOT,
+        secretEnv: ["KIE_API_KEY"],
+        freeCall: "kie:lyrics-ts",
+        ...(fromAudio ? { allowNonZero: true } : {}),
+      },
     );
   const covers = await sunoCoverUrls(context.ws.outDir);
+  const audioIds = await kieTrackIds(context.ws.outDir);
   const takes = [];
   for (const take of [1, 2]) {
     const source = join(context.ws.outDir, `take-${take}.mp3`);
@@ -300,6 +399,7 @@ export const generateSong: StageHandler = async (context) => {
         generation,
         take_number: take,
         kie_task_id: taskId,
+        ...(audioIds[take - 1] ? { kie_audio_id: audioIds[take - 1] } : {}),
         audio_preview_path: await upload(context, preview, "audio/mpeg"),
         engine: "kie",
         cover_path: await saveCover(

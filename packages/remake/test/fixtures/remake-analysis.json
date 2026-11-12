@@ -1,0 +1,2995 @@
+{
+  "_source": "Alone, The Sixsters, https://www.youtube.com/watch?v=49rDdMbXd_w, Creative Commons Attribution (YouTube); analysis by the task 24 engine",
+  "schemaVersion": 1,
+  "videoId": "49rDdMbXd_w",
+  "url": "https://www.youtube.com/watch?v=49rDdMbXd_w",
+  "title": "The Sixsters - Alone (Official Music Video)",
+  "protectedNames": ["The Sixsters", "The Sixsters - Alone", "Alone"],
+  "sourceLanguage": "en",
+  "music": {
+    "durationS": 157,
+    "bpm": 78.95,
+    "beatTracker": "beat_this final0",
+    "key": {
+      "tonic": "D",
+      "mode": "minor",
+      "confidence": 0.75
+    },
+    "timeSignature": {
+      "beatsPerBar": 4,
+      "confidence": 0.925
+    },
+    "beats": [
+      0.22, 0.98, 1.72, 2.46, 3.22, 3.98, 4.72, 5.48, 6.24, 6.98, 7.74, 8.48,
+      9.24, 9.98, 10.74, 11.48, 12.24, 12.98, 13.74, 14.48, 15.22, 15.98, 16.72,
+      17.48, 18.24, 18.98, 19.72, 20.48, 21.22, 21.98, 22.72, 23.48, 24.22,
+      24.98, 25.72, 26.48, 27.22, 27.98, 28.72, 29.48, 30.22, 30.98, 31.72,
+      32.48, 33.22, 33.98, 34.74, 35.48, 36.22, 36.98, 37.72, 38.48, 39.22,
+      39.98, 40.74, 41.48, 42.22, 42.98, 43.72, 44.48, 45.22, 45.98, 46.74,
+      47.48, 48.22, 48.96, 49.72, 50.46, 51.22, 51.98, 52.74, 53.48, 54.22,
+      54.98, 55.72, 56.48, 57.22, 57.96, 58.72, 59.48, 60.22, 60.96, 61.72,
+      62.46, 63.22, 63.98, 64.74, 65.48, 66.24, 67, 68.46, 69.22, 69.94, 70.7,
+      71.46, 72.22, 72.98, 73.72, 74.48, 75.22, 75.98, 76.74, 77.48, 78.22,
+      78.98, 79.72, 80.48, 81.22, 81.98, 82.74, 83.48, 84.22, 84.98, 85.74,
+      86.48, 87.22, 87.98, 88.72, 89.46, 90.22, 90.98, 91.74, 92.48, 93.22,
+      93.98, 94.74, 95.48, 96.22, 96.98, 97.74, 98.48, 99.22, 99.98, 100.74,
+      101.48, 102.22, 102.96, 103.72, 104.46, 105.22, 105.98, 106.74, 107.48,
+      108.22, 108.98, 109.72, 110.48, 111.2, 111.96, 112.72, 113.46, 114.2,
+      114.96, 115.74, 116.48, 117.24, 117.98, 118.72, 119.48, 120.24, 120.96,
+      121.72, 122.48, 123.2, 123.94, 124.72, 125.46, 126.18, 126.92, 127.7,
+      128.44, 129.16, 129.94, 130.72, 131.48, 132.24, 132.96, 133.74, 134.48,
+      135.22, 135.98, 136.72, 137.46, 138.22, 138.96, 139.74, 140.48, 141.24,
+      141.98, 142.74, 143.48, 144.22, 144.96, 145.72, 146.48, 147.22, 147.98,
+      148.72, 149.46, 150.22, 150.96, 151.72, 152.48, 153.22, 153.98, 154.74,
+      155.28, 155.48, 156.22
+    ],
+    "downbeats": [
+      0.22, 1.72, 3.22, 6.24, 9.24, 12.24, 15.22, 18.24, 21.22, 24.22, 27.22,
+      30.22, 33.22, 36.22, 39.22, 42.22, 45.22, 48.22, 51.22, 54.22, 57.22,
+      60.22, 63.22, 66.24, 69.22, 72.22, 75.22, 78.22, 81.22, 84.22, 87.22,
+      90.22, 93.22, 96.22, 99.22, 102.22, 105.22, 108.22, 111.2, 114.2, 117.24,
+      120.24, 123.2, 126.18, 129.16, 132.24, 135.22, 138.22, 141.24, 144.22,
+      147.22, 150.22, 153.22, 156.22
+    ],
+    "sections": [
+      {
+        "id": "intro-1",
+        "kind": "intro",
+        "label": "Intro",
+        "start": 0,
+        "end": 18.24,
+        "audioLabel": "A",
+        "energy": 0.38
+      },
+      {
+        "id": "verse-1",
+        "kind": "verse",
+        "label": "Verse 1",
+        "start": 18.24,
+        "end": 42.22,
+        "audioLabel": "B",
+        "energy": 0.63
+      },
+      {
+        "id": "chorus-1",
+        "kind": "chorus",
+        "label": "Chorus 1",
+        "start": 42.22,
+        "end": 66.24,
+        "audioLabel": "C",
+        "energy": 0.715
+      },
+      {
+        "id": "verse-2",
+        "kind": "verse",
+        "label": "Verse 2",
+        "start": 66.24,
+        "end": 96.22,
+        "audioLabel": "D",
+        "energy": 0.553
+      },
+      {
+        "id": "chorus-2",
+        "kind": "chorus",
+        "label": "Chorus 2",
+        "start": 96.22,
+        "end": 120.24,
+        "audioLabel": "C",
+        "energy": 0.748
+      },
+      {
+        "id": "bridge-1",
+        "kind": "bridge",
+        "label": "Bridge",
+        "start": 120.24,
+        "end": 131.44,
+        "audioLabel": "E",
+        "energy": 0.327
+      },
+      {
+        "id": "chorus-3",
+        "kind": "chorus",
+        "label": "Chorus 3",
+        "start": 131.44,
+        "end": 150.22,
+        "audioLabel": "E",
+        "energy": 0.774
+      },
+      {
+        "id": "outro-1",
+        "kind": "outro",
+        "label": "Outro",
+        "start": 150.22,
+        "end": 157,
+        "audioLabel": "F",
+        "energy": 0.535
+      }
+    ],
+    "vocal": {
+      "type": "female",
+      "delivery": "sung",
+      "medianF0Hz": 351.1,
+      "voicedShare": 0.849,
+      "pitchStability": 0.821,
+      "notes": "measured on the Demucs vocal stem"
+    },
+    "instrumentation": {
+      "stemShares": {
+        "vocals": 0.215,
+        "drums": 0.274,
+        "bass": 0.404,
+        "other": 0.106
+      },
+      "inferred": [
+        "drums",
+        "prominent bass",
+        "electric guitar",
+        "bass guitar",
+        "synthesizer",
+        "lead vocals",
+        "backing vocals",
+        "keyboards",
+        "rhythm guitar"
+      ]
+    },
+    "energy": [
+      {
+        "t": 0,
+        "v": 0
+      },
+      {
+        "t": 1,
+        "v": 0
+      },
+      {
+        "t": 2,
+        "v": 0
+      },
+      {
+        "t": 3,
+        "v": 0
+      },
+      {
+        "t": 4,
+        "v": 0
+      },
+      {
+        "t": 5,
+        "v": 0.323
+      },
+      {
+        "t": 6,
+        "v": 0.592
+      },
+      {
+        "t": 7,
+        "v": 0.645
+      },
+      {
+        "t": 8,
+        "v": 0.642
+      },
+      {
+        "t": 9,
+        "v": 0.691
+      },
+      {
+        "t": 10,
+        "v": 0.695
+      },
+      {
+        "t": 11,
+        "v": 0.685
+      },
+      {
+        "t": 12,
+        "v": 0.544
+      },
+      {
+        "t": 13,
+        "v": 0.485
+      },
+      {
+        "t": 14,
+        "v": 0.505
+      },
+      {
+        "t": 15,
+        "v": 0.545
+      },
+      {
+        "t": 16,
+        "v": 0.198
+      },
+      {
+        "t": 17,
+        "v": 0.037
+      },
+      {
+        "t": 18,
+        "v": 0.633
+      },
+      {
+        "t": 19,
+        "v": 0.69
+      },
+      {
+        "t": 20,
+        "v": 0.673
+      },
+      {
+        "t": 21,
+        "v": 0.576
+      },
+      {
+        "t": 22,
+        "v": 0.584
+      },
+      {
+        "t": 23,
+        "v": 0.609
+      },
+      {
+        "t": 24,
+        "v": 0.655
+      },
+      {
+        "t": 25,
+        "v": 0.704
+      },
+      {
+        "t": 26,
+        "v": 0.656
+      },
+      {
+        "t": 27,
+        "v": 0.612
+      },
+      {
+        "t": 28,
+        "v": 0.634
+      },
+      {
+        "t": 29,
+        "v": 0.466
+      },
+      {
+        "t": 30,
+        "v": 0.621
+      },
+      {
+        "t": 31,
+        "v": 0.651
+      },
+      {
+        "t": 32,
+        "v": 0.666
+      },
+      {
+        "t": 33,
+        "v": 0.624
+      },
+      {
+        "t": 34,
+        "v": 0.628
+      },
+      {
+        "t": 35,
+        "v": 0.607
+      },
+      {
+        "t": 36,
+        "v": 0.655
+      },
+      {
+        "t": 37,
+        "v": 0.628
+      },
+      {
+        "t": 38,
+        "v": 0.687
+      },
+      {
+        "t": 39,
+        "v": 0.625
+      },
+      {
+        "t": 40,
+        "v": 0.649
+      },
+      {
+        "t": 41,
+        "v": 0.486
+      },
+      {
+        "t": 42,
+        "v": 0.725
+      },
+      {
+        "t": 43,
+        "v": 0.764
+      },
+      {
+        "t": 44,
+        "v": 0.727
+      },
+      {
+        "t": 45,
+        "v": 0.807
+      },
+      {
+        "t": 46,
+        "v": 0.811
+      },
+      {
+        "t": 47,
+        "v": 0.771
+      },
+      {
+        "t": 48,
+        "v": 0.691
+      },
+      {
+        "t": 49,
+        "v": 0.684
+      },
+      {
+        "t": 50,
+        "v": 0.637
+      },
+      {
+        "t": 51,
+        "v": 0.672
+      },
+      {
+        "t": 52,
+        "v": 0.698
+      },
+      {
+        "t": 53,
+        "v": 0.667
+      },
+      {
+        "t": 54,
+        "v": 0.752
+      },
+      {
+        "t": 55,
+        "v": 0.76
+      },
+      {
+        "t": 56,
+        "v": 0.719
+      },
+      {
+        "t": 57,
+        "v": 0.849
+      },
+      {
+        "t": 58,
+        "v": 0.815
+      },
+      {
+        "t": 59,
+        "v": 0.801
+      },
+      {
+        "t": 60,
+        "v": 0.702
+      },
+      {
+        "t": 61,
+        "v": 0.697
+      },
+      {
+        "t": 62,
+        "v": 0.651
+      },
+      {
+        "t": 63,
+        "v": 0.636
+      },
+      {
+        "t": 64,
+        "v": 0.662
+      },
+      {
+        "t": 65,
+        "v": 0.689
+      },
+      {
+        "t": 66,
+        "v": 0.491
+      },
+      {
+        "t": 67,
+        "v": 0.251
+      },
+      {
+        "t": 68,
+        "v": 0.217
+      },
+      {
+        "t": 69,
+        "v": 0.223
+      },
+      {
+        "t": 70,
+        "v": 0.186
+      },
+      {
+        "t": 71,
+        "v": 0.018
+      },
+      {
+        "t": 72,
+        "v": 0.571
+      },
+      {
+        "t": 73,
+        "v": 0.604
+      },
+      {
+        "t": 74,
+        "v": 0.647
+      },
+      {
+        "t": 75,
+        "v": 0.596
+      },
+      {
+        "t": 76,
+        "v": 0.657
+      },
+      {
+        "t": 77,
+        "v": 0.632
+      },
+      {
+        "t": 78,
+        "v": 0.574
+      },
+      {
+        "t": 79,
+        "v": 0.637
+      },
+      {
+        "t": 80,
+        "v": 0.646
+      },
+      {
+        "t": 81,
+        "v": 0.663
+      },
+      {
+        "t": 82,
+        "v": 0.653
+      },
+      {
+        "t": 83,
+        "v": 0.501
+      },
+      {
+        "t": 84,
+        "v": 0.581
+      },
+      {
+        "t": 85,
+        "v": 0.601
+      },
+      {
+        "t": 86,
+        "v": 0.607
+      },
+      {
+        "t": 87,
+        "v": 0.641
+      },
+      {
+        "t": 88,
+        "v": 0.591
+      },
+      {
+        "t": 89,
+        "v": 0.637
+      },
+      {
+        "t": 90,
+        "v": 0.634
+      },
+      {
+        "t": 91,
+        "v": 0.652
+      },
+      {
+        "t": 92,
+        "v": 0.677
+      },
+      {
+        "t": 93,
+        "v": 0.637
+      },
+      {
+        "t": 94,
+        "v": 0.691
+      },
+      {
+        "t": 95,
+        "v": 0.573
+      },
+      {
+        "t": 96,
+        "v": 0.793
+      },
+      {
+        "t": 97,
+        "v": 0.832
+      },
+      {
+        "t": 98,
+        "v": 0.758
+      },
+      {
+        "t": 99,
+        "v": 0.851
+      },
+      {
+        "t": 100,
+        "v": 0.862
+      },
+      {
+        "t": 101,
+        "v": 0.784
+      },
+      {
+        "t": 102,
+        "v": 0.735
+      },
+      {
+        "t": 103,
+        "v": 0.73
+      },
+      {
+        "t": 104,
+        "v": 0.704
+      },
+      {
+        "t": 105,
+        "v": 0.674
+      },
+      {
+        "t": 106,
+        "v": 0.703
+      },
+      {
+        "t": 107,
+        "v": 0.649
+      },
+      {
+        "t": 108,
+        "v": 0.783
+      },
+      {
+        "t": 109,
+        "v": 0.754
+      },
+      {
+        "t": 110,
+        "v": 0.763
+      },
+      {
+        "t": 111,
+        "v": 0.893
+      },
+      {
+        "t": 112,
+        "v": 0.758
+      },
+      {
+        "t": 113,
+        "v": 0.791
+      },
+      {
+        "t": 114,
+        "v": 0.711
+      },
+      {
+        "t": 115,
+        "v": 0.721
+      },
+      {
+        "t": 116,
+        "v": 0.688
+      },
+      {
+        "t": 117,
+        "v": 0.673
+      },
+      {
+        "t": 118,
+        "v": 0.739
+      },
+      {
+        "t": 119,
+        "v": 0.7
+      },
+      {
+        "t": 120,
+        "v": 0.7
+      },
+      {
+        "t": 121,
+        "v": 0.544
+      },
+      {
+        "t": 122,
+        "v": 0.298
+      },
+      {
+        "t": 123,
+        "v": 0.241
+      },
+      {
+        "t": 124,
+        "v": 0.134
+      },
+      {
+        "t": 125,
+        "v": 0
+      },
+      {
+        "t": 126,
+        "v": 0.355
+      },
+      {
+        "t": 127,
+        "v": 0.364
+      },
+      {
+        "t": 128,
+        "v": 0.211
+      },
+      {
+        "t": 129,
+        "v": 0.396
+      },
+      {
+        "t": 130,
+        "v": 0.386
+      },
+      {
+        "t": 131,
+        "v": 0.663
+      },
+      {
+        "t": 132,
+        "v": 0.834
+      },
+      {
+        "t": 133,
+        "v": 0.862
+      },
+      {
+        "t": 134,
+        "v": 0.798
+      },
+      {
+        "t": 135,
+        "v": 0.831
+      },
+      {
+        "t": 136,
+        "v": 0.872
+      },
+      {
+        "t": 137,
+        "v": 0.819
+      },
+      {
+        "t": 138,
+        "v": 0.725
+      },
+      {
+        "t": 139,
+        "v": 0.735
+      },
+      {
+        "t": 140,
+        "v": 0.696
+      },
+      {
+        "t": 141,
+        "v": 0.712
+      },
+      {
+        "t": 142,
+        "v": 0.69
+      },
+      {
+        "t": 143,
+        "v": 0.677
+      },
+      {
+        "t": 144,
+        "v": 0.807
+      },
+      {
+        "t": 145,
+        "v": 0.795
+      },
+      {
+        "t": 146,
+        "v": 0.798
+      },
+      {
+        "t": 147,
+        "v": 0.849
+      },
+      {
+        "t": 148,
+        "v": 0.797
+      },
+      {
+        "t": 149,
+        "v": 0.802
+      },
+      {
+        "t": 150,
+        "v": 0.605
+      },
+      {
+        "t": 151,
+        "v": 0.676
+      },
+      {
+        "t": 152,
+        "v": 0.593
+      },
+      {
+        "t": 153,
+        "v": 0.647
+      },
+      {
+        "t": 154,
+        "v": 0.691
+      },
+      {
+        "t": 155,
+        "v": 0.602
+      },
+      {
+        "t": 156,
+        "v": 0
+      },
+      {
+        "t": 157,
+        "v": 0
+      }
+    ]
+  },
+  "lines": [
+    {
+      "index": 0,
+      "sectionId": "verse-1",
+      "start": 18.04,
+      "end": 23.64,
+      "text": "Leave us and take away the forces",
+      "syllables": {
+        "min": 8,
+        "max": 8
+      },
+      "ending": "stressed",
+      "beats": 8
+    },
+    {
+      "index": 1,
+      "sectionId": "verse-1",
+      "start": 24.04,
+      "end": 29.92,
+      "text": "We're wrong in every trial",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 8
+    },
+    {
+      "index": 2,
+      "sectionId": "verse-1",
+      "start": 30.04,
+      "end": 32.92,
+      "text": "DON'T SHUT.",
+      "syllables": {
+        "min": 2,
+        "max": 2
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 3,
+      "sectionId": "verse-1",
+      "start": 33.04,
+      "end": 35.04,
+      "text": "Don't shut our voices.",
+      "syllables": {
+        "min": 4,
+        "max": 4
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 4,
+      "sectionId": "verse-1",
+      "start": 36.04,
+      "end": 41.04,
+      "text": "Don't fake another smile",
+      "syllables": {
+        "min": 6,
+        "max": 6
+      },
+      "ending": "stressed",
+      "beats": 7
+    },
+    {
+      "index": 5,
+      "sectionId": "chorus-1",
+      "start": 42.04,
+      "end": 45.04,
+      "text": "Alone, alone, alone - in the crowd",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 6,
+      "sectionId": "chorus-1",
+      "start": 45.24,
+      "end": 47.04,
+      "text": "Alone, alone, alone - calling loud",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 2
+    },
+    {
+      "index": 7,
+      "sectionId": "chorus-1",
+      "start": 47.92,
+      "end": 50.44,
+      "text": "Alone, alone, alone - hear me now",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 8,
+      "sectionId": "chorus-1",
+      "start": 50.84,
+      "end": 53.84,
+      "text": "no one hears me in the crowd.",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 9,
+      "sectionId": "chorus-1",
+      "start": 54.04,
+      "end": 57.04,
+      "text": "Alone, alone, alone - in the crowd",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 10,
+      "sectionId": "chorus-1",
+      "start": 57.44,
+      "end": 60.04,
+      "text": "Alone, alone, alone - calling loud",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 11,
+      "sectionId": "chorus-1",
+      "start": 60.24,
+      "end": 63.04,
+      "text": "Alone, alone, alone - hear me now",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 12,
+      "sectionId": "chorus-1",
+      "start": 63.24,
+      "end": 66.04,
+      "text": "no one hears me in the crowd.",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 13,
+      "sectionId": "verse-2",
+      "start": 67.24,
+      "end": 70.52,
+      "text": "u",
+      "syllables": {
+        "min": 1,
+        "max": 1
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 14,
+      "sectionId": "verse-2",
+      "start": 72.04,
+      "end": 78.04,
+      "text": "Touch the future on my screen,",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 8
+    },
+    {
+      "index": 15,
+      "sectionId": "verse-2",
+      "start": 78.92,
+      "end": 84.04,
+      "text": "Feels so close but it’s a dream....",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 7
+    },
+    {
+      "index": 16,
+      "sectionId": "verse-2",
+      "start": 84.04,
+      "end": 90.04,
+      "text": "Empty echoes all around,",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "unknown",
+      "beats": 8
+    },
+    {
+      "index": 17,
+      "sectionId": "verse-2",
+      "start": 90.24,
+      "end": 95.32,
+      "text": "NO ONE hears me sound....",
+      "syllables": {
+        "min": 5,
+        "max": 5
+      },
+      "ending": "stressed",
+      "beats": 6
+    },
+    {
+      "index": 18,
+      "sectionId": "chorus-2",
+      "start": 96.04,
+      "end": 99.04,
+      "text": "Alone, alone, alone - in the crowd",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 19,
+      "sectionId": "chorus-2",
+      "start": 99.24,
+      "end": 102.04,
+      "text": "Alone, alone, alone - calling loud",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 20,
+      "sectionId": "chorus-2",
+      "start": 102.24,
+      "end": 105.04,
+      "text": "Alone, alone, alone - hear me now",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 21,
+      "sectionId": "chorus-2",
+      "start": 105.24,
+      "end": 108.04,
+      "text": "no one hears me in the crowd",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 22,
+      "sectionId": "chorus-2",
+      "start": 108.24,
+      "end": 111.04,
+      "text": "Alone, alone, alone - in the crowd",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 23,
+      "sectionId": "chorus-2",
+      "start": 111.24,
+      "end": 114.04,
+      "text": "Alone, alone, alone - calling loud",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 24,
+      "sectionId": "chorus-2",
+      "start": 114.24,
+      "end": 117.04,
+      "text": "Alone, alone, alone - hear me now",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 25,
+      "sectionId": "chorus-2",
+      "start": 117.24,
+      "end": 120.04,
+      "text": "no one hears me in the crowd",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 26,
+      "sectionId": "bridge-1",
+      "start": 120.04,
+      "end": 123.04,
+      "text": "The edge is near, the night is deep,",
+      "syllables": {
+        "min": 8,
+        "max": 8
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 27,
+      "sectionId": "bridge-1",
+      "start": 123.24,
+      "end": 126.04,
+      "text": "Yet through the chaos, our souls will keep.",
+      "syllables": {
+        "min": 8,
+        "max": 8
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 28,
+      "sectionId": "bridge-1",
+      "start": 126.24,
+      "end": 129.04,
+      "text": "The silence roars, the void surrounds,",
+      "syllables": {
+        "min": 8,
+        "max": 8
+      },
+      "ending": "unknown",
+      "beats": 3
+    },
+    {
+      "index": 29,
+      "sectionId": "bridge-1",
+      "start": 129.24,
+      "end": 131.04,
+      "text": "But in our hearts, the light resounds.",
+      "syllables": {
+        "min": 8,
+        "max": 8
+      },
+      "ending": "unknown",
+      "beats": 2
+    },
+    {
+      "index": 30,
+      "sectionId": "chorus-3",
+      "start": 131.44,
+      "end": 135.04,
+      "text": "Alone, alone, alone - in the crowd",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 5
+    },
+    {
+      "index": 31,
+      "sectionId": "chorus-3",
+      "start": 135.24,
+      "end": 138.04,
+      "text": "Alone, alone, alone - calling loud",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 32,
+      "sectionId": "chorus-3",
+      "start": 138.24,
+      "end": 141.04,
+      "text": "Alone, alone, alone - hear me now",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 33,
+      "sectionId": "chorus-3",
+      "start": 141.24,
+      "end": 144.04,
+      "text": "no one hears me in the crowd",
+      "syllables": {
+        "min": 7,
+        "max": 7
+      },
+      "ending": "stressed",
+      "beats": 4
+    },
+    {
+      "index": 34,
+      "sectionId": "chorus-3",
+      "start": 144.24,
+      "end": 147.04,
+      "text": "Alone, alone, alone - in the crowd",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    },
+    {
+      "index": 35,
+      "sectionId": "chorus-3",
+      "start": 147.24,
+      "end": 150.04,
+      "text": "Alone, alone, alone - calling loud",
+      "syllables": {
+        "min": 9,
+        "max": 9
+      },
+      "ending": "stressed",
+      "beats": 3
+    }
+  ],
+  "meaning": [
+    {
+      "sectionId": "verse-1",
+      "theme": "Resistance against being muzzled",
+      "storyBeat": "The speaker confronts forces that want to silence them and rejects the pressure to pretend everything is fine.",
+      "imagery": [
+        "looming pressure",
+        "a forced grin",
+        "a voice held down",
+        "broken resolve"
+      ],
+      "emotionalArc": "Tension builds from quiet frustration into a sharp, defiant refusal.",
+      "hookIdea": "A spoken, clipped command that breaks the verse open before the chorus lands."
+    },
+    {
+      "sectionId": "chorus-1",
+      "theme": "Isolation within a crowd",
+      "storyBeat": "Surrounded by people, the speaker feels unheard and keeps calling out for recognition.",
+      "imagery": [
+        "a packed crowd",
+        "a voice echoing unanswered",
+        "a call into the noise",
+        "a single figure in a sea of faces"
+      ],
+      "emotionalArc": "Desperation rises through repetition, peaking in a cry for attention.",
+      "hookIdea": "A repeated chant-like phrase with a rising vocal line and a stomping beat that makes the loneliness feel communal."
+    },
+    {
+      "sectionId": "verse-2",
+      "theme": "Digital distance and hollow promises",
+      "storyBeat": "The speaker reaches toward a glowing, technology-driven future that feels close yet unattainable, surrounded by empty responses.",
+      "imagery": [
+        "a glowing screen",
+        "a future just out of reach",
+        "empty echoes",
+        "a fading sound"
+      ],
+      "emotionalArc": "Hope and disappointment alternate, ending in a deflated, hushed sense of being unheard.",
+      "hookIdea": "Sparse verse with a filtered, slightly distorted vocal that makes the digital theme audible."
+    },
+    {
+      "sectionId": "chorus-2",
+      "theme": "Persistent isolation and a renewed call",
+      "storyBeat": "The same feeling of being unheard returns, now more insistent, as the speaker keeps reaching out.",
+      "imagery": [
+        "the crowd again",
+        "a voice pushing through noise",
+        "a call for response"
+      ],
+      "emotionalArc": "The intensity increases compared to the first chorus, with a sense of determination forming.",
+      "hookIdea": "Layered backing vocals and a fuller guitar wall make the repeated call feel bigger and more demanding."
+    },
+    {
+      "sectionId": "bridge-1",
+      "theme": "Facing darkness and holding onto inner light",
+      "storyBeat": "The speaker acknowledges a dangerous, dark moment but insists that their inner spirit will survive the chaos.",
+      "imagery": [
+        "a deep night",
+        "a cliff's edge",
+        "a roaring silence",
+        "a light glowing from within"
+      ],
+      "emotionalArc": "Fear gives way to a steadier, more hopeful resolve.",
+      "hookIdea": "A half-time drop with a softer vocal that opens into a lifted, cathartic lift before the final chorus."
+    },
+    {
+      "sectionId": "chorus-3",
+      "theme": "Final call for recognition",
+      "storyBeat": "Having found inner resolve, the speaker makes one last demand to be heard in the crowd.",
+      "imagery": [
+        "a final cry",
+        "a crowd that might finally listen",
+        "a voice at full strength"
+      ],
+      "emotionalArc": "Emotion peaks with full band power, shifting from pleading to assertive.",
+      "hookIdea": "The chorus is pushed to its loudest arrangement, with a stripped-back final repetition that fades into silence."
+    }
+  ],
+  "overall": {
+    "genre": ["rock", "alternative", "anthemic"],
+    "mood": ["defiant", "lonely", "urgent"],
+    "summary": "A voice pushes back against being silenced and ignored in a crowded, digital world, then gathers its strength to keep its inner light alive."
+  },
+  "blueprint": {
+    "schemaVersion": 1,
+    "source": {
+      "videoId": "49rDdMbXd_w",
+      "url": "https://www.youtube.com/watch?v=49rDdMbXd_w",
+      "durationS": 157,
+      "analysedAt": "2026-11-02T03:35:01.001Z"
+    },
+    "music": {
+      "bpm": 78.95,
+      "key": "D minor",
+      "timeSig": "4/4",
+      "sections": [
+        {
+          "id": "intro-1",
+          "label": "intro",
+          "startS": 0,
+          "endS": 18.24,
+          "energy": 0.38,
+          "bars": 7
+        },
+        {
+          "id": "verse-1",
+          "label": "verse",
+          "startS": 18.24,
+          "endS": 42.22,
+          "energy": 0.63,
+          "bars": 8
+        },
+        {
+          "id": "chorus-1",
+          "label": "chorus",
+          "startS": 42.22,
+          "endS": 66.24,
+          "energy": 0.715,
+          "bars": 8
+        },
+        {
+          "id": "verse-2",
+          "label": "verse",
+          "startS": 66.24,
+          "endS": 96.22,
+          "energy": 0.553,
+          "bars": 10
+        },
+        {
+          "id": "chorus-2",
+          "label": "chorus",
+          "startS": 96.22,
+          "endS": 120.24,
+          "energy": 0.748,
+          "bars": 8
+        },
+        {
+          "id": "bridge-1",
+          "label": "bridge",
+          "startS": 120.24,
+          "endS": 131.44,
+          "energy": 0.327,
+          "bars": 4
+        },
+        {
+          "id": "chorus-3",
+          "label": "chorus",
+          "startS": 131.44,
+          "endS": 150.22,
+          "energy": 0.774,
+          "bars": 6
+        },
+        {
+          "id": "outro-1",
+          "label": "outro",
+          "startS": 150.22,
+          "endS": 157,
+          "energy": 0.535,
+          "bars": 3
+        }
+      ],
+      "downbeatsS": [
+        0.22, 1.72, 3.22, 6.24, 9.24, 12.24, 15.22, 18.24, 21.22, 24.22, 27.22,
+        30.22, 33.22, 36.22, 39.22, 42.22, 45.22, 48.22, 51.22, 54.22, 57.22,
+        60.22, 63.22, 66.24, 69.22, 72.22, 75.22, 78.22, 81.22, 84.22, 87.22,
+        90.22, 93.22, 96.22, 99.22, 102.22, 105.22, 108.22, 111.2, 114.2,
+        117.24, 120.24, 123.2, 126.18, 129.16, 132.24, 135.22, 138.22, 141.24,
+        144.22, 147.22, 150.22, 153.22, 156.22
+      ],
+      "vocal": "female",
+      "instrumentation": [
+        "drums",
+        "prominent bass",
+        "electric guitar",
+        "bass guitar",
+        "synthesizer",
+        "lead vocals",
+        "backing vocals",
+        "keyboards",
+        "rhythm guitar"
+      ]
+    },
+    "shots": [
+      {
+        "id": "shot-001",
+        "sectionId": "intro-1",
+        "startS": 0,
+        "endS": 0.64,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-002",
+        "sectionId": "intro-1",
+        "startS": 0.64,
+        "endS": 3.22,
+        "offsetInSection": 0.035,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-003",
+        "sectionId": "intro-1",
+        "startS": 3.22,
+        "endS": 5.08,
+        "offsetInSection": 0.177,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-004",
+        "sectionId": "intro-1",
+        "startS": 5.08,
+        "endS": 5.96,
+        "offsetInSection": 0.279,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-005",
+        "sectionId": "intro-1",
+        "startS": 5.96,
+        "endS": 7.24,
+        "offsetInSection": 0.327,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-006",
+        "sectionId": "intro-1",
+        "startS": 7.24,
+        "endS": 8.2,
+        "offsetInSection": 0.397,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-007",
+        "sectionId": "intro-1",
+        "startS": 8.2,
+        "endS": 9.24,
+        "offsetInSection": 0.45,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-008",
+        "sectionId": "intro-1",
+        "startS": 9.24,
+        "endS": 11.76,
+        "offsetInSection": 0.507,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-009",
+        "sectionId": "intro-1",
+        "startS": 11.76,
+        "endS": 12.98,
+        "offsetInSection": 0.645,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-010",
+        "sectionId": "intro-1",
+        "startS": 12.98,
+        "endS": 14.48,
+        "offsetInSection": 0.712,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-011",
+        "sectionId": "intro-1",
+        "startS": 14.48,
+        "endS": 16.72,
+        "offsetInSection": 0.794,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-012",
+        "sectionId": "intro-1",
+        "startS": 16.72,
+        "endS": 18.24,
+        "offsetInSection": 0.917,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-013",
+        "sectionId": "verse-1",
+        "startS": 18.24,
+        "endS": 20.48,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-014",
+        "sectionId": "verse-1",
+        "startS": 20.48,
+        "endS": 23.16,
+        "offsetInSection": 0.093,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-015",
+        "sectionId": "verse-1",
+        "startS": 23.16,
+        "endS": 24.22,
+        "offsetInSection": 0.205,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-016",
+        "sectionId": "verse-1",
+        "startS": 24.22,
+        "endS": 29.96,
+        "offsetInSection": 0.249,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-017",
+        "sectionId": "verse-1",
+        "startS": 29.96,
+        "endS": 32.48,
+        "offsetInSection": 0.489,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-018",
+        "sectionId": "verse-1",
+        "startS": 32.48,
+        "endS": 36.22,
+        "offsetInSection": 0.594,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-019",
+        "sectionId": "verse-1",
+        "startS": 36.22,
+        "endS": 39.68,
+        "offsetInSection": 0.75,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-020",
+        "sectionId": "verse-1",
+        "startS": 39.68,
+        "endS": 40.32,
+        "offsetInSection": 0.894,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-021",
+        "sectionId": "verse-1",
+        "startS": 40.32,
+        "endS": 41.16,
+        "offsetInSection": 0.921,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-022",
+        "sectionId": "verse-1",
+        "startS": 41.16,
+        "endS": 41.96,
+        "offsetInSection": 0.956,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-023",
+        "sectionId": "chorus-1",
+        "startS": 41.96,
+        "endS": 43.72,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-024",
+        "sectionId": "chorus-1",
+        "startS": 43.72,
+        "endS": 45.68,
+        "offsetInSection": 0.062,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-025",
+        "sectionId": "chorus-1",
+        "startS": 45.68,
+        "endS": 46.74,
+        "offsetInSection": 0.144,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-026",
+        "sectionId": "chorus-1",
+        "startS": 46.74,
+        "endS": 48.22,
+        "offsetInSection": 0.188,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-027",
+        "sectionId": "chorus-1",
+        "startS": 48.22,
+        "endS": 48.96,
+        "offsetInSection": 0.25,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-028",
+        "sectionId": "chorus-1",
+        "startS": 48.96,
+        "endS": 50.04,
+        "offsetInSection": 0.281,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-029",
+        "sectionId": "chorus-1",
+        "startS": 50.04,
+        "endS": 54.98,
+        "offsetInSection": 0.326,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-030",
+        "sectionId": "chorus-1",
+        "startS": 54.98,
+        "endS": 56.48,
+        "offsetInSection": 0.531,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-031",
+        "sectionId": "chorus-1",
+        "startS": 56.48,
+        "endS": 57.96,
+        "offsetInSection": 0.594,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-032",
+        "sectionId": "chorus-1",
+        "startS": 57.96,
+        "endS": 60.22,
+        "offsetInSection": 0.655,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-033",
+        "sectionId": "chorus-1",
+        "startS": 60.22,
+        "endS": 63.22,
+        "offsetInSection": 0.749,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-034",
+        "sectionId": "chorus-1",
+        "startS": 63.22,
+        "endS": 65.88,
+        "offsetInSection": 0.874,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-035",
+        "sectionId": "verse-2",
+        "startS": 65.88,
+        "endS": 67.48,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-036",
+        "sectionId": "verse-2",
+        "startS": 67.48,
+        "endS": 70.7,
+        "offsetInSection": 0.041,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-037",
+        "sectionId": "verse-2",
+        "startS": 70.7,
+        "endS": 72.22,
+        "offsetInSection": 0.149,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-038",
+        "sectionId": "verse-2",
+        "startS": 72.22,
+        "endS": 74,
+        "offsetInSection": 0.199,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-039",
+        "sectionId": "verse-2",
+        "startS": 74,
+        "endS": 74.8,
+        "offsetInSection": 0.259,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-040",
+        "sectionId": "verse-2",
+        "startS": 74.8,
+        "endS": 78.22,
+        "offsetInSection": 0.286,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-041",
+        "sectionId": "verse-2",
+        "startS": 78.22,
+        "endS": 78.98,
+        "offsetInSection": 0.4,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-042",
+        "sectionId": "verse-2",
+        "startS": 78.98,
+        "endS": 80.48,
+        "offsetInSection": 0.425,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-043",
+        "sectionId": "verse-2",
+        "startS": 80.48,
+        "endS": 83.04,
+        "offsetInSection": 0.475,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-044",
+        "sectionId": "verse-2",
+        "startS": 83.04,
+        "endS": 84.48,
+        "offsetInSection": 0.56,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-045",
+        "sectionId": "verse-2",
+        "startS": 84.48,
+        "endS": 86.16,
+        "offsetInSection": 0.608,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-046",
+        "sectionId": "verse-2",
+        "startS": 86.16,
+        "endS": 87.22,
+        "offsetInSection": 0.664,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-047",
+        "sectionId": "verse-2",
+        "startS": 87.22,
+        "endS": 89.2,
+        "offsetInSection": 0.7,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-048",
+        "sectionId": "verse-2",
+        "startS": 89.2,
+        "endS": 90.22,
+        "offsetInSection": 0.766,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-049",
+        "sectionId": "verse-2",
+        "startS": 90.22,
+        "endS": 93.98,
+        "offsetInSection": 0.8,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-050",
+        "sectionId": "verse-2",
+        "startS": 93.98,
+        "endS": 95.48,
+        "offsetInSection": 0.925,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-051",
+        "sectionId": "verse-2",
+        "startS": 95.48,
+        "endS": 96.22,
+        "offsetInSection": 0.975,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-052",
+        "sectionId": "chorus-2",
+        "startS": 96.22,
+        "endS": 99.22,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-053",
+        "sectionId": "chorus-2",
+        "startS": 99.22,
+        "endS": 100.44,
+        "offsetInSection": 0.125,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-054",
+        "sectionId": "chorus-2",
+        "startS": 100.44,
+        "endS": 101.48,
+        "offsetInSection": 0.176,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-055",
+        "sectionId": "chorus-2",
+        "startS": 101.48,
+        "endS": 102.22,
+        "offsetInSection": 0.219,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-056",
+        "sectionId": "chorus-2",
+        "startS": 102.22,
+        "endS": 103.24,
+        "offsetInSection": 0.25,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-057",
+        "sectionId": "chorus-2",
+        "startS": 103.24,
+        "endS": 104.96,
+        "offsetInSection": 0.292,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-058",
+        "sectionId": "chorus-2",
+        "startS": 104.96,
+        "endS": 108.98,
+        "offsetInSection": 0.364,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-059",
+        "sectionId": "chorus-2",
+        "startS": 108.98,
+        "endS": 110.48,
+        "offsetInSection": 0.531,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-060",
+        "sectionId": "chorus-2",
+        "startS": 110.48,
+        "endS": 111.2,
+        "offsetInSection": 0.594,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-061",
+        "sectionId": "chorus-2",
+        "startS": 111.2,
+        "endS": 111.96,
+        "offsetInSection": 0.624,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-062",
+        "sectionId": "chorus-2",
+        "startS": 111.96,
+        "endS": 112.72,
+        "offsetInSection": 0.655,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-063",
+        "sectionId": "chorus-2",
+        "startS": 112.72,
+        "endS": 113.84,
+        "offsetInSection": 0.687,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-064",
+        "sectionId": "chorus-2",
+        "startS": 113.84,
+        "endS": 116.84,
+        "offsetInSection": 0.734,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-065",
+        "sectionId": "chorus-2",
+        "startS": 116.84,
+        "endS": 120.24,
+        "offsetInSection": 0.858,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-066",
+        "sectionId": "bridge-1",
+        "startS": 120.24,
+        "endS": 123.2,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-067",
+        "sectionId": "bridge-1",
+        "startS": 123.2,
+        "endS": 125.84,
+        "offsetInSection": 0.264,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-068",
+        "sectionId": "bridge-1",
+        "startS": 125.84,
+        "endS": 129.16,
+        "offsetInSection": 0.5,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-069",
+        "sectionId": "bridge-1",
+        "startS": 129.16,
+        "endS": 131.44,
+        "offsetInSection": 0.796,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-070",
+        "sectionId": "chorus-3",
+        "startS": 131.44,
+        "endS": 134.88,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-071",
+        "sectionId": "chorus-3",
+        "startS": 134.88,
+        "endS": 137.96,
+        "offsetInSection": 0.183,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1c272a", "#3a4f54", "#d2dee2"],
+        "motion": {
+          "camera": "static",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-072",
+        "sectionId": "chorus-3",
+        "startS": 137.96,
+        "endS": 138.96,
+        "offsetInSection": 0.347,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-073",
+        "sectionId": "chorus-3",
+        "startS": 138.96,
+        "endS": 139.48,
+        "offsetInSection": 0.4,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-074",
+        "sectionId": "chorus-3",
+        "startS": 139.48,
+        "endS": 141.24,
+        "offsetInSection": 0.428,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": false,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-075",
+        "sectionId": "chorus-3",
+        "startS": 141.24,
+        "endS": 143.48,
+        "offsetInSection": 0.522,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0b0f12", "#243338", "#b88243", "#cbe1e6"],
+        "motion": {
+          "camera": "push_in",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-076",
+        "sectionId": "chorus-3",
+        "startS": 143.48,
+        "endS": 148.72,
+        "offsetInSection": 0.641,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-077",
+        "sectionId": "chorus-3",
+        "startS": 148.72,
+        "endS": 150.22,
+        "offsetInSection": 0.92,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-078",
+        "sectionId": "outro-1",
+        "startS": 150.22,
+        "endS": 152.48,
+        "offsetInSection": 0,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0a0e10", "#1a262c", "#4b6872", "#b5ccd4"],
+        "motion": {
+          "camera": "pan",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      },
+      {
+        "id": "shot-079",
+        "sectionId": "outro-1",
+        "startS": 152.48,
+        "endS": 157,
+        "offsetInSection": 0.333,
+        "layout": "full_bleed",
+        "typographyRoles": [],
+        "palette": ["#0c1014", "#1e2225", "#9a2b29", "#dce5e7"],
+        "motion": {
+          "camera": "shake",
+          "cutOnBeat": true,
+          "kineticText": "none",
+          "visualizer": null
+        },
+        "transition": "cut",
+        "overlays": [],
+        "imageNeed": "subject"
+      }
+    ],
+    "global": {
+      "palette": [
+        "#0c1014",
+        "#1a252a",
+        "#4d6368",
+        "#c7d7db",
+        "#b88243",
+        "#9a2b29"
+      ],
+      "aspect": "16:9",
+      "typeScale": {
+        "basePx": 24,
+        "ratio": 1.25
+      }
+    }
+  },
+  "styleTags": [
+    "rock",
+    "alternative",
+    "defiant",
+    "lonely",
+    "79 bpm",
+    "d minor",
+    "female vocals",
+    "drums",
+    "prominent bass",
+    "electric guitar"
+  ],
+  "cost": {
+    "usd": 0.009636,
+    "calls": [
+      {
+        "step": "meaning-map",
+        "model": "anthropic/claude-haiku-5.5",
+        "usd": 0.0008586,
+        "promptTokens": 1251,
+        "completionTokens": 1467,
+        "estimated": false
+      },
+      {
+        "step": "blueprint:vision",
+        "model": "google/gemini-3.8-flash",
+        "usd": 0.00877725,
+        "promptTokens": 6463,
+        "completionTokens": 1048,
+        "estimated": false
+      }
+    ]
+  },
+  "sourceMediaDeleted": true
+}

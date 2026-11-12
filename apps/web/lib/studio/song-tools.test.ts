@@ -5,7 +5,13 @@ import { registerSongTool, type SongTool, songToolsFor } from "./song-tools";
 
 vi.mock("./reuse-prompt", () => ({ reusePrompt: vi.fn() }));
 
-const clip = { id: "a", status: "approved" } as Clip;
+// A song without takes: none of the audio tools (rewrite, cover, reference) applies.
+const clip = {
+  id: "a",
+  status: "approved",
+  takes: [],
+  trashedAt: null,
+} as unknown as Clip;
 const extra = (patch: Partial<SongTool> = {}): SongTool => ({
   id: "video-studio",
   label: "clip.share",
@@ -53,9 +59,7 @@ describe("song tools", () => {
       "needs-audio",
     );
     expect(
-      songToolsFor({ ...clip, status: "audio_ready" } as Clip).map(
-        (tool) => tool.id,
-      ),
+      songToolsFor({ ...clip, status: "audio_ready" }).map((tool) => tool.id),
     ).toContain("needs-audio");
   });
 

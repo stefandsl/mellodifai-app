@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 // Playlists (migration 20261101000019): RLS, the write RPCs, ordering and the liked-at time.
 let service: SupabaseClient;
@@ -22,7 +23,7 @@ beforeAll(async () => {
   });
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const result = await service.auth.admin.createUser({
       email,
       password: "playlists-test-password",
@@ -85,7 +86,9 @@ async function songs(n: number, who: string = owner) {
   return out;
 }
 async function playlist(name = "Mine", who: SupabaseClient = client) {
-  const { data, error } = await who.rpc("create_playlist", { p_name: name });
+  const { data, error } = await opsRpc(who, "create_playlist", {
+    p_name: name,
+  });
   expect(error).toBeNull();
   return data as string;
 }
@@ -109,7 +112,10 @@ describe("access", () => {
   it("lets an owner read their playlists and items and nobody else", async () => {
     const [a, b] = await songs(2);
     const id = await playlist("Visible");
-    await client.rpc("add_to_playlist", { p_playlist: id, p_versions: [a, b] });
+    await opsRpc(client, "add_to_playlist", {
+      p_playlist: id,
+      p_versions: [a, b],
+    });
 
     const mine = await client.from("playlists").select();
     expect(mine.error).toBeNull();
@@ -165,13 +171,22 @@ describe("access", () => {
     const [mine] = await songs(1);
     const [theirs] = await songs(1, stranger);
     const id = await playlist("Private");
-    await client.rpc("add_to_playlist", { p_playlist: id, p_versions: [mine] });
+    await opsRpc(client, "add_to_playlist", {
+      p_playlist: id,
+      p_versions: [mine],
+    });
     for (const call of [
-      other.rpc("rename_playlist", { p_playlist: id, p_name: "Stolen" }),
-      other.rpc("delete_playlist", { p_playlist: id }),
-      other.rpc("add_to_playlist", { p_playlist: id, p_versions: [theirs] }),
-      other.rpc("remove_from_playlist", { p_playlist: id, p_versions: [mine] }),
-      other.rpc("reorder_playlist", { p_playlist: id, p_versions: [mine] }),
+      opsRpc(other, "rename_playlist", { p_playlist: id, p_name: "Stolen" }),
+      opsRpc(other, "delete_playlist", { p_playlist: id }),
+      opsRpc(other, "add_to_playlist", {
+        p_playlist: id,
+        p_versions: [theirs],
+      }),
+      opsRpc(other, "remove_from_playlist", {
+        p_playlist: id,
+        p_versions: [mine],
+      }),
+      opsRpc(other, "reorder_playlist", { p_playlist: id, p_versions: [mine] }),
     ])
       expect((await call).error?.message).toContain("owned playlist required");
     expect(await ids(id)).toEqual([mine]);
@@ -196,15 +211,17 @@ describe("create, rename and delete", () => {
 
     for (const bad of ["", "   ", "x".repeat(101)])
       expect(
-        (await client.rpc("create_playlist", { p_name: bad })).error?.message,
+        (await opsRpc(client, "create_playlist", { p_name: bad })).error
+          ?.message,
       ).toContain("invalid name");
     expect(
-      (await client.rpc("create_playlist", { p_name: "x".repeat(100) })).error,
+      (await opsRpc(client, "create_playlist", { p_name: "x".repeat(100) }))
+        .error,
     ).toBeNull();
 
     expect(
       (
-        await client.rpc("rename_playlist", {
+        await opsRpc(client, "rename_playlist", {
           p_playlist: id,
           p_name: " Notte ",
         })
@@ -217,7 +234,7 @@ describe("create, rename and delete", () => {
       .single();
     expect(renamed.data?.name).toBe("Notte");
     expect(
-      (await client.rpc("rename_playlist", { p_playlist: id, p_name: " " }))
+      (await opsRpc(client, "rename_playlist", { p_playlist: id, p_name: " " }))
         .error?.message,
     ).toContain("invalid name");
   });
@@ -225,9 +242,12 @@ describe("create, rename and delete", () => {
   it("deletes the playlist and its entries but never the songs", async () => {
     const [a, b] = await songs(2);
     const id = await playlist("Gone");
-    await client.rpc("add_to_playlist", { p_playlist: id, p_versions: [a, b] });
+    await opsRpc(client, "add_to_playlist", {
+      p_playlist: id,
+      p_versions: [a, b],
+    });
     expect(
-      (await client.rpc("delete_playlist", { p_playlist: id })).error,
+      (await opsRpc(client, "delete_playlist", { p_playlist: id })).error,
     ).toBeNull();
     expect(
       (await service.from("playlists").select().eq("id", id)).data,
@@ -236,13 +256,14 @@ describe("create, rename and delete", () => {
     const left = await service.from("versions").select("id").in("id", [a, b]);
     expect(left.data).toHaveLength(2);
     expect(
-      (await client.rpc("delete_playlist", { p_playlist: id })).error?.message,
+      (await opsRpc(client, "delete_playlist", { p_playlist: id })).error
+        ?.message,
     ).toContain("owned playlist required");
   });
 
   it("caps a user at 100 playlists", async () => {
     const email = `${prefix}-cap@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const { data: fresh } = await service.auth.admin.createUser({
       email,
       password: "playlists-test-password",
@@ -263,8 +284,8 @@ describe("create, rename and delete", () => {
     }));
     expect((await service.from("playlists").insert(rows)).error).toBeNull();
     expect(
-      (await capped.rpc("create_playlist", { p_name: "One too many" })).error
-        ?.message,
+      (await opsRpc(capped, "create_playlist", { p_name: "One too many" }))
+        .error?.message,
     ).toContain("too many playlists");
   });
 });
@@ -279,7 +300,7 @@ describe("songs in a playlist", () => {
       .update({ trashed_at: new Date().toISOString() })
       .eq("id", d);
 
-    const first = await client.rpc("add_to_playlist", {
+    const first = await opsRpc(client, "add_to_playlist", {
       p_playlist: id,
       p_versions: [c, a],
     });
@@ -288,7 +309,7 @@ describe("songs in a playlist", () => {
     expect(await positions(id)).toEqual([1, 2]);
 
     // a is already in, theirs is foreign, d is in the trash, c repeats inside the call.
-    const second = await client.rpc("add_to_playlist", {
+    const second = await opsRpc(client, "add_to_playlist", {
       p_playlist: id,
       p_versions: [a, theirs, d, e, b, e],
     });
@@ -296,20 +317,24 @@ describe("songs in a playlist", () => {
     expect(await ids(id)).toEqual([c, a, e, b]);
     expect(await positions(id)).toEqual([1, 2, 3, 4]);
     expect(
-      (await client.rpc("add_to_playlist", { p_playlist: id, p_versions: [] }))
-        .error?.message,
+      (
+        await opsRpc(client, "add_to_playlist", {
+          p_playlist: id,
+          p_versions: [],
+        })
+      ).error?.message,
     ).toContain("invalid versions");
   });
 
   it("removes songs, counts what really left and keeps positions dense", async () => {
     const [a, b, c, d] = await songs(4);
     const id = await playlist("Remove");
-    await client.rpc("add_to_playlist", {
+    await opsRpc(client, "add_to_playlist", {
       p_playlist: id,
       p_versions: [a, b, c, d],
     });
     const stray = await song();
-    const removed = await client.rpc("remove_from_playlist", {
+    const removed = await opsRpc(client, "remove_from_playlist", {
       p_playlist: id,
       p_versions: [b, d, stray],
     });
@@ -326,13 +351,13 @@ describe("songs in a playlist", () => {
     const [a, b, c, d] = await songs(4);
     const [theirs] = await songs(1, stranger);
     const id = await playlist("Reorder");
-    await client.rpc("add_to_playlist", {
+    await opsRpc(client, "add_to_playlist", {
       p_playlist: id,
       p_versions: [a, b, c, d],
     });
     expect(
       (
-        await client.rpc("reorder_playlist", {
+        await opsRpc(client, "reorder_playlist", {
           p_playlist: id,
           p_versions: [d, c, b, a],
         })
@@ -342,22 +367,29 @@ describe("songs in a playlist", () => {
     expect(await positions(id)).toEqual([1, 2, 3, 4]);
 
     // A stale or partial list never loses a song; unknown ids are ignored.
-    await client.rpc("reorder_playlist", {
+    await opsRpc(client, "reorder_playlist", {
       p_playlist: id,
       p_versions: [a, theirs, b],
     });
     expect(await ids(id)).toEqual([a, b, d, c]);
     expect(await positions(id)).toEqual([1, 2, 3, 4]);
     expect(
-      (await client.rpc("reorder_playlist", { p_playlist: id, p_versions: [] }))
-        .error?.message,
+      (
+        await opsRpc(client, "reorder_playlist", {
+          p_playlist: id,
+          p_versions: [],
+        })
+      ).error?.message,
     ).toContain("invalid versions");
   });
 
   it("deletes entries when a song is deleted for good", async () => {
     const [a, b] = await songs(2);
     const id = await playlist("Cascade");
-    await client.rpc("add_to_playlist", { p_playlist: id, p_versions: [a, b] });
+    await opsRpc(client, "add_to_playlist", {
+      p_playlist: id,
+      p_versions: [a, b],
+    });
     await service.from("versions").delete().eq("id", a);
     expect(await ids(id)).toEqual([b]);
   });
@@ -367,7 +399,7 @@ describe("lists and counts", () => {
   it("my_playlists counts the songs on show: trashed ones hide and come back on restore", async () => {
     const [a, b, c] = await songs(3);
     const id = await playlist("Counted");
-    await client.rpc("add_to_playlist", {
+    await opsRpc(client, "add_to_playlist", {
       p_playlist: id,
       p_versions: [a, b, c],
     });
@@ -379,9 +411,9 @@ describe("lists and counts", () => {
       )?.song_count;
     };
     expect(await count()).toBe(3);
-    await client.rpc("trash_versions", { p_versions: [b] });
+    await opsRpc(client, "trash_versions", { p_versions: [b] });
     expect(await count()).toBe(2);
-    await client.rpc("restore_versions", { p_versions: [b] });
+    await opsRpc(client, "restore_versions", { p_versions: [b] });
     expect(await count()).toBe(3);
     // Another user sees none of it.
     expect(
@@ -405,11 +437,14 @@ describe("lists and counts", () => {
     const [a, b, c] = await songs(3);
     const one = await playlist("One");
     const two = await playlist("Two");
-    await client.rpc("add_to_playlist", {
+    await opsRpc(client, "add_to_playlist", {
       p_playlist: one,
       p_versions: [a, b],
     });
-    await client.rpc("add_to_playlist", { p_playlist: two, p_versions: [b] });
+    await opsRpc(client, "add_to_playlist", {
+      p_playlist: two,
+      p_versions: [b],
+    });
     const { data, error } = await client.rpc("playlist_membership", {
       p_versions: [a, b, c],
     });
@@ -444,19 +479,22 @@ describe("liked_at", () => {
       ).data as { liked: boolean; liked_at: string | null };
     expect((await liked()).liked_at).toBeNull();
 
-    await client.rpc("set_reaction", { p_version: id, p_reaction: "like" });
+    await opsRpc(client, "set_reaction", { p_version: id, p_reaction: "like" });
     const first = await liked();
     expect(first.liked).toBe(true);
     expect(first.liked_at).not.toBeNull();
 
     await new Promise((resolve) => setTimeout(resolve, 20));
-    await client.rpc("set_reaction", { p_version: id, p_reaction: "like" });
+    await opsRpc(client, "set_reaction", { p_version: id, p_reaction: "like" });
     expect((await liked()).liked_at).toBe(first.liked_at);
 
-    await client.rpc("set_reaction", { p_version: id, p_reaction: "dislike" });
+    await opsRpc(client, "set_reaction", {
+      p_version: id,
+      p_reaction: "dislike",
+    });
     expect((await liked()).liked_at).toBeNull();
-    await client.rpc("set_reaction", { p_version: id, p_reaction: "like" });
-    await client.rpc("set_reaction", { p_version: id, p_reaction: "none" });
+    await opsRpc(client, "set_reaction", { p_version: id, p_reaction: "like" });
+    await opsRpc(client, "set_reaction", { p_version: id, p_reaction: "none" });
     expect((await liked()).liked_at).toBeNull();
   });
 });

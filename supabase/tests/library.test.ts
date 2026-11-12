@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 // Library RPCs (migration 20261101000018): reactions, play count, rename, trash, queue position.
 let service: SupabaseClient;
@@ -22,7 +23,7 @@ beforeAll(async () => {
   });
   for (const suffix of ["a", "b"]) {
     const email = `${prefix}-${suffix}@example.test`;
-    await service.from("admin_allowlist").insert({ email });
+    await service.from("admin_allowlist").insert({ email, role: "admin" });
     const result = await service.auth.admin.createUser({
       email,
       password: "library-test-password",
@@ -101,13 +102,17 @@ describe("reactions and plays", () => {
       play_count: 0,
     });
     expect(
-      (await client.rpc("set_reaction", { p_version: id, p_reaction: "like" }))
-        .error,
+      (
+        await opsRpc(client, "set_reaction", {
+          p_version: id,
+          p_reaction: "like",
+        })
+      ).error,
     ).toBeNull();
     expect(await row(id)).toMatchObject({ liked: true, disliked: false });
     expect(
       (
-        await client.rpc("set_reaction", {
+        await opsRpc(client, "set_reaction", {
           p_version: id,
           p_reaction: "dislike",
         })
@@ -115,13 +120,21 @@ describe("reactions and plays", () => {
     ).toBeNull();
     expect(await row(id)).toMatchObject({ liked: false, disliked: true });
     expect(
-      (await client.rpc("set_reaction", { p_version: id, p_reaction: "none" }))
-        .error,
+      (
+        await opsRpc(client, "set_reaction", {
+          p_version: id,
+          p_reaction: "none",
+        })
+      ).error,
     ).toBeNull();
     expect(await row(id)).toMatchObject({ liked: false, disliked: false });
     expect(
-      (await client.rpc("set_reaction", { p_version: id, p_reaction: "love" }))
-        .error?.message,
+      (
+        await opsRpc(client, "set_reaction", {
+          p_version: id,
+          p_reaction: "love",
+        })
+      ).error?.message,
     ).toContain("invalid reaction");
     // The table constraint holds even for a writer that skips the RPC.
     expect(
@@ -138,11 +151,11 @@ describe("reactions and plays", () => {
     const id = await song();
     for (let i = 0; i < 3; i += 1)
       expect(
-        (await client.rpc("count_play", { p_version: id })).error,
+        (await opsRpc(client, "count_play", { p_version: id })).error,
       ).toBeNull();
     expect((await row(id)).play_count).toBe(3);
     expect(
-      (await other.rpc("count_play", { p_version: id })).error?.message,
+      (await opsRpc(other, "count_play", { p_version: id })).error?.message,
     ).toContain("owned version required");
     expect((await row(id)).play_count).toBe(3);
   });
@@ -182,7 +195,7 @@ describe("rename", () => {
     const id = await song();
     expect(
       (
-        await client.rpc("rename_version", {
+        await opsRpc(client, "rename_version", {
           p_version: id,
           p_title: "  Lunedi  ",
         })
@@ -196,7 +209,7 @@ describe("rename", () => {
   it("accepts 1 to 100 characters and rejects the rest", async () => {
     const id = await song();
     const rename = (p_title: string | null) =>
-      client.rpc("rename_version", { p_version: id, p_title });
+      opsRpc(client, "rename_version", { p_version: id, p_title });
     expect((await rename("x".repeat(100))).error).toBeNull();
     expect((await row(id)).display_title).toHaveLength(100);
     for (const bad of ["x".repeat(101), "", "   ", null])
@@ -208,7 +221,7 @@ describe("rename", () => {
     const id = await song();
     expect(
       (
-        await other.rpc("rename_version", {
+        await opsRpc(other, "rename_version", {
           p_version: id,
           p_title: "mine now",
         })
@@ -227,7 +240,7 @@ describe("trash", () => {
     ];
     const foreign = await song(stranger);
     // One id is not the caller's, one is repeated: only real changes count.
-    const trashed = await client.rpc("trash_versions", {
+    const trashed = await opsRpc(client, "trash_versions", {
       p_versions: [a, b, b, foreign],
     });
     expect(trashed.error).toBeNull();
@@ -238,46 +251,51 @@ describe("trash", () => {
     expect((await row(foreign)).trashed_at).toBeNull();
     // Already trashed songs do not count a second time.
     expect(
-      (await client.rpc("trash_versions", { p_versions: [a, c] })).data,
+      (await opsRpc(client, "trash_versions", { p_versions: [a, c] })).data,
     ).toBe(1);
     // The strangers cannot restore them.
     expect(
-      (await other.rpc("restore_versions", { p_versions: [a, b, c] })).data,
+      (await opsRpc(other, "restore_versions", { p_versions: [a, b, c] })).data,
     ).toBe(0);
-    const restored = await client.rpc("restore_versions", {
+    const restored = await opsRpc(client, "restore_versions", {
       p_versions: [a, b, c],
     });
     expect(restored.data).toBe(3);
     for (const id of [a, b, c]) expect((await row(id)).trashed_at).toBeNull();
     expect(
-      (await client.rpc("restore_versions", { p_versions: [a] })).data,
+      (await opsRpc(client, "restore_versions", { p_versions: [a] })).data,
     ).toBe(0);
   });
 
   it("validates the id list", async () => {
     expect(
-      (await client.rpc("trash_versions", { p_versions: [] })).error?.message,
+      (await opsRpc(client, "trash_versions", { p_versions: [] })).error
+        ?.message,
     ).toContain("invalid versions");
     expect(
-      (await client.rpc("restore_versions", { p_versions: null })).error
+      (await opsRpc(client, "restore_versions", { p_versions: null })).error
         ?.message,
     ).toContain("invalid versions");
   });
 
   it("blocks web checkpoints on a trashed song until it is restored", async () => {
     const id = await song();
-    await client.rpc("trash_versions", { p_versions: [id] });
+    await opsRpc(client, "trash_versions", { p_versions: [id] });
     for (const call of [
-      client.rpc("set_reaction", { p_version: id, p_reaction: "like" }),
-      client.rpc("count_play", { p_version: id }),
-      client.rpc("rename_version", { p_version: id, p_title: "x" }),
-      client.rpc("generate_again", { p_version: id, p_generation: 1 }),
+      opsRpc(client, "set_reaction", { p_version: id, p_reaction: "like" }),
+      opsRpc(client, "count_play", { p_version: id }),
+      opsRpc(client, "rename_version", { p_version: id, p_title: "x" }),
+      opsRpc(client, "generate_again", { p_version: id, p_generation: 1 }),
     ])
       expect((await call).error?.message).toContain("owned version required");
-    await client.rpc("restore_versions", { p_versions: [id] });
+    await opsRpc(client, "restore_versions", { p_versions: [id] });
     expect(
-      (await client.rpc("set_reaction", { p_version: id, p_reaction: "like" }))
-        .error,
+      (
+        await opsRpc(client, "set_reaction", {
+          p_version: id,
+          p_reaction: "like",
+        })
+      ).error,
     ).toBeNull();
   });
 
@@ -294,7 +312,7 @@ describe("trash", () => {
       .select("id")
       .single();
     expect(job.error).toBeNull();
-    await client.rpc("trash_versions", { p_versions: [id] });
+    await opsRpc(client, "trash_versions", { p_versions: [id] });
     const claimed = await service.rpc("claim_job", { p_worker: `${prefix}-w` });
     expect(claimed.error).toBeNull();
     expect((claimed.data as { id: string }[]).map((j) => j.id)).not.toContain(
@@ -307,7 +325,7 @@ describe("trash", () => {
       .single();
     expect(still.data?.status).toBe("queued");
 
-    await client.rpc("restore_versions", { p_versions: [id] });
+    await opsRpc(client, "restore_versions", { p_versions: [id] });
     const again = await service.rpc("claim_job", { p_worker: `${prefix}-w` });
     expect(again.error).toBeNull();
     const after = await service
@@ -369,7 +387,7 @@ describe("queue position", () => {
     expect(first.has(foreign)).toBe(false);
 
     // Trashing b removes it from the list and from c's count.
-    await client.rpc("trash_versions", { p_versions: [b] });
+    await opsRpc(client, "trash_versions", { p_versions: [b] });
     const second = await positions();
     expect(second.has(b)).toBe(false);
     expect(second.get(c)).toBe((base ?? 0) + 2);

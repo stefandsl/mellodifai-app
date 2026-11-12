@@ -3,10 +3,13 @@
 // with the shared renderer, as the Video Studio preview does.
 import {
   ANALYSIS_RATE,
+  type AnalysisFrame,
+  createAudioHistory,
   createVisualizerRenderer,
   normalizeVisualizerParams,
   type Picture,
   VISUALIZER_FONT,
+  withFocus,
 } from "@mellodifai/shared";
 import {
   configureAnalyser,
@@ -23,11 +26,23 @@ type Job = {
   duration: number;
 };
 
-async function picture(src: string): Promise<Picture> {
+async function picture(src: string, subject = false): Promise<Picture> {
   const img = new Image();
   img.src = src;
   await img.decode();
-  return { source: img, width: img.naturalWidth, height: img.naturalHeight };
+  const pic: Picture = {
+    source: img,
+    width: img.naturalWidth,
+    height: img.naturalHeight,
+  };
+  return subject
+    ? withFocus(pic, (w, h) => {
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        return c;
+      })
+    : pic;
 }
 
 async function previewFrame(
@@ -51,14 +66,17 @@ async function previewFrame(
   source.connect(analyser);
   analyser.connect(ctx.destination);
   // Read the analyser at every video frame up to the one compared, as the render does.
+  // The studio keeps the frames it read in the same history the preview uses.
   let bands: Float32Array | null = null;
   let wave: Float32Array = new Float32Array(0);
+  const history = createAudioHistory();
   for (let f = 0; f <= job.frame; f++) {
     const at = f / 30;
     void ctx.suspend(at).then(() => {
       const read = readAnalyser(analyser, bands, 1 / 30);
       bands = read.bands;
       wave = read.wave;
+      history.push(at, read as AnalysisFrame);
       void ctx.resume();
     });
   }
@@ -77,10 +95,13 @@ async function previewFrame(
     c.height = h;
     return c;
   });
-  const [background, center, trumpet, gramophone] = await Promise.all(
-    [files.background, files.center, files.trumpet, files.gramophone].map(
-      (src) => picture(src as string),
+  const [background, center] = await Promise.all(
+    [files.background, files.center].map((src, i) =>
+      picture(src as string, i === 1),
     ),
+  );
+  const logos = await Promise.all(
+    (JSON.parse(files.logos ?? "[]") as string[]).map((src) => picture(src)),
   );
   draw(canvas.getContext("2d") as CanvasRenderingContext2D, {
     params: normalizeVisualizerParams(job.params),
@@ -90,13 +111,13 @@ async function previewFrame(
     duration: job.duration,
     bands: bands ?? new Float32Array(64),
     wave,
+    history: history.frames(job.frame / 30),
     title: job.title,
     fontFamily: VISUALIZER_FONT,
     images: {
       background: background ?? null,
       center: center ?? null,
-      trumpet: trumpet ?? null,
-      gramophone: gramophone ?? null,
+      logos,
     },
   });
   return canvas.toDataURL("image/png");

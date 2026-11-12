@@ -4,6 +4,7 @@ import {
   backgroundAsset,
   type Picture,
   type VisualizerParams,
+  withFocus,
 } from "@mellodifai/shared";
 import { useEffect, useState } from "react";
 
@@ -11,30 +12,48 @@ import { useEffect, useState } from "react";
 // a fresh signed storage link; crossOrigin keeps the canvas readable.
 const cache = new Map<string, Promise<Picture | null>>();
 
-export function loadPicture(url: string): Promise<Picture | null> {
-  const known = cache.get(url);
+// `subject`: also read where the subject sits, for the square crop of the centre picture
+// (shared withFocus; the render does the same).
+export function loadPicture(
+  url: string,
+  subject = false,
+): Promise<Picture | null> {
+  const key = subject ? `subject:${url}` : url;
+  const known = cache.get(key);
   if (known) return known;
   const pending = new Promise<Picture | null>((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.decoding = "async";
-    img.onload = () =>
-      resolve({
+    img.onload = () => {
+      const pic: Picture = {
         source: img,
         width: img.naturalWidth,
         height: img.naturalHeight,
-      });
+      };
+      resolve(subject ? withFocus(pic, scratchCanvas) : pic);
+    };
     img.onerror = () => {
-      cache.delete(url);
+      cache.delete(key);
       resolve(null);
     };
     img.src = url;
   });
-  cache.set(url, pending);
+  cache.set(key, pending);
   return pending;
 }
 
-export function usePicture(url: string | null): Picture | null {
+function scratchCanvas(width: number, height: number) {
+  const c = document.createElement("canvas");
+  c.width = width;
+  c.height = height;
+  return c;
+}
+
+export function usePicture(
+  url: string | null,
+  subject = false,
+): Picture | null {
   const [state, setState] = useState<{
     url: string | null;
     pic: Picture | null;
@@ -45,18 +64,15 @@ export function usePicture(url: string | null): Picture | null {
   useEffect(() => {
     if (!url) return;
     let alive = true;
-    void loadPicture(url).then((pic) => {
+    void loadPicture(url, subject).then((pic) => {
       if (alive) setState({ url, pic });
     });
     return () => {
       alive = false;
     };
-  }, [url]);
+  }, [url, subject]);
   return url && state.url === url ? state.pic : null;
 }
-
-export const TRUMPET_URL = "/brand/mellodifai-trumpet.png";
-export const GRAMOPHONE_URL = "/brand/mellodifai-logo.png";
 
 // What each slot of the frame shows, as links: the same choices the worker makes
 // (apps/worker/src/stages/visualizer.ts), so the preview and the video agree.
@@ -67,7 +83,8 @@ export function pictureLinks(
   background: string | null;
   backgroundVideo: string | null;
   center: string | null;
-  marks: boolean;
+  // The user's logos, in the order of params.logos.
+  logos: string[];
 } {
   const bg = params.background;
   const uploaded = backgroundAsset(params);
@@ -87,6 +104,6 @@ export function pictureLinks(
         : params.centerImage.mode === "upload"
           ? (params.centerImage.assetUrl ?? coverUrl)
           : null,
-    marks: params.preset === "classico",
+    logos: params.logos.map((logo) => logo.assetUrl),
   };
 }

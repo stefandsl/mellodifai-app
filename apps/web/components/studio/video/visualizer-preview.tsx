@@ -5,6 +5,7 @@ import "@fontsource/oswald/500.css";
 import "@fontsource/oswald/600.css";
 
 import {
+  createAudioHistory,
   createVisualizerRenderer,
   type Picture,
   silentFrame,
@@ -17,12 +18,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { playerAnalyser, playerAudio } from "@/lib/studio/visualizer/audio-tap";
 import { readAnalyser } from "@/lib/studio/visualizer/live-frame";
-import {
-  GRAMOPHONE_URL,
-  pictureLinks,
-  TRUMPET_URL,
-  usePicture,
-} from "@/lib/studio/visualizer/pictures";
+import { pictureLinks, usePicture } from "@/lib/studio/visualizer/pictures";
 import { usePlayer } from "@/store/player";
 
 // Longest side of the preview canvas in pixels: sharp on a retina laptop, light enough to draw
@@ -53,9 +49,10 @@ export function VisualizerPreview({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const links = pictureLinks(params, coverUrl);
   const background = usePicture(links.background);
-  const center = usePicture(links.center);
-  const trumpet = usePicture(links.marks ? TRUMPET_URL : null);
-  const gramophone = usePicture(links.marks ? GRAMOPHONE_URL : null);
+  const center = usePicture(links.center, true);
+  // Up to two logos (MAX_LOGOS), each loaded once per link.
+  const logo1 = usePicture(links.logos[0] ?? null);
+  const logo2 = usePicture(links.logos[1] ?? null);
   const tall = params.aspect === "9:16";
 
   // The canvas fills the largest box of the chosen aspect that fits.
@@ -83,8 +80,7 @@ export function VisualizerPreview({
     songId,
     background,
     center,
-    trumpet,
-    gramophone,
+    logos: [logo1, logo2],
   });
   latest.current = {
     params,
@@ -92,8 +88,7 @@ export function VisualizerPreview({
     songId,
     background,
     center,
-    trumpet,
-    gramophone,
+    logos: [logo1, logo2],
   };
 
   useEffect(() => {
@@ -114,6 +109,8 @@ export function VisualizerPreview({
     const started = last;
     let bands: Float32Array | null = null;
     const quiet = silentFrame();
+    // The frames read so far, for the looks that trail the music (peaks, echoes, contours).
+    const history = createAudioHistory();
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const el = canvas.current;
@@ -139,6 +136,7 @@ export function VisualizerPreview({
         bands = read.bands;
         wave = read.wave;
       } else bands = smoothBands(bands, quiet.bands, dt);
+      history.push(time, { bands, wave });
       // A background video loops in step with the song.
       const v = video.current;
       let backdrop: Picture | null = state.background;
@@ -159,13 +157,13 @@ export function VisualizerPreview({
         duration,
         bands,
         wave,
+        history: history.frames(time),
         title: state.title,
         fontFamily: VISUALIZER_FONT,
         images: {
           background: backdrop,
           center: state.center,
-          trumpet: state.trumpet,
-          gramophone: state.gramophone,
+          logos: state.logos,
         },
       });
     };

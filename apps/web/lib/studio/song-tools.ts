@@ -1,10 +1,20 @@
 import type { LucideIcon } from "lucide-react";
-import { Clapperboard, Layers, RotateCcw, Scissors } from "lucide-react";
+import {
+  Clapperboard,
+  Disc3,
+  Layers,
+  PenLine,
+  RotateCcw,
+  Scissors,
+  Sparkles,
+} from "lucide-react";
 import { useVideoStudio } from "@/store/video-studio";
+import { canStartFrom, startFromSong } from "./audio-source";
 import { openStems } from "./audio-tools";
 import type { Clip } from "./clips";
 import type { StudioKey } from "./i18n";
 import { reusePrompt } from "./reuse-prompt";
+import { canRewrite, rewriteHref } from "./rewrite";
 import { canEdit, canSeparate, editorHref } from "./stems";
 
 // The tool buttons of the song details panel. Later features (video studio, stems, editor,
@@ -78,4 +88,34 @@ registerSongTool({
   order: 15,
   available: canSeparate,
   run: ({ clip }) => useVideoStudio.getState().openFor(clip),
+});
+
+// "Riscrivi una parte" (T12): the editor's rewrite tab.
+registerSongTool({
+  id: "rewrite",
+  label: "tool.rewrite",
+  icon: PenLine,
+  order: 25,
+  available: canRewrite,
+  run: ({ clip, navigate }) => navigate(rewriteHref(clip.id)),
+});
+
+// The song's take as the audio of a new one (T12).
+registerSongTool({
+  id: "cover",
+  label: "clip.coverThis",
+  icon: Disc3,
+  order: 40,
+  available: canStartFrom,
+  run: ({ clip, lang, navigate }) =>
+    startFromSong(clip, "cover", lang, navigate),
+});
+registerSongTool({
+  id: "reference",
+  label: "clip.useReference",
+  icon: Sparkles,
+  order: 45,
+  available: canStartFrom,
+  run: ({ clip, lang, navigate }) =>
+    startFromSong(clip, "reference", lang, navigate),
 });

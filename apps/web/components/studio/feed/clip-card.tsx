@@ -3,6 +3,7 @@
 import { cn } from "cn";
 import {
   Clapperboard,
+  Disc3,
   Download,
   Film,
   Info,
@@ -13,10 +14,12 @@ import {
   MoreHorizontal,
   Music2,
   Pause,
+  PenLine,
   Play,
   RotateCcw,
   Scissors,
   Share2,
+  Sparkles,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -33,10 +36,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  canStartFrom,
+  SONG_DRAG_TYPE,
+  startFromSong,
+} from "@/lib/studio/audio-source";
 import { openStems } from "@/lib/studio/audio-tools";
 import { type Clip, isGenerating, needsAction } from "@/lib/studio/clips";
 import { st, stf } from "@/lib/studio/i18n";
 import { reusePrompt } from "@/lib/studio/reuse-prompt";
+import { canRewrite, rewriteHref } from "@/lib/studio/rewrite";
 import { canEdit, canSeparate, editorHref } from "@/lib/studio/stems";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { useDetails } from "@/store/details";
@@ -126,6 +135,7 @@ export function trackFor(clip: Clip): Track | null {
     videoUrl: clip.videoUrl,
     href: clip.href,
     art: clip.art,
+    coverUrl: clip.coverUrl,
     reaction: clip.reaction,
     detail: detailFor(clip),
   };
@@ -328,12 +338,36 @@ export function MoreMenu({
             {st(lang, "tool.edit")}
           </DropdownMenuItem>
           <DropdownMenuItem
+            disabled={!canRewrite(clip)}
+            onClick={() => router.push(rewriteHref(clip.id))}
+            className="rounded-lg"
+          >
+            <PenLine />
+            {st(lang, "tool.rewrite")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
             disabled={!canSeparate(clip)}
             onClick={() => void openStems(clip, lang, router.push)}
             className="rounded-lg"
           >
             <Layers />
             {st(lang, "tool.stems")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canStartFrom(clip)}
+            onClick={() => startFromSong(clip, "cover", lang, router.push)}
+            className="rounded-lg"
+          >
+            <Disc3 />
+            {st(lang, "clip.coverThis")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!canStartFrom(clip)}
+            onClick={() => startFromSong(clip, "reference", lang, router.push)}
+            className="rounded-lg"
+          >
+            <Sparkles />
+            {st(lang, "clip.useReference")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!canMakeVideo(clip)}
@@ -561,6 +595,16 @@ export function ClipCard({
   const showDetails = useDetails((s) => s.show);
   const title = clip.title || st(lang, "clip.untitled");
   const playable = !selection && !trash;
+  // A song with audio can be dragged onto the create panel's audio card (T12).
+  const dragProps = canStartFrom(clip)
+    ? {
+        draggable: true,
+        onDragStart: (event: React.DragEvent) => {
+          event.dataTransfer.setData(SONG_DRAG_TYPE, clip.id);
+          event.dataTransfer.effectAllowed = "copy";
+        },
+      }
+    : {};
   // A click on the card body (not on one of its buttons or links) picks the song: it opens
   // the details panel, or ticks the box in select mode.
   const onCardClick = (event: React.MouseEvent) => {
@@ -596,6 +640,7 @@ export function ClipCard({
         aria-current={current ? "true" : undefined}
         data-selected={detailed ? "true" : undefined}
         onClick={onCardClick}
+        {...dragProps}
         className={cn("flex flex-col gap-2 rounded-[20px] p-2.5", card)}
       >
         <div className="relative">
@@ -653,6 +698,7 @@ export function ClipCard({
       aria-current={current ? "true" : undefined}
       data-selected={detailed ? "true" : undefined}
       onClick={onCardClick}
+      {...dragProps}
       className={cn(
         "flex h-[110px] items-center gap-3 rounded-[20px] p-3",
         card,

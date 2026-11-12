@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COVER_FITS } from "./viz-kit.js";
 
 // One parameter set drives both the live preview in the browser (a <canvas> fed by the Web Audio
 // analyser of the playing track) and the MP4 the render PC makes with Remotion
@@ -13,11 +14,60 @@ export const VISUALIZER_PRESETS = [
   "waveform",
   "particles",
   "minimal",
+  // Looks recreated from the owner's VideoHive catalogue (research/videohive), drawn from
+  // scratch in viz-looks.ts.
+  "dotline",
+  "burst",
+  "crown",
+  "wirering",
+  "lens",
+  "pills",
+  "edgebars",
+  "coverframe",
+  "playercard",
+  "contours",
+  "synthwave",
+  "editorial",
+  "shaped",
 ] as const;
 export type VisualizerPreset = (typeof VISUALIZER_PRESETS)[number];
 
+// The presets that show the artist and album lines of the Testo tab (stored with Classico's).
+export const PRESETS_WITH_SONG_LINES: readonly VisualizerPreset[] = [
+  "classico",
+  "lens",
+  "coverframe",
+  "playercard",
+  "synthwave",
+  "editorial",
+];
+
+// Variants of the catalogue looks, each read only by its preset.
+// Corona: the shape of the teeth round the ring.
+export const CROWN_TEETH = ["wedge", "bar", "fin", "pin", "tick"] as const;
+export type CrownTeeth = (typeof CROWN_TEETH)[number];
+// Particelle a Forme: the outline each particle draws, and where they flow.
+export const PARTICLE_SHAPES = [
+  "circle",
+  "square",
+  "heart",
+  "diamond",
+  "triangle",
+  "hexagon",
+  "plus",
+  "star",
+] as const;
+export type ParticleShape = (typeof PARTICLE_SHAPES)[number];
+export const PARTICLE_FLOWS = ["up", "down", "both", "radial"] as const;
+export type ParticleFlow = (typeof PARTICLE_FLOWS)[number];
+// Contorni: concentric rings or ridge lines.
+export const CONTOUR_STYLES = ["rings", "ridges"] as const;
+export type ContourStyle = (typeof CONTOUR_STYLES)[number];
+
 export const VISUALIZER_ASPECTS = ["16:9", "9:16"] as const;
 export type VisualizerAspect = (typeof VISUALIZER_ASPECTS)[number];
+export const VISUALIZER_QUALITIES = ["1080p", "4K"] as const;
+export type VisualizerQuality = (typeof VISUALIZER_QUALITIES)[number];
 
 // Render size per aspect. 9:16 is a true full-frame Short: every preset lays itself out again
 // for the tall frame instead of letterboxing the wide one.
@@ -28,12 +78,24 @@ export const ASPECT_SIZE: Record<
   "16:9": { width: 1920, height: 1080 },
   "9:16": { width: 1080, height: 1920 },
 };
+export function renderSize(
+  aspect: VisualizerAspect,
+  quality: VisualizerQuality,
+) {
+  const size = ASPECT_SIZE[aspect];
+  return quality === "4K"
+    ? { width: size.width * 2, height: size.height * 2 }
+    : size;
+}
 export const VISUALIZER_FPS = 30;
 
 export const BACKGROUND_MODES = ["random", "image", "video"] as const;
 export type BackgroundMode = (typeof BACKGROUND_MODES)[number];
 export const CENTER_IMAGE_MODES = ["cover", "upload", "none"] as const;
 export type CenterImageMode = (typeof CENTER_IMAGE_MODES)[number];
+// How the centre picture sits in a round or square frame: the square crop on its subject, or
+// the whole picture over a blurred copy of itself.
+export { COVER_FITS, type CoverFit } from "./viz-kit.js";
 
 // The visual effects, in the order they are applied on top of the frame.
 export const VISUALIZER_EFFECTS = [
@@ -83,6 +145,18 @@ export const VIDEO_TYPES = ["video/mp4", "video/webm"] as const;
 export const MAX_TEXT_LAYERS = 6;
 export const TEXT_SIZE = { min: 12, max: 200, default: 64 } as const;
 
+// The owner's own logos, uploaded in the Stile tab: up to two, each in a corner of the frame.
+// Size is a share of the frame's short side (the logo's longer side), opacity a percentage.
+export const MAX_LOGOS = 2;
+export const LOGO_POSITIONS = [
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+] as const;
+export type LogoPosition = (typeof LOGO_POSITIONS)[number];
+export const LOGO_SIZE = { min: 4, max: 30, default: 12 } as const;
+
 const hexInput = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/u)
@@ -105,6 +179,31 @@ export const TextLayerSchema = z.object({
 });
 export type TextLayer = z.infer<typeof TextLayerSchema>;
 
+export const LogoSchema = z.object({
+  assetUrl,
+  position: z.enum(LOGO_POSITIONS),
+  size: z.number().int().min(LOGO_SIZE.min).max(LOGO_SIZE.max),
+  opacity: percent,
+});
+export type VisualizerLogo = z.infer<typeof LogoSchema>;
+
+export function newLogo(
+  assetUrl: string,
+  taken: readonly VisualizerLogo[] = [],
+): VisualizerLogo {
+  // The first corner no other logo uses, top right first (the usual place of a channel mark).
+  const order: LogoPosition[] = [
+    "top-right",
+    "top-left",
+    "bottom-right",
+    "bottom-left",
+  ];
+  const position =
+    order.find((p) => !taken.some((logo) => logo.position === p)) ??
+    "top-right";
+  return { assetUrl, position, size: LOGO_SIZE.default, opacity: 100 };
+}
+
 export const EffectSchema = z.object({
   id: z.enum(VISUALIZER_EFFECTS),
   enabled: z.boolean(),
@@ -112,9 +211,49 @@ export const EffectSchema = z.object({
 });
 export type EffectSetting = z.infer<typeof EffectSchema>;
 
+export const LookSchema = z.object({
+  teeth: z.enum(CROWN_TEETH),
+  // Corona: bass at the top mirrored left and right, or the spectrum once round the ring.
+  mirrored: z.boolean(),
+  shape: z.enum(PARTICLE_SHAPES),
+  flow: z.enum(PARTICLE_FLOWS),
+  contour: z.enum(CONTOUR_STYLES),
+  // Contorni: line weight in units of 1/1080 of the short side, and opacity in percent. The
+  // colours are lifted to hold 3:1 against the picture whatever these are, so the opacity
+  // cannot go below 60.
+  contourWeight: z.number().min(1).max(6).default(2.5),
+  contourOpacity: z.number().int().min(60).max(100).default(90),
+});
+export type VisualizerLook = z.infer<typeof LookSchema>;
+
+// Badge Rotanti: an overlay of two text rings turning in the corners, over any preset.
+export const BadgesSchema = z.object({
+  enabled: z.boolean(),
+  // Empty: the song title and the artist.
+  text: z.string().max(40),
+});
+export type VisualizerBadges = z.infer<typeof BadgesSchema>;
+
+export function defaultLook(): VisualizerLook {
+  return {
+    teeth: "wedge",
+    mirrored: true,
+    shape: "circle",
+    flow: "up",
+    contour: "rings",
+    contourWeight: 2.5,
+    contourOpacity: 90,
+  };
+}
+
+export function defaultBadges(): VisualizerBadges {
+  return { enabled: false, text: "" };
+}
+
 export const VisualizerParamsSchema = z.object({
   preset: z.enum(VISUALIZER_PRESETS),
   aspect: z.enum(VISUALIZER_ASPECTS),
+  quality: z.enum(VISUALIZER_QUALITIES).default("1080p"),
   background: z.object({
     mode: z.enum(BACKGROUND_MODES),
     seed: z.number().int().min(0).max(2147483647),
@@ -126,6 +265,7 @@ export const VisualizerParamsSchema = z.object({
   centerImage: z.object({
     mode: z.enum(CENTER_IMAGE_MODES),
     assetUrl: assetUrl.nullable(),
+    fit: z.enum(COVER_FITS).default("cover"),
   }),
   textLayers: z.array(TextLayerSchema).max(MAX_TEXT_LAYERS),
   effects: z
@@ -135,15 +275,20 @@ export const VisualizerParamsSchema = z.object({
       (list) => new Set(list.map((effect) => effect.id)).size === list.length,
       "duplicate effect",
     ),
-  // The channel template's own lines (MellodifAI Classico); other presets ignore them.
+  // The Testo tab's lines: artist and album (the player-style presets show them too) and the
+  // website line of MellodifAI Classico. Empty by default: no preset shows a name nobody typed.
   classico: z.object({
     artist: z.string().max(40),
     website: z.string().max(40),
     album: z.string().max(40),
-    gramophone: z.enum(["red", "black"]),
     // Intro "ARTIST / PRESENTS", the subscribe callout at 1:30 and the end card.
     cards: z.boolean(),
   }),
+  // Added with the catalogue looks: rows saved before them read the defaults.
+  look: LookSchema.default(defaultLook),
+  badges: BadgesSchema.default(defaultBadges),
+  // Added with the owner's logos (Task 28): rows saved before them have none.
+  logos: z.array(LogoSchema).max(MAX_LOGOS).default([]),
 });
 export type VisualizerParams = z.infer<typeof VisualizerParamsSchema>;
 
@@ -160,21 +305,27 @@ export function defaultVisualizerParams(): VisualizerParams {
   return {
     preset: "circle",
     aspect: "16:9",
+    quality: "1080p",
     background: { mode: "random", seed: 0, assetUrl: null, dimming: 60 },
     colors: { primary: first.primary, secondary: first.secondary },
     particles: 30,
-    centerImage: { mode: "cover", assetUrl: null },
+    centerImage: { mode: "cover", assetUrl: null, fit: "cover" },
     textLayers: [],
     effects: defaultEffects(),
-    classico: {
-      artist: "AIMELODIA",
-      website: "STEFANDSL.COM",
-      album: "",
-      gramophone: "red",
-      cards: true,
-    },
+    classico: { artist: "", website: "", album: "", cards: true },
+    look: defaultLook(),
+    badges: defaultBadges(),
+    logos: [],
   };
 }
+
+// The artist and website lines every saved set carried before Task 28, when they were the
+// defaults. A set saved before the logos (no `logos` field) that still holds them exactly was
+// never typed by the user, so it reads as empty; anything else is kept.
+export const LEGACY_DEFAULT_LINES = {
+  artist: "AIMELODIA",
+  website: "STEFANDSL.COM",
+} as const;
 
 function pick<T>(schema: z.ZodType<T>, value: unknown, fallback: T): T {
   const parsed = schema.safeParse(value);
@@ -197,6 +348,8 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
   const colors = field(input, "colors");
   const center = field(input, "centerImage");
   const classico = field(input, "classico");
+  const look = field(input, "look");
+  const badges = field(input, "badges");
   const savedEffects = Array.isArray(field(input, "effects"))
     ? (field(input, "effects") as unknown[])
     : [];
@@ -213,9 +366,50 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
   const bgShape = shape.background.shape;
   const centerShape = shape.centerImage.shape;
   const classicoShape = shape.classico.shape;
+  // Saved before the logos: the old default artist and website lines were never typed.
+  const legacy = !(
+    input &&
+    typeof input === "object" &&
+    "logos" in (input as Record<string, unknown>)
+  );
+  const line = (key: "artist" | "website") => {
+    const value = pick(
+      classicoShape[key],
+      field(classico, key),
+      d.classico[key],
+    );
+    return legacy && value === LEGACY_DEFAULT_LINES[key] ? "" : value;
+  };
+  const savedLogos = field(input, "logos");
+  const logos = (Array.isArray(savedLogos) ? savedLogos : [])
+    .flatMap((item): VisualizerLogo[] => {
+      // Field by field: a logo without a readable file goes, a broken corner, size or opacity
+      // falls back to its default.
+      const url = LogoSchema.shape.assetUrl.safeParse(field(item, "assetUrl"));
+      if (!url.success) return [];
+      const base = newLogo(url.data);
+      return [
+        {
+          assetUrl: url.data,
+          position: pick(
+            LogoSchema.shape.position,
+            field(item, "position"),
+            base.position,
+          ),
+          size: pick(LogoSchema.shape.size, field(item, "size"), base.size),
+          opacity: pick(
+            LogoSchema.shape.opacity,
+            field(item, "opacity"),
+            base.opacity,
+          ),
+        },
+      ];
+    })
+    .slice(0, MAX_LOGOS);
   return {
     preset: pick(shape.preset, field(input, "preset"), d.preset),
     aspect: pick(shape.aspect, field(input, "aspect"), d.aspect),
+    quality: pick(shape.quality, field(input, "quality"), d.quality),
     background: {
       mode: pick(bgShape.mode, field(bg, "mode"), d.background.mode),
       seed: pick(bgShape.seed, field(bg, "seed"), d.background.seed),
@@ -242,29 +436,17 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
         field(center, "assetUrl"),
         d.centerImage.assetUrl,
       ),
+      fit: pick(centerShape.fit, field(center, "fit"), d.centerImage.fit),
     },
     textLayers: layers,
     effects,
     classico: {
-      artist: pick(
-        classicoShape.artist,
-        field(classico, "artist"),
-        d.classico.artist,
-      ),
-      website: pick(
-        classicoShape.website,
-        field(classico, "website"),
-        d.classico.website,
-      ),
+      artist: line("artist"),
+      website: line("website"),
       album: pick(
         classicoShape.album,
         field(classico, "album"),
         d.classico.album,
-      ),
-      gramophone: pick(
-        classicoShape.gramophone,
-        field(classico, "gramophone"),
-        d.classico.gramophone,
       ),
       cards: pick(
         classicoShape.cards,
@@ -272,6 +454,40 @@ export function normalizeVisualizerParams(input: unknown): VisualizerParams {
         d.classico.cards,
       ),
     },
+    look: {
+      teeth: pick(LookSchema.shape.teeth, field(look, "teeth"), d.look.teeth),
+      mirrored: pick(
+        LookSchema.shape.mirrored,
+        field(look, "mirrored"),
+        d.look.mirrored,
+      ),
+      shape: pick(LookSchema.shape.shape, field(look, "shape"), d.look.shape),
+      flow: pick(LookSchema.shape.flow, field(look, "flow"), d.look.flow),
+      contour: pick(
+        LookSchema.shape.contour,
+        field(look, "contour"),
+        d.look.contour,
+      ),
+      contourWeight: pick(
+        LookSchema.shape.contourWeight,
+        field(look, "contourWeight"),
+        d.look.contourWeight,
+      ),
+      contourOpacity: pick(
+        LookSchema.shape.contourOpacity,
+        field(look, "contourOpacity"),
+        d.look.contourOpacity,
+      ),
+    },
+    badges: {
+      enabled: pick(
+        BadgesSchema.shape.enabled,
+        field(badges, "enabled"),
+        d.badges.enabled,
+      ),
+      text: pick(BadgesSchema.shape.text, field(badges, "text"), d.badges.text),
+    },
+    logos,
   };
 }
 

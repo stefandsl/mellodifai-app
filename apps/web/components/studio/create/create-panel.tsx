@@ -5,7 +5,9 @@ import {
   ACE_GUIDANCE,
   ACE_STEPS,
   BPM_RANGE,
+  KIE_SOURCE_MAX_SECONDS,
   MAX_SONGS_PER_CLICK,
+  sourceModesFor,
 } from "@mellodifai/shared";
 import { cn } from "cn";
 import { Music2, Trash2 } from "lucide-react";
@@ -39,6 +41,7 @@ import {
 } from "@/store/create-form";
 import { useVideoStudio } from "@/store/video-studio";
 import { Counter, InfoTip, Segmented, Tip } from "../ui";
+import { AudioCard } from "./audio-card";
 import { ClearButton } from "./clear-field";
 import { EngineSelect } from "./engine-select";
 import { LanguagePicker } from "./language-picker";
@@ -46,6 +49,7 @@ import { LyricsCard } from "./lyrics-card";
 import { ModelSelect } from "./model-select";
 import { MoreOptionsCard } from "./more-options-card";
 import { MusicCard } from "./music-card";
+import { RemakeCard } from "./remake-card";
 import { PROMPT_EXAMPLES, RotatingPlaceholder } from "./rotating-placeholder";
 import { StylesCard } from "./styles-card";
 import { useEngineChoice } from "./use-engine";
@@ -100,6 +104,26 @@ export function payloadFor(
             : ("lyric" as const),
       // The Video Studio's remembered look, rendered once the take is picked.
       ...(form.video.mode === "visualizer" && visualizer ? { visualizer } : {}),
+      // The audio the song starts from (T12): advanced mode only.
+      ...(form.mode === "advanced" && form.audio
+        ? {
+            source: {
+              mode: form.audio.mode,
+              ...(form.audio.upload
+                ? { upload: form.audio.upload }
+                : { takeId: form.audio.takeId }),
+              ...(form.audio.versionId
+                ? { versionId: form.audio.versionId }
+                : {}),
+              ...(form.audio.mode === "extend" &&
+              form.audio.continueAt !== undefined
+                ? { continueAt: Math.round(form.audio.continueAt * 100) / 100 }
+                : {}),
+              title: form.audio.title.slice(0, 200),
+              ...(form.audio.duration ? { duration: form.audio.duration } : {}),
+            },
+          }
+        : {}),
       engine: form.engine,
     },
   };
@@ -164,7 +188,15 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
       setReady(true),
     );
   }, []);
-  const block = blocker(form);
+  // A song made from audio needs a mode the engine has, and kie takes at most 8 minutes.
+  const audioBlock =
+    form.mode === "advanced" &&
+    form.audio &&
+    (!sourceModesFor(engine).includes(form.audio.mode) ||
+      (engine === "kie" && (form.audio.duration ?? 0) > KIE_SOURCE_MAX_SECONDS))
+      ? ("audioMode" as const)
+      : null;
+  const block = blocker(form) ?? audioBlock;
 
   // A local engine that stops qualifying (PC offline, language added) hands the form back to
   // kie; the stored choice follows so the form never keeps a stale engine.
@@ -309,6 +341,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3 pb-4 scrollbar-thin">
+        <RemakeCard />
         {form.mode === "simple" ? (
           <>
             <SimplePrompt />
@@ -316,6 +349,7 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
           </>
         ) : (
           <>
+            <AudioCard engine={engine} />
             <LyricsCard />
             <StylesCard />
             <MusicCard />

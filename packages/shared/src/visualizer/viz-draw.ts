@@ -1,5 +1,34 @@
 import { BAND_COUNT, levelOf, silentFrame, WAVE_POINTS } from "./viz-audio.js";
 import {
+  BASE,
+  barValues,
+  type Canvas2D,
+  drawCover,
+  drawTitle,
+  fitText,
+  font,
+  frameIndex,
+  type Gradient,
+  hash01,
+  mix,
+  particleAt,
+  particleCount,
+  rgba,
+  roundImageAt,
+  roundRectPath,
+  type ScratchCanvas,
+  unitOf,
+  type VisualizerScene,
+} from "./viz-kit.js";
+import { type Box, drawLogos, logoLayout, textProbe } from "./viz-logos.js";
+import {
+  badgeBoxes,
+  drawBadges,
+  drawLook,
+  drawsOwnParticles,
+  lookCenter,
+} from "./viz-looks.js";
+import {
   classicoLines,
   effectOf,
   TEXT_SIZE,
@@ -8,182 +37,24 @@ import {
   type VisualizerParams,
 } from "./viz-params.js";
 
-// The part of CanvasRenderingContext2D the visualizer uses. The browser preview passes its
-// canvas context, the Remotion composition its own; tests pass a recorder.
-export interface Gradient {
-  addColorStop(offset: number, color: string): void;
-}
-export interface Canvas2D {
-  globalAlpha: number;
-  globalCompositeOperation: string;
-  fillStyle: unknown;
-  strokeStyle: unknown;
-  lineWidth: number;
-  lineCap: string;
-  lineJoin: string;
-  shadowBlur: number;
-  shadowColor: string;
-  font: string;
-  textAlign: string;
-  textBaseline: string;
-  save(): void;
-  restore(): void;
-  beginPath(): void;
-  closePath(): void;
-  moveTo(x: number, y: number): void;
-  lineTo(x: number, y: number): void;
-  quadraticCurveTo(cx: number, cy: number, x: number, y: number): void;
-  arc(
-    x: number,
-    y: number,
-    r: number,
-    start: number,
-    end: number,
-    ccw?: boolean,
-  ): void;
-  rect(x: number, y: number, w: number, h: number): void;
-  fill(): void;
-  stroke(): void;
-  clip(): void;
-  fillRect(x: number, y: number, w: number, h: number): void;
-  clearRect(x: number, y: number, w: number, h: number): void;
-  drawImage(image: never, ...args: number[]): void;
-  fillText(text: string, x: number, y: number, maxWidth?: number): void;
-  measureText(text: string): { width: number };
-  createLinearGradient(
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number,
-  ): Gradient;
-  createRadialGradient(
-    x0: number,
-    y0: number,
-    r0: number,
-    x1: number,
-    y1: number,
-    r1: number,
-  ): Gradient;
-  translate(x: number, y: number): void;
-  rotate(angle: number): void;
-  scale(x: number, y: number): void;
-  setTransform(
-    a: number,
-    b: number,
-    c: number,
-    d: number,
-    e: number,
-    f: number,
-  ): void;
-  createImageData(width: number, height: number): { data: Uint8ClampedArray };
-  putImageData(data: never, x: number, y: number): void;
-}
-export interface ScratchCanvas {
-  width: number;
-  height: number;
-  getContext(type: "2d"): unknown;
-}
-
-// A picture the frame draws: an <img>, an ImageBitmap or the current frame of a video.
-export type Picture = { source: unknown; width: number; height: number };
-
-export type VisualizerScene = {
-  params: VisualizerParams;
-  width: number;
-  height: number;
-  // Seconds into the song, and its length (the end card needs it).
-  time: number;
-  duration: number;
-  // 0..1 smoothed bands and -1..1 wave (audio.ts).
-  bands: ArrayLike<number>;
-  wave: ArrayLike<number>;
-  title: string;
-  // The resolved pictures: background (stock, upload, video frame or cover), centre image,
-  // and the two brand marks of MellodifAI Classico.
-  images: {
-    background?: Picture | null;
-    center?: Picture | null;
-    trumpet?: Picture | null;
-    gramophone?: Picture | null;
-  };
-  fontFamily?: string;
-};
-
-export const VISUALIZER_FONT = "Oswald";
-const FONT_STACK = `"${VISUALIZER_FONT}", "Arial Narrow", Arial, sans-serif`;
-const BASE = "#06060b";
-
-// Deterministic noise: the same frame number gives the same grain and glitch in the preview
-// and in the render.
-export function hash01(n: number): number {
-  let x = Math.trunc(n) | 0;
-  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b);
-  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b);
-  x ^= x >>> 16;
-  return (x >>> 0) / 4294967296;
-}
-
-export function frameIndex(time: number, fps = 30): number {
-  return Math.max(0, Math.floor(time * fps + 1e-6));
-}
-
-// Size unit: 1 at 1080 px on the short side, so text and strokes keep their proportion at the
-// preview's size.
-export function unitOf(width: number, height: number): number {
-  return Math.min(width, height) / 1080;
-}
-
-export function hexToRgb(hex: string): [number, number, number] {
-  const value = Number.parseInt(hex.slice(1), 16);
-  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-}
-export function rgba(hex: string, alpha: number): string {
-  const [r, g, b] = hexToRgb(hex);
-  return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, alpha))})`;
-}
-export function mix(a: string, b: string, t: number): string {
-  const x = hexToRgb(a);
-  const y = hexToRgb(b);
-  const c = x.map((v, i) => Math.round(v + ((y[i] as number) - v) * t));
-  return `rgb(${c[0]},${c[1]},${c[2]})`;
-}
-
-// Draws `pic` to cover the box, centred, optionally zoomed.
-export function drawCover(
-  ctx: Canvas2D,
-  pic: Picture,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  zoom = 1,
-): void {
-  if (!pic.width || !pic.height) return;
-  const scale = Math.max(w / pic.width, h / pic.height) * zoom;
-  const dw = pic.width * scale;
-  const dh = pic.height * scale;
-  ctx.drawImage(
-    pic.source as never,
-    x + (w - dw) / 2,
-    y + (h - dh) / 2,
-    dw,
-    dh,
-  );
-}
-
-function drawContain(
-  ctx: Canvas2D,
-  pic: Picture,
-  cx: number,
-  cy: number,
-  size: number,
-): void {
-  if (!pic.width || !pic.height) return;
-  const scale = size / Math.max(pic.width, pic.height);
-  const dw = pic.width * scale;
-  const dh = pic.height * scale;
-  ctx.drawImage(pic.source as never, cx - dw / 2, cy - dh / 2, dw, dh);
-}
+export {
+  barValues,
+  type Canvas2D,
+  drawCover,
+  frameIndex,
+  type Gradient,
+  hash01,
+  hexToRgb,
+  mix,
+  type Picture,
+  particleAt,
+  particleCount,
+  rgba,
+  type ScratchCanvas,
+  unitOf,
+  VISUALIZER_FONT,
+  type VisualizerScene,
+} from "./viz-kit.js";
 
 // Where the round centre image sits, per preset and aspect.
 export function centerLayout(
@@ -226,86 +97,13 @@ export function centerLayout(
         cy: height * (tall ? 0.36 : 0.34),
         r: short * 0.12,
       };
-    case "classico":
-      return { cx: width / 2, cy: height * 0.13, r: short * 0.075 };
+    case "classico": {
+      const { badge } = classicoLayout(width, height);
+      return { cx: badge.x, cy: badge.y, r: badge.d / 2 };
+    }
+    default:
+      return lookCenter(params, width, height);
   }
-}
-
-// Bar heights of a spectrum preset: `count` bars from the bands, 0..1. Bars beyond the bands
-// read between two bands so wide frames stay smooth.
-export function barValues(bands: ArrayLike<number>, count: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const at = (i / Math.max(1, count - 1)) * (BAND_COUNT - 1);
-    const lo = Math.floor(at);
-    const hi = Math.min(BAND_COUNT - 1, lo + 1);
-    const t = at - lo;
-    out.push(
-      ((bands[lo] ?? 0) as number) * (1 - t) + ((bands[hi] ?? 0) as number) * t,
-    );
-  }
-  return out;
-}
-
-// Position of particle `i` at `time`: drifts upward and sideways, wrapping round the frame.
-// A pure function of time, so a frame looks the same however it was reached.
-export function particleAt(
-  i: number,
-  time: number,
-  width: number,
-  height: number,
-): { x: number; y: number; size: number; alpha: number; hue: number } {
-  const a = hash01(i * 4 + 1);
-  const b = hash01(i * 4 + 2);
-  const c = hash01(i * 4 + 3);
-  const d = hash01(i * 4 + 4);
-  const speed = 0.012 + c * 0.035;
-  const y = 1.05 - ((b + time * speed) % 1.1);
-  const x = (a + 0.03 * Math.sin(time * (0.3 + d) + i)) % 1;
-  return {
-    x: ((x + 1) % 1) * width,
-    y: y * height,
-    size: 0.6 + d * 2.4,
-    alpha: 0.25 + 0.6 * c,
-    hue: d,
-  };
-}
-
-export function particleCount(amount: number): number {
-  return Math.round((Math.max(0, Math.min(100, amount)) / 100) * 140);
-}
-
-function roundRectPath(
-  ctx: Canvas2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
-  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.lineTo(x + w - rr, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-  ctx.lineTo(x + w, y + h - rr);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-  ctx.lineTo(x + rr, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-  ctx.lineTo(x, y + rr);
-  ctx.quadraticCurveTo(x, y, x + rr, y);
-  ctx.closePath();
-}
-
-function font(
-  scene: VisualizerScene,
-  px: number,
-  weight: number | string = 400,
-): string {
-  const family = scene.fontFamily
-    ? `"${scene.fontFamily}", ${FONT_STACK}`
-    : FONT_STACK;
-  return `${weight} ${Math.max(1, Math.round(px))}px ${family}`;
 }
 
 // One line of the Classico text stack: shrunk a little if it is too wide, then broken over two
@@ -341,14 +139,6 @@ export function stackLine(
     const cut = fitText(ctx, part, maxWidth);
     return { text: cut, px: smaller, width: ctx.measureText(cut).width };
   });
-}
-
-function fitText(ctx: Canvas2D, text: string, maxWidth: number): string {
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let cut = text;
-  while (cut.length > 1 && ctx.measureText(`${cut}...`).width > maxWidth)
-    cut = cut.slice(0, -1);
-  return `${cut.trimEnd()}...`;
 }
 
 function drawBackground(ctx: Canvas2D, scene: VisualizerScene): void {
@@ -394,54 +184,13 @@ function drawRoundImage(
   level: number,
   ring: boolean,
 ): void {
-  const { params } = scene;
-  const { cx, cy, r } = centerLayout(params, scene.width, scene.height);
-  const u = unitOf(scene.width, scene.height);
-  const pic = params.centerImage.mode === "none" ? null : scene.images.center;
-  const pulse = 1 + level * 0.045;
-  const radius = r * pulse;
-  if (ring) {
-    ctx.save();
-    ctx.shadowColor = params.colors.primary;
-    ctx.shadowBlur = (18 + level * 40) * u;
-    ctx.strokeStyle = params.colors.primary;
-    ctx.lineWidth = (4 + level * 10) * u;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius + 6 * u, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-  if (!pic) return;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-  drawCover(ctx, pic, cx - radius, cy - radius, radius * 2, radius * 2);
-  ctx.restore();
-}
-
-function drawTitle(
-  ctx: Canvas2D,
-  scene: VisualizerScene,
-  y: number,
-  px: number,
-): void {
-  if (!scene.title.trim()) return;
-  const u = unitOf(scene.width, scene.height);
-  ctx.save();
-  ctx.font = font(scene, px * u, 500);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "rgba(0,0,0,0.65)";
-  ctx.shadowBlur = 16 * u;
-  ctx.fillText(
-    fitText(ctx, scene.title.trim().toUpperCase(), scene.width * 0.86),
-    scene.width / 2,
-    y,
+  roundImageAt(
+    ctx,
+    scene,
+    centerLayout(scene.params, scene.width, scene.height),
+    level,
+    ring,
   );
-  ctx.restore();
 }
 
 function barGradient(
@@ -490,7 +239,7 @@ function presetCircle(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   }
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
-  drawTitle(ctx, scene, cy + r + Math.min(w, h) * 0.27, 52);
+  drawTitle(ctx, scene, cy + r + Math.min(w, h) * 0.27);
 }
 
 function presetSpectrum(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -533,7 +282,7 @@ function presetSpectrum(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
   const { cy, r } = centerLayout(params, w, h);
-  drawTitle(ctx, scene, cy + r + 70 * u, 48);
+  drawTitle(ctx, scene, cy + r + 70 * u);
 }
 
 function presetMirror(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -562,7 +311,7 @@ function presetMirror(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   }
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
-  drawTitle(ctx, scene, h * (h > w ? 0.2 : 0.12), 54);
+  drawTitle(ctx, scene, h * (h > w ? 0.2 : 0.12));
 }
 
 function presetWaveform(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -598,7 +347,7 @@ function presetWaveform(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
   const { cy, r } = centerLayout(params, w, h);
-  drawTitle(ctx, scene, cy + r + 60 * u, 48);
+  drawTitle(ctx, scene, cy + r + 60 * u);
 }
 
 function presetParticles(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -629,7 +378,7 @@ function presetParticles(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   }
   ctx.restore();
   drawRoundImage(ctx, scene, level, true);
-  drawTitle(ctx, scene, cy + r + 80 * u, 50);
+  drawTitle(ctx, scene, cy + r + 80 * u);
 }
 
 function presetMinimal(ctx: Canvas2D, scene: VisualizerScene, level: number) {
@@ -638,7 +387,7 @@ function presetMinimal(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   drawRoundImage(ctx, scene, level, false);
   const { cy, r } = centerLayout(params, w, h);
   const titleY = cy + r + 90 * u;
-  drawTitle(ctx, scene, titleY, 64);
+  drawTitle(ctx, scene, titleY);
   const count = 48;
   const values = barValues(scene.bands, count);
   const span = Math.min(w * 0.6, 900 * u);
@@ -660,22 +409,20 @@ export function classicoLayout(width: number, height: number) {
   const short = Math.min(width, height);
   return {
     tall,
-    badge: { x: width / 2, y: height * (tall ? 0.1 : 0.13), d: short * 0.15 },
-    textTop: height * (tall ? 0.16 : 0.235),
+    // One centred column: badge, text stack, ruler and wave. Without the old brand marks at
+    // the sides the column sits lower, so the frame has no empty middle; in 9:16 it stays
+    // clear of the top bar and the bottom captions of a Short.
+    badge: { x: width / 2, y: height * (tall ? 0.27 : 0.2), d: short * 0.15 },
+    textTop: height * (tall ? 0.33 : 0.305),
     wave: {
-      y: height * (tall ? 0.74 : 0.72),
+      y: height * (tall ? 0.6 : 0.72),
       amp: height * (tall ? 0.05 : 0.085),
     },
-    trumpet: tall
-      ? { x: width * 0.24, y: height * 0.53, size: short * 0.46 }
-      : { x: width * 0.18, y: height * 0.43, size: height * 0.32 },
-    gramophone: tall
-      ? { x: width * 0.84, y: height * 0.33, size: short * 0.24 }
-      : { x: width * 0.88, y: height * 0.25, size: height * 0.17 },
-    // Tall frames have room under the wave; there the ruler cannot touch the trumpet player.
     ruler: tall
-      ? { y: height * 0.815, x0: width * 0.3, x1: width * 0.7 }
+      ? { y: height * 0.69, x0: width * 0.3, x1: width * 0.7 }
       : { y: height * 0.6, x0: width * 0.36, x1: width * 0.64 },
+    // The intro lower third.
+    intro: { x: width * 0.06, y: height * (tall ? 0.75 : 0.8) },
   };
 }
 
@@ -690,34 +437,7 @@ function easeWindow(time: number, start: number, end: number, fade = 0.6) {
   return Math.min(1, (time - start) / fade, (end - time) / fade);
 }
 
-function tinted(
-  scratch: ScratchCanvas | null,
-  pic: Picture,
-  color: string,
-  size: number,
-): Picture | null {
-  if (!scratch) return null;
-  const s = Math.max(1, Math.round(size));
-  scratch.width = s;
-  scratch.height = s;
-  const c = scratch.getContext("2d") as Canvas2D | null;
-  if (!c) return null;
-  c.clearRect(0, 0, s, s);
-  c.globalCompositeOperation = "source-over";
-  drawContain(c, pic, s / 2, s / 2, s);
-  c.globalCompositeOperation = "source-in";
-  c.fillStyle = color;
-  c.fillRect(0, 0, s, s);
-  c.globalCompositeOperation = "source-over";
-  return { source: scratch, width: s, height: s };
-}
-
-function presetClassico(
-  ctx: Canvas2D,
-  scene: VisualizerScene,
-  level: number,
-  scratch: ScratchCanvas | null,
-) {
+function presetClassico(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const { params, width: w, height: h, time, duration } = scene;
   const u = unitOf(w, h);
   const L = classicoLayout(w, h);
@@ -775,24 +495,6 @@ function presetClassico(
   ctx.fill();
   ctx.restore();
 
-  // Brand marks: the red trumpet player left, the gramophone top right (red or black).
-  if (scene.images.trumpet)
-    drawContain(
-      ctx,
-      scene.images.trumpet,
-      L.trumpet.x,
-      L.trumpet.y,
-      L.trumpet.size,
-    );
-  if (scene.images.gramophone) {
-    const pic =
-      params.classico.gramophone === "black"
-        ? tinted(scratch, scene.images.gramophone, "#0b0b0b", L.gramophone.size)
-        : scene.images.gramophone;
-    if (pic)
-      drawContain(ctx, pic, L.gramophone.x, L.gramophone.y, L.gramophone.size);
-  }
-
   // Play badge with the teal glow, pulsing with the bass.
   const { x: bx, y: by, d } = L.badge;
   const r = (d / 2) * (1 + level * 0.05);
@@ -842,14 +544,15 @@ function presetClassico(
   }
 
   if (!params.classico.cards) return;
-  const artist = params.classico.artist.trim().toUpperCase() || "MELLODIFAI";
-  // Intro lower third: ARTIST / PRESENTS with the gold bar, the first five seconds.
-  const intro = easeWindow(time, 0.2, 5.2);
+  const artist = params.classico.artist.trim().toUpperCase();
+  // Intro lower third: ARTIST / PRESENTS with the gold bar, the first five seconds. Without an
+  // artist there is nobody to present: no intro.
+  const intro = artist ? easeWindow(time, 0.2, 5.2) : 0;
   if (intro > 0) {
     ctx.save();
     ctx.globalAlpha = intro;
-    const x = w * 0.06 - (1 - intro) * 60 * u;
-    const y = h * (L.tall ? 0.865 : 0.8);
+    const x = L.intro.x - (1 - intro) * 60 * u;
+    const y = L.intro.y;
     ctx.fillStyle = "#f2a516";
     ctx.fillRect(x, y, 10 * u, 112 * u);
     ctx.textAlign = "left";
@@ -900,15 +603,22 @@ function presetClassico(
     ctx.textBaseline = "middle";
     ctx.font = font(scene, 44 * u, 600);
     ctx.fillText("SUBSCRIBE", w / 2, y + bh / 2);
-    ctx.font = font(scene, 40 * u, 300);
-    ctx.fillText(artist, w / 2, y - 60 * u);
+    if (artist) {
+      ctx.font = font(scene, 40 * u, 300);
+      ctx.fillText(artist, w / 2, y - 60 * u);
+    }
     ctx.restore();
   }
 }
 
 function drawParticles(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const count = particleCount(scene.params.particles);
-  if (!count || scene.params.preset === "particles") return;
+  if (
+    !count ||
+    scene.params.preset === "particles" ||
+    drawsOwnParticles(scene.params.preset)
+  )
+    return;
   const u = unitOf(scene.width, scene.height);
   ctx.save();
   for (let i = 0; i < count; i++) {
@@ -1149,6 +859,78 @@ function applyEffect(
   }
 }
 
+function drawPreset(ctx: Canvas2D, scene: VisualizerScene, level: number) {
+  switch (scene.params.preset) {
+    case "circle":
+      return presetCircle(ctx, scene, level);
+    case "spectrum":
+      return presetSpectrum(ctx, scene, level);
+    case "mirror":
+      return presetMirror(ctx, scene, level);
+    case "waveform":
+      return presetWaveform(ctx, scene, level);
+    case "particles":
+      return presetParticles(ctx, scene, level);
+    case "minimal":
+      return presetMinimal(ctx, scene, level);
+    case "classico":
+      return presetClassico(ctx, scene, level);
+    default:
+      return drawLook(ctx, scene, level);
+  }
+}
+
+// The moments the preset's text is read at for the logos: any time for the text that stays, plus
+// the Classico intro card and subscribe callout, which show only for a while. A logo keeps one
+// place for the whole video, clear of all of them.
+export function textProbeTimes(scene: VisualizerScene): number[] {
+  const times = [2.7];
+  if (scene.params.preset === "classico" && scene.params.classico.cards) {
+    const [start, end] = subscribeWindow(scene.duration);
+    times.push((start + end) / 2);
+  }
+  return times;
+}
+
+// Every box of text the preset draws (title, artist, album, times, cards), read on a silent
+// frame at the probe times. `measure` gives a text's width in a font, from a real canvas.
+export function presetTextBoxes(
+  scene: VisualizerScene,
+  measure: (font: string, text: string) => number,
+): Box[] {
+  const quiet = silentFrame();
+  return textProbeTimes(scene).flatMap((time) => {
+    const probe = textProbe(measure);
+    drawPreset(
+      probe.ctx,
+      { ...scene, time, bands: quiet.bands, wave: quiet.wave, history: [] },
+      0,
+    );
+    return probe.boxes;
+  });
+}
+
+// What decides where the preset's text goes: everything but the looks of the frame.
+function textLayoutKey(scene: VisualizerScene): string {
+  const {
+    logos: _logos,
+    effects: _effects,
+    textLayers: _layers,
+    colors: _colors,
+    background: _background,
+    particles: _particles,
+    ...rest
+  } = scene.params;
+  return JSON.stringify([
+    rest,
+    scene.title,
+    scene.width,
+    scene.height,
+    scene.fontFamily ?? "",
+    Math.round(scene.duration),
+  ]);
+}
+
 // Draws one frame. The preview calls it on every animation frame, the Remotion composition once
 // per video frame; with the same scene both draw the same picture.
 export function createVisualizerRenderer(makeCanvas: CanvasFactory | null) {
@@ -1160,7 +942,10 @@ export function createVisualizerRenderer(makeCanvas: CanvasFactory | null) {
         grain: [0, 1, 2, 3].map(() => makeCanvas(1, 1)),
       }
     : null;
-  const mark = makeCanvas ? makeCanvas(1, 1) : null;
+  // The preset's text boxes for the logo layout, read again only when what places the text
+  // changes (not every frame), so a logo keeps its place for the whole video.
+  let textKey = "";
+  let textBoxes: Box[] = [];
   return function draw(ctx: Canvas2D, scene: VisualizerScene): void {
     const { params } = scene;
     const level = levelOf(scene.bands);
@@ -1170,28 +955,27 @@ export function createVisualizerRenderer(makeCanvas: CanvasFactory | null) {
     ctx.globalCompositeOperation = "source-over";
     drawBackground(ctx, scene);
     drawParticles(ctx, scene, level);
-    switch (params.preset) {
-      case "circle":
-        presetCircle(ctx, scene, level);
-        break;
-      case "spectrum":
-        presetSpectrum(ctx, scene, level);
-        break;
-      case "mirror":
-        presetMirror(ctx, scene, level);
-        break;
-      case "waveform":
-        presetWaveform(ctx, scene, level);
-        break;
-      case "particles":
-        presetParticles(ctx, scene, level);
-        break;
-      case "minimal":
-        presetMinimal(ctx, scene, level);
-        break;
-      case "classico":
-        presetClassico(ctx, scene, level, mark);
-        break;
+    drawPreset(ctx, scene, level);
+    drawBadges(ctx, scene, level);
+    const logos = scene.images.logos ?? [];
+    if (params.logos.length && logos.some(Boolean)) {
+      const key = textLayoutKey(scene);
+      if (key !== textKey) {
+        ctx.save();
+        textBoxes = presetTextBoxes(scene, (f, text) => {
+          ctx.font = f;
+          return ctx.measureText(text).width;
+        });
+        ctx.restore();
+        textKey = key;
+      }
+      drawLogos(
+        ctx,
+        logoLayout(scene, params.logos, logos, [
+          ...textBoxes,
+          ...badgeBoxes(scene),
+        ]),
+      );
     }
     drawTextLayers(ctx, scene);
     for (const id of VISUALIZER_EFFECTS) {

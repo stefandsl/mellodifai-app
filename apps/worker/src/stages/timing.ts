@@ -1,7 +1,20 @@
 import { join } from "node:path";
+import { LyricPackSchema } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
+import {
+  ensureReservation,
+  extendStageReservation,
+} from "../providers/ledger.js";
+import { callKey, openPaidEntry } from "../providers/paid.js";
 import { materializeEditedTake } from "./take-audio.js";
-import { ENGINE_ROOT, key, language, readJson, upload } from "./utils.js";
+import {
+  ENGINE_ROOT,
+  key,
+  language,
+  readJson,
+  upload,
+  writePack,
+} from "./utils.js";
 
 export const timing: StageHandler = async (context) => {
   const takes = await context.db.getTakes(context.version.id);
@@ -10,10 +23,14 @@ export const timing: StageHandler = async (context) => {
   );
   if (!selected) throw new Error("chosen take is required before timing");
   const takeNumber = selected.take_number;
-  if (takeNumber !== 1 && takeNumber !== 2)
+  // Takes 1 and 2 come from a generation; a rewritten part adds 3, 4 and so on.
+  if (!takeNumber || !Number.isInteger(takeNumber) || takeNumber < 1)
     throw new Error("Invalid take_number");
   const lang = language(context);
   await materializeEditedTake(context, selected);
+  // The pipeline reads these files, including on rerenders after a take switch.
+  const pack = LyricPackSchema.parse(context.version.lyric_pack);
+  await writePack(context, { ...pack, lyrics: selected.lyrics ?? pack.lyrics });
   const timingFile = join(context.ws.publicDir, "data", lang, "timing.json");
   const vocalStem = join(
     context.ws.root,
@@ -22,11 +39,27 @@ export const timing: StageHandler = async (context) => {
     lang,
     "vocals.wav",
   );
+  if (!context.groqLedger) throw new Error("Groq ledger is not configured");
+  const ledger = context.groqLedger();
+  await ensureReservation(ledger, context.job);
+  if ((context.job.attempts ?? 1) > 1)
+    await extendStageReservation(ledger, context.job);
+  const estimate = { audio_hour: 0.1 };
+  const entry = await openPaidEntry(
+    ledger,
+    callKey("groq", {
+      takeId: selected.id,
+      attempt: context.job.attempts ?? 1,
+    }),
+    estimate,
+  );
   await context.engine.run(
     "bash",
     ["tools/workspace_pipeline.sh", lang, String(takeNumber)],
     {
       cwd: ENGINE_ROOT,
+      secretEnv: ["GROQ_API_KEY"],
+      entryIds: [entry],
       clearOutputs: [
         timingFile,
         join(context.ws.publicDir, "audio", `${lang}.wav`),
@@ -48,13 +81,54 @@ export const timing: StageHandler = async (context) => {
   const data = await readJson<{
     duration?: number;
     words?: { start: number; end: number }[];
-    lines?: { section?: string; words?: { start: number; end: number }[] }[];
+    lines?: {
+      section?: string;
+      text?: string;
+      words?: { w?: string; word?: string; start: number; end: number }[];
+    }[];
     sections?: {
       name?: string;
       title?: string;
       lines?: { words?: { start: number; end: number }[] }[];
     }[];
   }>(timingFile);
+  await ledger.settle(entry, {
+    audio_hour:
+      typeof data.duration === "number" && data.duration >= 0
+        ? data.duration / 3600
+        : estimate.audio_hour,
+  });
+  // The measured lines become the take's timing for "Riscrivi una parte".
+  const timed = (data.lines ?? []).flatMap((line) => {
+    const first = line.words?.[0];
+    const last = line.words?.at(-1);
+    return first && last && typeof line.text === "string"
+      ? [
+          {
+            text: line.text,
+            start: first.start,
+            end: last.end,
+            ...(line.words?.every(
+              (word) => typeof (word.word ?? word.w) === "string",
+            )
+              ? {
+                  words: line.words.map((word) => ({
+                    word: word.word ?? word.w ?? "",
+                    start: word.start,
+                    end: word.end,
+                  })),
+                }
+              : {}),
+          },
+        ]
+      : [];
+  });
+  if (timed.length > 0)
+    await context.db
+      .patchTake(selected.id, {
+        lyric_timing: { source: "timing", lines: timed },
+      })
+      .catch(() => {});
   const words =
     data.words ??
     data.lines?.flatMap((line) => line.words ?? []) ??

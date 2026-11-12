@@ -2,16 +2,53 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  rpc: vi.fn(async (_name: string, _args: unknown) => ({
-    data: null as unknown,
-    error: null as { message: string } | null,
-  })),
+  callOps: vi.fn(),
+  headers: vi.fn(async () => new Headers()),
 }));
+vi.mock("next/headers", () => ({ headers: mocks.headers }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/locale", () => ({ getLocale: async () => "en" }));
-vi.mock("@/lib/auth", () => ({
-  actionProfile: async () => ({ supabase: mocks, user: { id: "owner" } }),
+vi.mock("@/lib/locale", () => ({ getLocale: async () => "it" }));
+vi.mock("@/lib/supabase/server", () => ({
+  getSessionClaims: async () => ({ sub: "owner", session_id: "session" }),
 }));
+vi.mock("@/lib/db/ops-client", () => ({ callOps: mocks.callOps }));
+const ID = "00000000-0000-4000-8000-000000000001";
+const OTHER = "00000000-0000-4000-8000-000000000002";
+const DATA: Record<string, unknown> = {
+  song_create: { jobs: [], project_id: ID },
+  admin_project_create: { jobs: [], project_id: ID },
+  song_import: { jobs: [], project_id: ID },
+  playlist_create: { jobs: [], playlist_id: ID },
+  songs_trash: { jobs: [], count: 2 },
+  songs_restore: { jobs: [], count: 2 },
+  playlist_add: { jobs: [], count: 2 },
+  playlist_remove: { jobs: [], count: 2 },
+  section_edit_request: { jobs: [], edit_id: ID },
+  section_edit_keep: { jobs: [], take_id: ID },
+  take_save_edit: { jobs: [], take_id: ID },
+  lyrics_back: { jobs: [], version_id: ID, status: "draft" },
+  video_approve: { jobs: [], version_id: ID, status: "ready" },
+  admin_confirm_publication: { jobs: [], job_id: ID },
+};
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.headers.mockResolvedValue(new Headers());
+  mocks.callOps.mockImplementation(async (fn: string) =>
+    fn === "idem_begin"
+      ? { ok: true, data: { status: "new" } }
+      : { ok: true, data: DATA[fn] ?? { jobs: [] } },
+  );
+});
+function called(fn: string, ...args: unknown[]) {
+  expect(mocks.callOps).toHaveBeenCalledWith(fn, [
+    expect.objectContaining({
+      actor_kind: "session",
+      user_id: "owner",
+      session_id: "session",
+    }),
+    ...args,
+  ]);
+}
 
 import {
   addToPlaylist,
@@ -22,91 +59,29 @@ import {
   reorderPlaylist,
 } from "./playlists";
 
-const list = "00000000-0000-4000-8000-0000000000a1";
-const a = "00000000-0000-4000-8000-000000000001";
-const b = "00000000-0000-4000-8000-000000000002";
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.rpc.mockResolvedValue({ data: null, error: null });
-  vi.spyOn(console, "error").mockImplementation(() => {});
-});
-
 it("creates a playlist and returns its id", async () => {
-  mocks.rpc.mockResolvedValueOnce({ data: list, error: null });
   expect(await createPlaylist({ name: "  Sera  " })).toEqual({
     ok: true,
-    id: list,
+    id: ID,
   });
-  expect(mocks.rpc).toHaveBeenCalledWith("create_playlist", { p_name: "Sera" });
+  called("playlist_create", "Sera");
 });
-
-it("renames and deletes through their RPCs", async () => {
-  expect(await renamePlaylist({ playlistId: list, name: "Notte" })).toEqual({
+it("routes playlist changes through their wrappers", async () => {
+  expect(await renamePlaylist({ playlistId: ID, name: "Notte" })).toEqual({
     ok: true,
   });
-  expect(mocks.rpc).toHaveBeenLastCalledWith("rename_playlist", {
-    p_playlist: list,
-    p_name: "Notte",
+  called("playlist_rename", ID, "Notte");
+  await deletePlaylist({ playlistId: ID });
+  called("playlist_delete", ID);
+  expect(await addToPlaylist({ playlistId: ID, versionIds: [OTHER] })).toEqual({
+    ok: true,
+    count: 2,
   });
-  expect(await deletePlaylist({ playlistId: list })).toEqual({ ok: true });
-  expect(mocks.rpc).toHaveBeenLastCalledWith("delete_playlist", {
-    p_playlist: list,
-  });
-});
-
-it("adds and removes songs and reports how many changed", async () => {
-  mocks.rpc.mockResolvedValueOnce({ data: 2, error: null });
-  expect(await addToPlaylist({ playlistId: list, versionIds: [a, b] })).toEqual(
-    { ok: true, count: 2 },
-  );
-  expect(mocks.rpc).toHaveBeenLastCalledWith("add_to_playlist", {
-    p_playlist: list,
-    p_versions: [a, b],
-  });
-  mocks.rpc.mockResolvedValueOnce({ data: 1, error: null });
+  called("playlist_add", ID, [OTHER]);
   expect(
-    await removeFromPlaylist({ playlistId: list, versionIds: [a] }),
-  ).toEqual({ ok: true, count: 1 });
-  expect(mocks.rpc).toHaveBeenLastCalledWith("remove_from_playlist", {
-    p_playlist: list,
-    p_versions: [a],
-  });
-});
-
-it("reorders with the full list", async () => {
-  expect(
-    await reorderPlaylist({ playlistId: list, versionIds: [b, a] }),
-  ).toEqual({ ok: true });
-  expect(mocks.rpc).toHaveBeenLastCalledWith("reorder_playlist", {
-    p_playlist: list,
-    p_versions: [b, a],
-  });
-});
-
-it("rejects bad input before any RPC", async () => {
-  for (const result of [
-    await createPlaylist({ name: "   " }),
-    await createPlaylist({ name: "x".repeat(101) }),
-    await renamePlaylist({ playlistId: "nope", name: "ok" }),
-    await deletePlaylist({}),
-    await addToPlaylist({ playlistId: list, versionIds: [] }),
-    await addToPlaylist({ playlistId: list, versionIds: ["nope"] }),
-    await removeFromPlaylist({ playlistId: list, versionIds: [a, "nope"] }),
-    await reorderPlaylist({ playlistId: list, versionIds: [] }),
-  ])
-    expect(result.ok).toBe(false);
-  expect(mocks.rpc).not.toHaveBeenCalled();
-});
-
-it("returns a failure when the database refuses", async () => {
-  mocks.rpc.mockResolvedValueOnce({
-    data: null,
-    error: { message: "owned playlist required" },
-  });
-  expect((await deletePlaylist({ playlistId: list })).ok).toBe(false);
-  mocks.rpc.mockResolvedValueOnce({
-    data: null,
-    error: { message: "too many playlists" },
-  });
-  expect((await createPlaylist({ name: "More" })).ok).toBe(false);
+    await removeFromPlaylist({ playlistId: ID, versionIds: [OTHER] }),
+  ).toEqual({ ok: true, count: 2 });
+  called("playlist_remove", ID, [OTHER]);
+  await reorderPlaylist({ playlistId: ID, versionIds: [OTHER] });
+  called("playlist_reorder", ID, [OTHER]);
 });

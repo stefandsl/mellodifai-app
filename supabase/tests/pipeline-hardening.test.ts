@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { opsRpc } from "./helpers/ops-call";
 
 let service: SupabaseClient;
 let client: SupabaseClient;
@@ -21,7 +22,8 @@ beforeAll(async () => {
   const user = async (suffix: string) => {
     const email = `${prefix}-${suffix}@example.test`;
     expect(
-      (await service.from("admin_allowlist").insert({ email })).error,
+      (await service.from("admin_allowlist").insert({ email, role: "admin" }))
+        .error,
     ).toBeNull();
     const result = await service.auth.admin.createUser({
       email,
@@ -185,7 +187,7 @@ it("rejects forged worker fields and not_before on job insertion", async () => {
 it("confirmation requires owner and uploaded video; records identity and queues privacy", async () => {
   expect(
     (
-      await other.rpc("confirm_publication", {
+      await opsRpc(other, "confirm_publication", {
         p_publication: publication,
         p_privacy: "public",
       })
@@ -193,7 +195,7 @@ it("confirmation requires owner and uploaded video; records identity and queues 
   ).not.toBeNull();
   expect(
     (
-      await client.rpc("confirm_publication", {
+      await opsRpc(client, "confirm_publication", {
         p_publication: publication,
         p_privacy: "scheduled",
         p_publish_at: "2000-01-01T00:00:00Z",
@@ -207,13 +209,13 @@ it("confirmation requires owner and uploaded video; records identity and queues 
     .single();
   expect(
     (
-      await client.rpc("confirm_publication", {
+      await opsRpc(client, "confirm_publication", {
         p_publication: pending.data.id,
         p_privacy: "public",
       })
     ).error,
   ).not.toBeNull();
-  const result = await client.rpc("confirm_publication", {
+  const result = await opsRpc(client, "confirm_publication", {
     p_publication: publication,
     p_privacy: "public",
   });
@@ -275,9 +277,31 @@ it("quota reservation is atomic and service-only", async () => {
   ).toBe(true);
 });
 it("publication and quota reservations are serialized for the same render", async () => {
+  const project = await service
+    .from("projects")
+    .insert({ owner_id: owner, topic: `${prefix}-reservation` })
+    .select("id")
+    .single();
+  expect(project.error).toBeNull();
+  const fresh = await service
+    .from("versions")
+    .insert({
+      owner_id: owner,
+      project_id: project.data.id,
+      lang: "fr",
+      status: "approved",
+    })
+    .select("id")
+    .single();
+  expect(fresh.error).toBeNull();
   const r = await service
     .from("renders")
-    .insert({ owner_id: owner, version_id: version, kind: "hook" })
+    .insert({
+      owner_id: owner,
+      version_id: fresh.data.id,
+      kind: "master",
+      approved_at: new Date().toISOString(),
+    })
     .select()
     .single();
   await service
@@ -321,16 +345,25 @@ it("claim skips future jobs and explicit transitions are owner-checked", async (
   expect(claim.data.some((j: { id: string }) => j.id === job.data.id)).toBe(
     false,
   );
+  // End the future-job fixture before testing an independent rerender.
   expect(
     (
-      await other.rpc("render_again", {
+      await service
+        .from("jobs")
+        .update({ status: "cancelled" })
+        .eq("id", job.data.id)
+    ).error,
+  ).toBeNull();
+  expect(
+    (
+      await opsRpc(other, "render_again", {
         p_version: version,
       })
     ).error,
   ).not.toBeNull();
   expect(
     (
-      await client.rpc("render_again", {
+      await opsRpc(client, "render_again", {
         p_version: version,
       })
     ).error,

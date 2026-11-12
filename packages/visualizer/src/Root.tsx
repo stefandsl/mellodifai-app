@@ -1,6 +1,6 @@
 import {
-  ASPECT_SIZE,
   normalizeVisualizerParams,
+  renderSize,
   VISUALIZER_FPS,
 } from "@mellodifai/shared";
 import { Composition } from "remotion";
@@ -8,15 +8,14 @@ import { Visualizer, type VisualizerProps } from "./Visualizer";
 
 const defaults: VisualizerProps = {
   params: normalizeVisualizerParams(null),
-  title: "MellodifAI",
+  title: "",
   duration: 10,
   frames: 10 * VISUALIZER_FPS,
   audio: null,
   analysis: null,
   background: null,
   center: null,
-  trumpet: null,
-  gramophone: null,
+  logos: [],
 };
 
 // One composition; the worker passes the song's props, which set its size and length.
@@ -34,7 +33,7 @@ export function Root() {
         const params = normalizeVisualizerParams(props.params);
         return {
           durationInFrames: Math.max(1, Math.round(props.frames)),
-          ...ASPECT_SIZE[params.aspect],
+          ...renderSize(params.aspect, params.quality),
           props: { ...props, params },
         };
       }}

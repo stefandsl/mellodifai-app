@@ -142,7 +142,7 @@ export function StylesCard() {
   const set = useCreateForm((s) => s.set);
   const toggle = useCreateForm((s) => s.toggleCard);
   const [offset, setOffset] = useState(0);
-  const chips = [...SEED_CHIPS.slice(offset), ...SEED_CHIPS.slice(0, offset)];
+  const chips = [...SEED_CHIPS, ...SEED_CHIPS].slice(offset, offset + 6);
   const chosen = parts(styles);
 
   return (
@@ -168,7 +168,7 @@ export function StylesCard() {
           value={styles}
           aria-label={st(lang, "create.styles")}
           onChange={(event) => set({ styles: event.target.value })}
-          className="relative block h-20 w-full resize-none bg-transparent px-0.5 leading-6 outline-none scrollbar-thin"
+          className="relative block h-20 w-full resize-none bg-transparent px-0.5 leading-6 outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] scrollbar-thin"
         />
         <div className="flex justify-end">
           <Counter value={styles.length} max={LIMITS.styles} />
@@ -181,7 +181,7 @@ export function StylesCard() {
         >
           <RefreshCw />
         </IconButton>
-        <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none [mask-image:linear-gradient(to_right,black_88%,transparent)]">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
           {chips.map((chip) => {
             const selected = chosen.includes(chip.toLowerCase());
             return (

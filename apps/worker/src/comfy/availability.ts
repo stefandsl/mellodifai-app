@@ -15,6 +15,8 @@ export type EngineAvailability = {
   installed: boolean;
   passedLangs: Lang[];
   minutesPerAudioMinute: number;
+  // Rewriting a part, covering a song (T12).
+  features: ("rewrite" | "cover")[];
   checkedAt: string;
 };
 
@@ -66,6 +68,7 @@ export async function checkEngines(
             installed,
             passedLangs: [...spec.passedLangs],
             minutesPerAudioMinute: spec.minutesPerAudioMinute,
+            features: [...spec.features],
             checkedAt: now.toISOString(),
           },
         ] as const;

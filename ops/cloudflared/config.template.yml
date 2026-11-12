@@ -1,0 +1,9 @@
+# Copy to E:/mellodifai/secrets/cloudflared/config.yml after owner tunnel setup.
+# Replace the tunnel ID and credentials path there; keep ingress unchanged.
+tunnel: <TUNNEL_ID>
+credentials-file: E:/mellodifai/secrets/cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: app.mellodifai.com
+    service: http://127.0.0.1:3080
+  - service: http_status:404

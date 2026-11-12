@@ -4,6 +4,7 @@ import { cn } from "cn";
 import {
   ChevronLeft,
   ChevronRight,
+  FileUp,
   LayoutGrid,
   List,
   ListChecks,
@@ -31,6 +32,7 @@ import { st, stf } from "@/lib/studio/i18n";
 import { matchClip } from "@/lib/studio/search";
 import { restoreSongs, trashSongs } from "@/lib/studio/trash-actions";
 import { useDetailsClips } from "@/store/details";
+import { useImportDialog } from "@/store/import-dialog";
 import { useReactions } from "@/store/reactions";
 import { AddToPlaylistDialog } from "../playlist-dialog";
 import { ClipCard } from "./clip-card";
@@ -103,7 +105,7 @@ function usePersisted<T extends string>(key: string, initial: T) {
 }
 
 const PILL =
-  "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)]";
+  "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand)]";
 
 export function WorkspaceFeed({
   clips,
@@ -226,7 +228,7 @@ export function WorkspaceFeed({
     >
       <header className="shrink-0 space-y-3 px-4 pt-4 pb-2 sm:px-6">
         <nav
-          aria-label="Breadcrumb"
+          aria-label={st(lang, "feed.breadcrumb")}
           className="flex items-center gap-1.5 text-[15px]"
         >
           <span className="text-[var(--fg-muted)]">
@@ -236,12 +238,28 @@ export function WorkspaceFeed({
           <span className="font-medium">
             {heading ?? st(lang, "feed.workspace")}
           </span>
+          {trash ? null : (
+            <button
+              type="button"
+              aria-label={st(lang, "imp.open")}
+              onClick={() => useImportDialog.getState().show()}
+              className={cn(
+                PILL,
+                "ml-auto bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
+              )}
+            >
+              <FileUp className="size-3.5" />
+              <span className="sm:hidden">{st(lang, "imp.openShort")}</span>
+              <span className="hidden sm:inline">{st(lang, "imp.open")}</span>
+            </button>
+          )}
           {trashLink ? (
             <Link
               href={trash ? "/library" : "/library?tab=trash"}
               className={cn(
                 PILL,
-                "ml-auto bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
+                trash && "ml-auto",
+                "bg-[var(--surface-2)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
               )}
             >
               {trash ? (
@@ -367,7 +385,7 @@ export function WorkspaceFeed({
             ))}
           </div>
         </div>
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+        <div className="hidden gap-1.5 overflow-x-auto scrollbar-none sm:flex">
           {FILTERS.map((filter) => (
             <button
               key={filter}
@@ -490,7 +508,7 @@ export function WorkspaceFeed({
           groups.map((group) => (
             <div key={group.key}>
               {group.label ? (
-                <h2 className="sticky top-0 z-10 bg-[var(--bg)]/90 px-3 py-2 text-[13px] font-medium text-[var(--fg-muted)] backdrop-blur">
+                <h2 className="studio-date-heading sticky top-0 z-10 bg-[var(--bg)]/90 px-3 py-2 text-[13px] font-medium text-[var(--fg-muted)] backdrop-blur">
                   {group.label}
                 </h2>
               ) : null}

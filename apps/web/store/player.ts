@@ -1,6 +1,6 @@
+import type { LyricTiming } from "@mellodifai/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
 import type { Reaction } from "@/lib/studio/clips";
 
 export type Track = {
@@ -11,6 +11,7 @@ export type Track = {
   videoUrl: string | null;
   href: string;
   art: string;
+  coverUrl?: string | null;
   // The reaction when the track was queued (the live value comes from the reactions store), or
   // null for a preview that is not a library song, like a take: it cannot be liked or counted.
   reaction: Reaction | null;
@@ -25,13 +26,21 @@ export type TrackDetail = {
   lyrics: string;
   style: string;
   createdAt: string;
-  takes: { id: string; number: number; audioUrl: string | null }[];
+  takes: {
+    id: string;
+    number: number;
+    audioUrl: string | null;
+    lyrics?: string | null;
+    timing?: LyricTiming | null;
+  }[];
+  timing?: LyricTiming | null;
+  playbackTakeId?: string | null;
   // The take whose audio the song plays, or null when no take was chosen.
   chosenTakeId: string | null;
   // Set when the track is a preview of this take instead of the song itself.
   takeNumber?: number;
   // Which song tools apply now (the audio editor, the stems page); absent means none.
-  tools?: { edit: boolean; stems: boolean };
+  tools?: { edit: boolean; stems: boolean; rewrite?: boolean };
   // The song's own track fields, to go back to it from a take preview.
   own: {
     title: string;
@@ -66,6 +75,7 @@ type PlayerState = {
   speed: number;
   // The full listening view is open.
   showNow: boolean;
+  showLyrics: boolean;
   showVideo: boolean;
   showQueue: boolean;
   // Bumped when the bar should move the audio element to `time`.
@@ -101,6 +111,7 @@ export const usePlayer = create<PlayerState & PlayerActions>()(
       repeat: "off" as RepeatMode,
       speed: 1,
       showNow: false,
+      showLyrics: false,
       showVideo: false,
       showQueue: false,
       seekTo: { at: 0, n: 0 },

@@ -30,6 +30,7 @@ export type DictKey =
   | "app.name"
   | "nav.library"
   | "nav.newProject"
+  | "status.analysing"
   | "status.drafting"
   | "status.lyrics_review"
   | "status.song_queued"
@@ -42,17 +43,12 @@ export type DictKey =
   | "status.published"
   | "status.failed"
   | "auth.email"
-  | "auth.title"
+  | "auth.code"
+  | "auth.verifyCode"
   | "auth.sendLink"
   | "auth.sent"
   | "auth.unavailable"
   | "auth.rateLimited"
-  | "auth.password"
-  | "auth.signIn"
-  | "auth.magicLink"
-  | "auth.invalidCredentials"
-  | "auth.forgotPassword"
-  | "auth.forgotPasswordHint"
   | "action.approveGeneration"
   | "auth.notAllowed"
   | "project.create"
@@ -71,6 +67,7 @@ export type DictKey =
   | "action.pick"
   | "action.uploadPrivate"
   | "action.rerender"
+  | "action.newRender"
   | "worker.online"
   | "worker.offline"
   | "worker.busy"
@@ -82,7 +79,19 @@ export type DictKey =
   | "publish.tags"
   | "publish.chapters"
   | "error.action"
+  | "error.unauthorized"
+  | "error.forbidden_scope"
+  | "error.not_found"
+  | "error.conflict"
+  | "error.idempotency_mismatch"
+  | "error.in_progress"
+  | "error.ambiguous_spend"
+  | "error.validation"
+  | "error.cap_exceeded"
+  | "error.rate_limited"
+  | "error.internal"
   | "auth.invalidLink"
+  | "auth.invalidCode"
   | "auth.devInbox"
   | "job.superseded"
   | "error.details"
@@ -144,6 +153,13 @@ export type DictKey =
   | "stage.import_legacy"
   | "stage.stems"
   | "stage.visualizer"
+  | "stage.replace_section"
+  | "stage.import_audio"
+  | "stage.remake_ingest"
+  | "stage.remake_analyse"
+  | "stage.remake_rewrite"
+  | "stage.lyrics_assist"
+  | "stage.align_lyrics"
   | "job.queued"
   | "job.running"
   | "job.done"
@@ -161,7 +177,22 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "qa.notMeasured": "Non misurato",
     "publish.tag": "lyric video",
     "error.action": "Operazione non riuscita. Riprova.",
+    "error.unauthorized": "Accedi per continuare.",
+    "error.forbidden_scope": "Non hai il permesso per questa operazione.",
+    "error.not_found": "Elemento non trovato.",
+    "error.conflict": "L'elemento non è nello stato richiesto.",
+    "error.idempotency_mismatch":
+      "Questa chiave è già stata usata per una richiesta diversa.",
+    "error.in_progress": "La richiesta è già in corso. Riprova tra poco.",
+    "error.ambiguous_spend":
+      "L'esito della spesa non è ancora noto. Controlla prima di riprovare.",
+    "error.validation": "Controlla i dati inseriti.",
+    "error.cap_exceeded": "Limite di spesa raggiunto.",
+    "error.rate_limited": "Troppi tentativi. Riprova tra poco.",
+    "error.internal": "Errore interno. Riprova.",
     "auth.invalidLink": "Link non valido o scaduto. Richiedi un nuovo link.",
+    "auth.invalidCode":
+      "Codice non valido o scaduto. Richiedi un nuovo codice.",
     "job.superseded": "Tentativo precedente non riuscito",
     "error.details": "Dettagli tecnici",
     "lyrics.advanced": "Impostazioni avanzate",
@@ -183,7 +214,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "privacy.scheduled": "Programma",
     "privacy.private": "Privato",
     "publish.suffix": "Lyric video",
-    "publish.credits": "Creato con mellodifai.",
+    "publish.credits": "Creato con strumenti AI.",
     "publish.at": "Data e ora di pubblicazione",
     "publish.video": "Video",
     "publish.wait": "Caricamento in corso. Il video rimane privato.",
@@ -229,6 +260,13 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.import_legacy": "Importazione",
     "stage.stems": "Separazione stems",
     "stage.visualizer": "Video visualizer",
+    "stage.replace_section": "Riscrittura di una parte",
+    "stage.import_audio": "Importazione dell'audio",
+    "stage.remake_ingest": "Rifai da YouTube: download",
+    "stage.remake_analyse": "Rifai da YouTube: analisi",
+    "stage.remake_rewrite": "Rifai da YouTube: testo nuovo",
+    "stage.lyrics_assist": "Testo con AI",
+    "stage.align_lyrics": "Sincronizzazione testo",
     "job.queued": "In coda",
     "job.running": "In corso",
     "job.done": "Completato",
@@ -237,6 +275,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "app.name": "mellodifai",
     "nav.library": "Libreria",
     "nav.newProject": "Nuovo progetto",
+    "status.analysing": "Rifai da YouTube",
     "status.drafting": "Bozza testi",
     "status.lyrics_review": "Revisione testi",
     "status.song_queued": "Canzone in coda",
@@ -249,7 +288,6 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.published": "Pubblicato",
     "status.failed": "Non riuscito",
     "auth.email": "Indirizzo email",
-    "auth.title": "Accedi a Mellodifai",
     "auth.sendLink": "Invia link di accesso",
     "auth.sent": "Se l'indirizzo è abilitato riceverai un link.",
     "action.backToLyrics": "Torna ai testi",
@@ -271,13 +309,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.unavailable":
       "Servizio temporaneamente non disponibile. Riprova tra poco.",
     "auth.rateLimited": "Troppi tentativi, riprova tra qualche minuto",
-    "auth.password": "Password",
-    "auth.signIn": "Accedi",
-    "auth.magicLink": "Ricevi un link via email",
-    "auth.invalidCredentials": "Email o password non validi",
-    "auth.forgotPassword": "Password dimenticata?",
-    "auth.forgotPasswordHint":
-      "Su questo PC esegui Imposta password.cmd, oppure ricevi un link via email.",
+    "auth.code": "Codice a 6 cifre",
+    "auth.verifyCode": "Accedi con il codice",
     "action.approveGeneration": "Approva e genera la canzone: 12 crediti kie",
     "auth.notAllowed": "Se l'indirizzo è abilitato riceverai un link.",
     "project.create": "Crea progetto",
@@ -296,6 +329,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "action.pick": "Scegli",
     "action.uploadPrivate": "Carica come privato",
     "action.rerender": "Rigenera video",
+    "action.newRender": "Nuovo render",
     "worker.online": "Online",
     "worker.offline": "Offline",
     "worker.busy": "Occupato",
@@ -317,7 +351,22 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "qa.notMeasured": "Not measured",
     "publish.tag": "lyric video",
     "error.action": "Action failed. Please try again.",
+    "error.unauthorized": "Sign in to continue.",
+    "error.forbidden_scope": "You do not have permission for this action.",
+    "error.not_found": "Item not found.",
+    "error.conflict": "The item is not in the required state.",
+    "error.idempotency_mismatch":
+      "This key was already used for a different request.",
+    "error.in_progress":
+      "The request is already in progress. Try again shortly.",
+    "error.ambiguous_spend":
+      "The spending outcome is still unknown. Check before retrying.",
+    "error.validation": "Check the information you entered.",
+    "error.cap_exceeded": "Spending cap reached.",
+    "error.rate_limited": "Too many attempts. Try again shortly.",
+    "error.internal": "Internal error. Please try again.",
     "auth.invalidLink": "Invalid or expired link. Request a new link.",
+    "auth.invalidCode": "Invalid or expired code. Request a new code.",
     "job.superseded": "Earlier attempt failed",
     "error.details": "Technical details",
     "lyrics.advanced": "Advanced settings",
@@ -339,7 +388,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "privacy.scheduled": "Schedule",
     "privacy.private": "Private",
     "publish.suffix": "Lyric video",
-    "publish.credits": "Created with mellodifai.",
+    "publish.credits": "Created with AI tools.",
     "publish.at": "Publication date and time",
     "publish.video": "Video",
     "publish.wait": "Upload in progress. The video remains private.",
@@ -385,6 +434,13 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "stage.import_legacy": "Import",
     "stage.stems": "Stem separation",
     "stage.visualizer": "Visualizer video",
+    "stage.replace_section": "Rewrite of a part",
+    "stage.import_audio": "Audio import",
+    "stage.remake_ingest": "Remake from YouTube: download",
+    "stage.remake_analyse": "Remake from YouTube: analysis",
+    "stage.remake_rewrite": "Remake from YouTube: new lyrics",
+    "stage.lyrics_assist": "AI lyrics",
+    "stage.align_lyrics": "Lyrics synchronization",
     "job.queued": "Queued",
     "job.running": "Running",
     "job.done": "Done",
@@ -393,6 +449,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "app.name": "mellodifai",
     "nav.library": "Library",
     "nav.newProject": "New project",
+    "status.analysing": "Remake from YouTube",
     "status.drafting": "Drafting lyrics",
     "status.lyrics_review": "Lyrics review",
     "status.song_queued": "Song queued",
@@ -405,7 +462,6 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "status.published": "Published",
     "status.failed": "Failed",
     "auth.email": "Email address",
-    "auth.title": "Sign in to Mellodifai",
     "auth.sendLink": "Send sign-in link",
     "auth.sent": "If the address is enabled, you will receive a link.",
     "action.backToLyrics": "Back to lyrics",
@@ -426,13 +482,8 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "auth.unavailable":
       "Service temporarily unavailable. Please try again shortly.",
     "auth.rateLimited": "Too many attempts, please try again in a few minutes",
-    "auth.password": "Password",
-    "auth.signIn": "Sign in",
-    "auth.magicLink": "Receive a link by email",
-    "auth.invalidCredentials": "Invalid email or password",
-    "auth.forgotPassword": "Forgot password?",
-    "auth.forgotPasswordHint":
-      "On this PC run Imposta password.cmd, or receive a link by email.",
+    "auth.code": "6-digit code",
+    "auth.verifyCode": "Sign in with code",
     "action.approveGeneration": "Approve and generate song: 12 kie credits",
     "auth.notAllowed": "If the address is enabled, you will receive a link.",
     "project.create": "Create project",
@@ -451,6 +502,7 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
     "action.pick": "Pick",
     "action.uploadPrivate": "Upload private",
     "action.rerender": "Re-render video",
+    "action.newRender": "New render",
     "worker.online": "Online",
     "worker.offline": "Offline",
     "worker.busy": "Busy",
@@ -466,4 +518,42 @@ export const DICTIONARY: Record<"it" | "en", Record<DictKey, string>> = {
 
 export function t(lang: "it" | "en", key: DictKey): string {
   return DICTIONARY[lang][key];
+}
+// Publication text follows the recording's language, independently of the app locale.
+export function publicationCopy(language: string) {
+  const copy: Record<string, [string, string, string]> = {
+    it: ["Lyric video", "Creato con strumenti AI.", "lyric video"],
+    en: ["Lyric video", "Created with AI tools.", "lyric video"],
+    fr: [
+      "Vidéo avec paroles",
+      "Créé avec des outils d’intelligence artificielle.",
+      "vidéo avec paroles",
+    ],
+    de: ["Songtextvideo", "Mit KI-Werkzeugen erstellt.", "Songtextvideo"],
+    es: [
+      "Vídeo con letra",
+      "Creado con herramientas de IA.",
+      "vídeo con letra",
+    ],
+    pt: ["Vídeo com letra", "Criado com ferramentas de IA.", "vídeo com letra"],
+    ro: [
+      "Videoclip cu versuri",
+      "Creat cu instrumente de inteligență artificială.",
+      "videoclip cu versuri",
+    ],
+    ru: [
+      "Видео с текстом",
+      "Создано с помощью инструментов ИИ.",
+      "видео с текстом",
+    ],
+    ja: ["歌詞付き動画", "AIツールを使用して制作しました。", "歌詞付き動画"],
+    zh: ["歌词视频", "使用人工智能工具制作。", "歌词视频"],
+    ko: ["가사 영상", "AI 도구로 제작했습니다.", "가사 영상"],
+  };
+  const [suffix, credits, tag] = copy[language] ?? [
+    "Lyric video",
+    "Created with AI tools.",
+    "lyric video",
+  ];
+  return { suffix, credits, tag };
 }

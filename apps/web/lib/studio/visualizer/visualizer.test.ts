@@ -106,7 +106,7 @@ describe("pictures", () => {
       background: `/media/uploads/${STOCK_BACKGROUNDS[0]}`,
       backgroundVideo: null,
       center: cover,
-      marks: false,
+      logos: [],
     });
     params.background = { mode: "image", seed: 0, assetUrl: null, dimming: 60 };
     expect(pictureLinks(params, cover).background).toBe(cover);
@@ -124,13 +124,25 @@ describe("pictures", () => {
       background: null,
       backgroundVideo: "/media/uploads/u/v.mp4",
     });
-    params.centerImage = { mode: "upload", assetUrl: null };
+    params.centerImage = { mode: "upload", assetUrl: null, fit: "cover" };
     expect(pictureLinks(params, cover).center).toBe(cover);
-    params.centerImage = { mode: "none", assetUrl: null };
+    params.centerImage = { mode: "none", assetUrl: null, fit: "cover" };
     expect(pictureLinks(params, cover).center).toBeNull();
-    expect(pictureLinks({ ...params, preset: "classico" }, cover).marks).toBe(
-      true,
-    );
+    // No built-in marks on any preset, Classico included: only the user's own logos.
+    expect(
+      pictureLinks({ ...params, preset: "classico" }, cover).logos,
+    ).toEqual([]);
+    params.logos = [
+      {
+        assetUrl: "/media/uploads/u/logo.png",
+        position: "top-left",
+        size: 12,
+        opacity: 100,
+      },
+    ];
+    expect(pictureLinks(params, cover).logos).toEqual([
+      "/media/uploads/u/logo.png",
+    ]);
   });
 });
 

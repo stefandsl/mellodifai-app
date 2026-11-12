@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 export async function createClient() {
   const cookieStore = await cookies();
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+    process.env.SUPABASE_INTERNAL_URL ?? "",
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
     {
       cookies: {
@@ -21,4 +21,11 @@ export async function createClient() {
       },
     },
   );
+}
+
+export async function getSessionClaims() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims?.sub || !data.claims.session_id) return null;
+  return { sub: data.claims.sub, session_id: String(data.claims.session_id) };
 }

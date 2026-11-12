@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Layers,
   Pause,
+  PenLine,
   Play,
   Scissors,
   Share2,
@@ -20,6 +21,7 @@ import { useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 import { st, stf } from "@/lib/studio/i18n";
 import { activeTake, stylePhrases } from "@/lib/studio/now-playing";
+import { rewriteHref } from "@/lib/studio/rewrite";
 import { editorHref, stemsHref } from "@/lib/studio/stems";
 import {
   formatTime,
@@ -27,6 +29,7 @@ import {
   type TrackDetail,
   usePlayer,
 } from "@/store/player";
+import { CrossfadeCover } from "./crossfade-cover";
 import { DownloadButton, RepeatButton, SpeedMenu } from "./player-controls";
 import { ReactionButtons } from "./reaction-buttons";
 import { ShareDialog } from "./share-dialog";
@@ -127,10 +130,8 @@ function NowPlayingBody({ track }: { track: Track }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin sm:px-6 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-12 lg:overflow-hidden lg:px-12 lg:pb-6">
         <div className="mx-auto w-full max-w-[26rem] space-y-5 lg:mx-0 lg:overflow-y-auto lg:pr-1 lg:scrollbar-thin">
-          <div
-            className="relative aspect-square w-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-[var(--hairline)]"
-            style={{ background: track.art }}
-          >
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-[var(--hairline)]">
+            <CrossfadeCover art={track.art} coverUrl={track.coverUrl} />
             <button
               type="button"
               aria-label={st(lang, p.playing ? "player.pause" : "player.play")}
@@ -229,7 +230,9 @@ function NowPlayingBody({ track }: { track: Track }) {
               {st(lang, "now.open")}
             </Link>
           </div>
-          {detail?.tools?.edit || detail?.tools?.stems ? (
+          {detail?.tools?.edit ||
+          detail?.tools?.stems ||
+          detail?.tools?.rewrite ? (
             <div className="-mt-3 flex flex-wrap items-center gap-1">
               {detail?.tools?.edit ? (
                 <Link
@@ -239,6 +242,16 @@ function NowPlayingBody({ track }: { track: Track }) {
                 >
                   <Scissors className="size-3.5" />
                   {st(lang, "tool.edit")}
+                </Link>
+              ) : null}
+              {detail?.tools?.rewrite ? (
+                <Link
+                  href={rewriteHref(detail.songId)}
+                  onClick={() => p.set({ showNow: false })}
+                  className={TOOL_LINK}
+                >
+                  <PenLine className="size-3.5" />
+                  {st(lang, "tool.rewrite")}
                 </Link>
               ) : null}
               {detail?.tools?.stems ? (

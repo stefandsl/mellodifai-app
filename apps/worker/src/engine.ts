@@ -2,7 +2,20 @@ import { spawn as nodeSpawn, type SpawnOptions } from "node:child_process";
 import { rename, rm } from "node:fs/promises";
 import { join, parse, win32 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { FREE_KEY_CALLS } from "./providers/paid.js";
+import { workerTempDir } from "./runtime.js";
 import { childEnvironment, type Secrets } from "./secrets.js";
+
+const paidProviders: Record<string, string> = {
+  KIE_API_KEY: "kie",
+  OPENROUTER_API_KEY: "openrouter",
+  LYRICS_OPENROUTER_KEY: "openrouter",
+  GROQ_API_KEY: "groq",
+  HIGGSFIELD_API_KEY: "higgsfield",
+};
+export const PAID_SECRET_NAMES = Object.keys(paidProviders);
+
+export class EngineAuthorizationError extends Error {}
 
 type Child = {
   pid?: number | undefined;
@@ -24,10 +37,16 @@ export type EngineOptions = {
   env?: Record<string, string>;
   // Names from secrets.values this child may see; every other secret stays out of its environment.
   secretEnv?: string[];
+  entryIds?: string[];
+  freeCall?: (typeof FREE_KEY_CALLS)[number];
   outputs?: string[];
   cwd?: string;
 };
 type Dependencies = {
+  validateEntries?: (
+    entries: string[],
+    providers: string[],
+  ) => Promise<boolean>;
   secrets?: Secrets;
   spawn?: Spawn;
   log: (line: string) => Promise<void>;
@@ -111,6 +130,72 @@ export class Engine {
         "Shell shims are unsupported: use node <path to remotion CLI js> instead of npx or .cmd",
       );
     }
+    const env = {
+      ...childEnvironment(
+        {
+          ...process.env,
+          ...this.dependencies.env,
+          ...options.env,
+        },
+        this.dependencies.secrets,
+      ),
+      ...Object.fromEntries(
+        (options.secretEnv ?? []).flatMap((name) => {
+          const value = this.dependencies.secrets?.values[name];
+          return value ? [[name, value]] : [];
+        }),
+      ),
+      PYTHONIOENCODING: "utf-8",
+      TMP: workerTempDir(),
+      TEMP: workerTempDir(),
+      TMPDIR: workerTempDir(),
+      MELLODIFAI_ENV_ONLY: "1",
+    };
+    const providers = [
+      ...new Set(
+        [...(options.secretEnv ?? []), ...Object.keys(env)].flatMap((name) => {
+          const provider = paidProviders[name.toUpperCase()];
+          return provider ? [provider] : [];
+        }),
+      ),
+    ];
+    if (providers.length) {
+      const freeOperation =
+        options.freeCall === "kie:balance-refresh"
+          ? "credit"
+          : options.freeCall?.slice(4);
+      const free =
+        providers.every((provider) => provider === "kie") &&
+        options.freeCall &&
+        (FREE_KEY_CALLS as readonly string[]).includes(options.freeCall) &&
+        /^(node)(?:\.exe)?$/iu.test(win32.basename(command)) &&
+        args[0]?.replaceAll("\\", "/") === "tools/kie.mjs" &&
+        ["credit", "job", "wait", "lyrics-ts"].includes(freeOperation ?? "") &&
+        args[1] === freeOperation;
+      if (!free) {
+        let authorized = false;
+        try {
+          if (
+            options.entryIds?.length &&
+            options.entryIds.every((id) => id.trim())
+          )
+            authorized =
+              (await this.dependencies.validateEntries?.(
+                options.entryIds,
+                providers,
+              )) ?? false;
+        } catch (cause) {
+          throw new EngineAuthorizationError(
+            "Paid secret spend entry validation failed",
+            { cause },
+          );
+        }
+        if (!authorized)
+          throw new EngineAuthorizationError(
+            "Paid secret requires a matching open spend entry or free call",
+          );
+      }
+    }
     const parts = new Map(
       (options.outputs ?? []).map((file) => {
         const { dir, name, ext } = parse(file);
@@ -120,8 +205,9 @@ export class Engine {
     const staged = args.map((arg) => parts.get(arg) ?? arg);
     if (/^(python|py)(?:\.exe)?$/iu.test(win32.basename(command))) {
       if (staged[0] === "-I") staged.shift();
+      if (staged[0] === "-B") staged.shift();
       if (staged[0] === "-X" && staged[1] === "utf8") staged.splice(0, 2);
-      staged.unshift("-I", "-X", "utf8");
+      staged.unshift("-I", "-B", "-X", "utf8");
     }
     for (const file of [
       ...parts.keys(),
@@ -134,25 +220,7 @@ export class Engine {
       shell: false,
       windowsHide: true,
       ...(options.cwd ? { cwd: options.cwd } : {}),
-      env: {
-        ...childEnvironment(
-          {
-            ...process.env,
-            ...this.dependencies.env,
-            ...options.env,
-          },
-          this.dependencies.secrets,
-        ),
-        ...Object.fromEntries(
-          (options.secretEnv ?? []).flatMap((name) => {
-            const value = this.dependencies.secrets?.values[name];
-            return value ? [[name, value]] : [];
-          }),
-        ),
-        PYTHONIOENCODING: "utf-8",
-        TMP: "E:\\mellodifai\\tmp",
-        TEMP: "E:\\mellodifai\\tmp",
-      },
+      env,
     });
     let logs = Promise.resolve();
     const tail: string[] = [];

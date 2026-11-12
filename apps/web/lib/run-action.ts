@@ -1,59 +1,98 @@
-import { t } from "@mellodifai/shared";
-import { revalidatePath } from "next/cache";
+import { type OpsErrorCode, t } from "@mellodifai/shared";
+import { headers } from "next/headers";
+import type { ZodType } from "zod";
 import type { ActionResult } from "./action-result";
-import { actionProfile } from "./auth";
 import { getLocale } from "./locale";
+import { sessionCtx } from "./ops/context";
+import { runOp } from "./ops/run";
+import type { OpDef } from "./ops/types";
+import { isRemote } from "./remote";
 
-export async function runAction(
-  work: (db: Awaited<ReturnType<typeof actionProfile>>["supabase"]) => Promise<{
-    versionId?: string;
-    projectId?: string;
-    // Overrides the id the result carries (a new playlist, for instance).
-    id?: string;
-    count?: number;
-  }>,
+export function runAction<I, O>(
+  def: OpDef<I, O>,
+  input: unknown,
+  options?: { idempotencyKey?: string; count?: number },
+): Promise<ActionResult>;
+export async function runAction<I, O>(
+  def: OpDef<I, O>,
+  input: unknown,
+  options?: { idempotencyKey?: string; count?: number },
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await actionProfile();
-    const result = await work(supabase);
-    let projectId = result.projectId;
-    if (result.versionId) {
-      const { data, error } = await supabase
-        .from("versions")
-        .select("project_id")
-        .eq("id", result.versionId)
-        .single();
-      if (error) throw error;
-      projectId = data.project_id;
-    }
-    if (projectId) revalidatePath(`/projects/${projectId}`);
-    const resultId = result.id ?? projectId;
-    revalidatePath("/library");
-    revalidatePath("/create");
-    revalidatePath("/playlists");
-    revalidatePath("/playlists/[id]", "page");
-    revalidatePath("/search");
-    revalidatePath("/stems/[id]", "page");
-    revalidatePath("/editor/[id]", "page");
+    if (isRemote(await headers())) return opsFailure("forbidden_scope");
+  } catch {
+    return opsFailure("internal");
+  }
+  return remoteAction(def, input, options);
+}
+
+async function opsFailure(code: OpsErrorCode): Promise<ActionResult> {
+  return { ok: false, code, error: t(await getLocale(), `error.${code}`) };
+}
+
+type UnauthenticatedAction<I> = {
+  unauthenticated: true;
+  input: ZodType<I>;
+  rateLimit: (input: I) => boolean;
+  run: (input: I) => Promise<ActionResult>;
+};
+
+export async function remoteAction<I, O>(
+  def: OpDef<I, O> | UnauthenticatedAction<I>,
+  input: unknown,
+  options?: { idempotencyKey?: string; count?: number },
+): Promise<ActionResult> {
+  if ("unauthenticated" in def) {
+    const parsed = def.input.safeParse(input);
+    if (!parsed.success) return opsFailure("validation");
+    if (!def.rateLimit(parsed.data)) return opsFailure("rate_limited");
+    // These public sign-in handlers own their errors and may redirect after verification.
+    return def.run(parsed.data);
+  }
+  try {
+    const ctx = await sessionCtx();
+    const result = await runOp(
+      def,
+      { ...ctx, idempotency_key: options?.idempotencyKey },
+      input,
+    );
+    if (!result.ok)
+      return {
+        ...(await opsFailure(result.code)),
+        ...(result.idempotency_key
+          ? { idempotencyKey: result.idempotency_key }
+          : {}),
+      };
+    if ("committed" in result) return { ok: true, committed: true };
+    const data = result.data;
+    const id =
+      data && typeof data === "object"
+        ? "project_id" in data
+          ? data.project_id
+          : "playlist_id" in data
+            ? data.playlist_id
+            : "id" in data
+              ? data.id
+              : "edit_id" in data
+                ? data.edit_id
+                : "take_id" in data
+                  ? data.take_id
+                  : "job_id" in data
+                    ? data.job_id
+                    : "jobs" in data && Array.isArray(data.jobs)
+                      ? data.jobs[0]?.job_id
+                      : undefined
+        : undefined;
+    const count =
+      data && typeof data === "object" && "count" in data
+        ? data.count
+        : options?.count;
     return {
       ok: true,
-      ...(resultId ? { id: resultId } : {}),
-      ...(result.count === undefined ? {} : { count: result.count }),
+      ...(typeof id === "string" ? { id } : {}),
+      ...(typeof count === "number" ? { count } : {}),
     };
-  } catch (error) {
-    const message =
-      error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : String(error);
-    console.error(
-      "Server action failed:",
-      message
-        .replace(
-          /\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu,
-          "[redacted]",
-        )
-        .replace(/\bsb_(?:secret|publishable)_[A-Za-z0-9_-]+/gu, "[redacted]"),
-    );
-    return { ok: false, error: t(await getLocale(), "error.action") };
+  } catch {
+    return opsFailure("unauthorized");
   }
 }

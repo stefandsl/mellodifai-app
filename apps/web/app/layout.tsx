@@ -6,6 +6,7 @@ import { LocaleProvider } from "@/components/locale-provider";
 import { THEME_SCRIPT } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getLocale } from "@/lib/locale";
+import { GLASS_SCRIPT } from "@/lib/studio/ambient";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({
@@ -34,8 +35,10 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: constant theme bootstrap, no user input. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: fixed local bootstrap strings, no user input.
+          dangerouslySetInnerHTML={{ __html: THEME_SCRIPT + GLASS_SCRIPT }}
+        />
       </head>
       {/* Browser extensions (e.g. Video Speed Controller) add classes to <body> before hydration. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>

@@ -121,7 +121,7 @@ export default async function ProjectPage({
         .order("take_number"),
       supabase
         .from("renders")
-        .select("id,kind,preview_path,qa_results")
+        .select("id,kind,aspect,preview_path,qa_results")
         .eq("version_id", current.id)
         .eq("render_attempt", current.render_attempt)
         .order("created_at", { ascending: false }),
@@ -156,10 +156,17 @@ export default async function ProjectPage({
   const previewDirectory = masterPath?.includes("/")
     ? masterPath.slice(0, masterPath.lastIndexOf("/"))
     : null;
-  const thumbnailUrl = previewDirectory
-    ? ((await signed(`${previewDirectory}/thumbnail-1280x720.png`)) ??
-      (await signed(`${previewDirectory}/thumbnail.png`)))
-    : null;
+  const thumbnailPath = (
+    (renderRows ?? []).find((r) => r.kind === "master")?.qa_results as {
+      assets?: { thumbnail_path?: string };
+    } | null
+  )?.assets?.thumbnail_path;
+  const thumbnailUrl =
+    (await signed(thumbnailPath ?? null)) ??
+    (previewDirectory
+      ? ((await signed(`${previewDirectory}/thumbnail-1280x720.png`)) ??
+        (await signed(`${previewDirectory}/thumbnail.png`)))
+      : null);
   const hook = renders.find((r) => r.kind === "hook");
   if (hook && !hook.previewUrl && previewDirectory)
     hook.previewUrl = await signed(`${previewDirectory}/hook.mp4`);
@@ -169,12 +176,12 @@ export default async function ProjectPage({
       audioUrl: await signed(take.audio_preview_path),
     })),
   );
-  const master = renders.find((r) => r.kind === "master");
-  const { data: publication } = master
+  const renderIds = renders.map((render) => render.id);
+  const { data: publication } = renderIds.length
     ? await supabase
         .from("publications")
         .select("id,youtube_video_id,privacy,metadata,upload_state")
-        .eq("render_id", master.id)
+        .in("render_id", renderIds)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -240,7 +247,6 @@ export default async function ProjectPage({
                 takes={takeData}
                 renders={renders as RenderPreview[]}
                 publication={publication as PublicationView | null}
-                brief={project.brief ?? ""}
                 failedJob={failedJob}
                 quotaNotBefore={
                   (jobs ?? []).find(

@@ -2,8 +2,11 @@
 // models scores each draft. Every call is best effort: a router or judge that fails is
 // left out, so a provider outage slows nothing down and never blocks a song.
 
-const DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
-const CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
+import { isCapRefusal } from "../providers/ledger.js";
+import {
+  type OpenRouterCall as Call,
+  openRouterPost as post,
+} from "../providers/openrouter.js";
 export const JEV = "typesafe/jev-1.14";
 
 export type Writer = "strong" | "fast";
@@ -17,6 +20,34 @@ export const DEFAULT_JUDGES = [
   "google/gemini-3.8-flash",
 ];
 export const PASS_SCORE = 0.7;
+
+// The daily cap of writer calls (LYRICS_DAILY_CAP, default 50), shared by the song drafts and the
+// create panel's AI lyric buttons. Each call is reserved before it is made, also when it then
+// fails in transit.
+export async function lyricsBudget(
+  secrets: Readonly<Record<string, string | undefined>>,
+) {
+  const { mkdir, readFile, writeFile } = await import("node:fs/promises");
+  const { dirname } = await import("node:path");
+  const cap = Number(secrets.LYRICS_DAILY_CAP ?? "50");
+  const stateFile =
+    secrets.LYRICS_STATE_FILE ?? "E:\\mellodifai\\state\\lyrics.json";
+  const today = new Date().toISOString().slice(0, 10);
+  let state: { day?: string; count?: number } = {};
+  try {
+    state = JSON.parse(await readFile(stateFile, "utf8")) as typeof state;
+  } catch {}
+  let count = state.day === today ? (state.count ?? 0) : 0;
+  if (count >= cap) throw new Error("daily lyrics cap reached");
+  return {
+    async reserve() {
+      if (count >= cap) throw new Error("daily lyrics cap reached");
+      count += 1;
+      await mkdir(dirname(stateFile), { recursive: true });
+      await writeFile(stateFile, JSON.stringify({ day: today, count }));
+    },
+  };
+}
 
 // An OpenRouter privacy guardrail can replace words with tags like [PERSON_NAME] before a
 // model sees them (seen live 2026-11-01: "la macchinetta" became [PERSON_NAME]).
@@ -52,29 +83,6 @@ const TONES = {
   story: "Song that tells a story with characters and a plot.",
 } as const;
 
-type Fetch = typeof globalThis.fetch;
-type Call = { key: string; signal?: AbortSignal; fetchFn?: Fetch };
-
-async function post(
-  url: string,
-  body: unknown,
-  { key, signal, fetchFn = globalThis.fetch }: Call,
-  timeoutMs: number,
-): Promise<unknown> {
-  const timeout = AbortSignal.timeout(timeoutMs);
-  const response = await fetchFn(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-  });
-  if (!response.ok) throw new Error(`OpenRouter ${response.status}`);
-  return response.json();
-}
-
 type Answer = {
   choice?: string;
   confidence?: number;
@@ -105,7 +113,7 @@ export async function route(
   try {
     const result = answers(
       await post(
-        DECISIONS_URL,
+        "decisions",
         {
           model: JEV,
           state: {
@@ -146,6 +154,7 @@ export async function route(
       ms: Math.round(performance.now() - started),
     };
   } catch (error) {
+    if (isCapRefusal(error)) throw error;
     return {
       tone: null,
       writer: "strong",
@@ -218,7 +227,7 @@ async function jevVerdict(
   };
   const result = answers(
     await post(
-      DECISIONS_URL,
+      "decisions",
       {
         model: JEV,
         state: {
@@ -276,7 +285,7 @@ async function chatVerdict(
   call: Call,
 ): Promise<Omit<Verdict, "model" | "ms">> {
   const json = (await post(
-    CHAT_URL,
+    "chat",
     {
       model,
       response_format: { type: "json_object" },
@@ -383,6 +392,7 @@ export async function judge(
             : await chatVerdict(model, draft, context, call);
         return { model, ms: Math.round(performance.now() - t0), ...verdict };
       } catch (error) {
+        if (isCapRefusal(error)) throw error;
         return {
           model,
           ms: Math.round(performance.now() - t0),

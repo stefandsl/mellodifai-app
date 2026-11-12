@@ -55,11 +55,11 @@ describe("engine availability from files", () => {
   const engines = {
     yue2: {
       ...LOCAL_ENGINES.yue2,
-      files: [{ path: "checkpoints\\yue2.safetensors", bytes: 5 }],
+      files: [{ path: join("checkpoints", "yue2.safetensors"), bytes: 5 }],
     },
     "ace-step": {
       ...LOCAL_ENGINES["ace-step"],
-      files: [{ path: "checkpoints\\ace.safetensors", bytes: 3 }],
+      files: [{ path: join("checkpoints", "ace.safetensors"), bytes: 3 }],
     },
   };
   it("reports an engine installed only when every model file has its exact size", async () => {
@@ -81,12 +81,14 @@ describe("engine availability from files", () => {
         installed: true,
         passedLangs: ["it"],
         minutesPerAudioMinute: 1.6,
+        features: [],
         checkedAt: "2026-11-01T10:00:00.000Z",
       },
       "ace-step": {
         installed: false,
         passedLangs: ["it"],
         minutesPerAudioMinute: 0.8,
+        features: ["rewrite"],
         checkedAt: "2026-11-01T10:00:00.000Z",
       },
     });
@@ -119,6 +121,7 @@ describe("engine availability from files", () => {
         installed: true,
         passedLangs: ["it" as const],
         minutesPerAudioMinute: 1.6,
+        features: [],
         checkedAt: "x",
       },
     }));

@@ -1,121 +1,74 @@
 "use client";
-import { type DictKey, t } from "@mellodifai/shared";
-import { useRouter } from "next/navigation";
+import { t } from "@mellodifai/shared";
+import { unstable_rethrow } from "next/navigation";
 import { useState, useTransition } from "react";
+import { sendSignInLink, verifySignInCode } from "@/app/actions/sign-in";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/browser";
 
-export function loginNotice(error: unknown, rejected = false): DictKey {
-  if (!error) return "auth.sent";
-  const details = error as { status?: number; code?: string; name?: string };
-  if (details.status === 429) return "auth.rateLimited";
-  if (details.status !== undefined && details.status >= 500)
-    return "auth.unavailable";
-  // Account refusals must be indistinguishable from a successful delivery.
-  if (details.code === "otp_disabled" || details.code === "signup_disabled")
-    return "auth.sent";
-  if (details.status !== undefined && details.status >= 400) return "auth.sent";
-  if (
-    error instanceof TypeError ||
-    details.name === "AuthRetryableFetchError" ||
-    details.status === 0
-  )
-    return "auth.unavailable";
-  return rejected ? "auth.unavailable" : "auth.sent";
-}
-
-export const passwordNotice = (): DictKey => "auth.invalidCredentials";
-
-export function LoginForm({ lang }: { lang: "it" | "en" }) {
+export function LoginForm({ lang, next }: { lang: "it" | "en"; next: string }) {
   const [notice, setNotice] = useState("");
-  const [magicLink, setMagicLink] = useState(false);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [pending, startTransition] = useTransition();
-  const router = useRouter();
   return (
     <form
       className="mt-6 space-y-4"
-      onSubmit={() => setNotice("")}
-      action={() => {
-        setNotice("");
+      action={() =>
         startTransition(async () => {
           try {
-            if (magicLink) {
-              const { error } = await createClient().auth.signInWithOtp({
-                email,
-                options: {
-                  shouldCreateUser: false,
-                  emailRedirectTo: `${window.location.origin}/auth/confirm`,
-                },
-              });
-              setNotice(t(lang, loginNotice(error)));
-              return;
-            }
-            const { error } = await createClient().auth.signInWithPassword({
-              email,
-              password,
-            });
-            if (error) {
-              setPassword("");
-              setNotice(t(lang, passwordNotice()));
-              return;
-            }
-            router.replace("/");
-            router.refresh();
+            const result = await sendSignInLink(email, next);
+            setNotice(result.ok ? t(lang, "auth.sent") : result.error);
           } catch (error) {
-            if (!magicLink) setPassword("");
-            setNotice(
-              t(lang, magicLink ? loginNotice(error, true) : passwordNotice()),
-            );
+            unstable_rethrow(error);
+            setNotice(t(lang, "auth.unavailable"));
           }
-        });
-      }}
+        })
+      }
     >
       <Label htmlFor="email">{t(lang, "auth.email")}</Label>
       <Input
         id="email"
         name="email"
         type="email"
+        autoComplete="email"
         required
         value={email}
         onChange={(event) => setEmail(event.target.value)}
       />
-      {!magicLink && (
-        <>
-          <Label htmlFor="password">{t(lang, "auth.password")}</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minLength={10}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </>
-      )}
       <Button type="submit" disabled={pending} className="w-full">
-        {t(lang, magicLink ? "auth.sendLink" : "auth.signIn")}
+        {t(lang, "auth.sendLink")}
       </Button>
+      <Label htmlFor="code">{t(lang, "auth.code")}</Label>
+      <Input
+        id="code"
+        name="code"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern="[0-9]{6}"
+        maxLength={6}
+        value={code}
+        onChange={(event) => setCode(event.target.value)}
+      />
       <Button
-        type="button"
-        variant="ghost"
+        type="submit"
+        disabled={pending || !/^\d{6}$/u.test(code)}
         className="w-full"
-        onClick={() => {
-          setMagicLink((value) => !value);
-          setNotice("");
-        }}
+        formAction={() =>
+          startTransition(async () => {
+            try {
+              const result = await verifySignInCode(email, code, next);
+              if (!result.ok) setNotice(result.error);
+            } catch (error) {
+              unstable_rethrow(error);
+              setNotice(t(lang, "auth.unavailable"));
+            }
+          })
+        }
       >
-        {t(lang, magicLink ? "auth.signIn" : "auth.magicLink")}
+        {t(lang, "auth.verifyCode")}
       </Button>
-      {!magicLink && (
-        <p className="text-sm text-muted-foreground">
-          {t(lang, "auth.forgotPassword")} {t(lang, "auth.forgotPasswordHint")}
-        </p>
-      )}
       {notice && <p role="status">{notice}</p>}
     </form>
   );

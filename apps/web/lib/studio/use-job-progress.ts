@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { createClient } from "@/lib/supabase/browser";
 
@@ -29,9 +29,15 @@ export function useJobEvents(
   initial: JobEvent[] = NONE,
 ): JobEvent[] {
   const [events, setEvents] = useState(initial);
+  const previousJobId = useRef(jobId);
   useEffect(() => {
-    setEvents((old) => merge(old, initial));
-  }, [initial]);
+    if (previousJobId.current === jobId)
+      setEvents((old) => merge(old, initial));
+    else {
+      previousJobId.current = jobId;
+      setEvents(initial);
+    }
+  }, [jobId, initial]);
   useEffect(() => {
     if (!jobId || !active) return;
     const supabase = createClient();
@@ -57,7 +63,8 @@ export function useJobEvents(
         },
         (payload) => {
           const event = payload.new as JobEvent & { job_id?: string };
-          if (event.job_id === jobId) setEvents((old) => merge(old, [event]));
+          if (alive && event.job_id === jobId)
+            setEvents((old) => merge(old, [event]));
         },
       )
       .subscribe();
@@ -69,7 +76,7 @@ export function useJobEvents(
       void supabase.removeChannel(channel);
     };
   }, [jobId, active]);
-  return events;
+  return previousJobId.current === jobId ? events : initial;
 }
 
 // The newest progress value among `events` at or after `since` (an ISO time), else null.

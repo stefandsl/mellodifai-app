@@ -1,4 +1,4 @@
-import { rm, stat } from "node:fs/promises";
+import { copyFile, rm, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type { Take } from "../db.js";
 import type { StageContext } from "../loop.js";
@@ -19,18 +19,37 @@ async function download(context: StageContext, take: Take, file: string) {
   await context.storage.download(take.audio_preview_path, file);
 }
 
+// The full-quality copy of a kept rewrite (stages/replace-section.ts sectionFile).
+export function rewrittenFile(
+  context: StageContext,
+  take: Take,
+): string | null {
+  const source = take.source as
+    | { kind?: unknown; edit_id?: unknown; alternative?: unknown }
+    | null
+    | undefined;
+  if (source?.kind !== "replace" || typeof source.edit_id !== "string")
+    return null;
+  const n = typeof source.alternative === "number" ? source.alternative : 0;
+  return join(context.ws.outDir, "sections", `${source.edit_id}-${n + 1}.mp3`);
+}
+
 // The best local file of a take: the workspace keeps the full-quality files of the current
-// generation (out/<lang>/take-N.flac from a local engine, take-N.mp3 from kie or any engine);
-// anything else (an edit, an older generation) is fetched from storage into `dir`.
+// generation (out/<lang>/take-N.flac from a local engine, take-N.mp3 from kie, an import or any
+// engine, sections/<edit>-N.mp3 for a rewritten part); anything else (an edit, an older
+// generation) is fetched from storage into `dir`.
 export async function takeAudio(
   context: StageContext,
   take: Take,
   dir: string,
 ): Promise<string> {
+  const rewritten = rewrittenFile(context, take);
+  if (rewritten && (await exists(rewritten))) return rewritten;
   const current =
     (take.generation ?? 1) === (context.version.generation_count ?? 1);
   if (
     take.engine !== "edit" &&
+    !rewritten &&
     current &&
     (take.take_number === 1 || take.take_number === 2)
   ) {
@@ -48,14 +67,18 @@ export async function takeAudio(
   return file;
 }
 
-// The timing pipeline reads out/<lang>/take-N.mp3. An edited take exists only in storage, so it
-// is written there first; its kie word alignment (if any) belongs to the original and goes.
+// The timing pipeline reads out/<lang>/take-N.mp3. An edited take exists only in storage and a
+// rewritten one in sections/, so it is written there first; a kie word alignment of that number
+// belongs to another take and goes.
 export async function materializeEditedTake(
   context: StageContext,
   take: Take,
 ): Promise<void> {
-  if (take.engine !== "edit") return;
+  const rewritten = rewrittenFile(context, take);
+  if (take.engine !== "edit" && !rewritten) return;
   const n = take.take_number ?? 1;
+  const target = join(context.ws.outDir, `take-${n}.mp3`);
   await rm(join(context.ws.outDir, `aligned-take${n}.json`), { force: true });
-  await download(context, take, join(context.ws.outDir, `take-${n}.mp3`));
+  if (rewritten && (await exists(rewritten))) await copyFile(rewritten, target);
+  else await download(context, take, target);
 }

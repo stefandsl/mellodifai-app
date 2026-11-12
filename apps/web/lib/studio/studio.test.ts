@@ -270,6 +270,21 @@ describe("feed", () => {
     expect(clipBadge({ model: "V6", settings: { engine: "yue2" } })).toBe(
       "YuE2",
     );
+    // An imported recording names its origin, not a model.
+    expect(
+      clipBadge({
+        model: "V6",
+        settings: { engine: "kie" },
+        source: { kind: "suno", licence: "own" },
+      }),
+    ).toBe("Suno");
+    expect(
+      clipBadge({
+        model: "V6",
+        settings: {},
+        source: { kind: "cover", licence: "own" },
+      }),
+    ).toBe("v6");
   });
 
   it("filters the feed by like, creation state and audio only", () => {

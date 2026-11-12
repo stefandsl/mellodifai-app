@@ -14,6 +14,8 @@ export type EngineInfo = {
   installed: boolean;
   passedLangs: Lang[];
   minutesPerAudioMinute: number;
+  // What the engine does with existing audio (T12): rewrite a part, cover a song.
+  features?: ("rewrite" | "cover")[];
 };
 export type EngineMap = Partial<Record<LocalSongEngine, EngineInfo>>;
 
@@ -28,6 +30,16 @@ const EntrySchema = z.object({
   installed: z.boolean(),
   passedLangs: z.array(z.enum(LANGS)),
   minutesPerAudioMinute: z.number().positive(),
+  // A worker from before T12 publishes none.
+  features: z
+    .array(z.string())
+    .optional()
+    .transform((list) =>
+      (list ?? []).filter(
+        (item): item is "rewrite" | "cover" =>
+          item === "rewrite" || item === "cover",
+      ),
+    ),
 });
 
 export function isLocal(engine: string): engine is LocalSongEngine {

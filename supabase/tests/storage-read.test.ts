@@ -15,7 +15,8 @@ let service: SupabaseClient;
 async function customer(suffix: string) {
   const email = `${prefix}-${suffix}@example.test`;
   expect(
-    (await service.from("admin_allowlist").insert({ email })).error,
+    (await service.from("admin_allowlist").insert({ email, role: "admin" }))
+      .error,
   ).toBeNull();
   const created = await service.auth.admin.createUser({
     email,

@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { publishEngines } from "./comfy/availability.js";
-import { COMFY_CONFIG, comfyOutputDir } from "./comfy/config.js";
+import { COMFY_CONFIG, comfyInputDir, comfyOutputDir } from "./comfy/config.js";
 import type { LocalRuntime } from "./comfy/runtime.js";
 import {
   type ComfySupervisor,
@@ -12,10 +12,14 @@ import {
 import { SupabaseDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { fakeStages } from "./fake/index.js";
+import { fakeSongless } from "./fake/lyrics-assist.js";
 import { WorkerLoop } from "./loop.js";
+import { serviceLedger, validateEngineEntries } from "./providers/ledger.js";
+import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
+import { startScheduler } from "./scheduler.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
-import { stages } from "./stages/index.js";
+import { songlessStages, stages } from "./stages/index.js";
 import { SupabaseStorage } from "./storage.js";
 import { WorkspaceFactory } from "./workspace.js";
 
@@ -108,7 +112,7 @@ async function main() {
   const secrets = await loadSecrets();
   startupSecrets = secrets;
   const report = (line: string) => console.error(secrets.redact(line));
-  await mkdir("E:\\mellodifai\\tmp", { recursive: true });
+  await mkdir(workerTempDir(), { recursive: true });
   const url = secrets.values.SUPABASE_URL;
   const key = secrets.values.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key)
@@ -116,7 +120,10 @@ async function main() {
   const workerId =
     secrets.values.WORKER_ID ?? `worker-${process.env.COMPUTERNAME ?? "pc"}`;
   const db = new SupabaseDb(url, key, secrets.values.WORKER_OWNER_ID);
+  const client = createClient(url, key);
   const engine = new Engine({
+    validateEntries: (entries, providers) =>
+      validateEngineEntries(client, entries, providers),
     log: async (line) => console.log(secrets.redact(line)),
     secrets,
     report,
@@ -128,11 +135,11 @@ async function main() {
       : startBalanceRefresh(() =>
           refreshBalance({
             engine: engine.withWorkspace(
-              "E:\\mellodifai",
+              workerRuntimeRoot(),
               async (line) => report(line),
               balanceAbort.signal,
             ),
-            ws: { root: "E:\\mellodifai" },
+            ws: { root: workerRuntimeRoot() },
             db,
             secrets,
             signal: balanceAbort.signal,
@@ -143,6 +150,7 @@ async function main() {
   const comfy: LocalRuntime = {
     supervisor,
     outputDir: comfyOutputDir(COMFY_CONFIG),
+    inputDir: comfyInputDir(COMFY_CONFIG),
     freeVramMb: nvidiaFreeVramMb,
   };
   const stopLocal =
@@ -156,22 +164,30 @@ async function main() {
   const loop = new WorkerLoop({
     db,
     workerId,
-    stages: process.env.WORKER_FAKE === "1" ? fakeStages : stages,
+    stages,
+    fakeStages,
+    songless: songlessStages,
+    fakeSongless,
     workspace: new WorkspaceFactory(),
     engine,
-    storage: new SupabaseStorage(createClient(url, key)),
+    storage: new SupabaseStorage(client),
     secrets,
+    groqLedger: () => serviceLedger(client, null, "groq", ""),
+    kieLedger: () => serviceLedger(client, null, "kie", ""),
     report,
     comfy,
   });
+  const stopScheduler = startScheduler(client, workerId);
   const removeSignals = installSignals(
     {
       stop: async () => {
+        stopScheduler();
         balanceAbort.abort();
         await Promise.all([loop.stop(), stopBalance()]);
         await stopLocal();
       },
       forceStop: async () => {
+        stopScheduler();
         balanceAbort.abort();
         await Promise.all([loop.forceStop(), stopBalance()]);
         await stopLocal();
@@ -184,6 +200,7 @@ async function main() {
   try {
     await loop.runForever();
   } finally {
+    stopScheduler();
     balanceAbort.abort();
     await stopBalance();
     await stopLocal();

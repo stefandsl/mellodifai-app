@@ -25,7 +25,6 @@ import {
   isUnchanged,
   MAX_FADE,
   normalizeGain,
-  parseClock,
   renderEdit,
 } from "@/lib/studio/audio-edit";
 import type { Clip } from "@/lib/studio/clips";
@@ -33,11 +32,14 @@ import { saveEdit } from "@/lib/studio/edit-save";
 import { st, stf } from "@/lib/studio/i18n";
 import { encodeMp3 } from "@/lib/studio/mp3";
 import { downloadName } from "@/lib/studio/now-playing";
-import { editorAudio } from "@/lib/studio/stems";
+import { type RewriteData, rewriteHref } from "@/lib/studio/rewrite";
+import { editorAudio, editorHref } from "@/lib/studio/stems";
 import { createClient } from "@/lib/supabase/browser";
 import { usePlayer } from "@/store/player";
 import { ToolPage } from "../tool-page";
-import { EditableSlider } from "../ui";
+import { EditableSlider, Segmented } from "../ui";
+import { ClockField } from "./clock-field";
+import { RewritePanel } from "./rewrite-panel";
 import { Waveform } from "./waveform";
 
 const CARD = "rounded-2xl bg-[var(--surface-1)] p-4 sm:p-5";
@@ -62,45 +64,6 @@ function save(blob: Blob, name: string) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-// A time field: shows m:ss.s, takes the same or plain seconds; Enter or leaving it commits.
-function ClockField({
-  label,
-  value,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  onCommit: (seconds: number) => void;
-}) {
-  const [text, setText] = useState(formatClock(value, true));
-  useEffect(() => setText(formatClock(value, true)), [value]);
-  const commit = () => {
-    const parsed = parseClock(text);
-    if (parsed === null) setText(formatClock(value, true));
-    else onCommit(parsed);
-  };
-  return (
-    <label className="flex min-w-0 flex-col gap-1 text-[12px] text-[var(--fg-muted)]">
-      {label}
-      <input
-        inputMode="decimal"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            commit();
-          } else if (event.key === "Escape") {
-            setText(formatClock(value, true));
-          }
-        }}
-        className="h-9 w-full rounded-lg bg-[var(--surface-2)] px-3 text-[14px] tabular-nums text-[var(--fg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
-      />
-    </label>
-  );
 }
 
 function Editor({ clip, url }: { clip: Clip; url: string }) {
@@ -394,9 +357,10 @@ function Editor({ clip, url }: { clip: Clip; url: string }) {
         <Waveform
           peaks={loaded.peaks}
           duration={duration}
-          params={params}
+          range={params}
+          fades={params}
           position={position}
-          onParams={update}
+          onRange={update}
           onSeek={seek}
         />
         <div className="flex items-center gap-3">
@@ -575,16 +539,63 @@ function Editor({ clip, url }: { clip: Clip; url: string }) {
   );
 }
 
-export function AudioEditor({ clip }: { clip: Clip }) {
+export type EditorTab = "trim" | "rewrite";
+
+export function AudioEditor({
+  clip,
+  tab = "trim",
+  rewrite,
+}: {
+  clip: Clip;
+  tab?: EditorTab;
+  rewrite?: RewriteData;
+}) {
   const lang = useLocale();
+  const router = useRouter();
   const url = editorAudio(clip);
+  const [current, setCurrent] = useState<EditorTab>(tab);
+  useEffect(() => setCurrent(tab), [tab]);
+  const choose = (next: EditorTab) => {
+    setCurrent(next);
+    router.replace(
+      next === "rewrite" ? rewriteHref(clip.id) : editorHref(clip.id),
+      { scroll: false },
+    );
+  };
   return (
     <ToolPage
       clip={clip}
-      eyebrow={st(lang, "edit.title")}
-      subtitle={st(lang, "edit.subtitle")}
+      eyebrow={st(lang, current === "rewrite" ? "tool.rewrite" : "edit.title")}
+      subtitle={st(
+        lang,
+        current === "rewrite" ? "rw.subtitle" : "edit.subtitle",
+      )}
     >
-      {url ? (
+      <Segmented<EditorTab>
+        label={`${st(lang, "tool.trim")} / ${st(lang, "tool.rewrite")}`}
+        value={current}
+        onChange={(next) => next && choose(next)}
+        options={[
+          { value: "trim", label: st(lang, "tool.trim") },
+          { value: "rewrite", label: st(lang, "tool.rewrite") },
+        ]}
+      />
+      {current === "rewrite" ? (
+        rewrite ? (
+          <RewritePanel clip={clip} data={rewrite} />
+        ) : (
+          <section
+            aria-busy
+            className={cn(
+              CARD,
+              "flex items-center gap-3 text-[14px] text-[var(--fg-muted)]",
+            )}
+          >
+            <Loader2 className="size-4 animate-spin" />
+            {st(lang, "rw.loading")}
+          </section>
+        )
+      ) : url ? (
         <Editor clip={clip} url={url} />
       ) : (
         <section className={CARD}>

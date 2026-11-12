@@ -2,31 +2,76 @@ import { expect, test } from "@playwright/test";
 
 import { serviceClient } from "./support";
 
-test("an admin can use a password and a wrong password creates no session", async ({
+test("sign in with the 6-digit code from the mail catcher", async ({
   page,
+  request,
 }) => {
-  const password = "e2e-password-123";
-  const admin = serviceClient();
-  const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const user = data.users.find(
-    (candidate) => candidate.email === "e2e-admin@mellodifai.test",
-  );
-  if (!user) throw new Error("E2E admin user was not found");
-  const { error } = await admin.auth.admin.updateUserById(user.id, {
-    password,
-  });
-  if (error) throw error;
-  await page.goto("/login");
-  await page.getByLabel("Indirizzo email").fill("e2e-admin@mellodifai.test");
-  await page.getByLabel("Password").fill("not-the-password");
-  await page.getByRole("button", { name: "Accedi" }).click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Email o password non validi",
-  );
-  await expect(page).toHaveURL(/\/login$/u);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Accedi" }).click();
-  await expect(page).toHaveURL(/\/$|\/create$/u);
+  const email = `e2e-code-${Date.now()}@mellodifai.test`;
+  const db = serviceClient();
+  let userId: string | undefined;
+  try {
+    const { error: allowError } = await db
+      .from("admin_allowlist")
+      .insert({ email, role: "customer" });
+    if (allowError) throw new Error("Could not allowlist OTP test user");
+    const { data, error } = await db.auth.admin.createUser({
+      email,
+      email_confirm: true,
+    });
+    userId = data.user?.id;
+    if (error || !userId) throw new Error("Could not create OTP test user");
+    await page.goto("/login?next=%2Flibrary");
+    // Fail before requesting mail if the code UI is missing.
+    await expect(page.getByLabel("Codice a 6 cifre")).toBeVisible({
+      timeout: 5000,
+    });
+    await page.getByLabel("Indirizzo email").fill(email);
+    await page.getByRole("button", { name: "Invia link di accesso" }).click();
+    const mailpit = process.env.MAILPIT_URL ?? "http://127.0.0.1:45624";
+    let messageId = "";
+    await expect
+      .poll(async () => {
+        const response = await request.get(`${mailpit}/api/v1/messages`);
+        const inbox = await response.json();
+        messageId =
+          inbox.messages.find(
+            (message: { ID: string; To: { Address: string }[] }) =>
+              message.To.some((to) => to.Address === email),
+          )?.ID ?? "";
+        return Boolean(messageId);
+      })
+      .toBe(true);
+    const message = await (
+      await request.get(`${mailpit}/api/v1/message/${messageId}`)
+    ).json();
+    const code = /\b\d{6}\b/u.exec(message.Text ?? "")?.[0];
+    if (!code) throw new Error("Email did not contain a six-digit code");
+    if (
+      !message.HTML.includes("/auth/confirm?next=%2Flibrary") ||
+      !message.HTML.includes("token_hash=")
+    )
+      throw new Error("Email did not contain the confirmation link");
+    await page.getByLabel("Codice a 6 cifre").fill(code);
+    await page.getByRole("button", { name: "Accedi con il codice" }).click();
+    await expect(page).toHaveURL(/\/library$/u);
+    await page.reload();
+    await expect(page).toHaveURL(/\/library$/u);
+  } finally {
+    try {
+      if (userId) {
+        const { error } = await db.auth.admin.deleteUser(userId);
+        expect.soft(error, "Could not delete OTP test user").toBeNull();
+      }
+    } finally {
+      const { error } = await db
+        .from("admin_allowlist")
+        .delete()
+        .eq("email", email);
+      expect
+        .soft(error, "Could not delete OTP test allowlist entry")
+        .toBeNull();
+    }
+  }
 });
 
 test("non-allowlisted addresses receive the neutral login response without a session", async ({
@@ -35,12 +80,7 @@ test("non-allowlisted addresses receive the neutral login response without a ses
   const email = `not-allowed-${Date.now()}@mellodifai.test`;
   await page.goto("/login");
   await page.getByLabel("Indirizzo email").fill(email);
-  await page
-    .getByRole("button", { name: "Ricevi un link via email", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Invia link di accesso", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Invia link di accesso" }).click();
   await expect(page.getByRole("status")).toHaveText(
     "Se l'indirizzo è abilitato riceverai un link.",
   );

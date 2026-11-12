@@ -37,8 +37,19 @@ import { useAction } from "./use-action";
 export type RenderPreview = {
   id: string;
   kind: string;
+  aspect?: string | null;
   previewUrl: string | null;
-  qa_results: { gates?: { name: string; pass: boolean; value: unknown }[] };
+  qa_results: {
+    gates?: { name: string; pass: boolean; value: unknown }[];
+    assets?: {
+      lyric_pack?: LyricPack;
+      lang?: string;
+      mood?: string;
+      storyboard_sections?: unknown;
+      metadata?: Partial<ReturnType<typeof publicationDefaults>>;
+      visualizer_params?: unknown;
+    };
+  };
 };
 export type PublicationView = {
   upload_state?: string;
@@ -59,12 +70,68 @@ export type WorkspaceVersion = {
   kie_task_id?: string | null;
   kie_task_state?: string | null;
 };
+function StoryboardSummary({
+  sections,
+  lang,
+}: {
+  sections: unknown;
+  lang: "it" | "en";
+}) {
+  if (!Array.isArray(sections) || !sections.length) return null;
+  return (
+    <details className="rounded-lg border px-4 py-3 text-sm">
+      <summary className="cursor-pointer font-medium">
+        {t(lang, "stage.storyboard")}
+      </summary>
+      <ol className="mt-3 grid max-h-64 gap-3 overflow-y-auto pr-2 sm:grid-cols-2">
+        {sections
+          .filter(
+            (section) =>
+              section &&
+              typeof section.title === "string" &&
+              typeof section.start === "number",
+          )
+          .map((section) => (
+            <li key={`${section.start}-${section.title}`}>
+              <div className="flex gap-3 font-medium">
+                <time className="font-mono tabular-nums">
+                  {Math.floor(section.start / 60)}:
+                  {String(Math.floor(section.start % 60)).padStart(2, "0")}
+                </time>
+                <span>{section.title}</span>
+              </div>
+              {Array.isArray(section.shots) && (
+                <ul className="mt-1 space-y-1 pl-11 text-muted-foreground">
+                  {section.shots
+                    .filter(
+                      (shot: unknown) =>
+                        shot &&
+                        typeof shot === "object" &&
+                        "text" in shot &&
+                        typeof shot.text === "string",
+                    )
+                    .map((shot: { start: number; text: string }) => (
+                      <li
+                        key={`${shot.start}-${shot.text}`}
+                        className="truncate"
+                        title={shot.text}
+                      >
+                        {shot.text}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </li>
+          ))}
+      </ol>
+    </details>
+  );
+}
 export function ProjectWorkspace({
   version,
   takes,
   renders,
   publication,
-  brief = "",
   failedJob,
   thumbnailUrl,
   activeJob = false,
@@ -76,7 +143,6 @@ export function ProjectWorkspace({
   takes: Take[];
   renders: RenderPreview[];
   publication: PublicationView | null;
-  brief?: string;
   failedJob?: { id: string; error: string | null; stage?: string };
   activeJob?: boolean;
   isAdmin?: boolean;
@@ -90,17 +156,26 @@ export function ProjectWorkspace({
   const { pending, run } = useAction();
   const [reason, setReason] = useState("");
   const master = renders.find((r) => r.kind === "master");
+  const visualizer = renders.find(
+    (r) => r.kind === "visualizer" && r.aspect === "16:9" && r.previewUrl,
+  );
   const gates = master?.qa_results.gates ?? [];
   const failed = gates.some((g) => !g.pass);
   const freeKieRetry =
     Boolean(version.kie_task_id) && version.kie_task_state !== "failed";
-  const defaults = publicationDefaults(
-    version.lyric_pack?.title ?? "",
-    brief,
-    version.lang,
-    version.storyboard_sections,
-    lang,
-  );
+  const rendered = master?.qa_results.assets;
+  const pack = rendered?.lyric_pack ?? version.lyric_pack;
+  const sections = rendered?.storyboard_sections ?? version.storyboard_sections;
+  const defaults = {
+    ...publicationDefaults(
+      pack?.title ?? "",
+      pack?.lyrics ?? "",
+      rendered?.lang ?? version.lang,
+      sections,
+      rendered?.mood ?? "",
+    ),
+    ...rendered?.metadata,
+  };
   if (version.status === "lyrics_review" && version.lyric_pack)
     return (
       <LyricEditor
@@ -127,6 +202,7 @@ export function ProjectWorkspace({
   if (version.status === "video_review")
     return (
       <section className="space-y-4">
+        <StoryboardSummary sections={sections} lang={lang} />
         {renders.map(
           (r) =>
             r.previewUrl && (
@@ -217,6 +293,7 @@ export function ProjectWorkspace({
         {failedJob?.stage === "publish" ? (
           <PublishPanel
             renderId={master?.id}
+            visualizerId={visualizer?.id}
             defaults={defaults}
             publication={publication}
             uploading={activeJob}
@@ -309,22 +386,40 @@ export function ProjectWorkspace({
   if (["approved", "publishing", "published"].includes(version.status))
     return (
       <>
+        {version.status !== "publishing" && (
+          <Button
+            variant="outline"
+            className="mb-4"
+            disabled={pending || activeJob}
+            onClick={() => run(() => rerenderVideo({ versionId: version.id }))}
+          >
+            {t(lang, "action.newRender")}
+          </Button>
+        )}
         <section className="mb-8 space-y-6">
-          {(["master", "hook"] as const).map((kind) => {
+          <StoryboardSummary sections={sections} lang={lang} />
+          {(["master", "hook", "visualizer"] as const).map((kind) => {
             const preview = renders.find(
-              (render) => render.kind === kind,
+              (render) =>
+                render.kind === kind &&
+                (kind !== "visualizer" || render.aspect === "16:9"),
             )?.previewUrl;
+            if (kind === "visualizer" && !preview) return null;
+            const label =
+              kind === "visualizer"
+                ? t(lang, "stage.visualizer")
+                : kind === "master"
+                  ? t(lang, "media.master")
+                  : t(lang, "media.hook");
             return (
               <figure key={kind} className="space-y-2">
-                <figcaption className="text-sm font-medium">
-                  {t(lang, `media.${kind}`)}
-                </figcaption>
+                <figcaption className="text-sm font-medium">{label}</figcaption>
                 {preview ? (
                   // biome-ignore lint/a11y/useMediaCaption: reviewed lyric video has embedded lyrics.
                   <video
                     controls
                     preload="metadata"
-                    aria-label={t(lang, `media.${kind}`)}
+                    aria-label={label}
                     src={preview}
                     className={
                       kind === "master"
@@ -360,6 +455,7 @@ export function ProjectWorkspace({
         </section>
         <PublishPanel
           renderId={master?.id}
+          visualizerId={visualizer?.id}
           defaults={defaults}
           publication={publication}
           uploading={activeJob}
@@ -372,6 +468,7 @@ export function ProjectWorkspace({
 }
 export function PublishPanel({
   renderId,
+  visualizerId,
   defaults,
   publication,
   uploading = false,
@@ -380,6 +477,7 @@ export function PublishPanel({
   quotaNotBefore,
 }: {
   renderId?: string;
+  visualizerId?: string;
   defaults: ReturnType<typeof publicationDefaults>;
   publication: PublicationView | null;
   uploading?: boolean;
@@ -435,14 +533,14 @@ export function PublishPanel({
           {t(lang, `visibility.${publication.privacy}`)}
         </p>
         <a
-          className="underline"
+          className="block underline"
           href={`https://www.youtube.com/watch?v=${publication.youtube_video_id}`}
           target="_blank"
           rel="noreferrer"
         >
           {t(lang, "media.youtube")}
         </a>
-        <label htmlFor="publish-at">
+        <label className="block" htmlFor="publish-at">
           {t(lang, "publish.at")}
           <Input
             id="publish-at"
@@ -483,10 +581,11 @@ export function PublishPanel({
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
-        if (renderId)
+        const selectedRenderId = String(data.get("render") || renderId || "");
+        if (selectedRenderId)
           run(() =>
             uploadPrivate({
-              renderId,
+              renderId: selectedRenderId,
               metadata: Object.fromEntries(
                 ["title", "description", "tags", "chapters"].map((k) => [
                   k,
@@ -497,6 +596,21 @@ export function PublishPanel({
           );
       }}
     >
+      {visualizerId && (
+        <fieldset className="flex flex-wrap gap-4 text-sm">
+          <legend className="mb-2 font-medium">
+            {t(lang, "publish.video")}
+          </legend>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="render" value={renderId} defaultChecked />
+            {t(lang, "media.master")}
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="render" value={visualizerId} />
+            {t(lang, "stage.visualizer")}
+          </label>
+        </fieldset>
+      )}
       {(["title", "description", "tags", "chapters"] as const).map((field) => (
         <label className="grid gap-2" key={field} htmlFor={`publish-${field}`}>
           {t(lang, `publish.${field}`)}

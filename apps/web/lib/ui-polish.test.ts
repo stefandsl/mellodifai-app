@@ -14,13 +14,13 @@ it("orders versions by LANGS without mutating database results and defaults to I
   expect(selectedVersion([])).toBeUndefined();
 });
 it("cleans title tags, retains bracket acronyms and deduplicates case-insensitively", () => {
+  expect(publicationDefaults("Va bene, passa (VBP)", "", "it", null).tags).toBe(
+    "Va bene passa, VBP, lyric video, it",
+  );
   expect(
-    publicationDefaults("Va bene, passa (VBP)", "", "it", null, "it").tags,
-  ).toBe("Va bene passa, VBP, lyric video, it");
-  expect(
-    publicationDefaults("Hello hello!!! [AI] (AI)", "", "en", null, "en").tags,
+    publicationDefaults("Hello hello!!! [AI] (AI)", "", "en", null).tags,
   ).toBe("Hello, AI, lyric video, en");
-  expect(publicationDefaults("Hi", "", "en", null, "en").tags).toBe(
+  expect(publicationDefaults("Hi", "", "en", null).tags).toBe(
     "lyric video, en",
   );
   const tags = publicationDefaults(
@@ -28,7 +28,6 @@ it("cleans title tags, retains bracket acronyms and deduplicates case-insensitiv
     "",
     "it",
     null,
-    "it",
   ).tags;
   expect(tags.length).toBeLessThanOrEqual(500);
   expect(tags.endsWith("lyric video, it")).toBe(true);

@@ -2,19 +2,35 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  check: vi.fn(),
+  rate: vi.fn((): { ok: boolean; retryAfter?: number } => ({ ok: true })),
   key: vi.fn(async (): Promise<string | null> => "sk-test-key-123456"),
   user: { id: "u1" } as { id: string },
   signedIn: true,
+  headers: vi.fn(async () => new Headers()),
 }));
-vi.mock("@/lib/auth", () => ({
-  actionProfile: async () => {
+vi.mock("next/headers", () => ({ headers: mocks.headers }));
+vi.mock("@/lib/ops/context", () => ({
+  sessionCtx: async () => {
     if (!mocks.signedIn) throw new Error("Unauthorized");
-    return { supabase: {}, user: mocks.user };
+    return { actor_kind: "session", user_id: mocks.user.id };
   },
 }));
+vi.mock("@/lib/db/ops-client", () => ({ callOps: mocks.check }));
+vi.mock("@/lib/rate-limit", () => ({ rateLimit: mocks.rate }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/openrouter-key", () => ({ openRouterKey: mocks.key }));
 
 import { formatStyle } from "./format-style";
+
+it("refuses a remote action before reading the paid provider key", async () => {
+  mocks.headers.mockResolvedValueOnce(new Headers({ "x-mdf-remote": "1" }));
+  expect(await formatStyle({ styles: "jazz" })).toEqual({
+    ok: false,
+    error: "failed",
+  });
+  expect(mocks.key).not.toHaveBeenCalled();
+});
 
 const reply = (content: unknown, status = 200) =>
   new Response(
@@ -26,6 +42,8 @@ const reply = (content: unknown, status = 200) =>
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.check.mockResolvedValue({ ok: true, data: {} });
   mocks.signedIn = true;
   mocks.user = { id: `u${Math.random()}` };
   mocks.key.mockResolvedValue("sk-test-key-123456");
@@ -112,11 +130,56 @@ it("fails cleanly on an HTTP error or an unusable reply", async () => {
   });
 });
 
-it("limits each person to 20 requests in ten minutes", async () => {
-  for (let i = 0; i < 20; i += 1)
-    expect(await formatStyle({ styles: "pop" })).toMatchObject({ ok: true });
+it("requires the persisted daily ops check before the paid request", async () => {
+  mocks.check.mockResolvedValueOnce({
+    ok: false,
+    code: "rate_limited",
+    message: "Daily limit",
+  });
   expect(await formatStyle({ styles: "pop" })).toEqual({
     ok: false,
     error: "limit",
   });
+  expect(mocks.check).toHaveBeenCalledWith("style_format_check", [
+    expect.objectContaining({ user_id: mocks.user.id }),
+  ]);
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(mocks.key).not.toHaveBeenCalled();
+});
+
+it("a customer's 21st format today returns rate_limited and makes no OpenRouter call", async () => {
+  let used = 0;
+  mocks.check.mockImplementation(async () =>
+    ++used <= 20
+      ? { ok: true, data: {} }
+      : { ok: false, code: "rate_limited", retry_after: 3600 },
+  );
+  for (let i = 0; i < 20; i++)
+    expect((await formatStyle({ styles: "pop" })).ok).toBe(true);
+  fetchMock.mockClear();
+  expect(await formatStyle({ styles: "pop" })).toEqual({
+    ok: false,
+    error: "limit",
+  });
+  expect(mocks.check).toHaveBeenCalledTimes(21);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("refuses the per-minute limit before OpenRouter", async () => {
+  mocks.rate.mockReturnValueOnce({ ok: false, retryAfter: 60 });
+  expect(await formatStyle({ styles: "pop" })).toEqual({
+    ok: false,
+    error: "limit",
+  });
+  expect(mocks.check).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("does not call the provider when the ops check fails", async () => {
+  mocks.check.mockRejectedValueOnce(new Error("database unavailable"));
+  expect(await formatStyle({ styles: "pop" })).toEqual({
+    ok: false,
+    error: "failed",
+  });
+  expect(fetchMock).not.toHaveBeenCalled();
 });
