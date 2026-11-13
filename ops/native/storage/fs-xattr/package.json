@@ -5,5 +5,8 @@
   "private": true,
   "type": "module",
   "exports": "./index.js",
-  "mellodifai": { "replaces": "fs-xattr@0.4.0", "revision": 1 }
+  "mellodifai": {
+    "replaces": "fs-xattr@0.4.0",
+    "revision": 1
+  }
 }

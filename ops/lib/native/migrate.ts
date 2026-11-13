@@ -31,7 +31,9 @@ export function readMigrations(directory: string): MigrationFile[] {
     if (!file.endsWith(".sql")) continue;
     const match = /^(\d+)_(.+)\.sql$/.exec(file);
     if (!match)
-      throw new Error(`Migration file name is not <version>_<name>.sql: ${file}`);
+      throw new Error(
+        `Migration file name is not <version>_<name>.sql: ${file}`,
+      );
     const sql = readFileSync(join(directory, file), "utf8");
     files.push({
       version: match[1] as string,

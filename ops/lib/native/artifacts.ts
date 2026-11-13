@@ -91,7 +91,10 @@ export function loadManifest(
   if (manifest.schema !== 1 || typeof manifest.artifacts !== "object")
     throw new Error("Unsupported native manifest");
   for (const [id, artifact] of Object.entries(manifest.artifacts)) {
-    if (!/^[a-z][a-z0-9-]*$/.test(id) || !/^[0-9][\w.+-]*$/.test(artifact.version))
+    if (
+      !/^[a-z][a-z0-9-]*$/.test(id) ||
+      !/^[0-9][\w.+-]*$/.test(artifact.version)
+    )
       throw new Error(`Invalid native artifact identity: ${id}`);
     if (!artifact.licence || !artifact.project)
       throw new Error(`Native artifact ${id} has no licence record`);
@@ -205,7 +208,9 @@ export async function obtainArchive(
     if (!response.ok || !response.body)
       throw new Error(`Download failed for ${expected.file}`);
     await pipeline(
-      Readable.fromWeb(response.body as import("node:stream/web").ReadableStream),
+      Readable.fromWeb(
+        response.body as import("node:stream/web").ReadableStream,
+      ),
       createWriteStream(partial, { flags: "wx" }),
     );
     if (!(await verified(partial, expected)))

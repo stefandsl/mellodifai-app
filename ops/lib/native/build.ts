@@ -62,7 +62,7 @@ async function run(
     logFile: options.log,
   });
   if (code !== 0)
-    throw new Error(name + " failed (exit " + code + "); see " + options.log);
+    throw new Error(`${name} failed (exit ${code}); see ${options.log}`);
 }
 
 function pathWith(dir: string): string {
