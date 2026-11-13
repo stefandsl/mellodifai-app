@@ -290,6 +290,7 @@ async function startNative(
           [
             "MELLODIFAI_ROOT",
             "MELLODIFAI_NATIVE_CACHE",
+            "MDF_NATIVE_REHEARSAL_PORT_BASE",
             "RUNNER_TEMP",
             "CI",
             "E2E_PORT",
