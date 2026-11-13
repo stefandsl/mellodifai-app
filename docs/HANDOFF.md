@@ -98,6 +98,8 @@ run on his Windows PC with no Docker and no WSL.
 - **Testing it.** Use an isolated root, never the live one:
   `MELLODIFAI_ROOT=E:/mellodifai/native-lab`, environment `e2e` (ports 45620-45629). Never
   touch ports 3000, 3210-3212 or 44320-44329.
+  See `docs/native-e2e.md` for the seven gates, isolated browser ports 3234-3236,
+  required `WORKER_FAKE=1`, native startup and shutdown, and Windows CI limitations.
 - **Not done until** `pnpm test:db` and `pnpm e2e` pass on the native stack and production
   runs on it with the recovered data. The Windows installer on `feat/local-launcher` still
   expects Docker and must be moved onto the native runtime afterwards.

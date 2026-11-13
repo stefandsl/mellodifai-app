@@ -48,6 +48,7 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
+      - run: pnpm ops check-no-keys.ts
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm --filter @mellodifai/web exec tsc --noEmit
@@ -56,6 +57,7 @@ jobs:
           if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
             throw 'Native tests require ffmpeg on PATH. No pinned FFmpeg publisher artifact is in manifest.json yet; refusing an unpinned download.'
           }
+      - run: pnpm --filter @mellodifai/web exec playwright install chromium
       - run: pnpm test
       - name: Reserve isolated browser ports
         run: |
@@ -91,7 +93,6 @@ jobs:
           done < "$MELLODIFAI_ROOT/stacks/e2e/test.env"
       - run: pnpm test:db
       - run: pnpm ops rotate-auth-keys.ts --env e2e
-      - run: pnpm --filter @mellodifai/web exec playwright install chromium
       - run: pnpm e2e
       - name: Stop native lab even after failure
         if: always()

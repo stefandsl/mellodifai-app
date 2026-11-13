@@ -49,7 +49,12 @@ is started and stopped only through stack.ts.
 
 pnpm test runs workspace suites sequentially with at most four Vitest workers.
 test:db explicitly uses one worker. E2E refuses to start without WORKER_FAKE=1.
-It uses the exported mdf_web and mdf_auth connections, both checked against the
+Worker unit fixtures register their mock handlers in both dispatch tables, so
+WORKER_FAKE=1 can remain set throughout the gates. The legacy import check uses
+temporary packs and real FFmpeg previews for all eleven languages; it no longer
+needs TEST_LEGACY_FILES or the owner's media directories. Legacy preview output
+uses the worker runtime temp directory, with an explicit test-directory override.
+Playwright uses the exported mdf_web and mdf_auth connections, both checked against the
 same isolated database. No worker configuration from the production stack is
 needed. A working FFmpeg on PATH and the lockfile-compatible Playwright Chromium
 are prerequisites. Screenshot output defaults to the runtime's test-results/screens
