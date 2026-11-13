@@ -17,6 +17,7 @@ import { writePrivate } from "../private-file.js";
 import { type Runner, realRunner } from "../run.js";
 import { nativeAssets } from "./artifacts.js";
 import type { NativeTools } from "./build.js";
+import { logOffset, observeService } from "./diagnostics.js";
 import {
   executable,
   type ProcessIdentity,
@@ -243,7 +244,9 @@ export function postgresService(
       // Own the real server process. A detached pg_ctl creates a temporary
       // Windows console whose teardown can kill its postgres children.
       mkdirSync(layout.logs, { recursive: true });
-      const out = openSync(join(layout.logs, "postgres.log"), "a");
+      const logFile = join(layout.logs, "postgres.log");
+      const offset = logOffset(logFile);
+      const out = openSync(logFile, "a");
       const child = spawn(tool(tools, "postgres"), ["-D", layout.pgdata], {
         env: toolEnvironment(layout) as NodeJS.ProcessEnv,
         stdio: ["ignore", out, out],
@@ -251,18 +254,13 @@ export function postgresService(
         windowsHide: true,
       });
       closeSync(out);
-      const exited = new Promise<void>((resolve) => {
-        child.once("exit", () => resolve());
-        child.once("error", () => resolve());
-      });
+      const observed = observeService(child, "postgres", logFile, offset);
       await new Promise<void>((resolve, reject) => {
         child.once("spawn", resolve);
-        child.once("error", () =>
-          reject(new Error("PostgreSQL did not start; see logs/postgres.log")),
-        );
+        child.once("error", () => reject(observed.failure("could not spawn")));
       });
       const pid = child.pid as number;
-      return { pid, exited, stop: () => stopPostgres(layout, tools) };
+      return { pid, ...observed, stop: () => stopPostgres(layout, tools) };
     },
     async ready() {
       const result = await realRunner(

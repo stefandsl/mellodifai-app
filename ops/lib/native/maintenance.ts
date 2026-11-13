@@ -17,9 +17,12 @@ export async function maintenanceDatabase(env: StackEnv) {
   const db = await nativeDatabase(env);
   const service = postgresService(db.layout, db.tools);
   const child = await service.start();
-  if (!(await waitFor(() => service.ready(), 30_000, 250))) {
+  if (!(await waitFor(() => service.ready(), 30_000, 250, child.exited))) {
+    const failure =
+      child.failure?.("failed maintenance readiness") ??
+      new Error("Maintenance PostgreSQL readiness failed");
     await child.stop();
-    throw new Error("Maintenance PostgreSQL readiness failed");
+    throw failure;
   }
   return { db, stop: () => child.stop() };
 }

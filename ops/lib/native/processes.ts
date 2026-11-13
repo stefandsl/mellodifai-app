@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname } from "node:path";
+import { logOffset, observeService } from "./diagnostics.js";
 import {
   type ProcessIdentity,
   processIdentities,
@@ -23,6 +24,7 @@ export interface RunningService {
   pid: number;
   /** Settles when the process is gone, for any reason. */
   exited: Promise<void>;
+  failure?(reason: string): Error;
   stop(): Promise<void>;
 }
 
@@ -66,7 +68,7 @@ export interface ServiceState {
 export interface StackState {
   supervisor: ProcessIdentity;
   phase: "starting" | "ready" | "stopping" | "stopped" | "failed";
-  /** Operator-safe reason for a failed phase; never service output. */
+  /** Operator-safe reason, including redacted service diagnostics when available. */
   error?: string | undefined;
   updatedAt: string;
   services: Record<string, ServiceState>;
@@ -146,7 +148,7 @@ export async function waitFor(
   );
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline && !aborted) {
-    if (await check().catch(() => false)) return true;
+    if (await check().catch(() => false)) return !aborted;
     await sleep(intervalMs);
   }
   return false;
@@ -268,22 +270,37 @@ export class Supervisor {
         250,
         service.exited,
       );
-      if (!ready)
+      if (!ready || gone)
         throw new Error(
           gone
             ? `Native service ${definition.id} exited during startup`
             : `Native service ${definition.id} did not become ready`,
         );
     } catch (error) {
+      // Capture before stopping: our own termination must not replace the
+      // original exit status with the cleanup signal.
+      const failure =
+        service.failure?.(
+          gone ? "exited during startup" : "failed during startup",
+        ) ?? error;
       this.running.delete(definition.id);
       await service.stop().catch(() => {});
       this.set(definition.id, { status: "failed" });
-      throw error;
+      this.log(
+        failure instanceof Error
+          ? failure.message
+          : `${definition.id}: startup failed`,
+      );
+      throw failure;
     }
     this.set(definition.id, { status: "ready" });
     this.log(`${definition.id}: ready`);
     void service.exited.then(() => {
       if (this.stopping || this.running.get(definition.id) !== service) return;
+      this.log(
+        service.failure?.("exited after readiness").message ??
+          `${definition.id}: exited after readiness`,
+      );
       this.running.delete(definition.id);
       void this.recover(definition);
     });
@@ -362,6 +379,7 @@ export function childService(
     ready: () => httpReady(spec.ready),
     async start() {
       mkdirSync(dirname(logFile), { recursive: true });
+      const offset = logOffset(logFile);
       const out = openSync(logFile, "a");
       let child: ChildProcess;
       try {
@@ -379,21 +397,23 @@ export function childService(
       } finally {
         closeSync(out);
       }
-      const exited = new Promise<void>((resolve) => {
-        child.once("exit", () => resolve());
-        child.once("error", () => resolve());
-      });
+      const observed = observeService(
+        child,
+        spec.id,
+        logFile,
+        offset,
+        spec.env,
+      );
+      const { exited } = observed;
       await new Promise<void>((resolve, reject) => {
         child.once("spawn", resolve);
-        child.once("error", () =>
-          reject(new Error(`Cannot start native service ${spec.id}`)),
-        );
+        child.once("error", () => reject(observed.failure("could not spawn")));
       });
       const pid = child.pid as number;
       const identity = await identify(pid).catch(() => null);
       return {
         pid,
-        exited,
+        ...observed,
         async stop() {
           if (spec.ipc && child.connected) {
             // The only graceful stop a Windows parent can send a windowless

@@ -111,7 +111,9 @@ function templateService(layout: NativeLayout): ServiceDefinition {
     id: "templates",
     dependsOn: [],
     async ready() {
-      const response = await fetch(`${url}/healthz`);
+      const response = await fetch(`${url}/healthz`, {
+        signal: AbortSignal.timeout(3_000),
+      });
       await response.body?.cancel();
       return response.status === 200;
     },
