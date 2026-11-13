@@ -57,7 +57,23 @@ export function setAttributeSync(path, attribute, value) {
   const { file, stream } = target(path, attribute, "setxattr");
   // Opening a stream on a missing file would create the file; xattr must not.
   const before = fs.statSync(file);
-  fs.writeFileSync(stream, Buffer.isBuffer(value) ? value : Buffer.from(String(value)));
+  try {
+    fs.writeFileSync(
+      stream,
+      Buffer.isBuffer(value) ? value : Buffer.from(String(value)),
+    );
+  } catch (error) {
+    if (
+      ["ENOTSUP", "ENOSYS", "EINVAL", "ENOENT"].includes(error.code) &&
+      fs.existsSync(file)
+    ) {
+      const unsupported = fail("ENOTSUP", "setxattr", file);
+      unsupported.message =
+        "Native Storage metadata requires a volume with alternate data stream support";
+      throw unsupported;
+    }
+    throw error;
+  }
   // Writing a stream moves the file's modification time; xattr does not.
   fs.utimesSync(file, before.atime, before.mtime);
 }

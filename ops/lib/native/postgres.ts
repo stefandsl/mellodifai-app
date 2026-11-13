@@ -11,13 +11,18 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import postgres, { type Sql } from "postgres";
 import { writePrivate } from "../private-file.js";
 import { type Runner, realRunner } from "../run.js";
 import { nativeAssets } from "./artifacts.js";
 import type { NativeTools } from "./build.js";
-import { executable, pidAlive, type ProcessIdentity } from "./host.js";
+import {
+  executable,
+  type ProcessIdentity,
+  pidAlive,
+  processIdentities,
+} from "./host.js";
 import type { NativeLayout } from "./layout.js";
 import { baseEnvironment, type DbLogins } from "./plan.js";
 import type { ServiceDefinition } from "./processes.js";
@@ -166,6 +171,40 @@ export function postmasterPid(layout: NativeLayout): number | null {
   }
 }
 
+/** A pid file alone is not authority to stop an arbitrary process. PostgreSQL
+ * records its data directory and start epoch beside the pid. Check both. */
+export async function verifiedPostmaster(
+  layout: NativeLayout,
+): Promise<ProcessIdentity | null> {
+  try {
+    const [pidText, directory, epochText] = readFileSync(
+      join(layout.pgdata, "postmaster.pid"),
+      "utf8",
+    ).split(/\r?\n/);
+    const pid = Number(pidText);
+    const epoch = Number(epochText);
+    if (
+      !Number.isInteger(pid) ||
+      pid < 1 ||
+      !directory ||
+      resolve(directory) !== resolve(layout.pgdata) ||
+      !Number.isFinite(epoch) ||
+      epoch <= 0
+    )
+      return null;
+    const live = (await processIdentities([pid])).get(pid);
+    if (
+      !live ||
+      Math.abs(Date.parse(live.startedAt) / 1000 - epoch) > 2 ||
+      !Number.isFinite(Date.parse(live.startedAt))
+    )
+      return null;
+    return live;
+  } catch {
+    return null;
+  }
+}
+
 /** Fast shutdown: sessions are ended and a checkpoint is written, so the
  * next start needs no recovery. A timeout is an error, never a kill.
  */
@@ -173,7 +212,7 @@ export async function stopPostgres(
   layout: NativeLayout,
   tools: NativeTools,
 ): Promise<void> {
-  if (postmasterPid(layout) === null) return;
+  if (!(await verifiedPostmaster(layout))) return;
   const code = await pgCtl(tools, layout, [
     "stop",
     "-D",
@@ -200,27 +239,28 @@ export function postgresService(
     readyTimeoutMs: 120_000,
     async start() {
       writeServerConfig(layout);
-      const code = await pgCtl(tools, layout, [
-        "start",
-        "-D",
-        layout.pgdata,
-        "-l",
-        join(layout.logs, "postgres.log"),
-        "-w",
-        "-t",
-        "120",
-      ]);
-      const pid = postmasterPid(layout);
-      if (code !== 0 || pid === null)
-        throw new Error("PostgreSQL did not start; see logs/postgres.log");
-      const exited = new Promise<void>((resolve) => {
-        const timer = setInterval(() => {
-          if (pidAlive(pid) && postmasterPid(layout) === pid) return;
-          clearInterval(timer);
-          resolve();
-        }, 2_000);
-        timer.unref();
+      // Own the real server process. A detached pg_ctl creates a temporary
+      // Windows console whose teardown can kill its postgres children.
+      mkdirSync(layout.logs, { recursive: true });
+      const out = openSync(join(layout.logs, "postgres.log"), "a");
+      const child = spawn(tool(tools, "postgres"), ["-D", layout.pgdata], {
+        env: toolEnvironment(layout),
+        stdio: ["ignore", out, out],
+        detached: true,
+        windowsHide: true,
       });
+      closeSync(out);
+      const exited = new Promise<void>((resolve) => {
+        child.once("exit", () => resolve());
+        child.once("error", () => resolve());
+      });
+      await new Promise<void>((resolve, reject) => {
+        child.once("spawn", resolve);
+        child.once("error", () =>
+          reject(new Error("PostgreSQL did not start; see logs/postgres.log")),
+        );
+      });
+      const pid = child.pid as number;
       return { pid, exited, stop: () => stopPostgres(layout, tools) };
     },
     async ready() {

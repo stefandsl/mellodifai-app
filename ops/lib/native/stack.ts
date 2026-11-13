@@ -126,7 +126,7 @@ async function supervisorAlive(state: StackState | null): Promise<boolean> {
 /** Stop whatever a dead supervisor left behind, newest dependency first.
  * Every process is matched by pid and creation time before it is touched.
  */
-async function stopOrphans(
+export async function stopOrphans(
   layout: NativeLayout,
   state: StackState | null,
 ): Promise<void> {
@@ -194,7 +194,7 @@ function wipeNative(layout: NativeLayout): void {
   }
 }
 
-async function assertPortsFree(
+export async function assertPortsFree(
   env: StackEnv,
   layout: NativeLayout,
   runner: Runner,
@@ -230,7 +230,10 @@ async function apiReady(env: StackEnv, layout: NativeLayout): Promise<void> {
           "/auth/v1/admin/users?page=1&per_page=1",
           "/storage/v1/bucket",
         ].map((path) =>
-          fetch(`${api}${path}`, { headers, signal: AbortSignal.timeout(5000) }),
+          fetch(`${api}${path}`, {
+            headers,
+            signal: AbortSignal.timeout(5000),
+          }),
         ),
       );
       await Promise.all(responses.map((response) => response.body?.cancel()));
@@ -239,8 +242,7 @@ async function apiReady(env: StackEnv, layout: NativeLayout): Promise<void> {
     30_000,
     500,
   );
-  if (!ready)
-    throw new Error("Native stack API readiness failed after start");
+  if (!ready) throw new Error("Native stack API readiness failed after start");
 }
 
 async function startNative(
@@ -249,6 +251,7 @@ async function startNative(
   dependencies: NativeDependencies,
 ): Promise<void> {
   const log = dependencies.log ?? (() => {});
+  assertProductionInitialization(env, nativeLayout(env), flags);
   assertSystemDiskFree();
   nativeTools();
   const layout = await renderNative(env);
@@ -265,16 +268,6 @@ async function startNative(
   // A supervisor that died leaves services behind; clear them first.
   await stopOrphans(layout, previous);
   await assertPortsFree(env, layout, dependencies.runner ?? realRunner);
-  const marks = witness(layout);
-  if (
-    env === "prod" &&
-    !existsSync(marks.done) &&
-    !existsSync(marks.pending) &&
-    !flags.initProduction
-  )
-    throw new Error(
-      "The native production database does not exist yet. Moving production is an explicit, backup-first step; pass --init-production only as part of that move.",
-    );
   mkdirSync(layout.objects, { recursive: true });
   assertObjectMetadataSupport(layout.objects);
   for (const directory of [layout.logs, layout.run, layout.tmp])
@@ -337,6 +330,23 @@ async function startNative(
   }
   await apiReady(env, layout);
   if (env !== "prod") await dependencies.writeEnvFile(env);
+}
+
+export function assertProductionInitialization(
+  env: StackEnv,
+  layout: NativeLayout,
+  flags: NativeFlags,
+): void {
+  const marks = witness(layout);
+  if (
+    env === "prod" &&
+    !existsSync(marks.done) &&
+    !existsSync(marks.pending) &&
+    !flags.initProduction
+  )
+    throw new Error(
+      "The native production database does not exist yet. Moving production is an explicit, backup-first step; pass --init-production only as part of that move.",
+    );
 }
 
 export interface ServiceReport {

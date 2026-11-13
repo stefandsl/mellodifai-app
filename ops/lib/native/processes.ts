@@ -371,7 +371,7 @@ export function childService(
           stdio: ["ignore", out, out, ...(spec.ipc ? ["ipc" as const] : [])],
           // A separate Windows process group survives the parent's console
           // teardown long enough to handle IPC disconnect and drain cleanly.
-          detached: spec.ipc === true,
+          detached: true,
           windowsHide: true,
         });
       } finally {

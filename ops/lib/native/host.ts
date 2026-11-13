@@ -56,10 +56,17 @@ export async function sameProcess(
   recorded: ProcessIdentity,
   runner: Runner = realRunner,
 ): Promise<boolean> {
+  if (
+    !Number.isInteger(recorded.pid) ||
+    recorded.pid < 1 ||
+    typeof recorded.startedAt !== "string" ||
+    !recorded.startedAt
+  )
+    return false;
   const live = (await processIdentities([recorded.pid], runner)).get(
     recorded.pid,
   );
-  return live?.startedAt === recorded.startedAt;
+  return live !== undefined && live.startedAt === recorded.startedAt;
 }
 
 export function pidAlive(pid: number): boolean {
@@ -133,9 +140,7 @@ export function assertSystemDiskFree(
   if (platform !== "win32") return;
   const drive = parse(process.env.SystemRoot ?? "C:\\Windows").root;
   if (free(drive) < MIN_SYSTEM_FREE)
-    throw new Error(
-      `Native stack refused: ${drive} has less than 20 GB free`,
-    );
+    throw new Error(`Native stack refused: ${drive} has less than 20 GB free`);
 }
 
 /** Storage keeps object metadata in NTFS alternate data streams on Windows.
