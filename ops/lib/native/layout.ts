@@ -1,5 +1,8 @@
 import { join } from "node:path";
 import { ENV_TABLE, runtimePath, type StackEnv, stackDir } from "../envs.js";
+import { applyRehearsalPorts } from "./rehearsal.js";
+
+applyRehearsalPorts();
 
 export type StackRuntime = "native" | "docker";
 
