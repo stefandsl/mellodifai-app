@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { jobEventsWatch, readJobEvents } from "@/lib/live/cursors";
+import { holdFast, watch } from "@/lib/live/poller";
 import { createClient } from "@/lib/supabase/browser";
 
 export type JobEvent = {
@@ -11,8 +13,9 @@ export type JobEvent = {
   at: string;
 };
 
-const POLL_MS = 4000;
 const KEEP = 200;
+// Events to fetch when the newest id moves: far more than one tick brings.
+const RECENT = 50;
 // One shared default, so the merge effect below does not run on every render.
 const NONE: JobEvent[] = [];
 
@@ -21,8 +24,8 @@ function merge(old: JobEvent[], fresh: JobEvent[]): JobEvent[] {
   return [...byId.values()].sort((a, b) => a.id - b.id).slice(-KEEP);
 }
 
-// The progress events of one job while it is active: pushed by Realtime and, in case a push is
-// lost, polled every few seconds. `initial` are the events the page was rendered with.
+// The progress events of one job while it is active: the newest event id is watched, and the
+// latest events are fetched when it moves. `initial` are the events the page was rendered with.
 export function useJobEvents(
   jobId: string | null,
   active: boolean,
@@ -42,38 +45,20 @@ export function useJobEvents(
     if (!jobId || !active) return;
     const supabase = createClient();
     let alive = true;
-    const poll = async () => {
-      const { data } = await supabase
-        .from("job_events")
-        .select("id,message,progress,at")
-        .eq("job_id", jobId)
-        .order("id", { ascending: false })
-        .limit(50);
-      if (alive && data) setEvents((old) => merge(old, data as JobEvent[]));
-    };
-    const channel = supabase
-      .channel(`job-events:${jobId}:${crypto.randomUUID()}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "job_events",
-          filter: `job_id=eq.${jobId}`,
-        },
-        (payload) => {
-          const event = payload.new as JobEvent & { job_id?: string };
-          if (alive && event.job_id === jobId)
-            setEvents((old) => merge(old, [event]));
-        },
-      )
-      .subscribe();
-    void poll();
-    const timer = setInterval(() => void poll(), POLL_MS);
+    // The job is in progress: its events are worth a fast clock.
+    const release = holdFast();
+    const stop = watch(
+      jobEventsWatch(supabase, [jobId]),
+      async ({ newest }) => {
+        if (newest === null) return;
+        const fresh = await readJobEvents(supabase, [jobId], RECENT);
+        if (alive) setEvents((old) => merge(old, fresh));
+      },
+    );
     return () => {
       alive = false;
-      clearInterval(timer);
-      void supabase.removeChannel(channel);
+      release();
+      stop();
     };
   }, [jobId, active]);
   return previousJobId.current === jobId ? events : initial;

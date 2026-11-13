@@ -6,6 +6,7 @@ import { LocaleProvider } from "@/components/locale-provider";
 import type { Clip } from "@/lib/studio/clips";
 import type { StemsPage } from "@/lib/studio/stems";
 import { usePlayer } from "@/store/player";
+import { fakeDb } from "@/test/fake-supabase";
 import { StemsView } from "./stems-view";
 
 const mock = vi.hoisted(() => ({
@@ -14,7 +15,6 @@ const mock = vi.hoisted(() => ({
   back: vi.fn(),
   push: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
-  events: [] as unknown[],
 }));
 vi.mock("@/app/actions/audio-tools", () => ({
   requestStems: mock.requestStems,
@@ -27,28 +27,13 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 vi.mock("sonner", () => ({ toast: mock.toast }));
-vi.mock("@/lib/supabase/browser", () => ({
-  createClient: () => {
-    const query = {
-      select: () => query,
-      eq: () => query,
-      order: () => query,
-      limit: async () => ({ data: mock.events }),
-    };
-    const channel = { on: () => channel, subscribe: () => channel };
-    return {
-      from: () => query,
-      channel: () => channel,
-      removeChannel: async () => {},
-    };
-  },
-}));
+const db = fakeDb();
+vi.mock("@/lib/supabase/browser", () => ({ createClient: () => db.client }));
 
 const play = vi.fn(async () => {});
 const pause = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
-  mock.events = [];
   Object.defineProperty(HTMLMediaElement.prototype, "play", {
     configurable: true,
     value: play,

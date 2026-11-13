@@ -142,7 +142,7 @@ export function VideosView({
   heading: string;
 }) {
   const lang = useLocale();
-  useLiveRefresh();
+  useLiveRefresh(clips);
   useDetailsClips(clips);
   const openFor = useVideoStudio((s) => s.openFor);
   const songs = clips.filter(

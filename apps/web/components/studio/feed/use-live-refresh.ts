@@ -1,36 +1,53 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
+import { jobsWatch, versionsWatch } from "@/lib/live/cursors";
+import { checkNow, watch } from "@/lib/live/poller";
 import { createClient } from "@/lib/supabase/browser";
 
-// Re-renders the server data when a version or job changes, debounced so a burst of
-// stage events causes one refresh.
-export function useLiveRefresh(tables: string[] = ["versions", "jobs"]) {
+type LiveTable = "versions" | "jobs";
+
+// Re-renders the server data when a version or job changes. `revision` is the server data the
+// page shows: when it is replaced (the user queued something, a refresh came back) the cursors
+// are read again at once instead of at the next tick.
+export function useLiveRefresh(
+  revision: unknown,
+  tables: LiveTable[] = ["versions", "jobs"],
+) {
   const router = useRouter();
+  const refresh = useEffectEvent(() => router.refresh());
   const key = tables.join(",");
   useEffect(() => {
     const supabase = createClient();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const refresh = () => {
+    // The tables are read in the same tick: a change that shows in both causes one refresh.
+    const changed = (_cursor: unknown, { initial }: { initial: boolean }) => {
+      // The first value is the state the page was just rendered with.
+      if (initial) return;
       clearTimeout(timer);
-      timer = setTimeout(() => router.refresh(), 400);
+      timer = setTimeout(refresh, 250);
     };
-    const channel = supabase.channel(`studio-feed-${crypto.randomUUID()}`);
-    for (const table of key.split(","))
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        refresh,
+    const stops = key
+      .split(",")
+      .map((table) =>
+        table === "versions"
+          ? watch(versionsWatch(supabase), changed)
+          : watch(jobsWatch(supabase), changed),
       );
-    channel.subscribe();
     // Signed media URLs last an hour; refresh before they expire.
-    const hourly = setInterval(() => router.refresh(), 50 * 60 * 1000);
+    const hourly = setInterval(refresh, 50 * 60 * 1000);
     return () => {
       clearTimeout(timer);
       clearInterval(hourly);
-      void supabase.removeChannel(channel);
+      for (const stop of stops) stop();
     };
-  }, [router, key]);
+  }, [key]);
+  const shown = useRef(revision);
+  useEffect(() => {
+    if (shown.current === revision) return;
+    shown.current = revision;
+    checkNow();
+  }, [revision]);
 }

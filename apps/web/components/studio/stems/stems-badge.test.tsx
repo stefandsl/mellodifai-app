@@ -4,38 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LocaleProvider } from "@/components/locale-provider";
 import type { Clip, StemsState } from "@/lib/studio/clips";
 import { latestProgress } from "@/lib/studio/use-job-progress";
+import { fakeDb } from "@/test/fake-supabase";
 import { StemsBadge } from "./stems-badge";
 
-const mock = vi.hoisted(() => ({
-  events: [] as unknown[],
-  subscribed: [] as string[],
-}));
-vi.mock("@/lib/supabase/browser", () => ({
-  createClient: () => {
-    const query = {
-      select: () => query,
-      eq: () => query,
-      order: () => query,
-      limit: async () => ({ data: mock.events }),
-    };
-    const channel = {
-      on: (_kind: string, filter: { filter: string }) => {
-        mock.subscribed.push(filter.filter);
-        return channel;
-      },
-      subscribe: () => channel,
-    };
-    return {
-      from: () => query,
-      channel: () => channel,
-      removeChannel: async () => {},
-    };
-  },
-}));
+const db = fakeDb();
+vi.mock("@/lib/supabase/browser", () => ({ createClient: () => db.client }));
 
 beforeEach(() => {
-  mock.events = [];
-  mock.subscribed = [];
+  db.tables = { job_events: [] };
+  db.reads.length = 0;
 });
 
 const clip = (stems: StemsState | null, patch: Partial<Clip> = {}) =>
@@ -81,15 +58,27 @@ describe("stems badge", () => {
   });
 
   it("follows the running job's progress", async () => {
-    mock.events = [
-      { id: 5, message: "Stems: separazione 50%", progress: 45, at: "2" },
-      { id: 4, message: "Stems: preparo l'audio", progress: 2, at: "1" },
+    const event = (id: number, job_id: string, progress: number) => ({
+      id,
+      job_id,
+      message: `Stems: separazione ${progress}%`,
+      progress,
+      at: String(id),
+    });
+    db.tables.job_events = [
+      event(5, "j1", 45),
+      event(4, "j1", 2),
+      // Another song's separation.
+      event(6, "j2", 90),
     ];
     show(clip(state({ status: "running" })));
     await waitFor(() =>
       expect(screen.getByRole("link")).toHaveTextContent("Stems 45%"),
     );
-    expect(mock.subscribed).toContain("job_id=eq.j1");
+    expect(db.reads.map((read) => [read.table, ...read.filters])).toEqual([
+      ["job_events", "job_id=in.(j1)"],
+      ["job_events", "job_id=in.(j1)"],
+    ]);
   });
 
   it("marks a failed separation", () => {

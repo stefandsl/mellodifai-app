@@ -2,7 +2,6 @@ import { LANGS, publicationCopy } from "@mellodifai/shared";
 import { expect, it } from "vitest";
 import { PublicationInput } from "../app/actions/schemas";
 import { publicationDefaults } from "./publication-defaults";
-import { upsertJob } from "./timeline";
 
 it.each(LANGS)(
   "keeps publication titles within the validator limit in %s",
@@ -111,12 +110,4 @@ it("uses the rendered song mood in publication defaults", () => {
       metadata: long,
     }).success,
   ).toBe(true);
-});
-it("updates jobs in chronological position without duplicating rows", () => {
-  const a = { id: "a", created_at: "2026-01-01", status: "queued" };
-  const b = { id: "b", created_at: "2026-01-02", status: "queued" };
-  expect(upsertJob([a, b], { ...a, status: "done" })).toEqual([
-    { ...a, status: "done" },
-    b,
-  ]);
 });

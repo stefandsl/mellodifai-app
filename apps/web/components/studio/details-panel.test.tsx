@@ -18,6 +18,7 @@ import { useDetails, useDetailsClips, useKnownClips } from "@/store/details";
 import { usePlayer } from "@/store/player";
 import { useReactions } from "@/store/reactions";
 import { useVideoStudio } from "@/store/video-studio";
+import { fakeDb } from "@/test/fake-supabase";
 import { DetailsPanel } from "./details-panel";
 import { PlaylistsProvider } from "./playlists-context";
 
@@ -51,23 +52,10 @@ vi.mock("@/app/actions/playlists", () => ({
   removeFromPlaylist: vi.fn(),
   createPlaylist: vi.fn(),
 }));
+// The running stems badge follows its job's progress events.
+const db = fakeDb();
 vi.mock("@/lib/supabase/browser", () => ({
-  createClient: () => {
-    // The running stems badge follows its job's progress events.
-    const query = {
-      select: () => query,
-      eq: () => query,
-      order: () => query,
-      limit: async () => ({ data: [] }),
-    };
-    const channel = { on: () => channel, subscribe: () => channel };
-    return {
-      rpc: mock.rpc,
-      from: () => query,
-      channel: () => channel,
-      removeChannel: async () => {},
-    };
-  },
+  createClient: () => ({ rpc: mock.rpc, from: db.client.from }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mock.refresh, push: mock.push }),

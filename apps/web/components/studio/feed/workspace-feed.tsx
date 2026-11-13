@@ -124,7 +124,7 @@ export function WorkspaceFeed({
 }) {
   const lang = useLocale();
   const router = useRouter();
-  useLiveRefresh();
+  useLiveRefresh(clips);
   useDetailsClips(clips);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");

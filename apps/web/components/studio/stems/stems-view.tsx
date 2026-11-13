@@ -669,7 +669,7 @@ function Mixer({ page }: { page: StemsPage }) {
 export function StemsView({ page }: { page: StemsPage }) {
   const lang = useLocale();
   // Job changes (claimed, done, failed) re-render the page with fresh data.
-  useLiveRefresh(["jobs"]);
+  useLiveRefresh(page, ["jobs"]);
   const active =
     page.job?.status === "queued" || page.job?.status === "running";
   const events = useJobEvents(page.job?.id ?? null, active, page.events);
