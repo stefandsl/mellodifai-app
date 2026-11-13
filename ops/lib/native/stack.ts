@@ -36,6 +36,7 @@ import {
   type StackState,
   waitFor,
 } from "./processes.js";
+import { assertProductionSecrets } from "./production-secrets.js";
 import { nativeSourceRoot } from "./source.js";
 import {
   migrateApp,
@@ -101,6 +102,7 @@ export function assertNativeCommand(
 
 /** Stack folder, CLI-compatible config and secrets, shared with Docker. */
 export async function renderNative(env: StackEnv): Promise<NativeLayout> {
+  if (env === "prod") assertProductionSecrets();
   const dir = stackDir(env);
   prepareStackDir(dir, repo);
   writeFileSync(
