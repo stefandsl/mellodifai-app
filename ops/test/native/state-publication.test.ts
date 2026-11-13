@@ -36,3 +36,61 @@ it.skipIf(process.platform !== "win32")(
   },
   30_000,
 );
+
+it.skipIf(process.platform !== "win32")(
+  "bounds a persistent sharing denial and keeps the previous complete state",
+  async () => {
+    const file = join(fixture(), "state.json");
+    writeFileSync(file, JSON.stringify({ previous: true }));
+    const holder = spawn(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$f=[IO.File]::Open($env:MDF_TEST_STATE,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite); try { [Console]::WriteLine('ready'); [Console]::ReadLine() | Out-Null } finally { $f.Dispose() }",
+      ],
+      {
+        env: { ...process.env, MDF_TEST_STATE: file },
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+    const exited = new Promise<void>((done) =>
+      holder.once("exit", () => done()),
+    );
+    try {
+      await new Promise<void>((done, fail) => {
+        holder.stdout.once("data", () => done());
+        holder.once("error", fail);
+      });
+      const messages: string[] = [];
+      const start = Date.now();
+      expect(() =>
+        writeState(
+          file,
+          {
+            supervisor: { pid: 1, startedAt: "test" },
+            phase: "ready",
+            updatedAt: "test",
+            services: {},
+          },
+          (m) => messages.push(m),
+        ),
+      ).toThrow(/EPERM|EACCES|EBUSY/);
+      expect(Date.now() - start).toBeLessThan(5000);
+      expect(messages.some((m) => m.includes("retrying publication"))).toBe(
+        true,
+      );
+      expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+        previous: true,
+      });
+    } finally {
+      holder.stdin.end("\n");
+      await exited;
+    }
+  },
+  15_000,
+);
+
+import { spawn } from "node:child_process";
