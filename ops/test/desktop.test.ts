@@ -15,6 +15,7 @@ import {
   DESKTOP,
   desktopEnvValues,
   desktopPaths,
+  dockerServerVersion,
   formatEnvFile,
   isBackupFolder,
   isDesktopProcess,
@@ -220,5 +221,14 @@ describe("desktop backups and checks", () => {
   it("starts the owner's keys file with no active entry", () => {
     expect(parseEnvFile(WORKER_KEYS_TEMPLATE)).toEqual({});
     expect(WORKER_KEYS_TEMPLATE).toContain("# KIE_API_KEY=\n");
+  });
+});
+
+describe("docker readiness", () => {
+  it("counts Docker as ready only when the engine reports a version", () => {
+    expect(dockerServerVersion("27.5.1\n")).toBe("27.5.1");
+    expect(dockerServerVersion("")).toBeNull();
+    expect(dockerServerVersion("\n")).toBeNull();
+    expect(dockerServerVersion("<no value>")).toBeNull();
   });
 });

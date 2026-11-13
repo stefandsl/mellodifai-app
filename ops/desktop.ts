@@ -28,6 +28,7 @@ import {
   DESKTOP,
   type DesktopProcess,
   desktopPaths,
+  dockerServerVersion,
   isBackupFolder,
   isDesktopProcess,
   MSG,
@@ -72,12 +73,36 @@ const say = (line: string) => {
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 type Reply = { code: number; stdout: string; stderr: string };
-async function run(cmd: string, args: string[], cwd = app): Promise<Reply> {
-  try {
-    return await realRunner(cmd, args, { cwd });
-  } catch (error) {
-    return { code: -1, stdout: "", stderr: (error as Error).message };
-  }
+/** Docker's CLI hangs while its engine is stuck, so every probe has a deadline. */
+function run(
+  cmd: string,
+  args: string[],
+  timeoutMs = 120_000,
+  cwd = app,
+): Promise<Reply> {
+  return new Promise((done) => {
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(cmd, args, { cwd, windowsHide: true });
+    const timer = setTimeout(() => {
+      child.kill();
+      done({ code: -1, stdout, stderr: `${stderr}timed out` });
+    }, timeoutMs);
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      done({ code: -1, stdout, stderr: error.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      done({ code: code ?? -1, stdout, stderr });
+    });
+  });
 }
 const powershell = (command: string) =>
   run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
@@ -100,9 +125,13 @@ function dockerDesktopExe(): string | null {
 }
 
 async function dockerReady() {
-  return (
-    (await run("docker", ["info", "--format", "{{.ServerVersion}}"])).code === 0
+  // `docker info` exits 0 as soon as Docker Desktop's proxy answers, engine or not.
+  const reply = await run(
+    "docker",
+    ["version", "--format", "{{.Server.Version}}"],
+    20_000,
   );
+  return reply.code === 0 && dockerServerVersion(reply.stdout) !== null;
 }
 
 async function dockerProcessRunning() {
@@ -179,7 +208,7 @@ async function ensureImages() {
   say(MSG.images);
   for (const image of missing) {
     say(`  ${image}`);
-    const pulled = await run("docker", ["pull", "--quiet", image]);
+    const pulled = await run("docker", ["pull", "--quiet", image], 1_800_000);
     log(`docker pull ${image} exit ${pulled.code}`);
     if (pulled.code !== 0) fail(MSG.imagesFailed);
   }
@@ -647,17 +676,13 @@ async function removeData(args: string[]) {
   await killDesktop("web");
   const compose = join(stackDir("desktop"), "compose.json");
   if (existsSync(compose) && (await dockerReady())) {
-    const down = await run("docker", [
-      "compose",
-      "-p",
-      DESKTOP.projectId,
-      "-f",
-      compose,
-      "down",
-      "--volumes",
-      "--remove-orphans",
-    ]);
-    log(`compose down exit ${down.code}`);
+    // Only this project's containers and named volumes; bind-mounted data goes with the folder.
+    try {
+      const database = await recoveryDatabase("desktop");
+      await database.compose(["down", "--volumes", "--remove-orphans"]);
+    } catch (error) {
+      log(`compose down: ${(error as Error).message}`);
+    }
   }
   say("Dati di MellodifAI rimossi da Docker.");
 }

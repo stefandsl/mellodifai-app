@@ -150,6 +150,12 @@ export function validOwnerEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
 }
 
+/** The engine's version from `docker version`, or null when only the CLI answered. */
+export function dockerServerVersion(stdout: string): string | null {
+  const version = stdout.trim();
+  return /^\d+\.\d+\.\d+/.test(version) ? version : null;
+}
+
 /** A Docker Desktop that is not running leaves socket files behind; after an unclean
  * shutdown Docker 4.41 cannot delete them and quits at start ("dockerInference"). */
 export function staleDockerSockets(
