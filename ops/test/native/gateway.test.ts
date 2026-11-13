@@ -1987,6 +1987,9 @@ it("runs as a process: listens on loopback, serves, and stops cleanly when its s
   ])
     expect(output.out).not.toContain(secret);
   await expect(send(port, "/health")).rejects.toThrow();
+  const rebound = createServer().listen(port, "127.0.0.1");
+  await once(rebound, "listening");
+  await new Promise<void>((resolve) => rebound.close(() => resolve()));
 });
 
 it("releases its port and exits zero when the actual parent dies", {

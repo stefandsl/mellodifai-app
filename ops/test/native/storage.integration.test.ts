@@ -1,7 +1,20 @@
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import postgres from "postgres";
 import { expect, it } from "vitest";
+import { parse } from "yaml";
+import { nativeLayout } from "../../lib/native/layout.js";
+import {
+  type StorageRow,
+  storageFileLayout,
+  storageObjectPath,
+} from "../../lib/native/storage-metadata.js";
+import { removeAttributeSync } from "../../native/storage/fs-xattr/index.js";
 import { runStack } from "../../stack.js";
 
 // Explicitly opt in on the one authorized lab root. No production fallback.
@@ -11,7 +24,9 @@ const enabled =
     resolve("E:/mellodifai/native-lab") &&
   process.env.SUPABASE_URL === "http://127.0.0.1:45621" &&
   Boolean(
-    process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_ANON_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_KEY &&
+      process.env.SUPABASE_ANON_KEY &&
+      process.env.TEST_DB_URL,
   );
 
 it.skipIf(!enabled)(
@@ -79,6 +94,54 @@ it.skipIf(!enabled)(
         ).toBeNull();
       await download("small.mp3", small, "audio/mpeg");
       await download("large.bin", large, "application/octet-stream");
+      // A copied object loses its streams. Exercise the actual CLI against
+      // this fixture's database row and physical file, then download again.
+      const sql = postgres(process.env.TEST_DB_URL as string, { max: 1 });
+      let stored: StorageRow;
+      try {
+        const rows =
+          await sql`select bucket_id, name, version, metadata from storage.objects where bucket_id = ${bucket} and name = 'small.mp3'`;
+        expect(rows).toHaveLength(1);
+        stored = rows[0] as unknown as StorageRow;
+      } finally {
+        await sql.end();
+      }
+      const source = parse(
+        readFileSync(
+          new URL("../../compose/base.yml", import.meta.url),
+          "utf8",
+        ),
+      );
+      const files = storageFileLayout(
+        nativeLayout("e2e").objects,
+        source.services.storage.environment,
+      );
+      const physical = storageObjectPath(files, stored);
+      removeAttributeSync(physical, "user.supabase.content-type");
+      removeAttributeSync(physical, "user.supabase.cache-control");
+      const metadata = (mode: string) =>
+        spawnSync(
+          process.execPath,
+          [
+            "--import",
+            pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+            fileURLToPath(
+              new URL("../../storage-metadata.ts", import.meta.url),
+            ),
+            "--env",
+            "e2e",
+            mode,
+          ],
+          { encoding: "utf8", windowsHide: true, timeout: 30_000 },
+        );
+      const check = metadata("--check");
+      expect(check.status).toBe(1);
+      expect(JSON.parse(check.stdout).attributeMismatches).toHaveLength(2);
+      const repaired = metadata("--apply");
+      expect(repaired.status).toBe(0);
+      expect(JSON.parse(repaired.stdout).updated).toBe(2);
+      expect(metadata("--check").status).toBe(0);
+      await download("small.mp3", small, "audio/mpeg");
       const range = await fetch(objectUrl("large.bin"), {
         headers: { ...headers, Range: "bytes=4-19" },
       });
