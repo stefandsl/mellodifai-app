@@ -233,7 +233,7 @@ SectionEnd
 
 Section "Avvia all'accesso a Windows" SecAutostart
   SetShellVarContext current
-  CreateShortcut "$SMSTARTUP\MellodifAI.lnk" ${NODE} '${RUN} autostart' "$INSTDIR\mellodifai.ico" 0 SW_SHOWMINNOACTIVE "" "Accende MellodifAI all'accesso"
+  CreateShortcut "$SMSTARTUP\MellodifAI.lnk" ${NODE} '${RUN} autostart' "$INSTDIR\mellodifai.ico" 0 SW_SHOWMINIMIZED "" "Accende MellodifAI all'accesso"
 SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
