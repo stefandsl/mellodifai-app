@@ -1,3 +1,7 @@
+import { beforeEach as beforeDockerCase, vi as legacyRuntime } from "vitest";
+
+beforeDockerCase(() => legacyRuntime.stubEnv("MELLODIFAI_RUNTIME", "docker"));
+
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";

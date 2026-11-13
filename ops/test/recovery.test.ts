@@ -1,3 +1,7 @@
+import { beforeEach as beforeDockerCase, vi as legacyRuntime } from "vitest";
+
+beforeDockerCase(() => legacyRuntime.stubEnv("MELLODIFAI_RUNTIME", "docker"));
+
 import { expect, it } from "vitest";
 import { dumpTables } from "../lib/recovery.js";
 

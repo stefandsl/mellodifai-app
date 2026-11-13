@@ -6,12 +6,14 @@ import { composeEnvironment } from "./lib/compose.js";
 import { assertAtOrAfterFloor } from "./lib/deploy-plan.js";
 import { runtimePath, type StackEnv, stackDir } from "./lib/envs.js";
 import { provisionTestLogins } from "./lib/logins.js";
+import { resolveRuntime } from "./lib/native/layout.js";
 import { checked, recoveryDatabase, stopWriters } from "./lib/recovery.js";
 import { prepareStackDir } from "./lib/render.js";
 import { applyRolePasswords, readStackPasswords } from "./lib/roles.js";
 import { type Runner, realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
+import { nativeBackup } from "./native-backup.js";
 import { reapplyDbPasswords } from "./rotate-db-passwords.js";
 import { runStackCommand } from "./stack.js";
 
@@ -81,6 +83,8 @@ function validateBackup(backup: string) {
 export async function restoreDatabase(env: StackEnv, backup: string) {
   if (env === "prod")
     throw new Error("Production restore requires the validated owner workflow");
+  if (resolveRuntime(undefined) === "native")
+    return nativeBackup(["restore", "--env", env, backup]);
   validateBackup(backup);
   // This capability is never exposed through stack.ts's argument parser.
   const database = await recoveryDatabase(env);
@@ -110,6 +114,10 @@ export async function productionRestore(
   backup: string,
   runner: Runner = realRunner,
 ) {
+  if (resolveRuntime(undefined) === "native")
+    throw new Error(
+      "Use native-backup.ts restore --env prod <bundle> --confirm-production; schema ledgers must match",
+    );
   validateBackup(backup);
   const repo = runtimePath(join(runtimeRoot(), "deploy"));
   // The invoking checkout stays fixed while only the dedicated deploy clone moves.

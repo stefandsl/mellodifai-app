@@ -3,6 +3,8 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { composeEnvironment } from "./compose.js";
 import { ENV_TABLE, runtimePath, type StackEnv, stackDir } from "./envs.js";
+import { backupNative, restoreNativeData } from "./native/backup.js";
+import { nativeLayout, resolveRuntime } from "./native/layout.js";
 import { databaseUrl, ownerConnection } from "./pg.js";
 import { writePrivate } from "./private-file.js";
 import { type Runner, realRunner } from "./run.js";
@@ -52,6 +54,31 @@ export async function recoveryDatabase(
   env: StackEnv,
   runner: Runner = realRunner,
 ) {
+  if (resolveRuntime(undefined) === "native") {
+    const secrets = await loadStackSecrets(env);
+    return {
+      url: databaseUrl(
+        "postgres",
+        secrets.postgres,
+        nativeLayout(env).ports.db,
+      ),
+      async compose(_args: string[]): Promise<string> {
+        throw new Error("Compose is unavailable on the native runtime");
+      },
+      async quiesce(): Promise<void> {
+        throw new Error(
+          "Use native-backup.ts for supervised native maintenance",
+        );
+      },
+      async backup(file: string, legacy = false): Promise<void> {
+        if (legacy) throw new Error("Legacy backup is Docker-only");
+        await backupNative(env, file, runner);
+      },
+      async import(file: string): Promise<void> {
+        await restoreNativeData(env, file);
+      },
+    };
+  }
   if (env === "ci" && process.env.CI !== "true")
     throw new Error("CI requires CI=true");
   const secrets = await loadStackSecrets(env);
