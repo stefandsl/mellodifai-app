@@ -600,6 +600,9 @@ export function createGateway(config: GatewayConfig): Server {
     });
     outgoing.on("response", (incoming) => {
       responded = true;
+      // The service can answer before the upload ends. Stop forwarding at
+      // once, but consume the client body so keep-alive framing stays valid.
+      drain();
       const reply = endToEndHeaders(incoming.headers);
       // One CORS policy: the gateway's. Upstream copies would double headers.
       for (const name of Object.keys(reply))

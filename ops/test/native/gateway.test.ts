@@ -1384,26 +1384,30 @@ it("answers 503 at once when a service is down, and keeps serving the others", a
 it("answers an upload no service takes, and still reads the rest of it", {
   timeout: 60_000,
 }, async () => {
+  const upstreamClosed = vi.fn();
   const { port } = await stack({
     down: "auth",
     storage: (req, res) => {
-      // Too large for Storage: it answers on the headers and hangs up.
+      // Too large for Storage: it answers without reading the upload.
+      req.socket.once("close", upstreamClosed);
       res
         .writeHead(413, { "content-type": "application/json" })
         .end('{"statusCode":"413","error":"Payload too large"}');
-      setTimeout(() => req.socket.destroy(), 150);
     },
   });
-  const upload = open(port, "/storage/v1/object/previews/user-1/a.mp4", {
-    method: "POST",
-    headers: withKey(ANON, { "content-length": String(96 * MIB) }),
-  });
-  const answered = once(upload, "response") as Promise<[IncomingMessage]>;
-  await stream(upload, Buffer.alloc(MIB, 3), 96);
-  const refused = await collect((await answered)[0]);
-  expect(refused.status).toBe(413);
-  expect(refused.text).toBe('{"statusCode":"413","error":"Payload too large"}');
-
+  // A raw keep-alive client keeps uploading after the early answer. Node's
+  // ClientRequest ends its writable socket on an early response, so waiting
+  // for its drain event after that response cannot test this contract.
+  const body413 = '{"statusCode":"413","error":"Payload too large"}';
+  const data = "b".repeat(96 * MIB);
+  const refused = await raw(
+    port,
+    `POST /storage/v1/object/previews/user-1/a.mp4 HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\napikey: ${ANON}\r\nContent-Length: ${data.length}\r\n\r\n${data}` +
+      `GET /health HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`,
+  );
+  expect(statuses(refused)).toEqual([413, 200]);
+  expect(refused).toContain(body413);
+  await vi.waitFor(() => expect(upstreamClosed).toHaveBeenCalledOnce());
   // The service is down: the 503 comes at once, the body is still read to its
   // end, and the next request on the same connection is understood.
   const body = "a".repeat(16 * MIB);
