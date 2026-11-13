@@ -224,6 +224,13 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
         // PostgREST loads libpq from the PostgreSQL binaries.
         PATH: `${tools.pgBin}${delimiter}${base.PATH}`,
         ...contract.rest,
+        // EDB's Windows libintl can abort (exit 3) when libpq's startup
+        // threads initialize translated messages concurrently. The C locale
+        // bypasses catalog initialization; this does not change DB collation.
+        LANG: "C",
+        LC_ALL: "C",
+        LC_MESSAGES: "C",
+        LANGUAGE: "C",
         PGRST_DB_URI: serviceDatabaseUrl("authenticator", logins, ports.db),
         PGRST_SERVER_HOST: "127.0.0.1",
         PGRST_SERVER_PORT: String(ports.rest),

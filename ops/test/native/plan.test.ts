@@ -99,6 +99,12 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
     expect(find("auth")?.env.GOTRUE_DB_MAX_POOL_SIZE).toBe("10");
     expect(find("auth")?.env.GOTRUE_DB_MAX_IDLE_POOL_SIZE).toBe("5");
     expect(find("rest")?.env.PGRST_SERVER_PORT).toBe(String(layout.ports.rest));
+    expect(find("rest")?.env).toMatchObject({
+      LANG: "C",
+      LC_ALL: "C",
+      LC_MESSAGES: "C",
+      LANGUAGE: "C",
+    });
     expect(find("storage")?.env.SERVER_PORT).toBe(String(layout.ports.storage));
     expect(find("storage")?.env.FILE_STORAGE_BACKEND_PATH).toBe(layout.objects);
     expect(find("gateway")?.args).toEqual(gatewayArgs(opsDir));
