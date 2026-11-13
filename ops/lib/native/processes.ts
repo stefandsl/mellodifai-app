@@ -113,11 +113,42 @@ export function orderDefinitions<T extends { id: string; dependsOn: string[] }>(
   return ordered;
 }
 
-export function writeState(path: string, state: StackState): void {
+export function writeState(
+  path: string,
+  state: StackState,
+  log: (message: string) => void = console.warn,
+): void {
   mkdirSync(dirname(path), { recursive: true });
   const temp = `${path}.${randomUUID()}.tmp`;
   writeFileSync(temp, JSON.stringify(state, null, 2));
-  renameSync(temp, path);
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        renameSync(temp, path);
+        if (attempt)
+          log(`state: published after ${attempt} Windows sharing retries`);
+        return;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        // Windows can reject replacement while a status reader holds the old
+        // file. Keep the old complete snapshot and retry this same publication,
+        // never a service launch or database operation. Persistent denial fails.
+        if (
+          process.platform !== "win32" ||
+          !["EPERM", "EACCES", "EBUSY"].includes(code ?? "") ||
+          attempt >= 20
+        )
+          throw error;
+        if (!attempt)
+          log(
+            `state: Windows sharing conflict (${code}); retrying publication for at most 1000ms`,
+          );
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+      }
+    }
+  } finally {
+    rmSync(temp, { force: true });
+  }
 }
 
 export function readState(path: string): StackState | null {
@@ -221,7 +252,7 @@ export class Supervisor {
 
   private save(): void {
     this.state.updatedAt = new Date().toISOString();
-    writeState(this.options.statePath, this.state);
+    writeState(this.options.statePath, this.state, this.log);
   }
 
   private set(id: string, patch: Partial<ServiceState>): void {
