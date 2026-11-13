@@ -1,0 +1,13 @@
+-- MellodifAI native runtime supplement. Not part of supabase/postgres.
+--
+-- On the Supabase image the postgres role may create and drop policies and
+-- triggers on the Auth and Storage tables without owning them, through the
+-- supautils extension (supautils.policy_grants, supautils.drop_trigger_grants).
+-- Plain PostgreSQL has no supautils, and only a table's owner can create a
+-- policy on it. App migrations run as postgres and do exactly that on
+-- storage.objects, so here postgres is made a member of the two owning roles,
+-- which is how the Supabase platform itself worked until its migration
+-- 20250421084701 moved the permission into supautils. That migration's other
+-- statements (no CREATE on the auth and storage schemas, no access to the
+-- services' migration tables) stay in force.
+grant supabase_auth_admin, supabase_storage_admin to postgres;

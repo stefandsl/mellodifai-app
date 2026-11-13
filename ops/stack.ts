@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { composeEnvironment, prepareCompose } from "./lib/compose.js";
 import { ENV_TABLE, runtimePath, type StackEnv, stackDir } from "./lib/envs.js";
 import { provisionTestLogins } from "./lib/logins.js";
+import { resolveRuntime } from "./lib/native/layout.js";
+import { type NativeFlags, runNativeCommand } from "./lib/native/stack.js";
 import { databaseUrl, ownerConnection } from "./lib/pg.js";
 import { writePrivate } from "./lib/private-file.js";
 import { prepareStackDir, renderConfig } from "./lib/render.js";
@@ -22,7 +24,7 @@ import { assertWindowsPorts } from "./lib/windows-ports.js";
 
 import { isRestoreAuthorization } from "./restore.js";
 
-type Flags = { noBackup?: boolean; restore?: unknown };
+type Flags = { noBackup?: boolean | undefined; restore?: unknown };
 const commands = [
   "render",
   "start",
@@ -323,10 +325,39 @@ export async function runStackCommand(
   }
 }
 
+export interface RuntimeFlags extends Flags, NativeFlags {
+  runtime?: string | undefined;
+}
+
+/** Entry for the command line and for callers that follow the configured
+ * runtime: --runtime, then MELLODIFAI_RUNTIME, then native. The Docker
+ * functions above keep their behaviour for callers that name them directly.
+ */
+export async function runStack(
+  cmd: string,
+  env: StackEnv,
+  flags: RuntimeFlags = {},
+): Promise<string | undefined> {
+  if (resolveRuntime(flags.runtime) === "docker") {
+    if (cmd === "install" || cmd === "status" || flags.initProduction)
+      throw new Error("This stack command exists only for the native runtime");
+    return runStackCommand(cmd, env, flags);
+  }
+  return runNativeCommand(cmd, env, flags, {
+    writeEnvFile: async (target) =>
+      writeTestEnv(
+        target,
+        await loadStackSecrets(target),
+        await readStackPasswords(target),
+      ),
+    log: (message) => process.stderr.write(`${message}\n`),
+  });
+}
+
 async function main(args: string[]) {
   const cmd = args.shift();
   let env: StackEnv | undefined;
-  const flags: Flags = {};
+  const flags: RuntimeFlags = {};
   if (cmd === "db" && args[0] === "reset") {
     // Recognize the dangerous alias so it receives the same explicit refusal.
     args.shift();
@@ -335,15 +366,20 @@ async function main(args: string[]) {
   while (args.length) {
     const arg = args.shift();
     if (arg === "--env" && !env) env = args.shift() as StackEnv;
+    else if (arg === "--runtime" && flags.runtime === undefined)
+      flags.runtime = args.shift() ?? "";
     else if (arg === "--no-backup") flags.noBackup = true;
+    else if (arg === "--init-production") flags.initProduction = true;
+    else if (arg === "--seed" && args.length)
+      flags.seedDirs = [...(flags.seedDirs ?? []), args.shift() as string];
     else throw new Error("Unknown or duplicate stack argument");
   }
   if (!cmd || !env)
     throw new Error(
-      "Usage: stack.ts <render|start|stop|migrate|reset|env-file> --env <env>",
+      "Usage: stack.ts <install|render|start|stop|status|migrate|reset|env-file> --env <env> [--runtime native|docker]",
     );
-  const path = await runStackCommand(cmd, env, flags);
-  if (path) process.stdout.write(`${path}\n`);
+  const output = await runStack(cmd, env, flags);
+  if (output) process.stdout.write(`${output}\n`);
 }
 
 if (

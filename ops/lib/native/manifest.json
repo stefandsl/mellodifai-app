@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "artifacts": {
+    "postgres": {
+      "version": "17.11",
+      "kind": "binary",
+      "licence": "PostgreSQL",
+      "project": "https://www.postgresql.org/download/windows/",
+      "entry": { "win32-x64": "bin/postgres.exe" },
+      "downloads": {
+        "win32-x64": {
+          "url": "https://get.enterprisedb.com/postgresql/postgresql-17.11-3-windows-x64-binaries.zip",
+          "file": "postgresql-17.11-3-windows-x64-binaries.zip",
+          "sha256": "4b8db0930c38f6ef845db919551dedda3b6b845aeb0927b3d79a6e8e9e4537cf",
+          "size": 341325378,
+          "strip": 1,
+          "include": [
+            "bin/",
+            "lib/",
+            "share/",
+            "server_license.txt",
+            "commandlinetools_3rd_party_licenses.txt"
+          ],
+          "notices": [
+            "server_license.txt",
+            "commandlinetools_3rd_party_licenses.txt"
+          ]
+        }
+      }
+    },
+    "postgrest": {
+      "version": "16.5",
+      "kind": "binary",
+      "licence": "MIT",
+      "project": "https://github.com/PostgREST/postgrest/releases/tag/v16.5",
+      "noticeFile": "notices/postgrest-LICENSE.txt",
+      "entry": { "win32-x64": "postgrest.exe" },
+      "downloads": {
+        "win32-x64": {
+          "url": "https://github.com/PostgREST/postgrest/releases/download/v16.5/postgrest-v16.5-windows-x86-64.zip",
+          "file": "postgrest-v16.5-windows-x86-64.zip",
+          "sha256": "17f595b0d8dd37473d0231417dea07c5ac9f791282ff5b017fae51ff29e5de2f",
+          "size": 15077008,
+          "strip": 0,
+          "notices": []
+        }
+      }
+    },
+    "mailpit": {
+      "version": "1.33.0",
+      "kind": "binary",
+      "licence": "MIT",
+      "project": "https://github.com/axllent/mailpit/releases/tag/v1.33.0",
+      "entry": { "win32-x64": "mailpit.exe" },
+      "downloads": {
+        "win32-x64": {
+          "url": "https://github.com/axllent/mailpit/releases/download/v1.33.0/mailpit-windows-amd64.zip",
+          "file": "mailpit-windows-amd64.zip",
+          "sha256": "47122dd828ff80dcaef62b2952c478b178afadadf066c990489608e537121bfd",
+          "size": 11134450,
+          "strip": 0,
+          "notices": ["LICENSE"]
+        }
+      }
+    },
+    "go": {
+      "version": "1.27.0",
+      "kind": "binary",
+      "licence": "BSD-3-Clause",
+      "project": "https://go.dev/dl/",
+      "entry": { "win32-x64": "bin/go.exe" },
+      "downloads": {
+        "win32-x64": {
+          "url": "https://go.dev/dl/go1.27.0.windows-amd64.zip",
+          "file": "go1.27.0.windows-amd64.zip",
+          "sha256": "f0c0a0d33ba94f4d2c5dbc887334ce678b21813504ddb3aafcb06e60a5a667c4",
+          "size": 78924880,
+          "strip": 1,
+          "notices": ["LICENSE"]
+        }
+      }
+    },
+    "node": {
+      "version": "24.22.2",
+      "kind": "binary",
+      "licence": "MIT",
+      "project": "https://nodejs.org/dist/v24.22.2/",
+      "entry": { "win32-x64": "node.exe" },
+      "downloads": {
+        "win32-x64": {
+          "url": "https://nodejs.org/dist/v24.22.2/node-v24.22.2-win-x64.zip",
+          "file": "node-v24.22.2-win-x64.zip",
+          "sha256": "ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2",
+          "size": 37754834,
+          "strip": 1,
+          "notices": ["LICENSE"]
+        }
+      }
+    },
+    "auth": {
+      "version": "2.197.0",
+      "kind": "source",
+      "licence": "MIT",
+      "project": "https://github.com/supabase/auth/tree/v2.197.0",
+      "entry": { "win32-x64": "auth.exe" },
+      "downloads": {
+        "source": {
+          "url": "https://github.com/supabase/auth/archive/refs/tags/v2.197.0.zip",
+          "file": "auth-v2.197.0.zip",
+          "sha256": "359a3235b3280e8c8c175559450a07b72249504edc55b266ab9be1776470526b",
+          "size": 1029262,
+          "strip": 1,
+          "notices": ["LICENSE"]
+        }
+      }
+    },
+    "storage": {
+      "version": "1.84.19",
+      "kind": "source",
+      "licence": "Apache-2.0",
+      "project": "https://github.com/supabase/storage/tree/v1.84.19",
+      "entry": { "win32-x64": "dist/start/server.js" },
+      "downloads": {
+        "source": {
+          "url": "https://github.com/supabase/storage/archive/refs/tags/v1.84.19.zip",
+          "file": "storage-v1.84.19.zip",
+          "sha256": "513089c295f186f8b7137ebaaf17200c2c4d97485dd745b5b0a243239dff6d95",
+          "size": 1785092,
+          "strip": 1,
+          "notices": ["LICENSE"]
+        }
+      }
+    }
+  }
+}

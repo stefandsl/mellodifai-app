@@ -1,0 +1,9 @@
+{
+  "name": "fs-xattr",
+  "version": "0.4.0",
+  "description": "MellodifAI stand-in for fs-xattr on Windows: extended attributes in NTFS alternate data streams",
+  "private": true,
+  "type": "module",
+  "exports": "./index.js",
+  "mellodifai": { "replaces": "fs-xattr@0.4.0", "revision": 1 }
+}

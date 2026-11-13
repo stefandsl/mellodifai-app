@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/supabase/postgres",
+  "commit": "c6226c631d3f9048586005f0bca8c9fc10a72940",
+  "path": "migrations/db",
+  "licence": "PostgreSQL License (see LICENSE in this folder)",
+  "note": "init-scripts/ and migrations/ are unmodified copies. First boot runs init-scripts as postgres and migrations as supabase_admin, the order of migrations/db/migrate.sh. Files listed under skip are kept for reference and never run.",
+  "skip": {
+    "20220118070449_enable-safeupdate-postgrest.sql": "preloads the safeupdate library for authenticator; the library is not part of the PostgreSQL binaries and a missing preload library refuses every login of that role",
+    "20260413000000_fix-authenticator-session-preload-libraries.sql": "preloads supautils and safeupdate for authenticator; neither library is part of the PostgreSQL binaries",
+    "20250312095419_pgbouncer_ownership.sql": "needs the pgbouncer schema; the native stack runs no connection pooler",
+    "20250417190610_update_pgbouncer_get_auth.sql": "needs the pgbouncer schema; the native stack runs no connection pooler",
+    "20251121132723_correct_search_path_pgbouncer.sql": "needs the pgbouncer schema and role; the native stack runs no connection pooler"
+  }
+}
