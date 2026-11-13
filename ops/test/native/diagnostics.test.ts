@@ -27,6 +27,7 @@ it("keeps a crash signal and excludes output from previous launches", async () =
 
 it("redacts known credentials, encoded passwords, SQL, headers, JWTs and hashes", () => {
   const password = "small/p@ss";
+  const jwt = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJhbGljZSJ9.synthetic";
   const text = [
     password,
     encodeURIComponent(password),
@@ -36,6 +37,7 @@ it("redacts known credentials, encoded passwords, SQL, headers, JWTs and hashes"
     "cookie=unknown",
     "secret: unknown",
     "a".repeat(64),
+    jwt,
     "socket bind failed: WSAEADDRINUSE",
   ].join("\n");
   const safe = redactServiceOutput(text, {
@@ -48,6 +50,7 @@ it("redacts known credentials, encoded passwords, SQL, headers, JWTs and hashes"
     "unknown",
     "short",
     "a".repeat(64),
+    jwt,
   ])
     expect(safe).not.toContain(value);
   expect(safe).toContain("socket bind failed: WSAEADDRINUSE");

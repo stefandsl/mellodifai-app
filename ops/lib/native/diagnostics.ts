@@ -48,6 +48,7 @@ export function redactServiceOutput(
         return "[REDACTED sensitive log line]";
       return line
         .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"']+/gi, "[REDACTED URL]")
+        .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, "[REDACTED JWT]")
         .replace(/[A-Za-z0-9_+/=-]{32,}/g, "[REDACTED value]");
     })
     .join("\n");
