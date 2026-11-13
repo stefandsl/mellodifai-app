@@ -104,7 +104,13 @@ function main(argv) {
   execFileSync("git", ["archive", "--format=tar", "-o", tar, "HEAD"], {
     cwd: repo,
   });
-  execFileSync("tar", ["-xf", tar, "-C", join(stage, "app")]);
+  // Windows' own bsdtar: a GNU tar from Git Bash reads "E:" as a remote host.
+  const windowsTar = join(
+    process.env.SystemRoot ?? "C:\\Windows",
+    "System32",
+    "tar.exe",
+  );
+  execFileSync(windowsTar, ["-xf", tar, "-C", join(stage, "app")]);
   rmSync(tar);
   writeFileSync(join(stage, "app", "VERSION"), `${version}\n`);
 
