@@ -48,7 +48,12 @@ fake workers are owned by Playwright and shut down with its run. The stack itsel
 is started and stopped only through stack.ts.
 
 pnpm test runs workspace suites sequentially with at most four Vitest workers.
-test:db explicitly uses one worker. E2E refuses to start without WORKER_FAKE=1.
+test:db explicitly uses one worker and a 30-second integration-test budget.
+Native Windows backend creation measured 2.6-5.2 seconds per cold connection,
+while queries on an open connection took about 1 ms. The database RPC helper
+therefore reuses a bounded pool per file and closes it at teardown. Tests that
+deliberately open independent clients still do so, including the 20-client cap
+race. E2E refuses to start without WORKER_FAKE=1.
 Worker unit fixtures register their mock handlers in both dispatch tables, so
 WORKER_FAKE=1 can remain set throughout the gates. The legacy import check uses
 temporary packs and real FFmpeg previews for all eleven languages; it no longer

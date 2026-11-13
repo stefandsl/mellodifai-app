@@ -1,8 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import postgres, { type Sql, type TransactionSql } from "postgres";
+import { afterAll } from "vitest";
 import { assertTestStack } from "../../../ops/test-db-guard";
 import type { OpsResult } from "../../../packages/shared/src/ops/errors";
 import { withRealCaps } from "./caps";
+
+// Native Windows starts a backend process for each connection. Keep the same
+// bounded pool for this file's RPC calls, as the web application does, instead
+// of paying that startup cost for every assertion. Separate calls can still
+// run concurrently; transactions retain their own connection.
+let connection: Sql | undefined;
+afterAll(async () => {
+  await connection?.end();
+  connection = undefined;
+});
 
 export async function opsCall(
   session: { userId: string; sessionId: string },
@@ -15,7 +26,8 @@ export async function opsCall(
   if (!url) throw new Error("TEST_MDF_WEB_URL is required");
   if (!/^[a-z][a-z0-9_]*$/.test(fn))
     throw new Error("Invalid ops function name");
-  const sql = postgres(url, { max: 1 });
+  connection ??= postgres(url, { max: 10 });
+  const sql = connection;
   const values = [
     {
       actor_kind: "session",
@@ -26,15 +38,11 @@ export async function opsCall(
     ...args,
   ];
   const query = `select ops.${fn}(${values.map((_, index) => `$${index + 1}`).join(",")}) as result`;
-  try {
-    const run = async (db: Sql | TransactionSql) => {
-      const [row] = await db.unsafe(query, values as never[]);
-      return row.result as OpsResult<unknown>;
-    };
-    return await (opts?.realCaps ? withRealCaps(sql, run) : run(sql));
-  } finally {
-    await sql.end();
-  }
+  const run = async (db: Sql | TransactionSql) => {
+    const [row] = await db.unsafe(query, values as never[]);
+    return row.result as OpsResult<unknown>;
+  };
+  return await (opts?.realCaps ? withRealCaps(sql, run) : run(sql));
 }
 
 const wrappers: Record<string, [string, string[], string?]> = {
