@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { ENV_TABLE, stackDir } from "../../lib/envs.js";
 import { rotateNativeLogins } from "../../lib/native/credentials.js";
 import { NativeDiagnosticError } from "../../lib/native/diagnostics.js";
+import { maintenanceDatabase } from "../../lib/native/maintenance.js";
 import { runStack } from "../../stack.js";
 import { fixture } from "./fixtures.js";
 
@@ -12,10 +13,10 @@ vi.mock("../../lib/native/backup.js", () => ({
   nativeDatabase: async () => ({ layout: {}, logins: {} }),
 }));
 vi.mock("../../lib/native/maintenance.js", () => ({
-  maintenanceDatabase: async () => ({
+  maintenanceDatabase: vi.fn(async () => ({
     db: { layout: {} },
     stop: async () => {},
-  }),
+  })),
 }));
 vi.mock("../../lib/native/secrets.js", () => ({
   loadNativeLogins: async () => ({
@@ -53,6 +54,39 @@ vi.mock("../../lib/native/postgres.js", () => {
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
+});
+
+it("does not leave a blocking rotation journal when PostgreSQL fails before any role changes", async () => {
+  vi.stubEnv("MELLODIFAI_ROOT", fixture());
+  const secretDir = dirname(ENV_TABLE.e2e.signingKeysPath);
+  mkdirSync(secretDir, { recursive: true });
+  mkdirSync(stackDir("e2e"), { recursive: true });
+  const files = [
+    join(secretDir, "stack-secrets.json"),
+    join(stackDir("e2e"), "role-passwords.json"),
+    join(stackDir("e2e"), "native-logins.json"),
+  ];
+  for (const file of files)
+    writeFileSync(
+      file,
+      JSON.stringify({ postgres: "old-synthetic-credential" }),
+    );
+  vi.mocked(maintenanceDatabase).mockRejectedValueOnce(
+    new NativeDiagnosticError(
+      "Native service postgres exited (exit code 1); see postgres.log",
+    ),
+  );
+  await expect(rotateNativeLogins("e2e")).rejects.toThrow("exit code 1");
+  const journal = JSON.parse(
+    readFileSync(join(secretDir, "native-db-rotation.json"), "utf8"),
+  );
+  expect(journal.phase).toBe("rolled-back");
+  expect(journal.failure).toContain("preparation");
+  for (const file of files)
+    expect(JSON.parse(readFileSync(file, "utf8")).postgres).toBe(
+      "old-synthetic-credential",
+    );
+  expect(runStack).not.toHaveBeenCalled();
 });
 
 it.each([

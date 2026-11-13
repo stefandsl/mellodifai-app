@@ -87,7 +87,19 @@ export async function rotateNativeLogins(env: StackEnv): Promise<void> {
     pending,
     JSON.stringify({ phase: "pending", previous, next }),
   );
-  let maintenance = await maintenanceDatabase(env);
+  let maintenance: Awaited<ReturnType<typeof maintenanceDatabase>>;
+  try {
+    maintenance = await maintenanceDatabase(env);
+  } catch (error) {
+    // No ALTER ROLE or credential-store publication has run yet. Preserve the
+    // failure, but do not block the next rotation with a false pending update.
+    const failure = `Native database rotation failed during preparation: ${safeFailure(error)}; stored credentials unchanged`;
+    await writePrivate(
+      pending,
+      JSON.stringify({ phase: "rolled-back", failure }),
+    );
+    throw new NativeDiagnosticError(failure);
+  }
   const admin = superuserConnection(maintenance.db.layout, old);
   const set = async (passwords: Record<string, string>) =>
     admin.begin(async (tx) => {
