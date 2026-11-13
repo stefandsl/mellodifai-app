@@ -68,7 +68,24 @@ pnpm test:db      # needs the e2e stack env (see the M1 plan, "How tests reach a
 pnpm e2e          # e2e stack only
 ```
 
-## 3. Where things stand (2026-11-10)
+## 3. Where things stand (2026-11-13)
+
+### Windows app (2026-11-13, branch feat/local-launcher)
+
+MellodifAI installs on Windows from one per-user installer and opens signed in from a desktop
+icon; it starts again by itself after a reboot. Owner and maintainer guide:
+[windows-app.md](windows-app.md). It replaces the old Supabase-CLI launcher (`apps/launcher`,
+the root `.cmd` files), which bound 54322 inside a Windows reserved range and used project id
+`mellodifai`, the same volume name as production's database.
+
+- Stack: ops environment `desktop` (project `mellodifai_desktop`, API 46321, DB 46322, web
+  46300), data under the install's `data` folder. Its ports are in `OWNER_STACK_PORTS`, so
+  test and e2e guards refuse it like production.
+- Controller: `ops/desktop.ts` (setup, start, autostart, open, stop, status, backup, restore,
+  update, remove-data). Packaging: `apps/windows` (NSIS script, build script, shortcut shim,
+  DIB icon writer).
+- Production on this PC is a separate installation and is not changed by this work.
+
 
 ### Agent remake access (2026-11-10, merged, pushed and deployed)
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { AUTH_ORIGINS } from "./auth-origins.js";
 import { runtimeRoot } from "./runtime.js";
 
-export type StackEnv = "dev" | "e2e" | "ci" | "prod";
+export type StackEnv = "dev" | "e2e" | "ci" | "desktop" | "prod";
 export interface StackValues {
   projectId: string;
   siteUrl: string;
@@ -143,6 +143,29 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
     jwtSecretFromEnv: false,
     sessions: {},
     fakeStack: true,
+    emailSentPerHour: 2,
+  },
+  // The Windows desktop app (docs/windows-app.md). MELLODIFAI_ROOT is its install's data
+  // folder. Ports sit below the Windows dynamic range 49152-65535, whose reserved blocks
+  // move at every boot (54322 died that way), and away from prod 443xx and e2e 456xx.
+  desktop: {
+    projectId: "mellodifai_desktop",
+    ...AUTH_ORIGINS.desktop,
+    ports: {
+      api: 46321,
+      db: 46322,
+      studio: null,
+      inbucket: 46324,
+      analytics: null,
+    },
+    listeners: { shadow: 46320, inspector: 46328, pooler: 46329 },
+    smtp: "catcher",
+    get signingKeysPath() {
+      return signingKey("desktop");
+    },
+    jwtSecretFromEnv: false,
+    sessions: {},
+    fakeStack: false,
     emailSentPerHour: 2,
   },
   prod: {

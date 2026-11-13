@@ -4,4 +4,3 @@
 *.mp3 binary
 *.mp4 binary
 *.wav binary
-*.cmd text eol=crlf

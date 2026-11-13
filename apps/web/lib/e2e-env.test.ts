@@ -36,8 +36,8 @@ it.each([
   );
 });
 
-it.each([44321, 44322])(
-  "refuses production port %s even with both CI flags",
+it.each([44321, 44322, 46321, 46322])(
+  "refuses the owner's production or desktop port %s even with both CI flags",
   (port) => {
     expect(() =>
       localSupabaseUrl(`http://127.0.0.1:${port}`, {

@@ -15,6 +15,12 @@ export const AUTH_ORIGINS = {
     siteUrl: "http://127.0.0.1:3210",
     redirectUrls: ["http://127.0.0.1:3210/**", "http://127.0.0.1:3212/**"],
   },
+  // The Windows desktop app: one owner, PAT-only MCP, no OAuth service.
+  desktop: {
+    issuer: null,
+    siteUrl: "http://127.0.0.1:46300",
+    redirectUrls: ["http://127.0.0.1:46300/**", "http://localhost:46300/**"],
+  },
   prod: {
     issuer: "https://app.mellodifai.com/oauth",
     siteUrl: "https://app.mellodifai.com",
@@ -26,11 +32,20 @@ export const AUTH_ORIGINS = {
   },
 };
 
+// Stacks whose worker runs the owner's real (paid) engines. Tests never target them.
+export const OWNER_STACK_PORTS = ["44321", "44322", "46321", "46322"];
+
+/** Dev and the desktop app expose PAT-only MCP without an OAuth service. */
+export function patOnlySite(siteUrl: string | undefined): boolean {
+  return (
+    siteUrl === AUTH_ORIGINS.dev.siteUrl ||
+    siteUrl === AUTH_ORIGINS.desktop.siteUrl
+  );
+}
+
 // Shared by bearer resolution, protected-resource metadata and the auth service.
 export function mcpResource(siteUrl: string | undefined): string {
-  // Dev exposes PAT-only MCP without an OAuth service.
-  if (siteUrl === AUTH_ORIGINS.dev.siteUrl)
-    return new URL("/api/mcp", siteUrl).href;
+  if (patOnlySite(siteUrl)) return new URL("/api/mcp", siteUrl).href;
   const env = Object.values(AUTH_ORIGINS).find(
     (value) => value.siteUrl === siteUrl,
   );
