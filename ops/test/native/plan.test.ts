@@ -96,6 +96,8 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
     });
     const find = (id: string) => specs.find((s) => s.id === id);
     expect(find("auth")?.env.GOTRUE_API_PORT).toBe(String(layout.ports.auth));
+    expect(find("auth")?.env.GOTRUE_DB_MAX_POOL_SIZE).toBe("10");
+    expect(find("auth")?.env.GOTRUE_DB_MAX_IDLE_POOL_SIZE).toBe("5");
     expect(find("rest")?.env.PGRST_SERVER_PORT).toBe(String(layout.ports.rest));
     expect(find("storage")?.env.SERVER_PORT).toBe(String(layout.ports.storage));
     expect(find("storage")?.env.FILE_STORAGE_BACKEND_PATH).toBe(layout.objects);

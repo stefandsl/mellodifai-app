@@ -107,7 +107,31 @@ it("matches the reviewed public and ops ACL allowlist", async () => {
   const allowlist = JSON.parse(
     readFileSync(new URL("./acl-allowlist.json", import.meta.url), "utf8"),
   ) as string[];
-  expect(actual).toEqual(allowlist);
+  // These schemas belong to extensions and services that only the Docker
+  // runtime ships (Realtime, pg_graphql, pg_net, webhooks, vault). Where one
+  // is absent it grants nothing, so its lines are not expected; where it is
+  // present its lines must match like every other.
+  const dockerOnly = [
+    "_realtime",
+    "graphql",
+    "net",
+    "supabase_functions",
+    "vault",
+  ];
+  const present = new Set(
+    (await sql`select nspname from pg_namespace`).map(
+      (row) => row.nspname as string,
+    ),
+  );
+  const expected = allowlist.filter((line) => {
+    const [kind, schema] = line.split("|");
+    return (
+      kind !== "schema" ||
+      !dockerOnly.includes(schema as string) ||
+      present.has(schema as string)
+    );
+  });
+  expect(actual).toEqual(expected);
   expect(memberships).toEqual([]);
   expect(
     security.every((row) => row.line.endsWith('|definer=true|search_path=""')),

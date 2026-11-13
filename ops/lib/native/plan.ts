@@ -178,6 +178,11 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
     ...contract.auth,
     GOTRUE_API_HOST: "127.0.0.1",
     GOTRUE_API_PORT: String(ports.auth),
+    // Auth defaults to zero idle connections. PostgreSQL starts a process for
+    // each connection on Windows, so keep a bounded pool available for reuse.
+    GOTRUE_DB_MAX_POOL_SIZE: contract.auth.GOTRUE_DB_MAX_POOL_SIZE ?? "10",
+    GOTRUE_DB_MAX_IDLE_POOL_SIZE:
+      contract.auth.GOTRUE_DB_MAX_IDLE_POOL_SIZE ?? "5",
     GOTRUE_DB_DATABASE_URL: serviceDatabaseUrl(
       "supabase_auth_admin",
       logins,
