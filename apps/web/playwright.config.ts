@@ -86,7 +86,7 @@ export default defineConfig({
         ...serverEnv,
         NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
-        SUPABASE_INTERNAL_URL: process.env.SUPABASE_INTERNAL_URL ?? supabaseUrl,
+        SUPABASE_INTERNAL_URL: supabaseUrl,
         MDF_WEB_DATABASE_URL: process.env.MDF_WEB_DATABASE_URL ?? "",
         // The shared origin configuration binds discovery and bearer audiences.
         SITE_URL: AUTH_ORIGINS[stack].siteUrl,

@@ -110,6 +110,7 @@ export async function startFakeWorker(
       env: {
         ...process.env,
         WORKER_FAKE: "1",
+        WORKER_ENV_FILES: "",
         SUPABASE_URL: supabaseUrl,
         SUPABASE_SERVICE_ROLE_KEY: required("SUPABASE_SERVICE_ROLE_KEY"),
         WORKER_ID: workerId,
