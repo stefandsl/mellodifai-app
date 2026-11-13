@@ -1,9 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
-import { serviceClient } from "./support";
+import { screenshotDir, serviceClient } from "./support";
 
-const shots = "E:/mellodifai/codex-streams/karaoke/shots";
+const shots = screenshotDir();
 const title = `Karaoke E2E ${Date.now()}`;
 
 function wav(seconds: number) {

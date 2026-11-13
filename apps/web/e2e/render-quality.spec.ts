@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
-import { E2E_ADMIN_EMAIL, serviceClient } from "./support";
+import { E2E_ADMIN_EMAIL, screenshotDir, serviceClient } from "./support";
 
 test("Video Studio keeps its 4K choice usable at desktop heights", async ({
   page,
@@ -57,9 +57,7 @@ test("Video Studio keeps its 4K choice usable at desktop heights", async ({
     "aria-checked",
     "true",
   );
-  const shots =
-    process.env.E2E_SCREENSHOT_DIR ??
-    "E:/mellodifai/codex-streams/render-4k/shots";
+  const shots = process.env.E2E_SCREENSHOT_DIR ?? screenshotDir();
   await mkdir(shots, { recursive: true });
   for (const viewport of [
     { width: 1440, height: 900 },

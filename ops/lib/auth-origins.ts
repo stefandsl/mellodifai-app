@@ -1,4 +1,11 @@
 // Shared by stack rendering and Next without importing filesystem tooling into Next.
+function testEdgeOrigin(): string {
+  const port = Number(process.env.E2E_EDGE_PORT ?? 3212);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535)
+    throw new Error("Invalid E2E_EDGE_PORT");
+  return `http://127.0.0.1:${port}`;
+}
+
 export const AUTH_ORIGINS = {
   dev: {
     issuer: null,
@@ -6,14 +13,14 @@ export const AUTH_ORIGINS = {
     redirectUrls: ["http://127.0.0.1:3001/**", "http://localhost:3001/**"],
   },
   e2e: {
-    issuer: "http://127.0.0.1:3212/oauth",
+    issuer: `${testEdgeOrigin()}/oauth`,
     siteUrl: "http://127.0.0.1:3210",
-    redirectUrls: ["http://127.0.0.1:3210/**", "http://127.0.0.1:3212/**"],
+    redirectUrls: ["http://127.0.0.1:3210/**", `${testEdgeOrigin()}/**`],
   },
   ci: {
-    issuer: "http://127.0.0.1:3212/oauth",
+    issuer: `${testEdgeOrigin()}/oauth`,
     siteUrl: "http://127.0.0.1:3210",
-    redirectUrls: ["http://127.0.0.1:3210/**", "http://127.0.0.1:3212/**"],
+    redirectUrls: ["http://127.0.0.1:3210/**", `${testEdgeOrigin()}/**`],
   },
   prod: {
     issuer: "https://app.mellodifai.com/oauth",

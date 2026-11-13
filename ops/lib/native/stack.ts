@@ -294,6 +294,7 @@ async function startNative(
             "RUNNER_TEMP",
             "CI",
             "E2E_PORT",
+            "E2E_EDGE_PORT",
           ]
             .filter((name) => process.env[name] !== undefined)
             .map((name) => [name, process.env[name] as string]),

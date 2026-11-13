@@ -1,10 +1,10 @@
 import type { ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-
 import {
   E2E_ADMIN_EMAIL,
   getAdminId,
+  screenshotDir,
   serviceClient,
   signIn,
   startFakeWorker,
@@ -154,7 +154,7 @@ test("remake: paste a link, follow the progress, review, edit a line, accept and
       }),
     ]),
   );
-  const shots = "E:/mellodifai/codex-streams/e2e-coverage/shots";
+  const shots = screenshotDir();
   await mkdir(shots, { recursive: true });
   for (const [width, height] of [
     [1440, 900],

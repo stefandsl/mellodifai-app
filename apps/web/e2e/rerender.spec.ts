@@ -8,6 +8,7 @@ import { assertTestStack } from "../../../ops/test-db-guard";
 import { localSupabaseUrl } from "./local-env";
 import {
   createFrenchProject,
+  screenshotDir,
   serviceClient,
   startFakeWorker,
   stopWorker,
@@ -272,7 +273,7 @@ test("published song starts a new render and keeps its original publication", as
     await expect(
       page.getByRole("button", { name: "Nuovo render" }),
     ).toBeVisible();
-    const shots = "E:/mellodifai/codex-streams/m1-integrate/shots";
+    const shots = screenshotDir();
     await mkdir(shots, { recursive: true });
     await page.screenshot({
       path: join(shots, `legacy-rerender-${width}x${height}.png`),

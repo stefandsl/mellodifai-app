@@ -3,13 +3,14 @@ import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import {
   E2E_ADMIN_EMAIL,
+  screenshotDir,
   serviceClient,
   signIn,
   startFakeWorker,
   stopWorker,
 } from "./support";
 
-const shots = "E:/mellodifai/codex-streams/e2e-coverage/shots";
+const shots = screenshotDir();
 let worker: ChildProcess | undefined;
 
 test.beforeAll(async () => {

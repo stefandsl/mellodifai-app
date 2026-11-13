@@ -27,7 +27,9 @@ test("sign in with the 6-digit code from the mail catcher", async ({
     });
     await page.getByLabel("Indirizzo email").fill(email);
     await page.getByRole("button", { name: "Invia link di accesso" }).click();
-    const mailpit = process.env.MAILPIT_URL ?? "http://127.0.0.1:45624";
+    const mailpit = process.env.MAILPIT_URL;
+    if (!mailpit)
+      throw new Error("MAILPIT_URL from stack.ts env-file is required");
     let messageId = "";
     await expect
       .poll(async () => {

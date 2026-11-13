@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { type APIRequestContext, expect } from "@playwright/test";
+import { AUTH_ORIGINS } from "../../../../ops/lib/auth-origins";
 import { ownerConnection } from "../../../../ops/lib/pg";
 import { assertTestWebStack } from "../../../../ops/test-db-guard";
 
@@ -8,7 +9,9 @@ export function oauthSql() {
   return ownerConnection(process.env.TEST_DB_URL as string);
 }
 
-export const OAUTH_ORIGIN = "http://127.0.0.1:3212";
+export const OAUTH_ORIGIN = new URL(
+  AUTH_ORIGINS[process.env.CI === "true" ? "ci" : "e2e"].issuer,
+).origin;
 export const OAUTH_RESOURCE = `${OAUTH_ORIGIN}/api/mcp`;
 export const OAUTH_REDIRECT = `${OAUTH_ORIGIN}/oauth-client/callback`;
 export const CLIENT_NAME = "MellodifAI E2E";

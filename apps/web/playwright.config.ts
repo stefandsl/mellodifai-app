@@ -10,7 +10,17 @@ const supabaseUrl = localSupabaseUrl();
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
 const port = Number(process.env.E2E_PORT ?? 3210);
 const base = `http://127.0.0.1:${port}`;
-const stack = process.env.CI === "true" ? "ci" : "e2e";
+const authPort = Number(process.env.E2E_AUTH_PORT ?? 3211);
+const stack = new URL(supabaseUrl).port === "45621" ? "e2e" : "ci";
+const edge = new URL(AUTH_ORIGINS[stack].issuer);
+for (const value of [port, authPort, Number(edge.port)]) {
+  if (!Number.isInteger(value) || value < 1024 || value > 65535)
+    throw new Error("Invalid E2E server port");
+}
+if (new Set([port, authPort, Number(edge.port)]).size !== 3)
+  throw new Error("E2E servers require three distinct ports");
+if (process.env.WORKER_FAKE !== "1")
+  throw new Error("E2E requires WORKER_FAKE=1");
 const runtime =
   process.env.RUNNER_TEMP || process.env.MELLODIFAI_ROOT || "E:/mellodifai";
 // The provisioned runtime directory already exists, including RUNNER_TEMP in CI.
@@ -48,21 +58,21 @@ export default defineConfig({
   webServer: [
     {
       command: `pnpm --filter @mellodifai/auth exec node --env-file="${authSecrets}/auth.env" --import tsx src/main.ts`,
-      url: "http://127.0.0.1:3211/oauth/.well-known/openid-configuration",
+      url: `http://127.0.0.1:${authPort}/oauth/.well-known/openid-configuration`,
       timeout: 60_000,
       reuseExistingServer: false,
       env: {
         ...serverEnv,
         HOST: "127.0.0.1",
-        PORT: "3211",
+        PORT: String(authPort),
         MDF_AUTH_ISSUER: AUTH_ORIGINS[stack].issuer,
         MDF_AUTH_DATABASE_URL: process.env.MDF_AUTH_DATABASE_URL ?? "",
         MDF_AUTH_JWKS_PATH: `${authSecrets}/jwks.json`,
       },
     },
     {
-      command: `pnpm --workspace-root ops edge-proxy.ts --mode local --listen 3212 --next ${base} --auth http://127.0.0.1:3211`,
-      url: "http://127.0.0.1:3212/.well-known/oauth-authorization-server/oauth",
+      command: `pnpm --workspace-root ops edge-proxy.ts --mode local --listen ${edge.port} --next ${base} --auth http://127.0.0.1:${authPort}`,
+      url: `${edge.origin}/.well-known/oauth-authorization-server/oauth`,
       timeout: 60_000,
       reuseExistingServer: false,
       env: serverEnv,
@@ -78,7 +88,7 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
         SUPABASE_INTERNAL_URL: process.env.SUPABASE_INTERNAL_URL ?? supabaseUrl,
         MDF_WEB_DATABASE_URL: process.env.MDF_WEB_DATABASE_URL ?? "",
-        // The canonical resource remains on 3212 even with the local 3219 override.
+        // The shared origin configuration binds discovery and bearer audiences.
         SITE_URL: AUTH_ORIGINS[stack].siteUrl,
       },
     },

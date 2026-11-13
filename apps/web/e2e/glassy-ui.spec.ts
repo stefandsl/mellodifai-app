@@ -1,15 +1,15 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
-import { serviceClient } from "./support";
+import { screenshotDir, serviceClient } from "./support";
 
-const shots = "E:/mellodifai/codex-streams/glassy-ui/shots";
+const shots = screenshotDir();
 const sizes = [
   [1440, 900],
   [1360, 600],
   [390, 844],
 ] as const;
-test.use({ trace: "on" });
+test.use({ trace: "off" });
 
 function wav() {
   const samples = 12 * 8000;

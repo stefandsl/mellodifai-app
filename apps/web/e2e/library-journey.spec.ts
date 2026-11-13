@@ -1,6 +1,12 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { E2E_ADMIN_EMAIL, getAdminId, serviceClient, signIn } from "./support";
+import {
+  E2E_ADMIN_EMAIL,
+  getAdminId,
+  screenshotDir,
+  serviceClient,
+  signIn,
+} from "./support";
 
 function wav(seconds: number) {
   const samples = seconds * 8000;
@@ -232,7 +238,7 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
       lyrics.getByRole("button", { name: "Cammino nella notte" }),
     ).toHaveAttribute("aria-current", "true", { timeout: 5_000 });
     await expect(page.getByText(/Tolta da "Ascolti/u)).toHaveCount(0);
-    await mkdir("E:/mellodifai/codex-streams/e2e-coverage/shots", {
+    await mkdir(screenshotDir(), {
       recursive: true,
     });
     for (const [width, height] of [
@@ -245,7 +251,7 @@ test("library actions, karaoke and trimmed WAV export keep the song data", async
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBeLessThanOrEqual(width);
       await page.screenshot({
-        path: `E:/mellodifai/codex-streams/e2e-coverage/shots/library-karaoke-${width}x${height}.png`,
+        path: `${screenshotDir()}/library-karaoke-${width}x${height}.png`,
         animations: "disabled",
       });
     }

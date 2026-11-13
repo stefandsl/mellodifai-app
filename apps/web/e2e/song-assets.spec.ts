@@ -8,6 +8,7 @@ import postgres from "postgres";
 import { localSupabaseUrl } from "./local-env";
 import {
   createFrenchProject,
+  screenshotDir,
   serviceClient,
   startFakeWorker,
   stopWorker,
@@ -259,7 +260,7 @@ test("two songs keep their own storyboard, thumbnail and publish kit", async ({
       .locator("summary")
       .click();
     await expect(page.getByText("Verse 1", { exact: true })).toBeVisible();
-    const shots = "E:/mellodifai/codex-streams/song-assets/shots";
+    const shots = screenshotDir();
     await mkdir(shots, { recursive: true });
     for (const [width, height] of [
       [1440, 900],

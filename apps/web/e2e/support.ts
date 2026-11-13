@@ -1,5 +1,6 @@
 import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
@@ -13,6 +14,12 @@ const workerRoot = fileURLToPath(new URL("../../worker/", import.meta.url));
 const workerRequire = createRequire(
   new URL("../../worker/package.json", import.meta.url),
 );
+
+export function screenshotDir() {
+  const root = process.env.MELLODIFAI_ROOT ?? process.env.RUNNER_TEMP;
+  if (!root) throw new Error("E2E requires a runtime root for screenshots");
+  return process.env.E2E_SCREENSHOT_DIR ?? join(root, "test-results/screens");
+}
 
 function required(name: string) {
   const value = process.env[name];
