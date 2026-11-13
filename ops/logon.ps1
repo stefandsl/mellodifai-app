@@ -6,6 +6,10 @@ param(
   [int]$RetrySeconds = 10
 )
 $ErrorActionPreference = 'Stop'
+$runtime = $env:MELLODIFAI_RUNTIME
+if (-not $runtime) { $runtime = 'native' }
+if ($runtime -notin @('native','docker')) { throw 'Runtime must be native or docker' }
+$env:MELLODIFAI_RUNTIME = $runtime
 $taskName = 'MellodifAI production logon'
 $Root = [IO.Path]::GetFullPath($Root)
 if ($Root -match '^[Cc]:\\') { throw 'Runtime root must be outside C:' }
@@ -65,13 +69,16 @@ $locked = $false
 try {
   try { $locked = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $locked = $true }
   if (-not $locked) { exit 0 }
-  Write-Log 'Starting production recovery; waiting for Docker.'
+  Write-Log ('Starting production recovery; runtime ' + $runtime + '.')
   for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
     # Native stderr and stdout are never persisted: Docker can print secrets.
     $previousPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    & docker info --format '{{.ServerVersion}}' *> $null
-    $dockerExit = $LASTEXITCODE
+    $dockerExit = 0
+    if ($runtime -eq 'docker') {
+      & docker info --format '{{.ServerVersion}}' *> $null
+      $dockerExit = $LASTEXITCODE
+    }
     $ErrorActionPreference = $previousPreference
     if ($dockerExit -eq 0) {
       $ErrorActionPreference = 'Continue'

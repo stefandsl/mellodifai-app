@@ -12,6 +12,8 @@ import { isDeepStrictEqual } from "node:util";
 import { parse } from "yaml";
 import { composeEnvironment } from "./lib/compose.js";
 import { ENV_TABLE, runtimePath, stackDir } from "./lib/envs.js";
+import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
+import { waitFor } from "./lib/native/processes.js";
 import { realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
 import { serviceErrorMessage } from "./lib/service-error.js";
@@ -35,7 +37,7 @@ import { loadStackSecrets } from "./lib/stack-secrets.js";
 import { workerEnvFile } from "./lib/worker-env.js";
 import { probe } from "./probe.js";
 import { reapplyDbPasswords } from "./rotate-db-passwords.js";
-import { planStackCommand } from "./stack.js";
+import { planStackCommand, runStack } from "./stack.js";
 
 // Keep the console attached for Windows credential prompts; capture output for the ACL probe.
 const interactiveRunner: typeof realRunner = (cmd, args, opts) => {
@@ -61,7 +63,16 @@ const interactiveRunner: typeof realRunner = (cmd, args, opts) => {
 export function presentServices(root: string): Set<Service> {
   const deploy = join(runtimePath(root), "deploy");
   const present = new Set<Service>();
-  if (existsSync(join(root, "stacks/prod/compose.json")))
+  if (
+    existsSync(
+      join(
+        root,
+        resolveRuntime(undefined) === "native"
+          ? "stacks/prod/native/first-boot.done"
+          : "stacks/prod/compose.json",
+      ),
+    )
+  )
     present.add("supabase");
   for (const app of ["worker", "auth", "web"] as const)
     if (existsSync(join(deploy, "apps", app, "package.json"))) present.add(app);
@@ -104,6 +115,11 @@ export async function managedService(
   const logs = runtimePath(join(root, "logs"));
   mkdirSync(logs, { recursive: true });
   if (service === "supabase") {
+    if (resolveRuntime(undefined) === "native") {
+      const output = await runStack(action, "prod", { runtime: "native" });
+      if (output) process.stdout.write(`${output}\n`);
+      return;
+    }
     const secrets = await loadStackSecrets("prod", true);
     const env = composeEnvironment("prod", secrets);
     if (action === "start") {
@@ -158,10 +174,16 @@ export async function managedService(
     ) as {
       pid: number;
       identity: string;
+      supervisorPid?: number;
+      supervisorIdentity?: string;
     };
-    pid = state.pid;
+    pid =
+      state.supervisorPid && state.supervisorIdentity
+        ? state.supervisorPid
+        : state.pid;
     running =
-      Boolean(state.identity) && (await identity(pid)) === state.identity;
+      Boolean(state.identity) &&
+      (await identity(pid)) === (state.supervisorIdentity ?? state.identity);
   }
   if (action === "status") {
     process.stdout.write(`${running ? "running" : "stopped"}\n`);
@@ -182,6 +204,26 @@ export async function managedService(
     return;
   }
   if (running) return;
+  if (
+    resolveRuntime(undefined) === "native" &&
+    !(await waitFor(
+      async () => {
+        try {
+          const response = await fetch(
+            `http://127.0.0.1:${nativeLayout("prod").ports.api}/health`,
+            { signal: AbortSignal.timeout(2000) },
+          );
+          await response.body?.cancel();
+          return response.ok;
+        } catch {
+          return false;
+        }
+      },
+      60_000,
+      500,
+    ))
+  )
+    throw new Error("Native gateway is not ready; application start refused");
   const deploy = runtimePath(join(root, "deploy"));
   let cwd = deploy;
   let cmd = process.execPath;
@@ -268,7 +310,14 @@ export async function launchHostedService(opts: {
     "-ExecutionPolicy",
     "Bypass",
     "-File",
-    fileURLToPath(new URL("./service-host.ps1", import.meta.url)),
+    fileURLToPath(
+      new URL(
+        resolveRuntime(undefined) === "native"
+          ? "./native-service-host.ps1"
+          : "./service-host.ps1",
+        import.meta.url,
+      ),
+    ),
     "-Manifest",
     manifest,
   ]
