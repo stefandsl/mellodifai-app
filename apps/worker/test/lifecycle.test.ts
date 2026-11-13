@@ -3,9 +3,10 @@ import { PassThrough } from "node:stream";
 import { afterEach, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { Engine } from "../src/engine.js";
-import { type StageHandler, WorkerLoop } from "../src/loop.js";
+import type { StageHandler } from "../src/loop.js";
 import { installSignals, reportStartupFailure } from "../src/main.js";
 import { loadSecrets } from "../src/secrets.js";
+import { workerWithTestStages } from "./support/worker-loop.js";
 
 afterEach(() => vi.useRealTimers());
 function setup(handler?: StageHandler) {
@@ -32,7 +33,7 @@ function setup(handler?: StageHandler) {
     [{ id: "p", owner_id: "owner", topic: "topic", theme: "general" }],
   );
   const errors: string[] = [];
-  const loop = new WorkerLoop({
+  const loop = workerWithTestStages({
     db,
     workerId: "w",
     stages: handler ? { qa: handler } : {},
@@ -276,7 +277,7 @@ it.each(["stop", "lease loss"])(
         throw new Error("wrong sink");
       },
     });
-    const testLoop = new WorkerLoop({
+    const testLoop = workerWithTestStages({
       db,
       workerId: "w",
       stages: {

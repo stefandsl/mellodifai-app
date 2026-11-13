@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { Engine } from "../src/engine.js";
-import { WorkerLoop } from "../src/loop.js";
 import { loadSecrets } from "../src/secrets.js";
+import { workerWithTestStages } from "./support/worker-loop.js";
 
 const project = {
   id: "project-1",
@@ -59,7 +59,7 @@ describe("worker loop", () => {
       [{ ...version }],
       [project],
     );
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "test",
       stages: {
@@ -95,7 +95,7 @@ describe("worker loop", () => {
       calls.push(args);
       throw Object.assign(new Error("reservation refused"), { code: "MDF02" });
     };
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "test",
       stages: {
@@ -127,7 +127,7 @@ describe("worker loop", () => {
     );
     const ran: string[] = [];
     const workspaceModes: boolean[] = [];
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "test",
       stages: {
@@ -165,7 +165,7 @@ describe("worker loop", () => {
 
   it("fails a throwing handler and marks its version failed", async () => {
     const db = new InMemoryDb([{ ...job }], [{ ...version }], [project]);
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "test",
       stages: {
@@ -210,7 +210,7 @@ describe("worker loop", () => {
       events.push(`end:${ctx.job.id}`);
       return {};
     };
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "test",
       stages: { render_master: handler, render_hook: handler },
@@ -242,7 +242,7 @@ describe("worker loop", () => {
       [{ ...version }],
       [project],
     );
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "test",
       stages: {},

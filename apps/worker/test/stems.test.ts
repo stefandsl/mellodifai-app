@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb, type Take, type Version } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
 import { createFakeStages, fakePack } from "../src/fake/index.js";
-import { type StageContext, WorkerLoop } from "../src/loop.js";
+import type { StageContext } from "../src/loop.js";
 import { stages } from "../src/stages/index.js";
 import {
   DEMUCS_PYTHON,
@@ -25,6 +25,7 @@ import {
 } from "../src/stages/stems.js";
 import { stemPaths, upload } from "../src/stages/utils.js";
 import { recordingLedger } from "./support/ledger.js";
+import { workerWithTestStages } from "./support/worker-loop.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -321,7 +322,7 @@ describe("stems through the worker loop", () => {
   async function loopFor(setupResult: Awaited<ReturnType<typeof setup>>) {
     const { ctx, db } = setupResult;
     db.jobs.push({ ...ctx.job, status: "queued" });
-    return new WorkerLoop({
+    return workerWithTestStages({
       db,
       workerId: "worker",
       stages,

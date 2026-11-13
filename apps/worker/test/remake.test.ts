@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb, type Job, type Remake } from "../src/db.js";
 import { Engine } from "../src/engine.js";
 import { fakeRemakeEngine } from "../src/fake/remake.js";
-import { WorkerLoop } from "../src/loop.js";
 import { lyricsAssist } from "../src/stages/lyrics-assist.js";
 import { type RemakeEngine, remakeStages } from "../src/stages/remake.js";
 import { recordingLedger } from "./support/ledger.js";
+import { workerWithTestStages } from "./support/worker-loop.js";
 
 // Task 27: R1 to R3 as jobs of the remake's version (fake engine, real stage code and gates) and
 // the songless lyrics_assist job of the create panel.
@@ -115,7 +115,7 @@ function loop(
   engine: RemakeEngine = fakeRemakeEngine(async () => {}),
   root = scratch(),
 ) {
-  return new WorkerLoop({
+  return workerWithTestStages({
     db,
     workerId: "test",
     stages: remakeStages(engine, { root }),
@@ -707,7 +707,7 @@ describe("lyrics_assist (songless job)", () => {
       songless({ request_id: request("write", {}).id, version_id: "x" }),
     ]);
     db.lyricRequests.push({ ...request("write", { brief: "b" }) });
-    await new WorkerLoop({
+    await workerWithTestStages({
       db,
       workerId: "test",
       stages: {},
@@ -723,7 +723,7 @@ describe("lyrics_assist (songless job)", () => {
       ...request("write", { brief: "b" }),
       owner_id: "someone",
     });
-    await new WorkerLoop({
+    await workerWithTestStages({
       db: stranger,
       workerId: "test",
       stages: {},

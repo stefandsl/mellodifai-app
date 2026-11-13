@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { LANGS, type Lang } from "@mellodifai/shared";
 import { Engine } from "./engine.js";
 import { transcodePreview } from "./preview.js";
+import { workerTempDir } from "./runtime.js";
 
 export const LEGACY_PROJECT_TOPIC = "Va bene, passa (VBP)";
 export const LEGACY_PROJECT_BRIEF =
@@ -174,9 +175,9 @@ export function createLegacyFiles(
     source,
     output,
   ) => {
-    await mkdir("E:\\mellodifai\\tmp", { recursive: true });
     await transcodePreview(new Engine({ log: async () => {} }), source, output);
   },
+  tempRoot = workerTempDir(),
 ): LegacyImportFiles {
   return {
     async readPack(lang) {
@@ -199,16 +200,11 @@ export function createLegacyFiles(
     videoPath: (lang) => join(finalRoot, lang, "video.mp4"),
     hookPath: (lang) => join(finalRoot, lang, "hook.mp4"),
     async uploads(lang, ownerId, projectId) {
+      await mkdir(tempRoot, { recursive: true });
       const root = join(finalRoot, lang);
       const prefix = `previews/${ownerId}/${projectId}/${lang}`;
-      const video = join(
-        "E:\\mellodifai\\tmp",
-        `${projectId}-${lang}-video-480p.mp4`,
-      );
-      const hook = join(
-        "E:\\mellodifai\\tmp",
-        `${projectId}-${lang}-hook-480p.mp4`,
-      );
+      const video = join(tempRoot, `${projectId}-${lang}-video-480p.mp4`);
+      const hook = join(tempRoot, `${projectId}-${lang}-hook-480p.mp4`);
       await encode(join(root, "video.mp4"), video);
       await encode(join(root, "hook.mp4"), hook);
       const uploads = [

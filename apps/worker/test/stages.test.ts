@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { Engine, type Spawn } from "../src/engine.js";
 import { createFakeStages, fakePack } from "../src/fake/index.js";
-import { type StageContext, WorkerLoop } from "../src/loop.js";
+import type { StageContext } from "../src/loop.js";
 import { startBalanceRefresh } from "../src/main.js";
 import { workerTempDir } from "../src/runtime.js";
 import { childEnvironment, loadSecrets } from "../src/secrets.js";
@@ -24,6 +24,7 @@ import { stages } from "../src/stages/index.js";
 import { nextPacificQuotaTime } from "../src/stages/quota.js";
 import { ENGINE_ROOT, writePack } from "../src/stages/utils.js";
 import { recordingLedger } from "./support/ledger.js";
+import { workerWithTestStages } from "./support/worker-loop.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
@@ -745,7 +746,7 @@ describe("round 2 hardening", () => {
   it("rejects foreign payload ids even when the stage and row ownership are valid", async () => {
     const { ctx, db, calls } = await setup();
     db.jobs.push({ ...ctx.job, payload: { take_id: "foreign" } });
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "worker",
       stages,
@@ -839,7 +840,7 @@ describe("round 2 hardening", () => {
       stage: "publish",
       payload: { version_id: "foreign" },
     });
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "worker",
       stages,
@@ -1650,7 +1651,7 @@ it("pre-migration job reserves on demand before the first paid call", async () =
     });
     return engine;
   });
-  await new WorkerLoop({
+  await workerWithTestStages({
     db,
     workerId: "worker",
     stages,
@@ -1675,7 +1676,7 @@ it("a refused on-demand reservation fails with cap_exceeded and makes no provide
   ctx.version.status = "song_queued";
   db.jobs.push(ctx.job);
   vi.mocked(kieLedger.reservationFor).mockRejectedValue({ code: "MDF06" });
-  await new WorkerLoop({
+  await workerWithTestStages({
     db,
     workerId: "worker",
     stages,
@@ -1727,7 +1728,7 @@ it("a kie submit timeout marks the reservation ambiguous before failing the stag
   output.submitError = "TimeoutError: request timed out after POST";
   db.jobs.push(ctx.job);
   const failJob = vi.spyOn(db, "failJob");
-  const loop = new WorkerLoop({
+  const loop = workerWithTestStages({
     db,
     workerId: "worker",
     stages,
@@ -2060,7 +2061,7 @@ describe("stage safety and behavior", () => {
     });
     ctx.version.status = "approved";
     db.jobs.push({ ...ctx.job, stage: "publish" });
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "worker",
       stages,
@@ -2303,7 +2304,7 @@ describe("stage safety and behavior", () => {
   it("runs the producing chain using the version render attempt", async () => {
     const { ctx, db, groqLedger } = await setup();
     db.jobs.push(ctx.job);
-    const loop = new WorkerLoop({
+    const loop = workerWithTestStages({
       db,
       workerId: "worker",
       stages,
@@ -2445,7 +2446,7 @@ it("runs master-only lyric alignment through the fake worker", async () => {
     payload: { source: "master" },
     idempotency_key: "align_lyrics:master:version",
   });
-  const loop = new WorkerLoop({
+  const loop = workerWithTestStages({
     db,
     workerId: "worker",
     stages: createFakeStages({ tempRoot: ctx.ws.root, sleep: async () => {} }),

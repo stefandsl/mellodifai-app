@@ -1,11 +1,25 @@
+import { execFile } from "node:child_process";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { LANGS } from "@mellodifai/shared";
 import { describe, expect, it, vi } from "vitest";
+import { Engine } from "../src/engine.js";
 import {
   createLegacyFiles,
   importLegacy,
   type LegacyImportDb,
   type LegacyImportFiles,
 } from "../src/legacy-import.js";
+import { transcodePreview } from "../src/preview.js";
 
 class FakeDb implements LegacyImportDb {
   completed = new Set<string>();
@@ -149,19 +163,74 @@ describe("importLegacy", () => {
     expect(JSON.stringify(db)).toBe(rows);
     expect(upload).toHaveBeenCalledTimes(4);
   });
-  it.runIf(process.env.TEST_LEGACY_FILES === "1")(
-    "imports real shipped packs for all languages twice into a fake database",
-    async () => {
+  it("imports filesystem packs and real previews for all languages twice into a fake database", async () => {
+    const root = await mkdtemp(join(tmpdir(), "native-legacy-test-"));
+    try {
+      const versions = join(root, "versions");
+      const final = join(root, "final");
+      const previews = join(root, "previews");
+      const source = join(root, "fixture.mp4");
+      await promisify(execFile)(
+        "ffmpeg",
+        [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-f",
+          "lavfi",
+          "-i",
+          "color=c=blue:s=32x32:r=1:d=1",
+          "-c:v",
+          "libx264",
+          "-pix_fmt",
+          "yuv420p",
+          source,
+        ],
+        { windowsHide: true },
+      );
+      for (const lang of LANGS) {
+        const pack = join(versions, lang);
+        const render = join(final, lang);
+        await mkdir(pack, { recursive: true });
+        await mkdir(render, { recursive: true });
+        for (const [name, content] of Object.entries({
+          "title.txt": `${lang} fixture title`,
+          "lyrics.txt": "Fixture lyrics",
+          "style.txt": "Fixture style",
+          "exclude.txt": "",
+          "settings.json": "{}",
+          "display-map.json": "{}",
+          "storyboard-l10n.json": "{}",
+        }))
+          await writeFile(join(pack, name), content);
+        await copyFile(source, join(render, "video.mp4"));
+        await copyFile(source, join(render, "hook.mp4"));
+        await writeFile(
+          join(final, `${lang}.srt`),
+          "1\n00:00:00,000 --> 00:00:01,000\nFixture\n",
+        );
+      }
       const db = new FakeDb();
-      const realFiles = createLegacyFiles();
-      const upload = vi.fn(async () => {});
+      const encode = async (input: string, output: string) => {
+        expect(output.startsWith(previews)).toBe(true);
+        await transcodePreview(
+          new Engine({ log: async () => {} }),
+          input,
+          output,
+        );
+      };
+      const realFiles = createLegacyFiles(versions, final, encode, previews);
+      const upload = vi.fn(async ({ localFile }: { localFile: string }) => {
+        expect((await readFile(localFile)).length).toBeGreaterThan(0);
+      });
       await importLegacy({
         db,
         files: { ...realFiles, upload },
         ownerId: "owner",
-        onLanguage: (lang) => console.log(`${lang}: imported (fake database)`),
       });
       const calls = upload.mock.calls.length;
+      expect(calls).toBe(33);
       await importLegacy({
         db,
         files: { ...realFiles, upload },
@@ -170,8 +239,10 @@ describe("importLegacy", () => {
       expect(db.versions).toHaveLength(11);
       expect(db.renders).toHaveLength(22);
       expect(upload).toHaveBeenCalledTimes(calls * 2);
-    },
-  );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 60_000);
   it("retries an interrupted upload and only marks completion after success", async () => {
     const db = new FakeDb();
     const upload = vi
