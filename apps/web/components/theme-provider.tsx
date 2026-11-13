@@ -1,12 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { THEME_KEY as KEY } from "@/lib/theme";
 
 export type Theme = "dark" | "light";
-const KEY = "mellodifai-theme";
-
-// Runs before paint from the server-rendered <head>, so the saved theme never flashes.
-export const THEME_SCRIPT = `try{var t=localStorage.getItem("${KEY}");var c=document.documentElement.classList;if(t==="light"){c.remove("dark");c.add("light")}}catch(e){}`;
 
 function read(): Theme {
   return document.documentElement.classList.contains("light")

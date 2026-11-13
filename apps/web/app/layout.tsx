@@ -3,10 +3,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/components/locale-provider";
-import { THEME_SCRIPT } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getLocale } from "@/lib/locale";
 import { GLASS_SCRIPT } from "@/lib/studio/ambient";
+import { THEME_SCRIPT } from "@/lib/theme";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({
