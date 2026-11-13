@@ -1,4 +1,6 @@
+import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { composeEnvironment, renderCompose } from "../compose.js";
 import { ENV_TABLE, redirectUrls, type StackEnv } from "../envs.js";
 import type { StackSecrets } from "../stack-secrets.js";
@@ -34,6 +36,16 @@ export interface PlanInput {
   /** Node and tsx entry used to run TypeScript from ops/. */
   tsx: { node: string; cli: string };
   opsDir: string;
+}
+
+/** The tsx CLI spawns a child but does not relay IPC disconnect. Load tsx
+ * in the gateway itself so its supervisor owns the actual IPC endpoint. */
+export function gatewayArgs(opsDir: string): string[] {
+  return [
+    "--import",
+    pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+    join(opsDir, "native-gateway.ts"),
+  ];
 }
 
 /** Resolve the Compose interpolation forms the pinned baseline and the SMTP
@@ -253,7 +265,7 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
   specs.push({
     id: "gateway",
     command: input.tsx.node,
-    args: [input.tsx.cli, join(input.opsDir, "native-gateway.ts")],
+    args: gatewayArgs(input.opsDir),
     env: {
       ...base,
       MDF_GATEWAY_CONFIG: join(layout.config, GATEWAY_CONFIG_FILE),

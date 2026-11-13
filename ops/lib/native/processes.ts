@@ -198,7 +198,10 @@ export class Supervisor {
       phase: "starting",
       updatedAt: new Date().toISOString(),
       services: Object.fromEntries(
-        this.ordered.map((item) => [item.id, { status: "pending", restarts: 0 }]),
+        this.ordered.map((item) => [
+          item.id,
+          { status: "pending", restarts: 0 },
+        ]),
       ),
     };
     this.save();
@@ -366,6 +369,9 @@ export function childService(
           cwd: spec.cwd,
           env: spec.env,
           stdio: ["ignore", out, out, ...(spec.ipc ? ["ipc" as const] : [])],
+          // A separate Windows process group survives the parent's console
+          // teardown long enough to handle IPC disconnect and drain cleanly.
+          detached: spec.ipc === true,
           windowsHide: true,
         });
       } finally {
@@ -414,7 +420,9 @@ export async function acquireLock(path: string): Promise<() => void> {
       writeFileSync(path, JSON.stringify(self), { flag: "wx" });
       return () => {
         try {
-          const holder = JSON.parse(readFileSync(path, "utf8")) as ProcessIdentity;
+          const holder = JSON.parse(
+            readFileSync(path, "utf8"),
+          ) as ProcessIdentity;
           if (holder.pid === self.pid && holder.startedAt === self.startedAt)
             rmSync(path);
         } catch {

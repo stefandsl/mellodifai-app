@@ -1,7 +1,13 @@
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import {
   type ClientRequest,
   createServer,
@@ -14,7 +20,7 @@ import {
 import { type AddressInfo, connect, type Socket } from "node:net";
 import { basename, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   createGateway,
@@ -24,6 +30,7 @@ import {
   type GatewayLogEntry,
   parseGatewayConfig,
 } from "../../lib/native/gateway.js";
+import { gatewayArgs } from "../../lib/native/plan.js";
 import { loadGatewayConfig } from "../../native-gateway.js";
 
 // Made-up credentials: nothing here signs or opens anything.
@@ -1870,25 +1877,22 @@ it("reads its config file without ever quoting it in an error", () => {
 function launch(configFile: string | undefined) {
   const ops = fileURLToPath(new URL("../../", import.meta.url));
   const { MDF_GATEWAY_CONFIG: _inherited, ...env } = process.env;
-  const child = spawn(
-    process.execPath,
-    ["--import", "tsx", join(ops, "native-gateway.ts")],
-    {
-      cwd: ops,
-      env: {
-        ...env,
-        ...(configFile ? { MDF_GATEWAY_CONFIG: configFile } : {}),
-        // A lenient parser asked for process-wide must not reach the gateway.
-        NODE_OPTIONS: "--insecure-http-parser",
-        // tsx keeps its transform cache in the temp directory: not on C:.
-        TEMP: tempBase,
-        TMP: tempBase,
-        TMPDIR: tempBase,
-      },
-      stdio: ["ignore", "pipe", "pipe", "ipc"],
-      windowsHide: true,
+  const child = spawn(process.execPath, gatewayArgs(ops), {
+    cwd: ops,
+    env: {
+      ...env,
+      ...(configFile ? { MDF_GATEWAY_CONFIG: configFile } : {}),
+      // A lenient parser asked for process-wide must not reach the gateway.
+      NODE_OPTIONS: "--insecure-http-parser",
+      // tsx keeps its transform cache in the temp directory: not on C:.
+      TEMP: tempBase,
+      TMP: tempBase,
+      TMPDIR: tempBase,
     },
-  );
+    stdio: ["ignore", "pipe", "pipe", "ipc"],
+    detached: true,
+    windowsHide: true,
+  });
   closers.push(() => {
     child.kill();
   });
@@ -1985,6 +1989,83 @@ it("runs as a process: listens on loopback, serves, and stops cleanly when its s
   await expect(send(port, "/health")).rejects.toThrow();
 });
 
+it("releases its port and exits zero when the actual parent dies", {
+  timeout: 30_000,
+}, async () => {
+  const { config } = await stack();
+  const dir = fixtureDir();
+  const ops = fileURLToPath(new URL("../../", import.meta.url));
+  const configFile = join(dir, "gateway.json");
+  const logFile = join(dir, "gateway.log");
+  const exitFile = join(dir, "exit.json");
+  const observer = join(dir, "observe.mjs");
+  const parentFile = join(dir, "parent.cjs");
+  const { log: _log, ...serializable } = config;
+  writeFileSync(configFile, JSON.stringify(serializable));
+  writeFileSync(
+    observer,
+    `import { writeFileSync } from 'node:fs'; process.on('exit', code => writeFileSync(${JSON.stringify(exitFile)}, JSON.stringify({code, pid: process.pid})));`,
+  );
+  writeFileSync(
+    parentFile,
+    `
+    const { spawn } = require('node:child_process');
+    const { openSync, closeSync } = require('node:fs');
+    const fd = openSync(${JSON.stringify(logFile)}, 'a');
+    const child = spawn(process.execPath, ${JSON.stringify(gatewayArgs(ops))}, {
+      cwd: ${JSON.stringify(ops)}, windowsHide: true, detached: true,
+      stdio: ['ignore', fd, fd, 'ipc'],
+      env: { ...process.env, MDF_GATEWAY_CONFIG: ${JSON.stringify(configFile)}, NODE_OPTIONS: ${JSON.stringify(`--import=${pathToFileURL(observer).href}`)} }
+    });
+    closeSync(fd);
+    child.on('spawn', () => process.send({pid: child.pid}));
+    setInterval(() => {}, 1000);
+  `,
+  );
+  const parent = spawn(process.execPath, [parentFile], {
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+    windowsHide: true,
+    env: { ...process.env, TEMP: tempBase, TMP: tempBase, TMPDIR: tempBase },
+  });
+  closers.push(() => {
+    parent.kill();
+  });
+  const [{ pid }] = (await once(parent, "message")) as [{ pid: number }];
+  closers.push(() => {
+    try {
+      process.kill(pid);
+    } catch {}
+  });
+  let port = 0;
+  await vi.waitFor(
+    () => {
+      const events = readFileSync(logFile, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      port = events.find((event) => event.event === "listening")?.port ?? 0;
+      expect(port).toBeGreaterThan(0);
+    },
+    { timeout: 15_000 },
+  );
+  expect((await send(port, "/health")).status).toBe(200);
+  const dead = once(parent, "exit");
+  parent.kill();
+  await dead;
+  await vi.waitFor(
+    () =>
+      expect(JSON.parse(readFileSync(exitFile, "utf8"))).toEqual({
+        code: 0,
+        pid,
+      }),
+    { timeout: 15_000 },
+  );
+  expect(readFileSync(logFile, "utf8")).toMatch(/"reason":"disconnect"/);
+  // Binding the exact port proves it was released, rather than just unhealthy.
+  const rebound = createServer().listen(port, "127.0.0.1");
+  await once(rebound, "listening");
+  await new Promise<void>((resolve) => rebound.close(() => resolve()));
+});
 it("stops as a process, instead of crashing or lingering, when its log pipe breaks", {
   timeout: 60_000,
 }, async () => {
