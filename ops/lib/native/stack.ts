@@ -11,7 +11,7 @@ import {
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ENV_TABLE, type StackEnv, stackDir } from "../envs.js";
-import { prepareStackDir, renderConfig } from "../render.js";
+import { renderConfig } from "../render.js";
 import { readStackPasswords } from "../roles.js";
 import { type Runner, realRunner } from "../run.js";
 import { loadStackSecrets } from "../stack-secrets.js";
@@ -37,7 +37,7 @@ import {
   waitFor,
 } from "./processes.js";
 import { assertProductionSecrets } from "./production-secrets.js";
-import { nativeSourceRoot } from "./source.js";
+import { nativeSourceRoot, prepareNativeSource } from "./source.js";
 import {
   migrateApp,
   nativeContext,
@@ -104,7 +104,7 @@ export function assertNativeCommand(
 export async function renderNative(env: StackEnv): Promise<NativeLayout> {
   if (env === "prod") assertProductionSecrets();
   const dir = stackDir(env);
-  prepareStackDir(dir, repo);
+  prepareNativeSource(dir, repo);
   writeFileSync(
     join(dir, "supabase/config.toml"),
     renderConfig(
