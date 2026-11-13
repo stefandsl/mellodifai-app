@@ -10,6 +10,7 @@ import {
   reapplyNativeLogins,
   rotateNativeLogins,
 } from "./lib/native/credentials.js";
+import { safeFailure } from "./lib/native/diagnostics.js";
 import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
 import { loadNativeLogins } from "./lib/native/secrets.js";
 import { databaseUrl } from "./lib/pg.js";
@@ -331,9 +332,9 @@ if (
     );
     process.exitCode = 1;
   } else
-    rotateDbPasswords(env, realRunner).catch(() => {
+    rotateDbPasswords(env, realRunner).catch((error: unknown) => {
       process.stderr.write(
-        "Database rotation failed; restore prerequisites and reapply the stored credentials\n",
+        `Database rotation failed; restore prerequisites and reapply the stored credentials\n${safeFailure(error)}\n`,
       );
       process.exitCode = 1;
     });

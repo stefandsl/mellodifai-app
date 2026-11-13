@@ -5,6 +5,7 @@ import { ENV_TABLE, type StackEnv, stackDir } from "../envs.js";
 import { writePrivate } from "../private-file.js";
 import { randomPassword } from "../roles.js";
 import { nativeDatabase } from "./backup.js";
+import { NativeDiagnosticError, safeFailure } from "./diagnostics.js";
 import { maintenanceDatabase } from "./maintenance.js";
 import {
   applyLogins,
@@ -137,7 +138,8 @@ export async function rotateNativeLogins(env: StackEnv): Promise<void> {
     await writePrivate(pending, JSON.stringify({ phase: "complete" }));
     // Keep a non-secret completion witness, moving the journal permits another rotation.
     renameSync(pending, `${pending}.${Date.now()}.done`);
-  } catch {
+  } catch (error) {
+    const failure = `Native database rotation failed at ${stage}: ${safeFailure(error)}`;
     await admin.end().catch(() => {});
     await maintenance.stop().catch(() => {});
     // If activation has started, connect using the persisted new credentials.
@@ -157,15 +159,16 @@ export async function rotateNativeLogins(env: StackEnv): Promise<void> {
         await maintenance.stop();
       }
       await runStack("start", env, { runtime: "native" });
-      await writePrivate(pending, JSON.stringify({ phase: "rolled-back" }));
-    } catch {
-      throw new Error(
-        "Native database rotation recovery failed; private journal retained",
+      await writePrivate(
+        pending,
+        JSON.stringify({ phase: "rolled-back", failure }),
+      );
+    } catch (recoveryError) {
+      throw new NativeDiagnosticError(
+        `${failure}; recovery failed: ${safeFailure(recoveryError)}; private journal retained`,
       );
     }
-    throw new Error(
-      `Native database rotation failed at ${stage}; old credentials restored`,
-    );
+    throw new NativeDiagnosticError(`${failure}; old credentials restored`);
   }
   // Application URLs must be updated by the caller before application writers start.
 }

@@ -18,6 +18,7 @@ import { loadStackSecrets } from "../stack-secrets.js";
 import { assertWindowsPorts } from "../windows-ports.js";
 import { seedDirsFromEnv } from "./artifacts.js";
 import { installNative, nativeTools } from "./build.js";
+import { NativeDiagnosticError, redactServiceOutput } from "./diagnostics.js";
 import {
   assertObjectMetadataSupport,
   assertSystemDiskFree,
@@ -329,8 +330,8 @@ async function startNative(
   if (!settled || final?.phase !== "ready") {
     // Never leave half a stack behind a failed start.
     await stopNative(layout).catch(() => {});
-    throw new Error(
-      `Native stack start failed: ${final?.error ?? (settled ? "the supervisor exited" : "timed out")}. See ${join(layout.logs, "supervisor.log")}`,
+    throw new NativeDiagnosticError(
+      `Native stack start failed: ${redactServiceOutput(final?.error ?? (settled ? `the supervisor exited (exit code ${exitCode ?? "unknown"})` : "timed out"))}. See ${join(layout.logs, "supervisor.log")}`,
     );
   }
   await apiReady(env, layout);
