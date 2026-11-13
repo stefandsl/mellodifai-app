@@ -186,6 +186,11 @@ describe("shortcut shim", () => {
     expect(shouldPause("status", 0, true)).toBe(true);
     expect(shouldPause("autostart", 1, true)).toBe(false);
     expect(shouldPause("start", 1, false)).toBe(false);
+    // A console opened by a silent installer looks interactive; it must never wait.
+    expect(shouldPause("install", 1, true, ["--unattended"])).toBe(false);
+    expect(
+      desktopCommand("install", ["--email", "a@b.it", "--unattended"], false),
+    ).toEqual(["setup", "--email", "a@b.it"]);
   });
 });
 
@@ -235,5 +240,11 @@ describe("installer build", () => {
       expect(script).toContain(`'\${RUN} ${command}'`);
     // Data is removed only when the owner says so.
     expect(script).toMatch(/MB_DEFBUTTON2[^\n]*IDNO keep_data/);
+    // The silent install runs unattended, and same-named links of the owner's survive.
+    expect(script).toMatch(
+      /\$\{If\} \$\{Silent\}\s+ExecWait[^\n]*--unattended/,
+    );
+    expect(script).toContain('StrCpy $3 "MellodifAI app.lnk"');
+    expect(script).not.toContain('Delete "$DESKTOP\\MellodifAI.lnk"');
   });
 });

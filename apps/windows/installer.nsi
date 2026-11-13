@@ -214,7 +214,7 @@ Section "MellodifAI" SecApp
 
   DetailPrint "Preparo MellodifAI: segui la finestra 'MellodifAI' (la prima volta 5-20 minuti)..."
   ${If} ${Silent}
-    ExecWait '${NODE} ${RUN} install --email "$Email" --no-browser' $0
+    ExecWait '${NODE} ${RUN} install --email "$Email" --no-browser --unattended' $0
   ${ElseIf} $Updating == "1"
     ExecWait '${NODE} ${RUN} install' $0
   ${Else}
@@ -226,14 +226,29 @@ Section "MellodifAI" SecApp
   ${EndIf}
 SectionEnd
 
+; A link the owner already has under the same name (for example one that opens another
+; MellodifAI installation) is never replaced: ours gets the free name, recorded for uninstall.
+!macro OwnLink FOLDER VALUE
+  ReadRegStr $3 HKCU "${APP_KEY}" "${VALUE}"
+  ${If} $3 == ""
+    StrCpy $3 "MellodifAI.lnk"
+    ${If} ${FileExists} "${FOLDER}\MellodifAI.lnk"
+      StrCpy $3 "MellodifAI app.lnk"
+    ${EndIf}
+    WriteRegStr HKCU "${APP_KEY}" "${VALUE}" $3
+  ${EndIf}
+!macroend
+
 Section "Icona sul desktop" SecDesktop
   SetShellVarContext current
-  CreateShortcut "$DESKTOP\MellodifAI.lnk" ${NODE} '${RUN} start' "$INSTDIR\mellodifai.ico" 0 SW_SHOWNORMAL "" "Apri MellodifAI"
+  !insertmacro OwnLink "$DESKTOP" "DesktopLink"
+  CreateShortcut "$DESKTOP\$3" ${NODE} '${RUN} start' "$INSTDIR\mellodifai.ico" 0 SW_SHOWNORMAL "" "Apri MellodifAI"
 SectionEnd
 
 Section "Avvia all'accesso a Windows" SecAutostart
   SetShellVarContext current
-  CreateShortcut "$SMSTARTUP\MellodifAI.lnk" ${NODE} '${RUN} autostart' "$INSTDIR\mellodifai.ico" 0 SW_SHOWMINIMIZED "" "Accende MellodifAI all'accesso"
+  !insertmacro OwnLink "$SMSTARTUP" "StartupLink"
+  CreateShortcut "$SMSTARTUP\$3" ${NODE} '${RUN} autostart' "$INSTDIR\mellodifai.ico" 0 SW_SHOWMINIMIZED "" "Accende MellodifAI all'accesso"
 SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
@@ -271,8 +286,15 @@ Section "Uninstall"
     Pop $0
     RMDir /r "$INSTDIR\data"
   ${EndIf}
-  Delete "$DESKTOP\MellodifAI.lnk"
-  Delete "$SMSTARTUP\MellodifAI.lnk"
+  ; Only the links this installer recorded; never a same-named link of the owner's.
+  ReadRegStr $3 HKCU "${APP_KEY}" "DesktopLink"
+  ${If} $3 != ""
+    Delete "$DESKTOP\$3"
+  ${EndIf}
+  ReadRegStr $3 HKCU "${APP_KEY}" "StartupLink"
+  ${If} $3 != ""
+    Delete "$SMSTARTUP\$3"
+  ${EndIf}
   RMDir /r "$SMPROGRAMS\${APP}"
   RMDir /r "$INSTDIR\app"
   RMDir /r "$INSTDIR\node"

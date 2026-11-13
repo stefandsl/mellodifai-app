@@ -49,15 +49,18 @@ export function installArgs(paths) {
 
 /** What the controller runs: the installer's "install" is setup (new) or update. */
 export function desktopCommand(command, args, ownerExists) {
-  if (command !== "install") return [command, ...args];
+  const own = args.filter((a) => a !== "--unattended");
+  if (command !== "install") return [command, ...own];
   return ownerExists
-    ? ["update", ...args.filter((a) => a === "--no-browser")]
-    : ["setup", ...args];
+    ? ["update", ...own.filter((a) => a === "--no-browser")]
+    : ["setup", ...own];
 }
 
-/** Which windows wait for Enter: errors always, readable results too, never at logon. */
-export function shouldPause(command, code, interactive) {
-  if (!interactive || command === "autostart") return false;
+/** Which windows wait for Enter: errors always, readable results too, never at logon
+ * or under a silent installer (whose console still looks interactive). */
+export function shouldPause(command, code, interactive, args = []) {
+  if (!interactive || command === "autostart" || args.includes("--unattended"))
+    return false;
   return code !== 0 || ["status", "backup", "restore"].includes(command);
 }
 
@@ -102,14 +105,19 @@ async function main() {
       env,
     );
   }
-  if (shouldPause(command, code, Boolean(process.stdin.isTTY))) {
+  if (shouldPause(command, code, Boolean(process.stdin.isTTY), args)) {
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
     });
     await rl.question("\nPremi Invio per chiudere questa finestra.");
     rl.close();
-  } else if (code === 0 && process.stdin.isTTY && command !== "autostart") {
+  } else if (
+    code === 0 &&
+    process.stdin.isTTY &&
+    command !== "autostart" &&
+    !args.includes("--unattended")
+  ) {
     console.log("\nPuoi chiudere questa finestra.");
     await new Promise((done) => setTimeout(done, 4000));
   }

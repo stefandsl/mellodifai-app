@@ -10,7 +10,9 @@ is not touched by anything here.
 **Install.** Docker Desktop must be installed (it is on this PC). Double-click
 `MellodifAI-Setup-<version>.exe`, keep the suggested folder (a disk other than C:, for example
 `E:\MellodifAI`), write your email, keep both boxes ticked (desktop icon, start at Windows
-logon) and press Installa. A black window called MellodifAI prepares the app: the first time it
+logon) and press Installa (if a MellodifAI icon is already on the desktop, for example the one
+that opens production, it stays and the new one is called "MellodifAI app"). A black window
+called MellodifAI prepares the app: the first time it
 downloads components (5-20 minutes, needs Internet), then opens MellodifAI in the browser with
 you already signed in.
 
