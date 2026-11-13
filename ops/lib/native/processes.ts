@@ -367,7 +367,9 @@ export function childService(
       try {
         child = spawn(spec.command, spec.args, {
           cwd: spec.cwd,
-          env: spec.env,
+          // Process specs are complete OS environments, independent of Next's
+          // ambient requirement for NODE_ENV. Preserve their exact contents.
+          env: spec.env as NodeJS.ProcessEnv,
           stdio: ["ignore", out, out, ...(spec.ipc ? ["ipc" as const] : [])],
           // A separate Windows process group survives the parent's console
           // teardown long enough to handle IPC disconnect and drain cleanly.
@@ -461,7 +463,7 @@ export async function runLogged(
     return await new Promise<number>((resolve, reject) => {
       const child = spawn(command, args, {
         cwd: options.cwd,
-        env: options.env,
+        env: options.env as NodeJS.ProcessEnv,
         stdio: ["ignore", out, out],
         windowsHide: true,
       });

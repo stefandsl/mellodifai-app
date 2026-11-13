@@ -149,7 +149,8 @@ function pgCtl(
   const out = openSync(join(layout.logs, "pg_ctl.log"), "a");
   return new Promise<number>((resolve, reject) => {
     const child = spawn(tool(tools, "pg_ctl"), args, {
-      env: toolEnvironment(layout),
+      // Next's ambient ProcessEnv requires NODE_ENV, even for PostgreSQL tools.
+      env: toolEnvironment(layout) as NodeJS.ProcessEnv,
       stdio: ["ignore", out, out],
       windowsHide: true,
     });
@@ -244,7 +245,7 @@ export function postgresService(
       mkdirSync(layout.logs, { recursive: true });
       const out = openSync(join(layout.logs, "postgres.log"), "a");
       const child = spawn(tool(tools, "postgres"), ["-D", layout.pgdata], {
-        env: toolEnvironment(layout),
+        env: toolEnvironment(layout) as NodeJS.ProcessEnv,
         stdio: ["ignore", out, out],
         detached: true,
         windowsHide: true,

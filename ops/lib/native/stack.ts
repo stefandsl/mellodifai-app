@@ -299,7 +299,7 @@ async function startNative(
             .filter((name) => process.env[name] !== undefined)
             .map((name) => [name, process.env[name] as string]),
         ),
-      },
+      } as NodeJS.ProcessEnv,
     });
     child.once("exit", (code) => {
       exitCode = code ?? 1;
