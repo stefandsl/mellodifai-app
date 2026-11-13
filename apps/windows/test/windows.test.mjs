@@ -245,6 +245,10 @@ describe("installer build", () => {
       /\$\{If\} \$\{Silent\}\s+ExecWait[^\n]*--unattended/,
     );
     expect(script).toContain('StrCpy $3 "MellodifAI app.lnk"');
+    // A hung Docker CLI once kept the old version's stop running for 6.5 hours.
+    const calls = script.match(/nsExec::ExecToLog[^\r\n]*/g) ?? [];
+    expect(calls.length).toBe(3);
+    for (const call of calls) expect(call).toContain("/TIMEOUT=");
     expect(script).not.toContain('Delete "$DESKTOP\\MellodifAI.lnk"');
   });
 });

@@ -169,7 +169,7 @@ Section "MellodifAI" SecApp
   ${EndIf}
   ${If} ${FileExists} "$INSTDIR\app\apps\windows\src\run.mjs"
     DetailPrint "Spengo la versione installata..."
-    nsExec::ExecToLog '${NODE} ${RUN} stop'
+    nsExec::ExecToLog /TIMEOUT=600000 '${NODE} ${RUN} stop'
     Pop $0
     DetailPrint "Rimuovo i file della versione precedente (i tuoi dati restano)..."
     RMDir /r "$INSTDIR\app"
@@ -263,7 +263,7 @@ Section "Uninstall"
   SetShellVarContext current
   ${If} ${FileExists} "$INSTDIR\app\apps\windows\src\run.mjs"
     DetailPrint "Spengo MellodifAI..."
-    nsExec::ExecToLog '${NODE} ${RUN} stop'
+    nsExec::ExecToLog /TIMEOUT=600000 '${NODE} ${RUN} stop'
     Pop $0
   ${EndIf}
   ${GetParameters} $1
@@ -282,7 +282,7 @@ Section "Uninstall"
   ${If} $2 == "1"
   ${AndIf} ${FileExists} "$INSTDIR\app\apps\windows\src\run.mjs"
     DetailPrint "Elimino i dati da Docker..."
-    nsExec::ExecToLog '${NODE} ${RUN} remove-data --yes'
+    nsExec::ExecToLog /TIMEOUT=900000 '${NODE} ${RUN} remove-data --yes'
     Pop $0
     RMDir /r "$INSTDIR\data"
   ${EndIf}
