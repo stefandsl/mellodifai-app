@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ENV_TABLE } from "./envs.js";
 import { loginPasswords } from "./logins.js";
+import { resolveRuntime } from "./native/layout.js";
 import { writePrivateOnce } from "./private-file.js";
 import { type Runner, realRunner } from "./run.js";
 import { loadStackSecrets } from "./stack-secrets.js";
@@ -17,6 +18,10 @@ export function legacyPassword(env: string[]): string {
 }
 
 export async function bootstrapProductionSecrets(runner: Runner = realRunner) {
+  if (resolveRuntime(undefined) === "native") {
+    await loadStackSecrets("prod");
+    return;
+  }
   const dbFile = join(secretDir(), "db-passwords.json");
   if (existsSync(dbFile)) {
     await loadStackSecrets("prod");

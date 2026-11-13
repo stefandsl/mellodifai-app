@@ -1,3 +1,7 @@
+import { beforeEach as beforeDockerCase, vi as legacyRuntime } from "vitest";
+
+beforeDockerCase(() => legacyRuntime.stubEnv("MELLODIFAI_RUNTIME", "docker"));
+
 import {
   chmodSync,
   existsSync,

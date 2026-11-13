@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { ENV_TABLE, type StackEnv } from "./lib/envs.js";
+import { probeNativeLogins } from "./lib/native/credentials.js";
+import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
 import { databaseUrl } from "./lib/pg.js";
 import { type Runner, realRunner } from "./lib/run.js";
 import { inventoryDbLogins, readDbPasswords } from "./rotate-db-passwords.js";
@@ -35,6 +37,49 @@ export async function probe(
     (env === "ci" && process.env.CI !== "true")
   )
     throw new Error("Invalid stack environment");
+  if (resolveRuntime(undefined) === "native") {
+    const result = await probeNativeLogins(env);
+    const ports = Object.values(nativeLayout(env).ports).filter(
+      (port): port is number => port !== null,
+    );
+    const reply = await runner("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$ErrorActionPreference='Stop'; @(Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in @(${ports.join(",")}) } | Select-Object LocalAddress,LocalPort) | ConvertTo-Json -Compress`,
+    ]);
+    if (reply.code !== 0)
+      result.failures.push("Native listener bindings unverified");
+    else {
+      const rows = JSON.parse(reply.stdout || "[]");
+      const bindings = Array.isArray(rows) ? rows : [rows];
+      for (const port of ports)
+        if (
+          !bindings.some(
+            (item) =>
+              item.LocalPort === port && item.LocalAddress === "127.0.0.1",
+          )
+        )
+          result.failures.push(`${port}: native listener absent`);
+      if (bindings.some((item) => item.LocalAddress !== "127.0.0.1"))
+        result.failures.push("Native listener exposed outside IPv4 loopback");
+    }
+    for (const unused of [
+      nativeLayout(env).ports.db + 1,
+      nativeLayout(env).ports.db + 2,
+      nativeLayout(env).ports.db + 5,
+    ].filter((port) => !ports.includes(port))) {
+      for (const address of ["127.0.0.1", "::1"]) {
+        const state = await hostPort(unused, address);
+        if (state !== "refused")
+          result.failures.push(
+            `${unused}: unused native port ${address} ${state}`,
+          );
+      }
+    }
+    result.ok = result.failures.length === 0;
+    return result;
+  }
   const port = ENV_TABLE[env].ports.db;
   const failures: string[] = [];
   const container = [

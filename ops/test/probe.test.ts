@@ -1,3 +1,7 @@
+import { beforeEach as beforeDockerCase, vi as legacyRuntime } from "vitest";
+
+beforeDockerCase(() => legacyRuntime.stubEnv("MELLODIFAI_RUNTIME", "docker"));
+
 import { EventEmitter } from "node:events";
 import { beforeEach, expect, it, vi } from "vitest";
 import { type Runner, recordingRunner } from "../lib/run.js";

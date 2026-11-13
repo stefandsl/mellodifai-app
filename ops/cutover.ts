@@ -5,6 +5,7 @@ import { bootstrapProductionSecrets } from "./lib/bootstrap-prod.js";
 import { prepareCompose } from "./lib/compose.js";
 import { compareCounts, tableCounts } from "./lib/counts.js";
 import { runtimePath, stackDir } from "./lib/envs.js";
+import { resolveRuntime } from "./lib/native/layout.js";
 import { ownerConnection } from "./lib/pg.js";
 import { checked, recoveryDatabase, stopWriters } from "./lib/recovery.js";
 import { prepareStackDir, renderConfig } from "./lib/render.js";
@@ -60,6 +61,10 @@ export async function runCutover(
   }
 }
 export async function productionCutover(runner: Runner = realRunner) {
+  if (resolveRuntime(undefined) === "native")
+    throw new Error(
+      "Legacy cutover is Docker-only; use native-import.ts for recovered data",
+    );
   const dir = stackDir("prod");
   const marker = join(dir, "legacy-volumes.json");
   if (existsSync(marker))

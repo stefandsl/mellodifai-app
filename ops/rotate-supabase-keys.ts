@@ -1,4 +1,4 @@
-import { type JsonWebKey, randomUUID } from "node:crypto";
+import { generateKeyPairSync, type JsonWebKey, randomUUID } from "node:crypto";
 import {
   accessSync,
   constants,
@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import { composeEnvironment } from "./lib/compose.js";
 import { ENV_TABLE, runtimePath, stackDir } from "./lib/envs.js";
+import { resolveRuntime } from "./lib/native/layout.js";
 import { writePrivate } from "./lib/private-file.js";
 import { checked } from "./lib/recovery.js";
 import { randomPassword } from "./lib/roles.js";
@@ -21,7 +22,7 @@ import { type Runner, realRunner } from "./lib/run.js";
 import { runtimeRoot } from "./lib/runtime.js";
 import { serviceCommand } from "./lib/services.js";
 import { loadStackSecrets, signApiToken } from "./lib/stack-secrets.js";
-import { planStackCommand } from "./stack.js";
+import { planStackCommand, runStack } from "./stack.js";
 
 function replaceEnvValue(file: string, name: string, value: string) {
   if (/[\r\n\0]/u.test(value))
@@ -41,6 +42,7 @@ export async function rotateSupabaseKeys(
   runner: Runner = realRunner,
 ): Promise<void> {
   const root = runtimePath(runtimeRoot());
+  const native = resolveRuntime(undefined) === "native";
   const dir = stackDir("prod");
   const keyFile = ENV_TABLE.prod.signingKeysPath;
   const secretDir = dirname(keyFile);
@@ -62,7 +64,9 @@ export async function rotateSupabaseKeys(
     );
   }
   if (
-    !existsSync(join(dir, "compose.json")) ||
+    !existsSync(
+      join(dir, native ? "native/first-boot.done" : "compose.json"),
+    ) ||
     !existsSync(keyFile) ||
     !existsSync(storeFile)
   )
@@ -106,10 +110,15 @@ export async function rotateSupabaseKeys(
   await writePrivate(backup, JSON.stringify(Object.fromEntries(previous)));
   const restartStack = async () => {
     const secrets = await loadStackSecrets("prod");
-    const env = { ...childEnv, ...composeEnvironment("prod", secrets) };
-    for (const [cmd, ...args] of planStackCommand("start", "prod", {})) {
-      if (!cmd) throw new Error("Missing stack command");
-      await checked(runner, cmd, args, { env });
+    if (native) {
+      await runStack("stop", "prod", { runtime: "native" });
+      await runStack("start", "prod", { runtime: "native" });
+    } else {
+      const env = { ...childEnv, ...composeEnvironment("prod", secrets) };
+      for (const [cmd, ...args] of planStackCommand("start", "prod", {})) {
+        if (!cmd) throw new Error("Missing stack command");
+        await checked(runner, cmd, args, { env });
+      }
     }
     // Kong restarts before its upstream DNS is ready; check the actual credential path.
     for (let attempt = 0; attempt < 30; attempt++) {
@@ -157,15 +166,31 @@ export async function rotateSupabaseKeys(
   try {
     await serviceCommand(serviceRunner, "stop", "worker", root);
     await serviceCommand(serviceRunner, "stop", "web", root);
-    const cli = createRequire(import.meta.url).resolve(
-      "supabase/dist/supabase.js",
-    );
-    await checked(
-      runner,
-      process.execPath,
-      [cli, "gen", "signing-key", "--algorithm", "ES256", "--workdir", dir],
-      { env: childEnv },
-    );
+    if (native) {
+      const { privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+      await writePrivate(
+        keyFile,
+        JSON.stringify([
+          {
+            ...privateKey.export({ format: "jwk" }),
+            kid: randomUUID(),
+            alg: "ES256",
+            use: "sig",
+            key_ops: ["sign", "verify"],
+          },
+        ]),
+      );
+    } else {
+      const cli = createRequire(import.meta.url).resolve(
+        "supabase/dist/supabase.js",
+      );
+      await checked(
+        runner,
+        process.execPath,
+        [cli, "gen", "signing-key", "--algorithm", "ES256", "--workdir", dir],
+        { env: childEnv },
+      );
+    }
     // CLI writes directly to the configured external path; output stays captured.
     const keys = JSON.parse(readFileSync(keyFile, "utf8")) as Array<
       JsonWebKey & { kid: string; alg: string }

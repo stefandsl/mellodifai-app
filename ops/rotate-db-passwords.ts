@@ -5,6 +5,13 @@ import { fileURLToPath } from "node:url";
 import { composeEnvironment } from "./lib/compose.js";
 import { ENV_TABLE, runtimePath, type StackEnv, stackDir } from "./lib/envs.js";
 import { loginPasswords } from "./lib/logins.js";
+import {
+  nativeLoginInventory,
+  reapplyNativeLogins,
+  rotateNativeLogins,
+} from "./lib/native/credentials.js";
+import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
+import { loadNativeLogins } from "./lib/native/secrets.js";
 import { databaseUrl } from "./lib/pg.js";
 import { writePrivate } from "./lib/private-file.js";
 import { applyRolePasswords, randomPassword } from "./lib/roles.js";
@@ -76,6 +83,7 @@ export async function inventoryDbLogins(
   env: StackEnv,
   runner: Runner,
 ): Promise<string[]> {
+  if (resolveRuntime(undefined) === "native") return nativeLoginInventory(env);
   const output = await sqlCommand(
     env,
     runner,
@@ -140,6 +148,11 @@ export async function rotateDbPasswords(
   env: StackEnv,
   runner: Runner,
 ): Promise<void> {
+  if (resolveRuntime(undefined) === "native") {
+    await rotateNativeLogins(env);
+    await reapplyDbPasswords(env, runner);
+    return;
+  }
   const roles = await inventoryDbLogins(env, runner);
   if (!roles.includes("mdf_web") || !roles.includes("mdf_auth"))
     throw new Error(
@@ -159,6 +172,25 @@ export async function reapplyDbPasswords(
   env: StackEnv,
   runner: Runner,
 ): Promise<void> {
+  if (resolveRuntime(undefined) === "native") {
+    await reapplyNativeLogins(env);
+    const { logins } = await loadNativeLogins(env);
+    const root = env === "prod" ? join(runtimeRoot(), "deploy") : stackDir(env);
+    for (const app of ["web", "auth"] as const) {
+      const file = join(root, "apps", app, ".env.local");
+      if (existsSync(file))
+        await rewriteEnvUrl(
+          file,
+          `MDF_${app.toUpperCase()}_DATABASE_URL`,
+          databaseUrl(
+            `mdf_${app}`,
+            logins[`mdf_${app}`] as string,
+            nativeLayout(env).ports.db,
+          ),
+        );
+    }
+    return;
+  }
   const passwords = readDbPasswords(env);
   const roles = await inventoryDbLogins(env, runner);
   if (!roles.includes("mdf_web") || !roles.includes("mdf_auth"))
