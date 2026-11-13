@@ -8,8 +8,8 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
+  jobEventReader,
   jobEventsWatch,
-  readJobEventsAfter,
   type TimelineSnapshot,
   timelineWatch,
 } from "@/lib/live/cursors";
@@ -84,6 +84,12 @@ export function LiveTimeline({
     .map((j) => j.id)
     .sort()
     .join(",");
+  // Reconcile from zero when a job finishes, including events committed before its status.
+  const finalJobs = jobs
+    .filter((job) => ["done", "failed", "cancelled"].includes(job.status))
+    .map((job) => job.id)
+    .sort()
+    .join(",");
   // biome-ignore lint/correctness/useExhaustiveDependencies: new server data restarts the watch, so a value read before that data cannot stay on screen.
   useEffect(() => {
     if (!ids) return;
@@ -91,21 +97,10 @@ export function LiveTimeline({
     const controller = new AbortController();
     const db = createClient();
     const jobIds = ids.split(",");
-    // Newly discovered jobs can have events older than the ones already on screen.
-    let after = jobIds.every((id) => initialJobs.some((job) => job.id === id))
-      ? Math.max(0, ...initialEvents.map((event) => event.id))
-      : 0;
-    const stop = watch(jobEventsWatch(db, jobIds), async ({ newest }) => {
-      if (newest === null || newest <= after) return;
-      const fresh = await readJobEventsAfter(
-        db,
-        jobIds,
-        after,
-        newest,
-        controller.signal,
-      );
+    const read = jobEventReader(db, jobIds);
+    const stop = watch(jobEventsWatch(db, jobIds), async (cursor) => {
+      const fresh = await read(cursor, controller.signal);
       if (active) {
-        after = newest;
         setEvents((old) => {
           const merged = new Map([...old, ...fresh].map((e) => [e.id, e]));
           const sorted = [...merged.values()].sort((a, b) => a.id - b.id);
@@ -120,7 +115,7 @@ export function LiveTimeline({
       controller.abort();
       stop();
     };
-  }, [ids, initialEvents]);
+  }, [ids, initialEvents, finalJobs]);
   if (jobs.length === 0)
     return (
       <p className="mt-3 text-sm text-muted-foreground">

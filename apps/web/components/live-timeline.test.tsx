@@ -169,6 +169,69 @@ function timeline(strict = false, jobs: TimelineJob[] = [queued]) {
   };
 }
 
+it("recovers a lower event id committed after another job's higher id", async () => {
+  const second: TimelineJob = {
+    ...queued,
+    id: "j2",
+    stage: "generate_song",
+    status: "running",
+  };
+  Object.assign(stored(), { status: "running" });
+  db.tables.jobs?.push({ ...second, error: null, not_before: null });
+  const late = db.stage("job_events", {
+    id: 100,
+    job_id: "j1",
+    message: "Late final message",
+    progress: 100,
+    at: "t",
+  });
+  db.stage("job_events", {
+    id: 101,
+    job_id: "j2",
+    message: "Visible first",
+    progress: 50,
+    at: "t",
+  }).commit();
+  timeline(false, [queued, second]);
+  await advance(0);
+  expect(screen.getByText(/Visible first/)).toBeVisible();
+  late.commit();
+  await advance(15_000);
+  expect(screen.getByText(/Late final message/)).toBeVisible();
+});
+
+it.each([false, true])(
+  "keeps steady project requests unchanged with active=%s",
+  async (active) => {
+    const status = active ? "running" : "done";
+    Object.assign(stored(), { status });
+    timeline(false, [{ ...queued, status }]);
+    await advance(0);
+    db.reads.length = 0;
+    await advance(60_000);
+    expect(db.reads).toHaveLength(active ? 90 : 12);
+    expect(mock.refresh).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps in-order event traffic at one cursor and one catch-up page per tick", async () => {
+  Object.assign(stored(), { status: "running" });
+  timeline(false, [{ ...queued, status: "running" }]);
+  await advance(0);
+  db.reads.length = 0;
+  for (let id = 1; id <= 30; id++) {
+    db.stage("job_events", {
+      id,
+      job_id: "j1",
+      message: "Progress",
+      progress: id,
+      at: "t",
+    }).commit();
+    await advance(2000);
+  }
+  expect(db.reads).toHaveLength(120);
+});
+
 it("shows quota deferral from a publish job update without a version status change", async () => {
   timeline();
   await advance(0);

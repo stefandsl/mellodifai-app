@@ -87,15 +87,14 @@ it("follows a job's events every two seconds, fetching them only when there are 
   expect(reads()).toBe(5);
 });
 
-it("does not follow a job that is not active", async () => {
+it("reconciles a finished job on the slow clock for late commits", async () => {
   vi.useFakeTimers();
   db.tables.job_events = [event(1, "j1")];
   const initial: JobEvent[] = [];
   const { result } = renderHook(() => useJobEvents("j1", false, initial));
   await advance(60000);
-  expect(reads()).toBe(0);
-  expect(result.current).toEqual([]);
-  expect(vi.getTimerCount()).toBe(0);
+  expect(reads()).toBe(6);
+  expect(result.current.map((item) => item.id)).toEqual([1]);
 });
 
 it("keeps the events the page came with and adds the new ones", async () => {
@@ -106,6 +105,26 @@ it("keeps the events the page came with and adds the new ones", async () => {
   expect(result.current.map((item) => item.id)).toEqual([1, 2]);
   await advance(0);
   expect(result.current.map((item) => item.id)).toEqual([1, 2, 3]);
+});
+
+it("recovers a lower id committed after completion and deduplicates repeated reads", async () => {
+  vi.useFakeTimers();
+  const late = db.stage("job_events", event(100, "j1"));
+  db.stage("job_events", event(101, "j1")).commit();
+  const view = renderHook(({ active }) => useJobEvents("j1", active), {
+    initialProps: { active: true },
+  });
+  await advance(0);
+  expect(view.result.current.map((item) => item.id)).toEqual([101]);
+  view.rerender({ active: false });
+  await advance(0);
+  late.commit();
+  await advance(15_000);
+  expect(view.result.current.map((item) => item.id)).toEqual([100, 101]);
+  await advance(30_000);
+  expect(view.result.current.map((item) => item.id)).toEqual([100, 101]);
+  view.unmount();
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it("fetches the events again when the fetch after a new id failed", async () => {

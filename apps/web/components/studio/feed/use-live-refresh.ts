@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef } from "react";
 
 import { jobsWatch, versionsWatch } from "@/lib/live/cursors";
-import { checkNow, watch } from "@/lib/live/poller";
+import { checkNow, IDLE_MS, watch } from "@/lib/live/poller";
 import { createClient } from "@/lib/supabase/browser";
 
 type LiveTable = "versions" | "jobs";
@@ -28,9 +28,13 @@ function changed(
   info: { initial: boolean; repeated?: boolean },
 ) {
   if (info.initial) return;
-  // Queue positions have a 15-second deadline; do not add the change debounce to it.
-  if (info.repeated) refreshOnce();
-  else if (pending === undefined) pending = setTimeout(refreshOnce, 250);
+  // Full reconciliation has a 15-second deadline, including late commits to old rows.
+  if (info.repeated || Date.now() >= refreshedAt + IDLE_MS) refreshOnce();
+  else if (pending === undefined)
+    pending = setTimeout(
+      refreshOnce,
+      Math.min(250, refreshedAt + IDLE_MS - Date.now()),
+    );
 }
 
 // Re-renders the server data when a version or job changes. `revision` is the server data the
@@ -46,17 +50,17 @@ export function useLiveRefresh(
   useEffect(() => {
     const supabase = createClient();
     refreshers.add(refresh);
-    if (refreshers.size === 1)
+    if (refreshers.size === 1) {
+      refreshedAt = Date.now();
       hourly = setInterval(refreshOnce, 50 * 60 * 1000);
-    const stops = key
-      .split(",")
-      .map((table) =>
-        table === "versions"
-          ? watch(versionsWatch(supabase), changed)
-          : watch(jobsWatch(supabase), changed),
-      );
+    }
+    // Both watches refresh the whole route. One slow deadline is enough when jobs are
+    // included, otherwise their independent repeat clocks can cause duplicate refreshes.
+    const stop = key.split(",").includes("jobs")
+      ? watch(jobsWatch(supabase), changed)
+      : watch(versionsWatch(), changed);
     return () => {
-      for (const stop of stops) stop();
+      stop();
       refreshers.delete(refresh);
       if (refreshers.size === 0) {
         clearTimeout(pending);

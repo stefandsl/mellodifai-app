@@ -15,6 +15,8 @@ export type FakeRead = { table: string; columns: string; filters: string[] };
 
 export type FakeDb = {
   tables: Record<string, Row[]>;
+  // Allocate/stage a row now, expose its insert or edit only when commit() is called.
+  stage: (table: string, row: Row) => { commit: () => void };
   // Every read started, in order.
   reads: FakeRead[];
   // Set to make every read fail with this message.
@@ -156,6 +158,21 @@ class Query implements PromiseLike<Reply> {
 export function fakeDb(tables: Record<string, Row[]> = {}): FakeDb {
   const db: FakeDb = {
     tables,
+    stage: (table, row) => {
+      const pending = structuredClone(row);
+      let committed = false;
+      return {
+        commit: () => {
+          if (committed) return;
+          committed = true;
+          db.tables[table] ??= [];
+          const rows = db.tables[table];
+          const existing = rows.find((item) => item.id === pending.id);
+          if (existing) Object.assign(existing, pending);
+          else rows.push(pending);
+        },
+      };
+    },
     reads: [],
     error: null,
     gate: null,

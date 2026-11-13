@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fakeDb } from "@/test/fake-supabase";
 import {
+  jobEventReader,
   jobEventsWatch,
   jobsWatch,
   readJobEvents,
@@ -44,59 +45,10 @@ afterEach(() => {
 });
 
 describe("versions", () => {
-  const seed = () =>
-    fakeDb({
-      versions: [
-        version("v1", "2026-11-01T10:00:00Z"),
-        version("v2", "2026-11-01T11:00:00Z"),
-      ],
-    });
-
-  it("moves when a version is added, edited or deleted", async () => {
-    const db = seed();
-    const watch = versionsWatch(db.client);
-    const seen = [await cursor(watch)];
-    const moved = async () => {
-      const next = await cursor(watch);
-      const changed = next !== seen.at(-1);
-      seen.push(next);
-      return changed;
-    };
-    expect(await moved()).toBe(false);
-    db.tables.versions?.push(version("v3", "2026-11-01T12:00:00Z"));
-    expect(await moved()).toBe(true);
-    row(db.tables.versions ?? [], "v1").updated_at = "2026-11-01T12:30:00Z";
-    expect(await moved()).toBe(true);
-    db.tables.versions?.splice(0, 1);
-    expect(await moved()).toBe(true);
-  });
-
-  it("notices an edit that commits behind a later timestamp", async () => {
-    const db = seed();
-    const watch = versionsWatch(db.client);
-    const before = await cursor(watch);
-    // v1's transaction began before v2's last edit and committed after it.
-    row(db.tables.versions ?? [], "v1").updated_at = "2026-11-01T10:59:59Z";
-    expect(await cursor(watch)).not.toBe(before);
-  });
-
-  it("is the same from read to read when many rows share a timestamp", async () => {
-    const db = fakeDb({
-      versions: ["d", "a", "f", "c", "b", "e", "g"].map((id) =>
-        version(id, "2026-11-01T10:00:00Z"),
-      ),
-    });
-    const watch = versionsWatch(db.client);
-    const before = await cursor(watch);
-    db.tables.versions?.reverse();
-    expect(await cursor(watch)).toBe(before);
-    expect((await watch.read(live)).newest.map((item) => item.id)).toEqual([
-      "a",
-      "b",
-      "c",
-      "d",
-      "e",
-    ]);
+  it("requests full reconciliation every slow period without querying history", async () => {
+    const watch = versionsWatch();
+    expect(await watch.read(live)).toBeNull();
+    expect(watch.repeatMs?.(null)).toBe(15_000);
   });
 });
 
@@ -144,26 +96,10 @@ describe("jobs", () => {
       finished_at: "2026-11-02T00:00:09Z",
     });
     expect(await moved()).toBe(true);
-    // Deleted with its version.
+    // Historical deletions are covered by the slow reconciliation.
     jobs.splice(0, 1);
-    expect(await moved()).toBe(true);
-  });
-
-  it("moves when a job came and went between two reads", async () => {
-    const db = fakeDb({ jobs: [] });
-    const watch = jobsWatch(db.client);
-    const before = await cursor(watch);
-    db.tables.jobs?.push(
-      job("j1", { status: "failed", finished_at: "2026-11-01T10:00:05Z" }),
-    );
-    const failed = await cursor(watch);
-    expect(failed).not.toBe(before);
-    // The same row, tried again and finished before the next read.
-    Object.assign(row(db.tables.jobs ?? [], "j1"), {
-      status: "done",
-      finished_at: "2026-11-01T10:00:20Z",
-    });
-    expect(await cursor(watch)).not.toBe(failed);
+    expect(await moved()).toBe(false);
+    expect(watch.repeatMs?.(await watch.read(live))).toBe(15_000);
   });
 
   it("calls queued and running jobs work, but not a job that waits for its time", async () => {
@@ -253,13 +189,14 @@ describe("job events", () => {
   it("follows the newest event of the watched jobs only", async () => {
     const db = fakeDb({ job_events: [event(1, "j1"), event(2, "j9")] });
     const watch = jobEventsWatch(db.client, ["j2", "j1"]);
-    expect(await watch.read(live)).toEqual({ newest: 1 });
+    expect(await watch.read(live)).toEqual({ newest: 1, count: 1 });
     db.tables.job_events?.push(event(3, "j9"));
-    expect(await watch.read(live)).toEqual({ newest: 1 });
+    expect(await watch.read(live)).toEqual({ newest: 1, count: 1 });
     db.tables.job_events?.push(event(4, "j2"));
-    expect(await watch.read(live)).toEqual({ newest: 4 });
+    expect(await watch.read(live)).toEqual({ newest: 4, count: 2 });
     expect(await jobEventsWatch(db.client, ["j7"]).read(live)).toEqual({
       newest: null,
+      count: 0,
     });
   });
 
@@ -268,6 +205,57 @@ describe("job events", () => {
     expect(jobEventsWatch(db.client, ["j2", "j1"]).key).toBe(
       jobEventsWatch(db.client, ["j1", "j2"]).key,
     );
+  });
+
+  it("counts a late lower id even though the maximum has not changed", async () => {
+    const db = fakeDb({ job_events: [] });
+    const late = db.stage("job_events", event(100, "j1"));
+    db.stage("job_events", event(101, "j1")).commit();
+    const watch = jobEventsWatch(db.client, ["j1"]);
+    const read = jobEventReader(db.client, ["j1"]);
+    const first = await watch.read(live);
+    expect((await read(first, live)).map((row) => row.id)).toEqual([101]);
+    late.commit();
+    const next = await watch.read(live);
+    expect(next).not.toEqual(first);
+    expect((await read(next, live)).map((row) => row.id)).toEqual([100, 101]);
+  });
+
+  it("retries a lower-id commit behind a page already read", async () => {
+    const db = fakeDb({
+      job_events: Array.from({ length: 201 }, (_, i) => event(i + 2, "j1")),
+    });
+    const late = db.stage("job_events", event(1, "j1"));
+    const watch = jobEventsWatch(db.client, ["j1"]);
+    const read = jobEventReader(db.client, ["j1"]);
+    const first = await watch.read(live);
+    db.gate = async (query) => {
+      if (query.filters.includes("id=gt.201")) late.commit();
+    };
+    expect(await read(first, live)).toHaveLength(201);
+    db.gate = null;
+    const recovered = await read(await watch.read(live), live);
+    expect(recovered).toHaveLength(202);
+    expect(recovered[0]?.id).toBe(1);
+  });
+
+  it("does not advance past a failed reconciliation page", async () => {
+    const db = fakeDb({
+      job_events: Array.from({ length: 201 }, (_, i) => event(i + 2, "j1")),
+    });
+    const late = db.stage("job_events", event(1, "j1"));
+    const watch = jobEventsWatch(db.client, ["j1"]);
+    const read = jobEventReader(db.client, ["j1"]);
+    await read(await watch.read(live), live);
+    late.commit();
+    const next = await watch.read(live);
+    db.gate = async (query) => {
+      if (query.filters.includes("id=gt.200")) db.error = "page failed";
+    };
+    await expect(read(next, live)).rejects.toThrow("page failed");
+    db.gate = null;
+    db.error = null;
+    expect(await read(next, live)).toHaveLength(202);
   });
 
   it("reads the latest events oldest first", async () => {
@@ -289,7 +277,6 @@ it("rejects when a read fails, so the poller backs off", async () => {
   const db = fakeDb({ versions: [], jobs: [], job_events: [] });
   db.error = "permission denied";
   for (const watch of [
-    versionsWatch(db.client),
     jobsWatch(db.client),
     timelineWatch(db.client, "v1"),
     jobEventsWatch(db.client, ["j1"]),
@@ -336,29 +323,10 @@ describe("requests", () => {
     return { db, sent, socket };
   }
 
-  it("asks for the newest versions and their exact count", async () => {
-    const newest = [{ id: "v1", updated_at: "2026-11-01T10:00:00Z" }];
-    const { db, sent } = client(newest, 37);
-    expect(await versionsWatch(db).read(live)).toEqual({ count: 37, newest });
-    expect(sent()).toEqual([
-      {
-        path: "/rest/v1/versions",
-        query: {
-          select: "id,updated_at",
-          order: "updated_at.desc,id.asc",
-          limit: "5",
-        },
-        count: true,
-      },
-    ]);
-  });
-
-  it("asks for the active jobs, the latest finished ones and the exact count", async () => {
+  it("asks only for active jobs without counting or sorting history", async () => {
     const { db, sent } = client([], 12);
     expect(await jobsWatch(db).read(live)).toEqual({
-      count: 12,
       active: [],
-      finished: [],
     });
     expect(sent()).toEqual([
       {
@@ -369,15 +337,6 @@ describe("requests", () => {
           order: "id.asc",
         },
         count: false,
-      },
-      {
-        path: "/rest/v1/jobs",
-        query: {
-          select: "id,status,finished_at",
-          order: "finished_at.desc.nullslast,id.asc",
-          limit: "5",
-        },
-        count: true,
       },
     ]);
   });
@@ -406,10 +365,11 @@ describe("requests", () => {
     ]);
   });
 
-  it("asks for the newest event id, then for the latest events", async () => {
-    const { db, sent } = client([{ id: 7 }]);
+  it("asks for the visible event count and newest id, then the latest events", async () => {
+    const { db, sent } = client([{ id: 7 }], 1);
     expect(await jobEventsWatch(db, ["j2", "j1"]).read(live)).toEqual({
       newest: 7,
+      count: 1,
     });
     await readJobEvents(db, ["j1", "j2"], 50);
     expect(sent()).toEqual([
@@ -421,7 +381,7 @@ describe("requests", () => {
           order: "id.desc",
           limit: "1",
         },
-        count: false,
+        count: true,
       },
       {
         path: "/rest/v1/job_events",
@@ -441,7 +401,7 @@ describe("requests", () => {
     const controller = new AbortController();
     controller.abort();
     for (const watch of [
-      versionsWatch(db),
+      versionsWatch(),
       jobsWatch(db),
       timelineWatch(db, "v1"),
       jobEventsWatch(db, ["j1"]),
@@ -449,7 +409,7 @@ describe("requests", () => {
       await expect(watch.read(controller.signal)).rejects.toThrow();
       await watch.read(live);
     }
-    expect(sent()).toHaveLength(6);
+    expect(sent()).toHaveLength(4);
     expect(socket).not.toHaveBeenCalled();
   });
 });

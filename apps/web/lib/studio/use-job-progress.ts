@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { jobEventsWatch, readJobEvents } from "@/lib/live/cursors";
+import { jobEventReader, jobEventsWatch } from "@/lib/live/cursors";
 import { holdFast, watch } from "@/lib/live/poller";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -14,8 +14,6 @@ export type JobEvent = {
 };
 
 const KEEP = 200;
-// Events to fetch when the newest id moves: far more than one tick brings.
-const RECENT = 50;
 // One shared default, so the merge effect below does not run on every render.
 const NONE: JobEvent[] = [];
 
@@ -24,8 +22,8 @@ function merge(old: JobEvent[], fresh: JobEvent[]): JobEvent[] {
   return [...byId.values()].sort((a, b) => a.id - b.id).slice(-KEEP);
 }
 
-// The progress events of one job while it is active: the newest event id is watched, and the
-// latest events are fetched when it moves. `initial` are the events the page was rendered with.
+// Counted catch-up continues on the slow clock after completion: an event's transaction can
+// commit after the job's final status. `initial` are the events the page was rendered with.
 export function useJobEvents(
   jobId: string | null,
   active: boolean,
@@ -42,21 +40,20 @@ export function useJobEvents(
     }
   }, [jobId, initial]);
   useEffect(() => {
-    if (!jobId || !active) return;
+    if (!jobId) return;
     const supabase = createClient();
     let alive = true;
     // The job is in progress: its events are worth a fast clock.
-    const release = holdFast();
-    const stop = watch(
-      jobEventsWatch(supabase, [jobId]),
-      async ({ newest }) => {
-        if (newest === null) return;
-        const fresh = await readJobEvents(supabase, [jobId], RECENT);
-        if (alive) setEvents((old) => merge(old, fresh));
-      },
-    );
+    const release = active ? holdFast() : () => {};
+    const controller = new AbortController();
+    const read = jobEventReader(supabase, [jobId]);
+    const stop = watch(jobEventsWatch(supabase, [jobId]), async (cursor) => {
+      const fresh = await read(cursor, controller.signal);
+      if (alive) setEvents((old) => merge(old, fresh));
+    });
     return () => {
       alive = false;
+      controller.abort();
       release();
       stop();
     };

@@ -28,7 +28,7 @@ const advance = (ms: number) =>
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.clearAllMocks();
+  mock.refresh.mockReset();
   db.tables = {
     versions: [
       { id: "v1", updated_at: "2026-11-01T10:00:00Z" },
@@ -55,14 +55,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it("does not refresh for the state the page was rendered with", async () => {
+it("skips the initial refresh, then reconciles unchanged history every slow period", async () => {
   renderHook(() => useLiveRefresh("data"));
   await advance(0);
-  expect(reads("versions")).toBe(1);
-  expect(reads("jobs")).toBe(2);
+  expect(reads("versions")).toBe(0);
+  expect(reads("jobs")).toBe(1);
   await advance(IDLE * 4);
-  expect(reads("versions")).toBe(5);
-  expect(mock.refresh).not.toHaveBeenCalled();
+  expect(reads("versions")).toBe(0);
+  expect(reads("jobs")).toBe(5);
+  expect(mock.refresh).toHaveBeenCalledTimes(4);
 });
 
 it.each([
@@ -103,7 +104,7 @@ it.each([
       jobs().splice(0, 1);
     },
   ],
-])("refreshes when %s", async (name, change) => {
+])("refreshes when %s", async (_name, change) => {
   renderHook(() => useLiveRefresh("data"));
   await advance(0);
   change();
@@ -112,9 +113,7 @@ it.each([
   await advance(1 + SETTLE);
   expect(mock.refresh).toHaveBeenCalledOnce();
   await advance(IDLE * 3);
-  expect(mock.refresh).toHaveBeenCalledTimes(
-    name === "a job is queued" ? 4 : 1,
-  );
+  expect(mock.refresh).toHaveBeenCalledTimes(4);
 });
 
 it("follows a job through its life within two seconds, ignoring heartbeats", async () => {
@@ -172,17 +171,17 @@ it("polls every 2 seconds while the user has work in the queue, every 15 otherwi
   renderHook(() => useLiveRefresh("data"));
   await advance(0);
   await advance(FAST * 3);
-  expect(reads("versions")).toBe(4);
+  expect(reads("jobs")).toBe(4);
   Object.assign(jobs()[1] as object, {
     status: "cancelled",
     finished_at: "2026-11-01T12:00:00Z",
   });
   await advance(FAST);
-  expect(reads("versions")).toBe(5);
+  expect(reads("jobs")).toBe(5);
   await advance(IDLE - 1);
-  expect(reads("versions")).toBe(5);
+  expect(reads("jobs")).toBe(5);
   await advance(1);
-  expect(reads("versions")).toBe(6);
+  expect(reads("jobs")).toBe(6);
 });
 
 it("watches only the tables it is given", async () => {
@@ -191,10 +190,10 @@ it("watches only the tables it is given", async () => {
   (versions()[0] as { updated_at: string }).updated_at = "2026-11-01T12:00:00Z";
   await advance(IDLE + SETTLE);
   expect(db.reads.every((read) => read.table === "jobs")).toBe(true);
-  expect(mock.refresh).not.toHaveBeenCalled();
+  expect(mock.refresh).toHaveBeenCalledOnce();
   jobs().splice(0, 1);
   await advance(IDLE + SETTLE);
-  expect(mock.refresh).toHaveBeenCalledOnce();
+  expect(mock.refresh).toHaveBeenCalledTimes(2);
 });
 
 it("reads again at once when the page gets new server data", async () => {
@@ -203,11 +202,11 @@ it("reads again at once when the page gets new server data", async () => {
     initialProps: { data: rendered },
   });
   await advance(0);
-  expect(reads("versions")).toBe(1);
+  expect(reads("jobs")).toBe(1);
   view.rerender({ data: rendered });
   await advance(0);
   // The same data again is no reason to look.
-  expect(reads("versions")).toBe(1);
+  expect(reads("jobs")).toBe(1);
   // The user queued a song: the action answered with new data, the worker has not claimed yet.
   jobs().push({
     id: "j2",
@@ -218,14 +217,14 @@ it("reads again at once when the page gets new server data", async () => {
   });
   view.rerender({ data: ["b"] });
   await advance(0);
-  expect(reads("versions")).toBe(2);
+  expect(reads("jobs")).toBe(2);
   // The queued job is work in progress: the claim shows on the fast clock.
   Object.assign(jobs()[1] as object, {
     status: "running",
     started_at: "2026-11-01T12:00:00Z",
   });
   await advance(FAST + SETTLE);
-  expect(reads("versions")).toBe(3);
+  expect(reads("jobs")).toBe(3);
   expect(mock.refresh).toHaveBeenCalledTimes(2);
 });
 
@@ -234,12 +233,12 @@ it("shares its reads between the feeds on the page", async () => {
   renderHook(() => useLiveRefresh("two", ["jobs"]));
   await advance(0);
   await advance(IDLE);
-  expect(reads("versions")).toBe(2);
-  expect(reads("jobs")).toBe(4);
+  expect(reads("versions")).toBe(0);
+  expect(reads("jobs")).toBe(2);
 });
 
 it("notices after an outage what changed during it", async () => {
-  renderHook(() => useLiveRefresh("data"));
+  renderHook(() => useLiveRefresh("data", ["jobs"]));
   await advance(0);
   db.error = "connection refused";
   versions().splice(0, 1);
@@ -256,21 +255,22 @@ it("notices after an outage what changed during it", async () => {
 it("still refreshes before the signed media URLs expire", async () => {
   renderHook(() => useLiveRefresh("data"));
   await advance(50 * 60 * 1000 - 1);
-  expect(mock.refresh).not.toHaveBeenCalled();
+  expect(mock.refresh).toHaveBeenCalledTimes(199);
   await advance(1);
-  expect(mock.refresh).toHaveBeenCalledOnce();
+  expect(mock.refresh).toHaveBeenCalledTimes(200);
 });
 
 it("drops a refresh that is pending when the feed unmounts", async () => {
+  Object.assign(jobs()[0] as object, { status: "running" });
   const view = renderHook(() => useLiveRefresh("data"));
   await advance(0);
-  versions().splice(0, 1);
-  await advance(IDLE);
+  jobs().splice(0, 1);
+  await advance(FAST);
   view.unmount();
   expect(vi.getTimerCount()).toBe(0);
   await advance(IDLE * 4);
   expect(mock.refresh).not.toHaveBeenCalled();
-  expect(reads("versions")).toBe(2);
+  expect(reads("jobs")).toBe(2);
 });
 
 it("refreshes only once when two mounted feeds see the same change", async () => {
@@ -286,7 +286,7 @@ it("refreshes only once when two mounted feeds see the same change", async () =>
   expect(mock.refresh).toHaveBeenCalledTimes(2);
 });
 
-it("refreshes shared queue positions every 15 seconds only while a queued job is due", async () => {
+it("reconciles shared queue positions and deferred history every 15 seconds", async () => {
   Object.assign(jobs()[0] as object, { status: "queued", not_before: null });
   renderHook(() => useLiveRefresh("one"));
   renderHook(() => useLiveRefresh("two", ["jobs"]));
@@ -301,7 +301,7 @@ it("refreshes shared queue positions every 15 seconds only while a queued job is
   await advance(FAST + SETTLE);
   const refreshes = mock.refresh.mock.calls.length;
   await advance(IDLE * 3);
-  expect(mock.refresh).toHaveBeenCalledTimes(refreshes);
+  expect(mock.refresh).toHaveBeenCalledTimes(refreshes + 3);
 });
 
 it("notices an edit to a version originally below the newest five", async () => {
@@ -317,3 +317,62 @@ it("notices an edit to a version originally below the newest five", async () => 
   await advance(IDLE + SETTLE);
   expect(mock.refresh).toHaveBeenCalledOnce();
 });
+
+it("reconciles an edit that commits below five newer version timestamps", async () => {
+  db.tables.versions = Array.from({ length: 8 }, (_, index) => ({
+    id: `v${index}`,
+    updated_at: `2026-11-01T10:00:0${index}Z`,
+  }));
+  const late = db.stage("versions", {
+    id: "v0",
+    updated_at: "2026-11-01T10:00:01Z",
+  });
+  renderHook(() => useLiveRefresh("data"));
+  await advance(0);
+  late.commit();
+  await advance(IDLE);
+  expect(mock.refresh).toHaveBeenCalledOnce();
+});
+
+it("reconciles a late edit to a historical job with an unchanged active set", async () => {
+  db.tables.jobs = Array.from({ length: 8 }, (_, index) => ({
+    id: `j${index}`,
+    status: "done",
+    finished_at: `2026-11-01T10:00:0${index}Z`,
+  }));
+  const late = db.stage("jobs", {
+    id: "j0",
+    status: "failed",
+    finished_at: "2026-11-01T10:00:01Z",
+  });
+  renderHook(() => useLiveRefresh("data", ["jobs"]));
+  await advance(0);
+  late.commit();
+  await advance(IDLE);
+  expect(mock.refresh).toHaveBeenCalledOnce();
+});
+
+it.each([false, true])(
+  "bounds steady feed requests with active=%s",
+  async (active) => {
+    Object.assign(jobs()[0] as object, { status: active ? "running" : "done" });
+    let revision = 0;
+    const view = renderHook(() => useLiveRefresh(revision));
+    // Model each RSC response returning new server data, including its checkNow read.
+    mock.refresh.mockImplementation(() => {
+      revision += 1;
+      view.rerender();
+    });
+    await advance(0);
+    db.reads.length = 0;
+    for (let period = 0; period < 4; period++) {
+      await advance(IDLE);
+      await advance(0);
+    }
+    expect(mock.refresh).toHaveBeenCalledTimes(4);
+    expect(db.reads.length + mock.refresh.mock.calls.length).toBe(
+      active ? 40 : 12,
+    );
+    mock.refresh.mockReset();
+  },
+);
