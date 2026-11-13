@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
 import { ENV_TABLE, type StackEnv, stackDir } from "./envs.js";
+import { resolveRuntime } from "./native/layout.js";
 import { databaseUrl } from "./pg.js";
 import { writePrivate } from "./private-file.js";
 import { randomPassword, readStackPasswords } from "./roles.js";
@@ -35,7 +36,12 @@ export async function provisionTestLogins(
   shared: string,
   runner: Runner,
   privateEnv: Record<string, string>,
+  runtime = resolveRuntime(undefined),
 ): Promise<void> {
+  if (runtime === "native")
+    throw new Error(
+      "Docker login provisioning is unavailable on native; use stack.ts start",
+    );
   if (env === "prod") return;
   const dir = stackDir(env);
   const args = [

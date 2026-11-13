@@ -250,6 +250,7 @@ function actions(env: StackEnv, runner: Runner): StackActions {
         secrets.postgres,
         runner,
         composeEnvironment(env, secrets),
+        "docker",
       );
       // Confirm SQL readiness instead of trusting only the container exit code.
       const sql = ownerConnection(url);
