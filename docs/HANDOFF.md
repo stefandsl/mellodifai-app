@@ -68,7 +68,39 @@ pnpm test:db      # needs the e2e stack env (see the M1 plan, "How tests reach a
 pnpm e2e          # e2e stack only
 ```
 
-## 3. Where things stand (2026-11-10)
+## 3. Where things stand (2026-11-13)
+
+### Production is down; the app is being moved off Docker (2026-11-13, in progress)
+
+**Read this first.** The owner's order of 2026-11-13: "redevelop without docker". The app must
+run on his Windows PC with no Docker and no WSL.
+
+- **What broke.** Windows update KB5132061 was installed on 2026-11-12 02:34. Since then WSL
+  hangs on every boot, so Docker Desktop cannot start and production has been down since
+  2026-11-12. A reboot did not help. Do not run `docker` or `wsl` commands on this PC: they
+  never return. Repairing WSL needs an administrator and is the owner's action.
+- **The data is safe.** The Docker data disk was copied to
+  `E:/mellodifai/backups/docker-data-20261113/docker_data.vhdx` and read offline. The result
+  is in `E:/mellodifai/recovery/20261113` (see its `README.md`): `prod-full.dump` (a
+  `pg_dump -Fc` of production: 15 users, 18 projects, 28 versions, 24 jobs, 101 storage
+  objects, 54 migrations), `globals.sql` (roles with password hashes, keep private) and all
+  101 Storage files with their content-type metadata (`r3/storage`,
+  `r3/storage.manifest.jsonl`). The newest job is dated 2026-11-01, so nothing recent is
+  missing.
+- **The work.** Branch `feat/native-runtime`, worktree `E:/mellodifai/wt/native-runtime`. The
+  binding plan with its ten rulings is
+  `docs/superpowers/plans/2026-11-13-native-runtime-windows.md`. In short: PostgreSQL 17.11,
+  PostgREST 16.5, Supabase Auth 2.197.0 (pinned source plus one patch) and Storage 1.84.19
+  (pinned source, `fs-xattr` replaced in the repo) run as plain Windows processes behind a
+  small Node gateway that replaces Kong. Supabase Realtime is gone for good: the web app polls
+  change cursors (`apps/web/lib/live/`). Native is the default runtime; `--runtime docker`
+  keeps the old path for a machine where Docker works.
+- **Testing it.** Use an isolated root, never the live one:
+  `MELLODIFAI_ROOT=E:/mellodifai/native-lab`, environment `e2e` (ports 45620-45629). Never
+  touch ports 3000, 3210-3212 or 44320-44329.
+- **Not done until** `pnpm test:db` and `pnpm e2e` pass on the native stack and production
+  runs on it with the recovered data. The Windows installer on `feat/local-launcher` still
+  expects Docker and must be moved onto the native runtime afterwards.
 
 ### Agent remake access (2026-11-10, merged, pushed and deployed)
 
