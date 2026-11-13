@@ -19,6 +19,8 @@ export interface ProcessSpec {
   dependsOn: string[];
   /** URL that answers 200 once the service can take requests. */
   ready: string;
+  /** Credentials for a read-only request that proves database access. Never log. */
+  readyHeaders?: Record<string, string>;
   /** Spawn with an IPC channel; closing it asks the process to stop. */
   ipc?: boolean;
 }
@@ -210,7 +212,8 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
       env: { ...base, ...auth },
       cwd: dirname(tools.auth),
       dependsOn: ["database", "templates", ...(catcher ? ["mailpit"] : [])],
-      ready: `${loopback(ports.auth)}/health`,
+      ready: `${loopback(ports.auth)}/admin/users?page=1&per_page=1`,
+      readyHeaders: { Authorization: `Bearer ${input.secrets.service}` },
     },
     {
       id: "rest",
@@ -249,7 +252,8 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
       },
       cwd: tools.storageDir,
       dependsOn: ["database", "rest"],
-      ready: `${loopback(ports.storage)}/status`,
+      ready: `${loopback(ports.storage)}/bucket`,
+      readyHeaders: { Authorization: `Bearer ${input.secrets.service}` },
     },
   ];
   if (catcher)

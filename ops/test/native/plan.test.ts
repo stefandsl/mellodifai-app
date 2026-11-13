@@ -103,6 +103,16 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
     expect(find("storage")?.env.FILE_STORAGE_BACKEND_PATH).toBe(layout.objects);
     expect(find("gateway")?.args).toEqual(gatewayArgs(opsDir));
     expect(find("gateway")?.ipc).toBe(true);
+    expect(find("auth")?.ready).toBe(
+      `http://127.0.0.1:${layout.ports.auth}/admin/users?page=1&per_page=1`,
+    );
+    expect(find("storage")?.ready).toBe(
+      `http://127.0.0.1:${layout.ports.storage}/bucket`,
+    );
+    for (const id of ["auth", "storage"])
+      expect(find(id)?.readyHeaders).toEqual({
+        Authorization: `Bearer ${secrets.service}`,
+      });
     for (const spec of specs)
       expect(Number(new URL(spec.ready).port)).toBeGreaterThanOrEqual(base);
   },

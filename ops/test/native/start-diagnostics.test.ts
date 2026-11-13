@@ -1,12 +1,44 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   childService,
   Supervisor,
   waitFor,
 } from "../../lib/native/processes.js";
 import { fixture } from "./fixtures.js";
+
+afterEach(() => vi.unstubAllGlobals());
+
+it("uses the service credential for readiness and refuses an unavailable database", async () => {
+  const fetchMock = vi.fn(
+    async (_url: string, init: RequestInit) =>
+      new Response(null, {
+        status:
+          (init.headers as Record<string, string>).Authorization ===
+          "Bearer synthetic"
+            ? 200
+            : 401,
+      }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const service = childService(
+    {
+      id: "storage",
+      command: "unused",
+      args: [],
+      env: {},
+      cwd: fixture(),
+      dependsOn: [],
+      ready: "http://127.0.0.1:46309/bucket",
+      readyHeaders: { Authorization: "Bearer synthetic" },
+    },
+    "unused.log",
+  );
+  expect(await service.ready()).toBe(true);
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+  expect(await service.ready()).toBe(false);
+});
 
 it("reports a child that exits before identification with its code and last 50 safe log lines", async () => {
   const dir = fixture();

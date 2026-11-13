@@ -154,8 +154,14 @@ export async function waitFor(
   return false;
 }
 
-export async function httpReady(url: string): Promise<boolean> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(3_000) });
+export async function httpReady(
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<boolean> {
+  const response = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(3_000),
+  });
   await response.body?.cancel();
   return response.status === 200;
 }
@@ -376,7 +382,7 @@ export function childService(
   options: { stopGraceMs?: number } = {},
 ): Pick<ServiceDefinition, "start" | "ready"> {
   return {
-    ready: () => httpReady(spec.ready),
+    ready: () => httpReady(spec.ready, spec.readyHeaders),
     async start() {
       mkdirSync(dirname(logFile), { recursive: true });
       const offset = logOffset(logFile);
