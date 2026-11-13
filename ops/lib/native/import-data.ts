@@ -114,7 +114,11 @@ export function compareLedgers(source: DumpData, target: DumpData): void {
     // Service migration timestamps and CLI statements differ across installations.
     // Compare identifiers plus migration names/checksums where the service stores them.
     const columns =
-      name === "storage.migrations" ? ["id", "name", "hash"] : ["version"];
+      name === "storage.migrations"
+        ? ["id", "name", "hash"]
+        : name === "supabase_migrations.schema_migrations"
+          ? ["version", "name"]
+          : ["version"];
     const normalize = (table: CopyTable) =>
       tableRows(table)
         .map((row) =>

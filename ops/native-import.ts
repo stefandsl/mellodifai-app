@@ -156,6 +156,10 @@ export async function nativeImport(
   options: ImportOptions,
   log = console.log,
 ): Promise<void> {
+  if (options.env === "prod" && !options.confirmProduction)
+    throw new Error("Production import requires --confirm-production");
+  if (options.apply && !options.replaceEmptyOnly)
+    throw new Error("Apply requires --replace-empty-only");
   if (resolveRuntime(undefined) !== "native")
     throw new Error("native-import requires the native runtime");
   const layout = nativeLayout(options.env);
@@ -217,12 +221,36 @@ export async function nativeImport(
     .filter((entry) => entry.type === "file");
   if (manifest.length !== 181)
     throw new Error("Unexpected recovered Storage manifest count");
-  rebuildStorageMetadata(recoveryLayout, rows, false, {
-    get: () => Buffer.from(""),
-    set: () => {
-      throw new Error("Recovery is read only");
+  const recoveredMetadata = rebuildStorageMetadata(
+    recoveryLayout,
+    rows,
+    false,
+    {
+      get: () => Buffer.from(""),
+      set: () => {
+        throw new Error("Recovery is read only");
+      },
     },
-  });
+  );
+  if (
+    recoveredMetadata.missingFiles.length ||
+    recoveredMetadata.sizeMismatches.length ||
+    recoveredMetadata.invalidMetadata.length
+  )
+    throw new Error("Recovered Storage metadata is incomplete");
+  const sourceHashes = new Map<string, string>();
+  for (const entry of manifest) {
+    const path = safeFile(entry.path);
+    if (!path.startsWith("stub/stub/") || sourceHashes.has(path))
+      throw new Error("Invalid or duplicate recovered Storage path");
+    for (const name of [
+      "user.supabase.content-type",
+      "user.supabase.cache-control",
+    ])
+      if (typeof entry.xattr?.[name] !== "string")
+        throw new Error("Missing recovered Storage metadata");
+    sourceHashes.set(path, fileHash(join(recoveryLayout.root, path)));
+  }
   for (const row of rows) {
     const path = storageObjectPath(recoveryLayout, row);
     if (statSync(path).size !== row.metadata?.size)
@@ -299,7 +327,7 @@ export async function nativeImport(
       const destination = join(stage, path);
       mkdirSync(dirname(destination), { recursive: true });
       copyFileSync(join(recoveryLayout.root, path), destination);
-      if (fileHash(join(recoveryLayout.root, path)) !== fileHash(destination))
+      if (sourceHashes.get(path) !== fileHash(destination))
         throw new Error("Historical Storage copy hash mismatch");
       for (const name of [
         "user.supabase.content-type",
@@ -346,21 +374,30 @@ export async function nativeImport(
     );
   } catch (error) {
     if (backedUp) {
-      if (maintenance) {
+      try {
+        if (maintenance) {
+          await maintenance.stop();
+          maintenance = undefined;
+        }
+        maintenance = await maintenanceDatabase(options.env);
+        await restoreNativeData(options.env, backup);
         await maintenance.stop();
         maintenance = undefined;
+        await writePrivate(
+          journal,
+          JSON.stringify({ phase: "rolled-back", backup }),
+        );
+        log(
+          "IMPORT FAILED: target data restored from the pre-import backup; stack and application writers remain stopped.",
+        );
+      } catch {
+        log(
+          `IMPORT ROLLBACK FAILED: keep writers stopped. Recover using native-backup.ts recover-import --env ${options.env} ${backup}${options.env === "prod" ? " --confirm-production" : ""}.`,
+        );
+        throw new Error(
+          "Import and automatic rollback failed; backup and recovery journal retained",
+        );
       }
-      maintenance = await maintenanceDatabase(options.env);
-      await restoreNativeData(options.env, backup);
-      await maintenance.stop();
-      maintenance = undefined;
-      await writePrivate(
-        journal,
-        JSON.stringify({ phase: "rolled-back", backup }),
-      );
-      log(
-        "IMPORT FAILED: target data restored from the pre-import backup; stack and application writers remain stopped.",
-      );
     }
     throw error;
   } finally {
