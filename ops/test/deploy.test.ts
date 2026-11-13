@@ -1,3 +1,7 @@
+import { beforeEach as beforeDockerCase, vi as legacyRuntime } from "vitest";
+
+beforeDockerCase(() => legacyRuntime.stubEnv("MELLODIFAI_RUNTIME", "docker"));
+
 import {
   existsSync,
   mkdirSync,
@@ -385,6 +389,56 @@ it("executes only against the deploy clone, keeps the database running for its e
   expect(mocks.prepare).toHaveBeenCalledWith(expect.any(String), repo);
   expect(mocks.secrets).toHaveBeenCalledWith("prod");
 });
+
+it.each([false, true])(
+  "native deploy uses the target migration tool and preserves skip-migrations=%s",
+  async (skipMigrations) => {
+    vi.stubEnv("MELLODIFAI_RUNTIME", "native");
+    const root = temp();
+    const repo = join(root, "deploy");
+    mkdirSync(join(repo, "supabase/migrations"), { recursive: true });
+    writeFileSync(join(repo, "supabase/migrations/002_test.sql"), "-- test");
+    const calls: string[][] = [];
+    const runner: Runner = async (cmd, args) => {
+      expect(cmd).not.toBe("docker");
+      expect(args).not.toContain("--db-url");
+      calls.push(args);
+      const stdout = args.includes("--show-toplevel")
+        ? repo
+        : args[0] === "rev-parse"
+          ? "abc123"
+          : args[0] === "describe"
+            ? "reviewed-tag"
+            : "";
+      return { code: 0, stdout, stderr: "" };
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response(JSON.stringify({ ops: "ok", schema: "002" })),
+      ),
+    );
+    await productionDeploy(
+      { ...input, skipMigrations },
+      root,
+      "pnpm.cjs",
+      runner,
+    );
+    expect(
+      calls.some(
+        (args) =>
+          args.some((arg) => arg.endsWith("native-backup.ts")) &&
+          args.includes("backup"),
+      ),
+    ).toBe(true);
+    const migration = calls.find((args) => args.includes("migrate"));
+    expect(Boolean(migration)).toBe(!skipMigrations);
+    if (migration) expect(migration).toContain(join(repo, "ops/stack.ts"));
+    expect(
+      calls.some((args) => args.includes("start") && args.includes("native")),
+    ).toBe(true);
+  },
+);
 
 async function gitRepo() {
   const repo = temp();

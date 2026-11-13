@@ -21,6 +21,7 @@ import {
   runDeploy,
 } from "./lib/deploy-plan.js";
 import { ENV_TABLE, runtimePath, stackDir } from "./lib/envs.js";
+import { resolveRuntime } from "./lib/native/layout.js";
 import { databaseUrl, ownerConnection } from "./lib/pg.js";
 import { prepareStackDir } from "./lib/render.js";
 import { type Runner, realRunner } from "./lib/run.js";
@@ -91,6 +92,13 @@ export async function pinOps(
       );
     },
   });
+  if (existsSync(join(checkout, "supabase")))
+    cpSync(join(checkout, "supabase"), join(pinned, "source/supabase"), {
+      recursive: true,
+      filter(path) {
+        return ![".temp", ".branches", "node_modules"].includes(basename(path));
+      },
+    });
   // Keep exact resolutions while making ops independent of the invoking workspace.
   const lock = parse(readFileSync(join(checkout, "pnpm-lock.yaml"), "utf8"));
   if (!lock.importers?.ops) throw new Error("Ops lockfile importer is missing");
@@ -244,6 +252,7 @@ export async function productionDeploy(
   commandRunner: Runner = realRunner,
 ) {
   const repo = runtimePath(join(root, "deploy"));
+  const native = resolveRuntime(undefined) === "native";
   const env = runtimeEnv(root);
   const runner: Runner = (cmd, args, opts) =>
     commandRunner(cmd, args, {
@@ -252,6 +261,13 @@ export async function productionDeploy(
       env: { ...env, ...opts?.env },
     });
   const git = (...args: string[]) => checked(runner, "git", args, repo);
+  const nativeCommand = (entry: string, args: string[], from = here) =>
+    checked(
+      runner,
+      process.execPath,
+      [require.resolve("tsx/cli"), join(from, entry), ...args],
+      repo,
+    );
   // Refuse an unprovisioned or dirty deploy clone before stopping any writers.
   if (resolve(await git("rev-parse", "--show-toplevel")) !== resolve(repo))
     throw new Error("Dedicated deploy clone required");
@@ -276,6 +292,14 @@ export async function productionDeploy(
     "apps/auth/package.json",
   );
   input = { ...input, target, hasAuth: Boolean(tree) };
+  if (native)
+    await nativeCommand("stack.ts", [
+      "start",
+      "--env",
+      "prod",
+      "--runtime",
+      "native",
+    ]);
   const secrets = await loadStackSecrets("prod");
   const url = databaseUrl(
     "postgres",
@@ -320,6 +344,15 @@ export async function productionDeploy(
               `${new Date().toISOString().replaceAll(/[:.]/g, "-")}-${previousTag}.sql`,
             ),
           );
+          if (native) {
+            await nativeCommand("native-backup.ts", [
+              "backup",
+              "--env",
+              "prod",
+              `${file}.native`,
+            ]);
+            break;
+          }
           await dbCommand([
             "db",
             "dump",
@@ -333,6 +366,14 @@ export async function productionDeploy(
           break;
         }
         case "migrate":
+          if (native) {
+            await nativeCommand(
+              "stack.ts",
+              ["migrate", "--env", "prod", "--runtime", "native"],
+              join(repo, "ops"),
+            );
+            break;
+          }
           prepareStackDir(stackDir("prod"), repo);
           await dbCommand(["migration", "up", "--include-all"]);
           break;
@@ -343,6 +384,14 @@ export async function productionDeploy(
           } else await reapplyDbPasswords("prod", runner);
           break;
         case "start": {
+          if (native)
+            await nativeCommand("stack.ts", [
+              "start",
+              "--env",
+              "prod",
+              "--runtime",
+              "native",
+            ]);
           if (!(await probe("prod", runner)).ok)
             throw new Error("Production probe failed");
           const present = presentServices(root);
