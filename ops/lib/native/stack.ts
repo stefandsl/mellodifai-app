@@ -36,6 +36,7 @@ import {
   type StackState,
   waitFor,
 } from "./processes.js";
+import { nativeSourceRoot } from "./source.js";
 import {
   migrateApp,
   nativeContext,
@@ -44,7 +45,7 @@ import {
   tsxRuntime,
 } from "./supervisor.js";
 
-const repo = fileURLToPath(new URL("../../../", import.meta.url));
+const repo = nativeSourceRoot();
 const supervisorEntry = fileURLToPath(
   new URL("./supervisor.ts", import.meta.url),
 );
@@ -101,7 +102,7 @@ export function assertNativeCommand(
 /** Stack folder, CLI-compatible config and secrets, shared with Docker. */
 export async function renderNative(env: StackEnv): Promise<NativeLayout> {
   const dir = stackDir(env);
-  prepareStackDir(dir);
+  prepareStackDir(dir, repo);
   writeFileSync(
     join(dir, "supabase/config.toml"),
     renderConfig(

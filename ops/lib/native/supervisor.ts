@@ -38,9 +38,10 @@ import {
   writeState,
 } from "./processes.js";
 import { loadNativeLogins, type NativeLogins } from "./secrets.js";
+import { nativeSourceRoot } from "./source.js";
 
 const opsDir = fileURLToPath(new URL("../../", import.meta.url));
-const repo = resolve(opsDir, "..");
+const repo = nativeSourceRoot();
 
 export const statePath = (layout: NativeLayout) =>
   join(layout.run, "state.json");
