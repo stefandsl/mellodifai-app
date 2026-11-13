@@ -61,6 +61,18 @@ class Query implements PromiseLike<Reply> {
   eq(column: string, value: unknown) {
     return this.where(`${column}=eq.${value}`, (row) => row[column] === value);
   }
+  gt(column: string, value: unknown) {
+    return this.where(
+      `${column}=gt.${value}`,
+      (row) => compare(row[column], value) > 0,
+    );
+  }
+  lte(column: string, value: unknown) {
+    return this.where(
+      `${column}=lte.${value}`,
+      (row) => compare(row[column], value) <= 0,
+    );
+  }
   in(column: string, values: readonly unknown[]) {
     return this.where(`${column}=in.(${values.join(",")})`, (row) =>
       values.includes(row[column]),

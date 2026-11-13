@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import {
-  checkNow,
   FAST_MS,
   holdFast,
   IDLE_MS,
@@ -158,36 +157,55 @@ it("does not hand a late watcher a read that started before it", async () => {
   expect(second.listener.mock.calls).toEqual([["new", { initial: true }]]);
 });
 
-it("never starts a read while the last one is unanswered", async () => {
+it.each(["focus", "online", "visibilitychange"])(
+  "replaces a hung read on %s without charging an error",
+  async (event) => {
+    const signals: AbortSignal[] = [];
+    const read = vi.fn((signal: AbortSignal): Promise<number> => {
+      signals.push(signal);
+      if (signals.length === 1) return new Promise(() => {});
+      return Promise.reject(new Error("down"));
+    });
+    start({ key: "wake-hung", read });
+    stops.push(holdFast());
+    await advance(0);
+    await advance(1000);
+    if (event === "visibilitychange") {
+      show("hidden");
+      show("visible");
+    } else window.dispatchEvent(new Event(event));
+    await advance(1);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(read).toHaveBeenCalledTimes(2);
+    // Only the replacement's real error counts: one fast-clock backoff, not two.
+    await advance(FAST_MS * 2);
+    expect(read).toHaveBeenCalledTimes(3);
+  },
+);
+
+it("never overlaps ordinary scheduled reads", async () => {
   const answers: ((value: number) => void)[] = [];
   const definition: Watch<number> = {
     key: "slow",
     read: () => new Promise((resolve) => answers.push(resolve)),
   };
   const { listener } = start(definition);
-  // Another watch keeps the clock ticking meanwhile, and a second watcher joins the slow one.
+  // Another watch keeps the clock ticking meanwhile.
   const quick = source("quick", 0);
   start(quick.definition);
   stops.push(holdFast());
   await advance(0);
-  start(definition);
-  window.dispatchEvent(new Event("focus"));
-  checkNow();
   await advance(READ_TIMEOUT_MS - 1);
   expect(quick.state.reads).toBeGreaterThan(3);
   expect(answers).toHaveLength(1);
   answers[0]?.(1);
   await advance(0);
   expect(listener).toHaveBeenCalledOnce();
-  // The second watcher is owed a read of its own, right after the answer.
-  expect(answers).toHaveLength(2);
-  answers[1]?.(1);
-  await advance(0);
   // The next read is a full interval after the answer, not after the request.
   await advance(FAST_MS - 1);
-  expect(answers).toHaveLength(2);
+  expect(answers).toHaveLength(1);
   await advance(1);
-  expect(answers).toHaveLength(3);
+  expect(answers).toHaveLength(2);
 });
 
 it("backs off after errors up to a minute and returns to the clock on success", async () => {

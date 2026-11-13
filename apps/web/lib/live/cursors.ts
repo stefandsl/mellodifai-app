@@ -1,7 +1,7 @@
 import type { JobStatus, Stage, VersionStatus } from "@mellodifai/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Watch } from "./poller";
+import { IDLE_MS, type Watch } from "./poller";
 
 // The reads the live parts of the app watch (see poller.ts). Each is small, runs under the
 // signed-in user's RLS and changes whenever a row the consumer shows is added, edited or removed.
@@ -55,10 +55,26 @@ export type JobsCursor = {
 
 // A queued job that may not start yet (a publish waiting for tomorrow's quota) is not work in
 // progress.
-const waiting = (job: ActiveJob) =>
+type ScheduledJob = { status: string; not_before?: string | null };
+
+export const queuedAndDue = (job: ScheduledJob) =>
   job.status === "queued" &&
-  job.not_before !== null &&
-  Date.parse(job.not_before) > Date.now();
+  !(job.not_before && Date.parse(job.not_before) > Date.now());
+
+export const activeJob = (job: ScheduledJob) =>
+  job.status === "running" || queuedAndDue(job);
+
+function nextDue(jobs: ScheduledJob[]): number {
+  return Math.min(
+    ...jobs.flatMap((job) =>
+      job.status === "queued" &&
+      job.not_before &&
+      Date.parse(job.not_before) > Date.now()
+        ? [Date.parse(job.not_before)]
+        : [],
+    ),
+  );
+}
 
 // Every job the user can see. Jobs have no updated_at, so the cursor is made of what a job can
 // do: appear or go (the count), be claimed, put back or deferred (the queued and running rows),
@@ -88,7 +104,10 @@ export function jobsWatch(db: SupabaseClient): Watch<JobsCursor> {
         finished: unwrap(finished) ?? [],
       };
     },
-    busy: (value) => value.active.some((job) => !waiting(job)),
+    busy: (value) => value.active.some(activeJob),
+    wakeAt: (value) => nextDue(value.active),
+    repeatMs: (value) =>
+      value.active.some(queuedAndDue) ? IDLE_MS : undefined,
   };
 }
 
@@ -114,6 +133,8 @@ export function timelineWatch(
 ): Watch<TimelineSnapshot> {
   return {
     key: `timeline:${versionId}`,
+    busy: (value) => value.jobs.some(activeJob),
+    wakeAt: (value) => nextDue(value.jobs),
     read: async (signal) => {
       const [version, jobs] = await Promise.all([
         db
@@ -180,4 +201,33 @@ export async function readJobEvents(
     .order("id", { ascending: false })
     .limit(limit);
   return ((unwrap(reply) ?? []) as JobEventRow[]).toReversed();
+}
+
+// Catch up to the cursor in bounded, ascending pages. A quieter job's final event must not be
+// pushed out of the result by a busy job. A failed page rejects the whole read for retry.
+export async function readJobEventsAfter(
+  db: SupabaseClient,
+  jobIds: readonly string[],
+  after: number,
+  through: number,
+  signal: AbortSignal,
+): Promise<JobEventRow[]> {
+  const events: JobEventRow[] = [];
+  while (after < through) {
+    const reply = await db
+      .from("job_events")
+      .select("id,job_id,message,progress,at")
+      .in("job_id", [...jobIds])
+      .gt("id", after)
+      .lte("id", through)
+      .order("id")
+      .limit(200)
+      .abortSignal(signal);
+    const page = (unwrap(reply) ?? []) as JobEventRow[];
+    const last = page.at(-1);
+    if (!last) break;
+    events.push(...page);
+    after = last.id;
+  }
+  return events;
 }

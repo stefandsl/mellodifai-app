@@ -9,19 +9,18 @@ import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   jobEventsWatch,
-  readJobEvents,
+  readJobEventsAfter,
   type TimelineSnapshot,
   timelineWatch,
 } from "@/lib/live/cursors";
-import { holdFast, watch } from "@/lib/live/poller";
+import { watch } from "@/lib/live/poller";
 import { createClient } from "@/lib/supabase/browser";
 import { jobStatusLine, timelineRows } from "@/lib/timeline";
 import { ErrorDetails } from "./error-details";
 import { useLocale } from "./locale-provider";
 
-// Events kept for the status lines, and how many to fetch when the newest id moves.
+// Events kept per job, so a busy job cannot discard another job's last status line.
 const KEEP = 200;
-const RECENT = 50;
 
 export type TimelineJob = {
   id: string;
@@ -54,12 +53,21 @@ export function LiveTimeline({
   const lang = useLocale();
   const router = useRouter();
   const currentStatus = useRef(status);
+  const missingVersion = useRef<string | null>(null);
   useEffect(() => {
     setJobs(initialJobs);
     setEvents(initialEvents);
     currentStatus.current = status;
   }, [initialJobs, initialEvents, status]);
   const show = useEffectEvent((snapshot: TimelineSnapshot) => {
+    if (snapshot.status === null) {
+      if (missingVersion.current !== versionId) {
+        missingVersion.current = versionId;
+        router.refresh();
+      }
+      return;
+    }
+    missingVersion.current = null;
     setJobs(snapshot.jobs);
     if (snapshot.status && snapshot.status !== currentStatus.current) {
       currentStatus.current = snapshot.status;
@@ -72,12 +80,6 @@ export function LiveTimeline({
     () => watch(timelineWatch(createClient(), versionId), show),
     [versionId, initialJobs],
   );
-  const hasActiveJobs = jobs.some(
-    (job) => job.status === "queued" || job.status === "running",
-  );
-  useEffect(() => {
-    if (hasActiveJobs) return holdFast();
-  }, [hasActiveJobs]);
   const ids = jobs
     .map((j) => j.id)
     .sort()
@@ -86,25 +88,36 @@ export function LiveTimeline({
   useEffect(() => {
     if (!ids) return;
     let active = true;
+    const controller = new AbortController();
     const db = createClient();
     const jobIds = ids.split(",");
-    const stop = watch(
-      jobEventsWatch(db, jobIds),
-      async ({ newest }, { initial }) => {
-        if (newest === null) return;
-        // A job the page has only now learnt of may have older events: read the whole window.
-        const fresh = await readJobEvents(db, jobIds, initial ? KEEP : RECENT);
-        if (active)
-          setEvents((old) => {
-            const merged = new Map([...old, ...fresh].map((e) => [e.id, e]));
-            return [...merged.values()]
-              .sort((a, b) => a.id - b.id)
-              .slice(-KEEP);
-          });
-      },
-    );
+    // Newly discovered jobs can have events older than the ones already on screen.
+    let after = jobIds.every((id) => initialJobs.some((job) => job.id === id))
+      ? Math.max(0, ...initialEvents.map((event) => event.id))
+      : 0;
+    const stop = watch(jobEventsWatch(db, jobIds), async ({ newest }) => {
+      if (newest === null || newest <= after) return;
+      const fresh = await readJobEventsAfter(
+        db,
+        jobIds,
+        after,
+        newest,
+        controller.signal,
+      );
+      if (active) {
+        after = newest;
+        setEvents((old) => {
+          const merged = new Map([...old, ...fresh].map((e) => [e.id, e]));
+          const sorted = [...merged.values()].sort((a, b) => a.id - b.id);
+          return jobIds.flatMap((id) =>
+            sorted.filter((event) => event.job_id === id).slice(-KEEP),
+          );
+        });
+      }
+    });
     return () => {
       active = false;
+      controller.abort();
       stop();
     };
   }, [ids, initialEvents]);

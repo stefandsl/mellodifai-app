@@ -103,7 +103,7 @@ it.each([
       jobs().splice(0, 1);
     },
   ],
-])("refreshes exactly once when %s", async (_name, change) => {
+])("refreshes when %s", async (name, change) => {
   renderHook(() => useLiveRefresh("data"));
   await advance(0);
   change();
@@ -112,7 +112,9 @@ it.each([
   await advance(1 + SETTLE);
   expect(mock.refresh).toHaveBeenCalledOnce();
   await advance(IDLE * 3);
-  expect(mock.refresh).toHaveBeenCalledOnce();
+  expect(mock.refresh).toHaveBeenCalledTimes(
+    name === "a job is queued" ? 4 : 1,
+  );
 });
 
 it("follows a job through its life within two seconds, ignoring heartbeats", async () => {
@@ -269,4 +271,49 @@ it("drops a refresh that is pending when the feed unmounts", async () => {
   await advance(IDLE * 4);
   expect(mock.refresh).not.toHaveBeenCalled();
   expect(reads("versions")).toBe(2);
+});
+
+it("refreshes only once when two mounted feeds see the same change", async () => {
+  const first = renderHook(() => useLiveRefresh("one"));
+  renderHook(() => useLiveRefresh("two"));
+  await advance(0);
+  versions().splice(0, 1);
+  await advance(IDLE + SETTLE);
+  expect(mock.refresh).toHaveBeenCalledOnce();
+  first.unmount();
+  jobs().splice(0, 1);
+  await advance(IDLE + SETTLE);
+  expect(mock.refresh).toHaveBeenCalledTimes(2);
+});
+
+it("refreshes shared queue positions every 15 seconds only while a queued job is due", async () => {
+  Object.assign(jobs()[0] as object, { status: "queued", not_before: null });
+  renderHook(() => useLiveRefresh("one"));
+  renderHook(() => useLiveRefresh("two", ["jobs"]));
+  await advance(0);
+  for (let count = 1; count <= 3; count++) {
+    await advance(IDLE);
+    expect(mock.refresh).toHaveBeenCalledTimes(count);
+  }
+  Object.assign(jobs()[0] as object, {
+    not_before: new Date(Date.now() + 100_000).toISOString(),
+  });
+  await advance(FAST + SETTLE);
+  const refreshes = mock.refresh.mock.calls.length;
+  await advance(IDLE * 3);
+  expect(mock.refresh).toHaveBeenCalledTimes(refreshes);
+});
+
+it("notices an edit to a version originally below the newest five", async () => {
+  db.tables.versions = Array.from({ length: 8 }, (_, index) => ({
+    id: `v${index}`,
+    updated_at: `2026-11-01T10:00:0${index}Z`,
+  }));
+  renderHook(() => useLiveRefresh("data"));
+  await advance(0);
+  Object.assign(versions()[0] as object, {
+    updated_at: "2026-11-01T11:00:00Z",
+  });
+  await advance(IDLE + SETTLE);
+  expect(mock.refresh).toHaveBeenCalledOnce();
 });

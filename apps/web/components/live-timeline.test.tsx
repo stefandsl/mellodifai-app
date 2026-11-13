@@ -391,3 +391,68 @@ it("keeps one watch through Strict Mode and cleans up on unmount", async () => {
   await advance(60000);
   expect(reads("jobs")).toBe(2);
 });
+
+it("keeps deferred jobs on the idle clock and speeds up at their due time", async () => {
+  const deferred = {
+    ...queued,
+    not_before: new Date(Date.now() + 20_000).toISOString(),
+  };
+  Object.assign(stored(), deferred);
+  timeline(false, [deferred]);
+  await advance(0);
+  await advance(14_999);
+  expect(reads("jobs")).toBe(1);
+  await advance(1);
+  expect(reads("jobs")).toBe(2);
+  await advance(5_000);
+  expect(reads("jobs")).toBe(3);
+  await advance(2_000);
+  expect(reads("jobs")).toBe(4);
+});
+
+it("keeps the last jobs and refreshes once when the version disappears", async () => {
+  const view = timeline();
+  await advance(0);
+  db.tables.versions = [];
+  db.tables.jobs = [];
+  await advance(2_000);
+  expect(screen.getByText("Queued")).toBeVisible();
+  expect(mock.refresh).toHaveBeenCalledOnce();
+  await advance(60_000);
+  expect(mock.refresh).toHaveBeenCalledOnce();
+  view.update([]);
+  await advance(0);
+  expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  expect(mock.refresh).toHaveBeenCalledOnce();
+});
+
+it("catches every job's last progress after more than a page of hidden events", async () => {
+  const second: TimelineJob = {
+    ...queued,
+    id: "j2",
+    stage: "generate_song",
+    status: "running",
+  };
+  Object.assign(stored(), { status: "running" });
+  db.tables.jobs?.push({ ...second, error: null, not_before: null });
+  timeline(false, [{ ...queued, status: "running" }, second]);
+  await advance(0);
+  db.tables.job_events = Array.from({ length: 251 }, (_, index) => ({
+    id: index + 1,
+    job_id: index === 0 ? "j1" : "j2",
+    message: index === 0 ? "First job caught up" : "Second job caught up",
+    progress: index === 0 ? 45 : 90,
+    at: "2026-01-01T10:00:00Z",
+  }));
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(screen.getByText(/45%.*First job caught up/)).toBeVisible();
+  expect(screen.getByText(/90%.*Second job caught up/)).toBeVisible();
+  const pages = db.reads.filter(
+    (read) => read.table === "job_events" && read.columns.includes("message"),
+  );
+  expect(pages.length).toBeGreaterThan(1);
+  expect(pages[0]?.filters).toContain("id=gt.0");
+});
