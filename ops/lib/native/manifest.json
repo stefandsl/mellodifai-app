@@ -130,6 +130,23 @@
           "notices": ["LICENSE"]
         }
       }
+    },
+    "pg-boss": {
+      "version": "10.3.2-89b675b0",
+      "kind": "dependency",
+      "licence": "MIT",
+      "project": "https://github.com/supabase/pg-boss/tree/89b675b057ff7cec3ca2c434e4d3005c35a76bd9",
+      "entry": {},
+      "downloads": {
+        "source": {
+          "url": "https://github.com/supabase/pg-boss/archive/89b675b057ff7cec3ca2c434e4d3005c35a76bd9.tar.gz",
+          "file": "pg-boss-89b675b057ff7cec3ca2c434e4d3005c35a76bd9.tar.gz",
+          "sha256": "2a13ff1e2b1c915a34eacb8d89c43c87c06117b693c511f23940dbc855683e50",
+          "size": 150769,
+          "strip": 1,
+          "notices": ["LICENSE"]
+        }
+      }
     }
   }
 }

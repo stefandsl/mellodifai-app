@@ -41,7 +41,11 @@ import {
   writeState,
 } from "./processes.js";
 import { readRollback } from "./rollback.js";
-import { loadNativeLogins, type NativeLogins } from "./secrets.js";
+import {
+  loadHopSecret,
+  loadNativeLogins,
+  type NativeLogins,
+} from "./secrets.js";
 import { nativeSourceRoot } from "./source.js";
 
 const opsDir = fileURLToPath(new URL("../../", import.meta.url));
@@ -75,6 +79,7 @@ export async function nativeContext(env: StackEnv): Promise<NativeContext> {
   const tools = nativeTools();
   const secrets = await loadStackSecrets(env);
   const native = await loadNativeLogins(env);
+  const hopSecret = await loadHopSecret(env);
   const toml = readFileSync(
     join(stackDir(env), "supabase/config.toml"),
     "utf8",
@@ -86,6 +91,7 @@ export async function nativeContext(env: StackEnv): Promise<NativeContext> {
     toml,
     secrets,
     logins: native.logins,
+    hopSecret,
     smtp: await loadSmtpEnvironment(env),
     tsx: tsxRuntime(),
     opsDir,
@@ -100,7 +106,7 @@ export async function nativeContext(env: StackEnv): Promise<NativeContext> {
     mkdirSync(directory, { recursive: true });
   await writePrivate(
     join(layout.config, GATEWAY_CONFIG_FILE),
-    JSON.stringify(gatewayConfig(env, layout, secrets)),
+    JSON.stringify(gatewayConfig(env, layout, secrets, hopSecret)),
   );
   return { env, layout, tools, native, specs };
 }

@@ -66,6 +66,11 @@ export interface GatewayConfig {
   upstreams: { auth: string; rest: string; storage: string };
   /** Accepted apikey values. */
   keys: { anon: string; service: string };
+  /**
+   * Per-stack secret sent to every upstream in HOP_HEADER. Auth and Storage
+   * refuse requests without it, so they answer only through the gateway.
+   */
+  hopSecret: string;
   /** Origins allowed by CORS on non-public routes, e.g. "http://127.0.0.1:3000". */
   appOrigins: string[];
   limits?: Partial<GatewayLimits>;
@@ -81,6 +86,8 @@ const ROUTES = {
 type RouteName = keyof typeof ROUTES;
 const ROUTE_NAMES = Object.keys(ROUTES) as RouteName[];
 
+/** Carries the hop secret; a client's own copy is removed, never forwarded. */
+export const HOP_HEADER = "x-mellodifai-hop";
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
 const HOP_BY_HOP = [
   "connection",
@@ -121,6 +128,7 @@ const RELIED_ON_HEADERS = new Set([
   "authorization",
   "origin",
   "expect",
+  HOP_HEADER,
   ...IDENTITY_HEADERS,
 ]);
 const RELIED_ON_PREFIXES = [...IDENTITY_PREFIXES, "access-control-"];
@@ -168,6 +176,7 @@ export function parseGatewayConfig(value: unknown): GatewayConfig {
     "port",
     "upstreams",
     "keys",
+    "hopSecret",
     "appOrigins",
     "limits",
     "log",
@@ -213,6 +222,11 @@ export function parseGatewayConfig(value: unknown): GatewayConfig {
   };
   const keys = { anon: key("anon"), service: key("service") };
   if (keys.anon === keys.service) invalid("keys.anon and keys.service match");
+  const hopSecret = root.hopSecret;
+  if (typeof hopSecret !== "string" || !/^[\x21-\x7e]{32,}$/.test(hopSecret))
+    invalid("hopSecret must be at least 32 visible ASCII characters");
+  if (hopSecret === keys.anon || hopSecret === keys.service)
+    invalid("hopSecret must differ from both keys");
 
   if (!Array.isArray(root.appOrigins)) invalid("appOrigins must be an array");
   const appOrigins = root.appOrigins.map((origin: unknown, index) => {
@@ -251,6 +265,7 @@ export function parseGatewayConfig(value: unknown): GatewayConfig {
     port,
     upstreams,
     keys,
+    hopSecret,
     appOrigins,
     limits,
     ...(root.log ? { log: root.log as (entry: GatewayLogEntry) => void } : {}),
@@ -620,6 +635,9 @@ export function createGateway(config: GatewayConfig): Server {
     delete headers.expect;
     // PostgREST shows request headers to SQL; like Kong, keep the key from it.
     if (route === "rest") delete headers.apikey;
+    // Only the gateway proves a request came through it: a client's own
+    // copy of the header is replaced, never forwarded.
+    headers[HOP_HEADER] = settings.hopSecret;
     headers.host = upstream.host;
     headers["x-forwarded-for"] = req.socket.remoteAddress ?? "127.0.0.1";
     headers["x-forwarded-proto"] = "http";

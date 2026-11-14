@@ -5,7 +5,7 @@ import { composeEnvironment, renderCompose } from "../compose.js";
 import { ENV_TABLE, redirectUrls, type StackEnv } from "../envs.js";
 import type { StackSecrets } from "../stack-secrets.js";
 import type { NativeTools } from "./build.js";
-import type { GatewayConfig } from "./gateway.js";
+import { type GatewayConfig, HOP_HEADER } from "./gateway.js";
 import { loopback, type NativeLayout } from "./layout.js";
 
 export type DbLogins = Record<string, string>;
@@ -33,6 +33,8 @@ export interface PlanInput {
   toml: string;
   secrets: StackSecrets;
   logins: DbLogins;
+  /** Gateway-to-service secret; Auth and Storage refuse requests without it. */
+  hopSecret: string;
   /** MDF_SMTP_PASS for production, empty elsewhere. */
   smtp: Record<string, string>;
   /** Node and tsx entry used to run TypeScript from ops/. */
@@ -149,14 +151,20 @@ export function baseEnvironment(
   };
 }
 
+/** Origins of the web app of a stack: the only pages CORS answers. */
+export function appOrigins(env: StackEnv): string[] {
+  const origins = [ENV_TABLE[env].siteUrl, ...redirectUrls(env)].map(
+    (url) => new URL(url.replace(/\/\*\*$/, "")).origin,
+  );
+  return [...new Set(origins)];
+}
+
 export function gatewayConfig(
   env: StackEnv,
   layout: NativeLayout,
   secrets: StackSecrets,
+  hopSecret: string,
 ): GatewayConfig {
-  const origins = [ENV_TABLE[env].siteUrl, ...redirectUrls(env)].map(
-    (url) => new URL(url.replace(/\/\*\*$/, "")).origin,
-  );
   return {
     host: "127.0.0.1",
     port: layout.ports.api,
@@ -166,7 +174,8 @@ export function gatewayConfig(
       storage: loopback(layout.ports.storage),
     },
     keys: { anon: secrets.anon, service: secrets.service },
-    appOrigins: [...new Set(origins)],
+    hopSecret,
+    appOrigins: appOrigins(env),
   };
 }
 
@@ -181,11 +190,14 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
   const contract = composeContract(env, input.toml, input.secrets, input.smtp);
   const base = baseEnvironment(layout);
   const catcher = ports.mailHttp !== null && ports.mailSmtp !== null;
+  // Readiness probes go straight to the service, so they prove the hop too.
+  const hop = { [HOP_HEADER]: input.hopSecret };
 
   const auth: Record<string, string> = {
     ...contract.auth,
     GOTRUE_API_HOST: "127.0.0.1",
     GOTRUE_API_PORT: String(ports.auth),
+    MDF_HOP_SECRET: input.hopSecret,
     // Auth defaults to zero idle connections. PostgreSQL starts a process for
     // each connection on Windows, so keep a bounded pool available for reuse.
     GOTRUE_DB_MAX_POOL_SIZE: contract.auth.GOTRUE_DB_MAX_POOL_SIZE ?? "10",
@@ -219,7 +231,10 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
       cwd: dirname(tools.auth),
       dependsOn: ["database", "templates", ...(catcher ? ["mailpit"] : [])],
       ready: `${loopback(ports.auth)}/admin/users?page=1&per_page=1`,
-      readyHeaders: { Authorization: `Bearer ${input.secrets.service}` },
+      readyHeaders: {
+        Authorization: `Bearer ${input.secrets.service}`,
+        ...hop,
+      },
     },
     {
       id: "rest",
@@ -240,6 +255,10 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
         PGRST_DB_URI: serviceDatabaseUrl("authenticator", logins, ports.db),
         PGRST_SERVER_HOST: "127.0.0.1",
         PGRST_SERVER_PORT: String(ports.rest),
+        // PostgREST cannot check the gateway's hop secret: direct loopback
+        // access is an accepted exposure (anon key public, JWT and RLS
+        // decide). Its own CORS answers the app's origins only, never "*".
+        PGRST_SERVER_CORS_ALLOWED_ORIGINS: appOrigins(env).join(","),
       },
       cwd: dirname(tools.postgrest),
       dependsOn: ["database"],
@@ -262,11 +281,15 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
         FILE_STORAGE_BACKEND_PATH: layout.objects,
         SERVER_HOST: "127.0.0.1",
         SERVER_PORT: String(ports.storage),
+        MDF_HOP_SECRET: input.hopSecret,
       },
       cwd: tools.storageDir,
       dependsOn: ["database", "rest"],
       ready: `${loopback(ports.storage)}/bucket`,
-      readyHeaders: { Authorization: `Bearer ${input.secrets.service}` },
+      readyHeaders: {
+        Authorization: `Bearer ${input.secrets.service}`,
+        ...hop,
+      },
     },
   ];
   if (catcher)

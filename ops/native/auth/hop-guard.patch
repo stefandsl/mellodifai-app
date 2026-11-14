@@ -1,0 +1,55 @@
+Supabase Auth v2.197.0: answer only requests that came through the native gateway.
+
+On the native runtime every service listens on loopback, where any local account can reach
+it. internal/api/hop_guard.go wraps the whole handler, outside CORS, forwarded-IP handling
+and routing (health included): a request must carry the header X-Mellodifai-Hop equal, in
+constant time, to the per-stack secret in the environment variable MDF_HOP_SECRET, or it gets
+403 without any CORS header. The header is removed before Auth sees the request. Without a
+secret of at least 32 bytes every request is refused. Forwarded-IP headers are therefore only
+read on requests that came through the gateway, which replaces them with its own.
+
+Applied by ops/lib/native/build.ts after listener-portable.patch at install time; the pinned
+source archive itself is never modified.
+
+--- /dev/null
++++ b/internal/api/hop_guard.go
+@@ -0,0 +1,34 @@
++package api
++
++import (
++	"crypto/sha256"
++	"crypto/subtle"
++	"net/http"
++	"os"
++)
++
++const hopHeader = "X-Mellodifai-Hop"
++
++// hopGuard answers only requests that carry the native gateway's per-stack
++// secret. It runs before CORS, forwarded-IP handling and routing, so a direct
++// loopback request learns nothing and is never trusted.
++func hopGuard(next http.Handler) http.Handler {
++	secret := os.Getenv("MDF_HOP_SECRET")
++	expected := sha256.Sum256([]byte(secret))
++	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		values := r.Header.Values(hopHeader)
++		given := ""
++		if len(values) == 1 {
++			given = values[0]
++		}
++		sum := sha256.Sum256([]byte(given))
++		if len(secret) < 32 || len(values) != 1 || subtle.ConstantTimeCompare(sum[:], expected[:]) != 1 {
++			w.Header().Set("Content-Type", "application/json")
++			w.WriteHeader(http.StatusForbidden)
++			_, _ = w.Write([]byte(`{"code":403,"error_code":"direct_access","msg":"Use the API gateway"}`))
++			return
++		}
++		r.Header.Del(hopHeader)
++		next.ServeHTTP(w, r)
++	})
++}
+--- a/internal/api/api.go
++++ b/internal/api/api.go
+@@ -481,1 +481,1 @@
+-	api.handler = corsHandler.Handler(r)
++	api.handler = hopGuard(corsHandler.Handler(r))

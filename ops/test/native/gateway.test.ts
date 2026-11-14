@@ -42,6 +42,7 @@ import { loadGatewayConfig } from "../../native-gateway.js";
 // Made-up credentials: nothing here signs or opens anything.
 const ANON = `anon.${"a".repeat(40)}`;
 const SERVICE = `service.${"s".repeat(40)}`;
+const HOP = `hop.${"h".repeat(40)}`;
 const USER_JWT = "user-header.user-payload.user-signature";
 const APP = "http://127.0.0.1:3999";
 const MIB = 1024 * 1024;
@@ -161,6 +162,7 @@ async function stack(
       storage: `http://127.0.0.1:${ports.storage}`,
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: options.appOrigins ?? [APP],
     ...(options.limits ? { limits: options.limits } : {}),
     log: (entry) => logs.push(entry),
@@ -337,6 +339,7 @@ it("accepts the agreed config shape and fills in the default limits", () => {
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: ["http://127.0.0.1:3210", "https://app.mellodifai.com"],
     limits: { upstreamTimeoutMs: 30_000 },
   });
@@ -349,6 +352,7 @@ it("accepts the agreed config shape and fills in the default limits", () => {
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: ["http://127.0.0.1:3210", "https://app.mellodifai.com"],
     limits: { upstreamTimeoutMs: 30_000 },
   });
@@ -373,6 +377,7 @@ it("refuses a config that would expose or misroute the gateway, never echoing a 
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: [APP],
     limits: {},
   });
@@ -405,6 +410,10 @@ it("refuses a config that would expose or misroute the gateway, never echoing a 
     ["one key for both", { keys: { anon: SERVICE } }],
     ["missing key", { keys: { service: undefined } }],
     ["undeclared key", { keys: { jwt: SERVICE } }],
+    ["missing hop secret", { hopSecret: undefined }],
+    ["short hop secret", { hopSecret: "hop" }],
+    ["hop secret with a space", { hopSecret: `${HOP} x` }],
+    ["hop secret is a key", { hopSecret: SERVICE }],
     ["origin with a slash", { appOrigins: [`${APP}/`] }],
     ["origin without scheme", { appOrigins: ["127.0.0.1:3999"] }],
     ["wildcard origin", { appOrigins: ["*"] }],
@@ -434,6 +443,7 @@ it("refuses a config that would expose or misroute the gateway, never echoing a 
     expect(message, name).toMatch(/^Invalid gateway config: /);
     expect(message, name).not.toContain(ANON);
     expect(message, name).not.toContain(SERVICE);
+    expect(message, name).not.toContain(HOP);
   }
   for (const value of ["http://127.0.0.1:45621", null, 45621, [valid()]])
     expect(() => parseGatewayConfig(value)).toThrow(
@@ -822,6 +832,22 @@ it("replaces forged identity and forwarding headers with its own", async () => {
   }
 });
 
+it("proves every forwarded request came through it with the hop secret, never the client's copy", async () => {
+  const { port, seen, logs } = await stack();
+  for (const route of ["auth", "rest", "storage"] as const) {
+    const reply = await send(port, `/${route}/v1/thing`, {
+      headers: withKey(ANON, { "x-mellodifai-hop": "forged-by-the-client" }),
+    });
+    expect(reply.status).toBe(200);
+    expect(seenBy(reply).headers["x-mellodifai-hop"]).toBe(HOP);
+  }
+  // A public route too, and a request without any client copy.
+  const verify = await send(port, "/auth/v1/verify?token=t&type=signup");
+  expect(seenBy(verify).headers["x-mellodifai-hop"]).toBe(HOP);
+  expect(seen).toHaveLength(4);
+  expect(JSON.stringify(logs)).not.toContain(HOP);
+});
+
 it("serves only the loopback names of its own port", async () => {
   const { port, seen } = await stack();
   for (const host of [
@@ -1207,6 +1233,7 @@ it("refuses a Connection header that would drop framing or a header the gateway 
     "expect",
     "x-forwarded-for",
     "x-real-ip",
+    "x-mellodifai-hop",
     "access-control-request-method",
   ]) {
     const reply = await raw(
@@ -2155,6 +2182,7 @@ it("reads its config file without ever quoting it in an error", () => {
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: [APP],
   };
   // PowerShell writes a byte-order mark; it is not part of the JSON.
@@ -2244,6 +2272,7 @@ it("runs as a process: listens on loopback, serves, and stops cleanly when its s
         storage: `http://127.0.0.1:${ports.storage}`,
       },
       keys: { anon: ANON, service: SERVICE },
+      hopSecret: HOP,
       appOrigins: [APP],
     }),
   );
@@ -2405,6 +2434,7 @@ it("stops as a process, instead of crashing or lingering, when its log pipe brea
         storage: `http://127.0.0.1:${ports.storage}`,
       },
       keys: { anon: ANON, service: SERVICE },
+      hopSecret: HOP,
       appOrigins: [APP],
     }),
   );

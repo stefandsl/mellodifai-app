@@ -58,7 +58,9 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
       expect(port).toBeGreaterThanOrEqual(base);
       expect(port).toBeLessThan(base + 10);
     }
-    const config = gatewayConfig(env, layout, secrets);
+    const hopSecret = "synthetic-hop-".repeat(4);
+    const config = gatewayConfig(env, layout, secrets, hopSecret);
+    expect(config.hopSecret).toBe(hopSecret);
     expect(parseGatewayConfig(config)).toMatchObject(config);
     if (env === "prod")
       expect(layout.root).toBe(join(root, "stacks/prod/native"));
@@ -91,6 +93,7 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
         authenticator: "fake",
       },
       smtp: { MDF_SMTP_PASS: "fake" },
+      hopSecret,
       tsx: { node: process.execPath, cli: "unused" },
       opsDir,
     });
@@ -115,10 +118,21 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
     expect(find("storage")?.ready).toBe(
       `http://127.0.0.1:${layout.ports.storage}/bucket`,
     );
-    for (const id of ["auth", "storage"])
+    for (const id of ["auth", "storage"]) {
       expect(find(id)?.readyHeaders).toEqual({
         Authorization: `Bearer ${secrets.service}`,
+        "x-mellodifai-hop": hopSecret,
       });
+      expect(find(id)?.env.MDF_HOP_SECRET).toBe(hopSecret);
+    }
+    // PostgREST cannot check the hop; it gets no secret (decision S3).
+    expect(find("rest")?.env.MDF_HOP_SECRET).toBe(undefined);
+    expect(find("rest")?.env.PGRST_SERVER_CORS_ALLOWED_ORIGINS).toBe(
+      config.appOrigins.join(","),
+    );
+    expect(config.appOrigins).not.toContain("*");
+    for (const spec of specs)
+      expect(spec.args.join(" ")).not.toContain(hopSecret);
     for (const spec of specs)
       expect(Number(new URL(spec.ready).port)).toBeGreaterThanOrEqual(base);
   },

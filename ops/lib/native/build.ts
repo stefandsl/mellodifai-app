@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import {
+  copyFileSync,
   cpSync,
   existsSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
-import { delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import {
   type InstallOptions,
   installArtifact,
@@ -15,6 +18,7 @@ import {
   type Manifest,
   nativeAssets,
   nativeCacheRoot,
+  obtainArchive,
   platformKey,
   type Recipe,
   requireArtifact,
@@ -23,7 +27,11 @@ import {
 import { applyPatch } from "./patch.js";
 import { runLogged } from "./processes.js";
 
-const AUTH_PATCH = join(nativeAssets, "auth/listener-portable.patch");
+const AUTH_PATCHES = [
+  join(nativeAssets, "auth/listener-portable.patch"),
+  join(nativeAssets, "auth/hop-guard.patch"),
+];
+const STORAGE_PATCH = join(nativeAssets, "storage/hop-guard.patch");
 const XATTR_MODULE = join(nativeAssets, "storage/fs-xattr");
 
 function digest(...parts: string[]): string {
@@ -38,10 +46,15 @@ function digest(...parts: string[]): string {
 export function recipeIds(manifest: Manifest = loadManifest()) {
   const version = (id: string) => manifest.artifacts[id]?.version ?? "";
   return {
-    auth: `auth-${digest(readFileSync(AUTH_PATCH, "utf8"), version("go"))}`,
+    auth: `auth-${digest(
+      ...AUTH_PATCHES.map((path) => readFileSync(path, "utf8")),
+      version("go"),
+    )}`,
     storage: `storage-${digest(
       readFileSync(join(XATTR_MODULE, "index.js"), "utf8"),
       readFileSync(join(XATTR_MODULE, "package.json"), "utf8"),
+      readFileSync(STORAGE_PATCH, "utf8"),
+      manifest.artifacts[PG_BOSS]?.downloads.source?.sha256 ?? "",
       version("node"),
     )}`,
   };
@@ -89,9 +102,88 @@ export function blockedPackages(lockfile: string, os: string): string[] {
     .sort();
 }
 
+/** Storage's lockfile names one dependency by Git commit, with no digest. */
+export const PG_BOSS = "pg-boss";
+const PG_BOSS_SPEC = "github:supabase/pg-boss#feat/exactly_once";
+const PG_BOSS_COMMIT = "89b675b057ff7cec3ca2c434e4d3005c35a76bd9";
+const PG_BOSS_RESOLVED = `git+ssh://git@github.com/supabase/pg-boss.git#${PG_BOSS_COMMIT}`;
+
+interface Lockfile {
+  packages: Record<
+    string,
+    {
+      link?: boolean;
+      integrity?: string;
+      resolved?: string;
+      dependencies?: Record<string, string>;
+    }
+  >;
+}
+
+/** Installed lockfile packages npm would fetch without an integrity digest. */
+export function unpinnedPackages(lockfile: string): string[] {
+  const lock = JSON.parse(lockfile) as Lockfile;
+  return Object.entries(lock.packages)
+    .filter(([name, info]) => name !== "" && !info.link && !info.integrity)
+    .map(([name]) => name)
+    .sort();
+}
+
+/** Point pg-boss at a local copy of the archive the manifest pins. npm then
+ * installs it from that file and checks its digest instead of fetching Git.
+ * Anything but the expected Git commit is refused.
+ */
+export function pinPgBoss(
+  files: { packageJson: string; lockfile: string },
+  archive: { spec: string; integrity: string },
+): { packageJson: string; lockfile: string } {
+  const pkg = JSON.parse(files.packageJson) as {
+    dependencies?: Record<string, string>;
+  };
+  const lock = JSON.parse(files.lockfile) as Lockfile;
+  const root = lock.packages[""]?.dependencies;
+  const entry = lock.packages[`node_modules/${PG_BOSS}`];
+  if (
+    !pkg.dependencies ||
+    pkg.dependencies[PG_BOSS] !== PG_BOSS_SPEC ||
+    !root ||
+    root[PG_BOSS] !== PG_BOSS_SPEC ||
+    !entry ||
+    entry.resolved !== PG_BOSS_RESOLVED
+  )
+    throw new Error(
+      "Storage's pg-boss dependency is not the pinned Git commit",
+    );
+  pkg.dependencies[PG_BOSS] = archive.spec;
+  root[PG_BOSS] = archive.spec;
+  entry.resolved = archive.spec;
+  entry.integrity = archive.integrity;
+  return {
+    packageJson: `${JSON.stringify(pkg, null, 2)}\n`,
+    lockfile: `${JSON.stringify(lock, null, 2)}\n`,
+  };
+}
+
+/** The pinned pg-boss archive, from the verified download cache, a seed
+ * folder or its publisher, checked against the manifest's SHA-256.
+ */
+export function pgBossArchive(
+  options: Pick<InstallOptions, "seedDirs" | "fetchImpl" | "log"> & {
+    manifest?: Manifest;
+    cache?: string;
+  } = {},
+): Promise<string> {
+  const manifest = options.manifest ?? loadManifest();
+  const download = manifest.artifacts[PG_BOSS]?.downloads.source;
+  if (!download?.url.includes(PG_BOSS_COMMIT))
+    throw new Error("The native manifest does not pin Storage's pg-boss");
+  return obtainArchive(download, options.cache ?? nativeCacheRoot(), options);
+}
+
 export function authRecipe(goDir: string, work: string): Recipe {
   return async ({ source, output, artifact, platform }) => {
-    applyPatch(source, readFileSync(AUTH_PATCH, "utf8"));
+    for (const patch of AUTH_PATCHES)
+      applyPatch(source, readFileSync(patch, "utf8"));
     const state = join(work, "go");
     const binary = platform.startsWith("win32") ? "auth.exe" : "auth";
     await run(
@@ -128,11 +220,38 @@ export function authRecipe(goDir: string, work: string): Recipe {
   };
 }
 
-export function storageRecipe(nodeDir: string, work: string): Recipe {
+export function storageRecipe(
+  nodeDir: string,
+  work: string,
+  pgBoss: () => Promise<string>,
+): Recipe {
   return async ({ source, output, platform }) => {
     const windows = platform.startsWith("win32");
     for (const name of readdirSync(source))
       renameSync(join(source, name), join(output, name));
+    applyPatch(output, readFileSync(STORAGE_PATCH, "utf8"));
+    // The Git dependency comes from the verified archive, never from Git.
+    const archive = await pgBoss();
+    mkdirSync(join(output, ".mdf-deps"));
+    const local = join(output, ".mdf-deps", basename(archive));
+    copyFileSync(archive, local);
+    const pinned = pinPgBoss(
+      {
+        packageJson: readFileSync(join(output, "package.json"), "utf8"),
+        lockfile: readFileSync(join(output, "package-lock.json"), "utf8"),
+      },
+      {
+        spec: `file:.mdf-deps/${basename(archive)}`,
+        integrity: `sha512-${createHash("sha512").update(readFileSync(local)).digest("base64")}`,
+      },
+    );
+    const unpinned = unpinnedPackages(pinned.lockfile);
+    if (unpinned.length > 0)
+      throw new Error(
+        `Storage dependencies without an integrity digest: ${unpinned.join(", ")}`,
+      );
+    writeFileSync(join(output, "package.json"), pinned.packageJson);
+    writeFileSync(join(output, "package-lock.json"), pinned.lockfile);
     const node = join(nodeDir, windows ? "node.exe" : "bin/node");
     const npm = join(
       nodeDir,
@@ -214,7 +333,9 @@ export async function installNative(
     recipes: {
       storage: {
         id: ids.storage,
-        run: storageRecipe(dirs.node as string, work),
+        run: storageRecipe(dirs.node as string, work, () =>
+          pgBossArchive({ ...shared, manifest, cache }),
+        ),
       },
     },
   });

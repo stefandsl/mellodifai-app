@@ -30,6 +30,7 @@ it.skipIf(!enabled)(
     const value = "synthetic-credential-".repeat(3);
     const spec = nativePlan({
       env: "e2e",
+      hopSecret: value,
       layout,
       tools,
       toml: renderConfig(
