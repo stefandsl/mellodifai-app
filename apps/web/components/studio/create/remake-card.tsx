@@ -480,9 +480,14 @@ function Summary({ view }: { view: RemakeView }) {
 function JuryBox({
   lyrics,
   edited,
+  busy,
+  onAccept,
 }: {
   lyrics: RemakeLyrics;
   edited: boolean;
+  busy: boolean;
+  // Accepting an objection rewrites the section that holds its line.
+  onAccept: (line: number) => void;
 }) {
   const lang = useLocale();
   const jury = latestJury(lyrics);
@@ -496,11 +501,26 @@ function JuryBox({
   const notes = [
     ...jury.objections
       .filter((o) => o.severity === "must_fix")
-      .map((o) => ({ line: o.line, text: o.text, must: true })),
-    ...jury.issues.map((i) => ({ line: i.line, text: i.problem, must: false })),
+      .map((o) => ({
+        line: o.line,
+        text: o.text,
+        must: true,
+        objection: true,
+      })),
+    ...jury.issues.map((i) => ({
+      line: i.line,
+      text: i.problem,
+      must: false,
+      objection: false,
+    })),
     ...jury.objections
       .filter((o) => o.severity !== "must_fix")
-      .map((o) => ({ line: o.line, text: o.text, must: false })),
+      .map((o) => ({
+        line: o.line,
+        text: o.text,
+        must: false,
+        objection: true,
+      })),
   ];
   return (
     <section
@@ -600,6 +620,19 @@ function JuryBox({
                     </span>
                   ) : null}
                   {note.text}
+                  {note.objection && note.line !== null ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      aria-label={stf(lang, "remake.acceptObjection", {
+                        n: String(note.line + 1),
+                      })}
+                      onClick={() => note.line !== null && onAccept(note.line)}
+                      className="ml-1.5 inline-flex h-5 items-center rounded-full px-2 align-middle text-[11px] font-medium text-[var(--fg)] ring-1 ring-[var(--hairline)] outline-none hover:bg-[var(--surface-glass-hover)] focus-visible:ring-2 focus-visible:ring-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {st(lang, "remake.acceptShort")}
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -857,7 +890,24 @@ function Review({
           className={cn(FIELD, "w-full text-[15px] font-medium")}
         />
       </div>
-      <JuryBox lyrics={lyrics} edited={edited} />
+      <JuryBox
+        lyrics={lyrics}
+        edited={edited}
+        busy={pending || stepRunning}
+        onAccept={(line) => {
+          const section = lyrics.sections.find((s) =>
+            s.lines.some((l) => l.index === line),
+          );
+          if (section)
+            act(() =>
+              regenerateRemakeSection({
+                remakeId: view.id,
+                revision: view.revision,
+                section: section.id,
+              }),
+            );
+        }}
+      />
       <p className="text-[11px] text-[var(--fg-subtle)]">
         {st(lang, "remake.editHint")}
       </p>
