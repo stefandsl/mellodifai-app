@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
@@ -9,6 +10,7 @@ import {
   desktopCommand,
   installArgs,
   layout,
+  removableData,
   shouldPause,
 } from "../src/run.mjs";
 
@@ -125,6 +127,26 @@ describe("icon", () => {
 describe("shortcut shim", () => {
   const here = "E:\\MellodifAI\\app\\apps\\windows\\src";
   const paths = layout(here);
+
+  it("deletes data only inside a real install, never elsewhere", () => {
+    const install = mkdtempSync(join(tmpdir(), "mdf-win-"));
+    const real = layout(join(install, "app", "apps", "windows", "src"));
+    // No shipped run.mjs next to it: not an install, refuse.
+    expect(removableData(real)).toBe(false);
+    mkdirSync(join(install, "app", "apps", "windows", "src"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(install, "app", "apps", "windows", "src", "run.mjs"),
+      "",
+    );
+    expect(removableData(real)).toBe(true);
+    expect(removableData({ ...real, data: join(install, "app") })).toBe(false);
+    expect(removableData({ ...real, data: join(install, "..", "data") })).toBe(
+      false,
+    );
+    expect(removableData(layout("E:\\app\\apps\\windows\\src"))).toBe(false);
+  });
 
   it("finds the install, app and data folders from its own location", () => {
     expect(paths).toEqual({

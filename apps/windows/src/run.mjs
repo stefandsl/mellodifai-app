@@ -2,9 +2,9 @@
 // it runs before the app's dependencies exist. Layout of an install (docs/windows-app.md):
 //   <install>\node\node.exe   <install>\pnpm\   <install>\app\ (this release)   <install>\data\
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
@@ -46,6 +46,19 @@ export function installArgs(paths) {
     join(paths.data, "cache", "pnpm"),
     "--config.confirmModulesPurge=false",
   ];
+}
+
+/** The data folder may be deleted only when it is this install's own `data` folder, next to
+ * the app that ships this script, and never a drive root. */
+export function removableData(paths) {
+  const data = resolve(paths.data);
+  return (
+    basename(data).toLowerCase() === "data" &&
+    resolve(dirname(data)).toLowerCase() ===
+      resolve(paths.install).toLowerCase() &&
+    resolve(paths.install) !== resolve(paths.install, "..") &&
+    existsSync(join(paths.app, "apps", "windows", "src", "run.mjs"))
+  );
 }
 
 /** What the controller runs: the installer's "install" is setup (new) or update. */
@@ -105,6 +118,22 @@ async function main() {
       paths,
       env,
     );
+  }
+  // After the controller stopped everything that holds files in data\: Node removes
+  // read-only files (Go's module cache) and paths longer than 260 characters, which the
+  // uninstaller's own RMDir leaves behind.
+  if (command === "remove-data" && code === 0 && removableData(paths)) {
+    try {
+      rmSync(paths.data, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 500,
+      });
+    } catch (error) {
+      console.error(`Non riesco a eliminare tutti i dati: ${error.message}`);
+      code = 1;
+    }
   }
   if (shouldPause(command, code, Boolean(process.stdin.isTTY), args)) {
     const rl = createInterface({
