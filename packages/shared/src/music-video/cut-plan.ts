@@ -234,6 +234,11 @@ function candidates(
     if (b.start - a.end > EPS) {
       const mid = (a.end + b.start) / 2;
       add(mid, "gap", mid, 0);
+      // Both edges of the gap too: the one nearest a bar line may be on it.
+      if (b.start - a.end > 0.12) {
+        add(a.end + 0.04, "gap", a.end + 0.04, 0);
+        add(b.start - 0.04, "gap", b.start - 0.04, 0);
+      }
     }
   }
   // One candidate per 50 ms, the cheapest.
