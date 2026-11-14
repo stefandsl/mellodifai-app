@@ -158,15 +158,31 @@ function endsPhrase(words: Word[], t: number) {
 }
 
 // Where a cut may go: downbeats (snapped to the gap next to the word they fall in), beats, and
-// as a last resort any gap between words. Lower cost is better.
-function candidates(input: CutPlanInput, words: Word[]): Candidate[] {
+// as a last resort any gap between words. Lower cost is better. Every cut sits on the frame grid,
+// so the picture cut (a frame) and the audio cut (seconds) are the same instant.
+function candidates(
+  input: CutPlanInput,
+  words: Word[],
+  fps: number,
+): Candidate[] {
   const out: Candidate[] = [];
   const inRange = (t: number) => t > 0.5 && t < input.duration - 0.5;
   const sectionStarts = (input.sections ?? []).map((s) => s.start);
   const nearSection = (t: number) =>
     sectionStarts.some((s) => Math.abs(s - t) <= 1.0);
-  const add = (at: number, kind: CutKind, snap: number, base: number) => {
-    if (!inRange(at) || insideWord(at, words)) return;
+  const onFrame = (t: number) => {
+    const f = Math.round(t * fps);
+    for (const k of [f, f - 1, f + 1]) {
+      const q = k / fps;
+      if (!insideWord(q, words)) return q;
+    }
+    return null;
+  };
+  // `target` is the instant the cut stands for (the downbeat, the beat, the gap middle).
+  const add = (want: number, kind: CutKind, target: number, base: number) => {
+    const at = onFrame(want);
+    if (at === null || !inRange(at)) return;
+    const snap = Math.abs(at - target);
     const phraseEnd = endsPhrase(words, at);
     let cost = base + snap * 10;
     if (!phraseEnd) cost += kind === "gap" ? 30 : 25;
@@ -175,7 +191,7 @@ function candidates(input: CutPlanInput, words: Word[]): Candidate[] {
   };
   for (const d of input.downbeats) {
     if (!insideWord(d, words)) {
-      add(d, "downbeat", 0, 0);
+      add(d, "downbeat", d, 0);
       continue;
     }
     const host = words.find((w) => w.start + EPS < d && d < w.end - EPS);
@@ -184,23 +200,24 @@ function candidates(input: CutPlanInput, words: Word[]): Candidate[] {
     // The singer lands the word on the bar: cut in the gap just before it.
     if (d - host.start <= DOWNBEAT_SNAP_S) {
       const prevEnd = words[i - 1]?.end ?? 0;
-      const at = Math.max(prevEnd, host.start - 0.04);
-      add(at, "downbeat", Math.abs(d - at), 2);
+      add(Math.max(prevEnd, host.start - 0.04), "downbeat", d, 2);
     }
     // The word ends just after the bar line: cut in the gap after it.
     if (host.end - d <= DOWNBEAT_SNAP_S) {
       const nextStart = words[i + 1]?.start ?? input.duration;
-      const at = Math.min(nextStart, host.end + 0.04);
-      add(at, "downbeat", Math.abs(at - d), 2);
+      add(Math.min(nextStart, host.end + 0.04), "downbeat", d, 2);
     }
   }
   const downbeats = new Set(input.downbeats.map((d) => d.toFixed(3)));
   for (const b of input.beats ?? [])
-    if (!downbeats.has(b.toFixed(3))) add(b, "beat", 0, 12);
+    if (!downbeats.has(b.toFixed(3))) add(b, "beat", b, 12);
   for (let i = 1; i < words.length; i++) {
     const a = words[i - 1] as Word;
     const b = words[i] as Word;
-    if (b.start - a.end > EPS) add((a.end + b.start) / 2, "gap", 0, 60);
+    if (b.start - a.end > EPS) {
+      const mid = (a.end + b.start) / 2;
+      add(mid, "gap", mid, 60);
+    }
   }
   // One candidate per 50 ms, the cheapest.
   out.sort((a, b) => a.at - b.at || a.cost - b.cost);
@@ -295,7 +312,7 @@ export function planCuts(
     snap: 0,
     cost: 0,
   });
-  const nodes = [edge(0), ...candidates(input, words), edge(duration)];
+  const nodes = [edge(0), ...candidates(input, words, fps), edge(duration)];
   const best = new Array<number>(nodes.length).fill(Number.POSITIVE_INFINITY);
   const from = new Array<number>(nodes.length).fill(-1);
   best[0] = 0;
