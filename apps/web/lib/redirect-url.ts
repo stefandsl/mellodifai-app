@@ -1,4 +1,4 @@
-import { AUTH_ORIGINS } from "../../../ops/lib/auth-origins";
+import { AUTH_ORIGINS, OWNER_STACK_PORTS } from "../../../ops/lib/auth-origins";
 import { isRemote } from "./remote";
 
 type RedirectEnv = { siteUrl: string; redirectUrls: string[] };
@@ -25,7 +25,7 @@ export function signInEnvironment(): RedirectEnv {
       api.protocol === "http:" &&
       api.hostname === "127.0.0.1" &&
       api.port &&
-      !["44321", "44322", "54321", "54322"].includes(api.port) &&
+      ![...OWNER_STACK_PORTS, "54321", "54322"].includes(api.port) &&
       !api.username &&
       !api.password &&
       !api.search &&

@@ -117,6 +117,18 @@ run on his Windows PC with no Docker and no WSL.
 - **Not done until** `pnpm test:db` and `pnpm e2e` pass on the native stack and production
   runs on it with the recovered data. The Windows installer on `feat/local-launcher` still
   expects Docker and must be moved onto the native runtime afterwards.
+### Windows desktop app on the native runtime (2026-11-14, branch feat/desktop-native)
+
+MellodifAI installs on Windows from one per-user installer (no administrator, no Docker, no
+WSL) and opens signed in, in its own app window, from a desktop icon; it can start again by
+itself at logon. Owner and maintainer guide: [windows-app.md](windows-app.md).
+
+- Stack: ops environment `desktop` on the native runtime, data under the install's `data`
+  folder (`MELLODIFAI_ROOT`), ports 46300-46329 (web 46300, API 46321, DB 46322). Its ports
+  are in `OWNER_STACK_PORTS`, so test and e2e guards refuse it like production.
+- Controller: `ops/desktop.ts`. Packaging: `apps/windows`.
+- Production on this PC is a separate installation and is not changed by this work.
+
 
 ### Agent remake access (2026-11-10, merged, pushed and deployed)
 

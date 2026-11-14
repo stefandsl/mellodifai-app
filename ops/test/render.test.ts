@@ -192,7 +192,7 @@ it.each(["e2e", "ci"] as const)(
 );
 
 it("signing keys are outside the checkout and stacks, including dynamic runtime roots", () => {
-  for (const env of ["dev", "e2e", "ci", "prod"] as const) {
+  for (const env of ["dev", "e2e", "ci", "desktop", "prod"] as const) {
     const expected =
       env === "ci"
         ? join(root, "runner/signing_keys.json")
@@ -223,6 +223,7 @@ it("isolates every configured listener and removes optional SMTP listeners", () 
     ["dev", 55320, 55328, 55329],
     ["e2e", 45620, 45628, 45629],
     ["ci", 54320, 54328, 54329],
+    ["desktop", 46320, 46328, 46329],
     ["prod", 44326, 44328, 44329],
   ] as const) {
     const t = rendered(env, input);

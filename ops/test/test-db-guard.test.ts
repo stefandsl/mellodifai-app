@@ -18,6 +18,7 @@ describe("assertTestWebStack", () => {
     "not-a-url",
     web.replace("45622", "54322"),
     web.replace("45622", "55322"),
+    web.replace("45622", "46322"),
     web.replace("127.0.0.1", "example.com"),
     web.replace("/postgres", "/other"),
     `${web}?host=example.com`,

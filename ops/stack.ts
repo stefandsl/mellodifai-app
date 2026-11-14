@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { composeEnvironment, prepareCompose } from "./lib/compose.js";
+import { writeDesktopEnv } from "./lib/desktop.js";
 import { ENV_TABLE, runtimePath, type StackEnv, stackDir } from "./lib/envs.js";
 import { provisionTestLogins } from "./lib/logins.js";
 import { resolveRuntime } from "./lib/native/layout.js";
@@ -285,6 +286,12 @@ function actions(env: StackEnv, runner: Runner): StackActions {
       );
     },
     async envFile() {
+      // The desktop app gets per-process files without the postgres superuser URL.
+      if (env === "desktop")
+        return writeDesktopEnv(
+          await loadStackSecrets(env),
+          await readStackPasswords(env),
+        );
       return writeTestEnv(
         env,
         await loadStackSecrets(env),

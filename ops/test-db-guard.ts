@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { OWNER_STACK_PORTS } from "./lib/auth-origins.js";
 
 export function assertTestStack(env: Record<string, string | undefined>): void {
   for (const name of ["TEST_DB_URL", "SUPABASE_URL"]) {
@@ -19,7 +20,7 @@ export function assertTestStack(env: Record<string, string | undefined>): void {
       (name === "TEST_DB_URL" && (url.search !== "" || url.hash !== ""))
     )
       throw new Error(`${name} must be a loopback test-stack URL`);
-    if (["44321", "44322", "55321", "55322"].includes(url.port))
+    if ([...OWNER_STACK_PORTS, "55321", "55322"].includes(url.port))
       throw new Error(`${name} refuses a non-test stack`);
     if (["54321", "54322"].includes(url.port) && env.CI !== "true")
       throw new Error(`${name} refuses the production port block outside CI`);

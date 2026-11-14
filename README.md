@@ -2,6 +2,12 @@
 
 Mellodifai is a production platform for creating and publishing music video projects.
 
+## Windows app
+
+The owner's one-click Windows installation (installer, Start-menu shortcuts, logon start,
+backup, update, uninstall) is described in [docs/windows-app.md](docs/windows-app.md). Build
+the installer with `node apps/windows/src/build.mjs`.
+
 ## Install
 
 ```sh

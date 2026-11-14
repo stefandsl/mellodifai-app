@@ -1,8 +1,10 @@
-// The live local stack (API on 44321) is the owner's: its render PC worker
-// claims every queued job and runs the paid engines, so a full-flow test there spends real kie
-// credits (it did on 2026-11-01). E2E uses the isolated API on 45621 with either runtime.
-// Only the isolated CI runner may use 54321 with both CI flags.
-export const LIVE_STACK_PORTS = ["44321", "44322"];
+import { OWNER_STACK_PORTS } from "../../../ops/lib/auth-origins";
+
+// The live local stack (API on 44321) and the Windows desktop app's stack (API on 46321) are
+// the owner's: their worker claims every queued job and runs the paid engines, so a full-flow
+// test there spends real kie credits (it did on 2026-11-01). E2E uses the isolated API on 45621
+// with either runtime. Only the isolated CI runner may use 54321 with both CI flags.
+export const LIVE_STACK_PORTS = OWNER_STACK_PORTS;
 const CI_STACK_PORTS = ["54321", "54322"];
 export const E2E_STACK_URL = "http://127.0.0.1:45621";
 
