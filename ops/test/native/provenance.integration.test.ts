@@ -6,7 +6,7 @@ import { nativeLayout } from "../../lib/native/layout.js";
 import { nativeBackup } from "../../native-backup.js";
 import { runStack } from "../../stack.js";
 
-it.skipIf(process.env.MDF_NATIVE_PROVENANCE_TESTS !== "1")(
+it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
   "refuses a real same-schema e2e backup as production data before shutdown",
   async () => {
     const prod = "E:/mellodifai/native-lab-prod";

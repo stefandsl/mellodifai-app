@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { typescriptArgs } from "../../lib/native/plan.js";
 import { realRunner } from "../../lib/run.js";
 
-it.skipIf(process.env.MDF_NATIVE_ROLLBACK_TESTS !== "1")(
+it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
   "deploys a new migration then cold-starts the explicitly recorded older release",
   async () => {
     const entry = fileURLToPath(

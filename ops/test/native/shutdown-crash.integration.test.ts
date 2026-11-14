@@ -11,9 +11,7 @@ import { runStack } from "../../stack.js";
 import { assertNativeIntegrationEnvironment } from "./integration-env.js";
 
 // Ten real whole-tree kills take several minutes: separately opted in.
-const enabled =
-  process.env.MDF_NATIVE_INTEGRATION === "1" &&
-  process.env.MDF_NATIVE_SHUTDOWN_TESTS === "1";
+const enabled = process.env.MDF_NATIVE_INTEGRATION === "1";
 
 const KILLS = 10;
 const SCHEMA = "mdf_shutdown_crash";

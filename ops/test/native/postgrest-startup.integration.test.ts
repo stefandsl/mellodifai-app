@@ -15,9 +15,7 @@ import { renderConfig } from "../../lib/render.js";
 import { runStack } from "../../stack.js";
 import { assertNativeTestRoot } from "./integration-env.js";
 
-const enabled =
-  process.env.MDF_NATIVE_STARTUP_INTEGRATION === "1" ||
-  process.env.MDF_NATIVE_INTEGRATION === "1";
+const enabled = process.env.MDF_NATIVE_INTEGRATION === "1";
 
 it.skipIf(!enabled)(
   "PostgREST survives concurrent libpq initialization with the operator's UTF-8 locale",

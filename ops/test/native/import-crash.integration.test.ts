@@ -13,7 +13,7 @@ import { nativeBackup } from "../../native-backup.js";
 import { prepareImport } from "../../native-prepare-import.js";
 import { runStack } from "../../stack.js";
 
-it.skipIf(process.env.MDF_NATIVE_IMPORT_CRASH_TESTS !== "1")(
+it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
   "blocks ordinary startup after killed recovery imports and restores the empty target",
   async () => {
     if (

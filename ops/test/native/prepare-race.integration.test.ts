@@ -10,7 +10,7 @@ import { loadStackSecrets } from "../../lib/stack-secrets.js";
 import { nativeBackup } from "../../native-backup.js";
 import { runStack } from "../../stack.js";
 
-it.skipIf(process.env.MDF_NATIVE_PREPARE_RACE !== "1")(
+it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
   "cannot accept an API writer between seed inspection and truncate",
   async () => {
     if (process.env.MELLODIFAI_ROOT !== "E:/mellodifai/native-lab-prod")

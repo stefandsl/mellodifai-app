@@ -14,10 +14,7 @@ import { runStack } from "../../stack.js";
 import { fixture } from "./fixtures.js";
 import { assertNativeTestRoot } from "./integration-env.js";
 
-it.skipIf(
-  process.env.MDF_NATIVE_MIGRATION_TESTS !== "1" &&
-    process.env.MDF_NATIVE_INTEGRATION !== "1",
-)(
+it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
   "rolls back failed real migrations, refuses a lockdown replay and checks the lockdown after a new migration",
   async () => {
     assertNativeTestRoot();
