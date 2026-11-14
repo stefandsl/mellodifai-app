@@ -252,7 +252,10 @@ M1 worktree. Its PARKED rows and R4 artifacts are historical findings, with fina
 dispositions in the review report. Do not rerun completed production cutovers or
 key rotations because an old task note below says they are pending.
 The task driver remains `scripts/codex-sdd/run.sh`; `PLAN=` selects a later plan.
-Owner actions are never faked. Migrations are additive and the lockdown stays last.
+Owner actions are never faked. Migrations are additive; a new one takes a version after the newest
+applied one and may never undo the lockdown (`20261103080001`): the native runner asserts the
+lockdown guarantees (`ops/native/postgres/lockdown-guarantees.sql`) in the same transaction after
+the lockdown and every later migration, and a broken guarantee rolls the migration back.
 
 ## 4b. Parallel workstreams runner
 
