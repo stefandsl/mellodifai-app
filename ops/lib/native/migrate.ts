@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Sql } from "postgres";
+import { NativeDiagnosticError } from "./diagnostics.js";
 import { type SchemaRollback, validateRollback } from "./rollback.js";
 
 export interface MigrationFile {
@@ -64,7 +65,7 @@ export function planMigrations(
     return { pending: [], adopt: [] };
   }
   if (files.some((file) => file.version > LOCKDOWN_VERSION))
-    throw new Error(
+    throw new NativeDiagnosticError(
       `Migration version after final lockdown ${LOCKDOWN_VERSION} is forbidden`,
     );
   const local = new Map(files.map((file) => [file.version, file]));
@@ -89,7 +90,7 @@ export function planMigrations(
       );
   }
   if (done.has(LOCKDOWN_VERSION) && pending.length)
-    throw new Error(
+    throw new NativeDiagnosticError(
       `Cannot insert migrations before applied lockdown ${LOCKDOWN_VERSION}: the lockdown is not idempotent (plain CREATE FUNCTION). A reviewed replay-safe lockdown policy is required before upgrading this schema`,
     );
   return { pending, adopt };

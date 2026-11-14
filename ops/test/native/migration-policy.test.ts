@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
+import { safeFailure } from "../../lib/native/diagnostics.js";
 import {
   migrationChecksum,
   planMigrations,
@@ -10,6 +11,26 @@ const files = readMigrations(
   fileURLToPath(new URL("../../../supabase/migrations", import.meta.url)),
 );
 const applied = files.map(({ version, sha256 }) => ({ version, sha256 }));
+it("preserves the safe lockdown explanation at the operator boundary", () => {
+  let message = "no refusal";
+  try {
+    planMigrations(
+      [
+        ...files,
+        {
+          version: "20261103079001",
+          name: "inserted",
+          sql: "select 1",
+          sha256: migrationChecksum("select 1"),
+        },
+      ],
+      applied,
+    );
+  } catch (error) {
+    message = safeFailure(error);
+  }
+  expect(message).toMatch(/lockdown.*not idempotent/i);
+});
 it("refuses versions beyond the mandatory final lockdown", () => {
   expect(() =>
     planMigrations(
