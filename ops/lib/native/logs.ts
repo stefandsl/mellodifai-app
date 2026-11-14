@@ -12,20 +12,72 @@ import { dirname } from "node:path";
 import type { Readable } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import { realRunner } from "../run.js";
-import { NativeDiagnosticError, serviceRedactor } from "./diagnostics.js";
+import {
+  NativeDiagnosticError,
+  SENSITIVE_LINE_MARK,
+  sensitiveLogLine,
+  serviceRedactor,
+  TOKEN_CHARACTER,
+} from "./diagnostics.js";
 
 /** A live log file grows to this size before it is rotated. */
 export const LOG_MAX_BYTES = 10 * 1024 * 1024;
 /** Rotated files kept per log beside the live one (name.1 is the newest). */
 export const LOG_KEEP = 5;
 /** A line longer than this is written in pieces, each redacted on its own. */
-const MAX_LINE_BYTES = 64 * 1024;
+export const MAX_LINE_BYTES = 64 * 1024;
+/** Bytes around a cut that both neighbouring pieces are checked with. */
+export const SPLIT_OVERLAP = 4 * 1024;
 
 export interface LogOptions {
   maxBytes?: number;
   keep?: number;
   /** Applied to every line before it reaches the disk. */
   redact?: (line: string) => string;
+  /** A line piece for which this is true is omitted, with the rest of its line. */
+  sensitive?: (text: string) => boolean;
+}
+
+/**
+ * Cut a long line after at most MAX_LINE_BYTES on a UTF-8 boundary. The cut
+ * moves back to just after the last space within SPLIT_OVERLAP bytes, else
+ * after the last character no token contains; only a token longer than that
+ * is cut (`cutsToken`), and both of its sides are then redacted.
+ */
+export function splitLongLine(text: string): {
+  head: string;
+  rest: string;
+  cutsToken: boolean;
+} {
+  const bytes = Buffer.from(text, "utf8");
+  let cut = MAX_LINE_BYTES;
+  while (cut > 0 && ((bytes[cut] ?? 0) & 0xc0) === 0x80) cut--;
+  const hard = bytes.subarray(0, cut).toString("utf8");
+  const window = hard.slice(-SPLIT_OVERLAP);
+  const base = hard.length - window.length;
+  let at = window.lastIndexOf(" ");
+  if (at === -1)
+    for (let index = window.length - 1; index >= 0; index--)
+      if (!TOKEN_CHARACTER.test(window[index] as string)) {
+        at = index;
+        break;
+      }
+  if (at !== -1 && base + at + 1 > 0) {
+    const end = base + at + 1;
+    return {
+      head: hard.slice(0, end),
+      rest: text.slice(end),
+      cutsToken: false,
+    };
+  }
+  const rest = text.slice(hard.length);
+  return {
+    head: hard,
+    rest,
+    cutsToken:
+      TOKEN_CHARACTER.test(hard.at(-1) ?? "") &&
+      TOKEN_CHARACTER.test(rest[0] ?? ""),
+  };
 }
 
 const secured = new Set<string>();
@@ -63,6 +115,7 @@ export class RotatingLog {
   private readonly maxBytes: number;
   private readonly keep: number;
   private readonly redact: (line: string) => string;
+  private readonly sensitive: (text: string) => boolean;
 
   constructor(
     readonly file: string,
@@ -71,6 +124,7 @@ export class RotatingLog {
     this.maxBytes = options.maxBytes ?? LOG_MAX_BYTES;
     this.keep = options.keep ?? LOG_KEEP;
     this.redact = options.redact ?? ((line) => line);
+    this.sensitive = options.sensitive ?? (() => false);
     mkdirSync(dirname(file), { recursive: true });
     this.fd = openSync(file, "a", 0o600);
     this.size = fstatSync(this.fd).size;
@@ -134,30 +188,65 @@ export class RotatingLog {
     this.lastError = reason;
   }
 
-  /** A line splitter for one output stream of a child. */
+  /**
+   * A line splitter for one output stream of a child. A line longer than
+   * MAX_LINE_BYTES is written in pieces cut on a UTF-8 boundary, preferably
+   * at a space or another character no token contains, so a key or a known
+   * secret is never cut in two. The pieces overlap for the credential check:
+   * a credential word in the last or next SPLIT_OVERLAP bytes around a cut, or
+   * in an earlier piece of the same line, omits the piece. A token longer
+   * than the overlap that has to be cut is redacted on both sides.
+   */
   stream(): { write(chunk: Buffer | string): void; end(): void } {
     let pending = "";
+    let sensitiveLine = false;
+    let insideToken = false;
     const decoder = new StringDecoder("utf8");
+    const finish = (text: string) => {
+      this.piece(text, sensitiveLine, insideToken);
+      sensitiveLine = false;
+      insideToken = false;
+    };
     return {
       write: (chunk) => {
         pending += typeof chunk === "string" ? chunk : decoder.write(chunk);
         let index = pending.search(/\r?\n/);
         while (index !== -1) {
-          this.line(pending.slice(0, index));
+          finish(pending.slice(0, index));
           pending = pending.slice(index + (pending[index] === "\r" ? 2 : 1));
           index = pending.search(/\r?\n/);
         }
         while (Buffer.byteLength(pending) > MAX_LINE_BYTES) {
-          this.line(pending.slice(0, MAX_LINE_BYTES));
-          pending = pending.slice(MAX_LINE_BYTES);
+          const { head, rest, cutsToken } = splitLongLine(pending);
+          const around = `${head.slice(-SPLIT_OVERLAP)}${rest.slice(0, SPLIT_OVERLAP)}`;
+          if (this.sensitive(head) || this.sensitive(around))
+            sensitiveLine = true;
+          this.piece(head, sensitiveLine, insideToken);
+          insideToken = cutsToken;
+          pending = rest;
         }
       },
       end: () => {
         pending += decoder.end();
-        if (pending) this.line(pending);
+        if (pending || sensitiveLine || insideToken) finish(pending);
         pending = "";
       },
     };
+  }
+
+  /** Write one piece of a line, with what earlier pieces decided. */
+  private piece(text: string, sensitive: boolean, insideToken: boolean): void {
+    if (sensitive) {
+      this.line(SENSITIVE_LINE_MARK);
+      return;
+    }
+    if (insideToken) {
+      // The start of this piece continues a token already longer than the
+      // overlap: it is a value, whatever the length of what is left of it.
+      const run = /^[A-Za-z0-9_+/=-]+/.exec(text)?.[0].length ?? 0;
+      if (run > 0) text = `[REDACTED value]${text.slice(run)}`;
+    }
+    this.line(text);
   }
 
   /** Follow a child's stdout or stderr until it ends. */
@@ -227,6 +316,7 @@ export function serviceLog(
   return new RotatingLog(file, {
     ...options,
     redact: serviceRedactor(environment),
+    sensitive: sensitiveLogLine,
   });
 }
 
