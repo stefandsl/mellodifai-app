@@ -328,10 +328,18 @@ export function lastResort(
 
 async function main(env: StackEnv): Promise<void> {
   assertNoMaintenance(nativeLayout(env));
-  // Separate from the command lease: this survives the initiating CLI.
+  // Separate from the command lease: this survives the initiating CLI. Until
+  // children exist, losing it simply ends the process; afterwards the stack
+  // is stopped cleanly first.
+  let leaseLost: () => void = () => {
+    process.stderr.write("Supervisor lease helper died; exiting\n");
+    process.exit(1);
+  };
   await acquireLease(
     join(nativeLayout(env).root, "supervisor.lease"),
     "supervisor",
+    5000,
+    () => leaseLost(),
   );
   assertDataDiskFree(nativeLayout(env).root);
   const context = await nativeContext(env);
@@ -358,6 +366,8 @@ async function main(env: StackEnv): Promise<void> {
   );
   process.on("uncaughtException", fatal);
   process.on("unhandledRejection", fatal);
+  leaseLost = () =>
+    fatal(new Error("the supervisor lease helper died; exclusivity is lost"));
   let stopping = false;
   const watch = setInterval(() => {
     if (stopping || !existsSync(stopRequestPath(layout))) return;
