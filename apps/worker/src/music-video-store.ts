@@ -46,6 +46,24 @@ export interface MusicVideoStore {
 export const LOCAL_VERSION = "00000000-0000-4000-8000-000000000000";
 export const LOCAL_OWNER = "00000000-0000-4000-8000-000000000001";
 
+// The shot's latest take of a phase that kie already delivered (done, with its task id) while its
+// file is still there: a re-run reuses it instead of paying for it again.
+export function deliveredTake(
+  takes: MvTake[],
+  phase: MvTake["phase"],
+  fileExists: boolean,
+): MvTake | null {
+  if (!fileExists) return null;
+  const delivered = takes.filter(
+    (t) =>
+      t.phase === phase &&
+      t.status === "done" &&
+      typeof t.params.taskId === "string" &&
+      t.params.taskId !== "",
+  );
+  return delivered.at(-1) ?? null;
+}
+
 // The plan as stored rows, after public.mv_save_plan.
 export function materializePlan(
   input: MvPlan,

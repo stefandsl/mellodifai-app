@@ -37,6 +37,7 @@ import {
   type ShotKind,
 } from "@mellodifai/shared";
 import {
+  deliveredTake,
   LOCAL_VERSION,
   loadRung1Plan,
   MemoryMusicVideoStore,
@@ -490,7 +491,24 @@ async function takeOf(
     ? store.patchTake(open.id, fields)
     : store.addTake({ shot_id: s.shotId, phase, gates: null, ...fields });
 }
-for (const s of shots) await takeOf(s, "draft", "quoted");
+const draftFile = (s: (typeof shots)[number]) =>
+  join(out, "drafts", `segment-${s.segment}-draft.mp4`);
+const finalFile = (s: (typeof shots)[number]) =>
+  join(out, "finals", `segment-${s.segment}-1080p.mp4`);
+// The shot's take of a phase that an earlier run paid for and downloaded, if any.
+async function delivered(
+  s: (typeof shots)[number],
+  phase: MvTake["phase"],
+  file: string,
+) {
+  const shot = (await store.storyboard(LOCAL_VERSION))?.scenes
+    .flatMap((x) => x.shots)
+    .find((x) => x.id === s.shotId);
+  return deliveredTake(shot?.takes ?? [], phase, existsSync(file));
+}
+for (const s of shots)
+  if (!(await delivered(s, "draft", draftFile(s))))
+    await takeOf(s, "draft", "quoted");
 console.log(
   `plan: phase 1 (images + drafts) ${plan.estimate.phase1} credits, finals ${JSON.stringify(plan.estimate.finals)}, total ${plan.estimate.total} of cap ${cap}`,
 );
@@ -597,37 +615,49 @@ const identityBible = score("identity", [
 // Drafts, gates, finals.
 const results = [];
 for (const s of shots) {
-  const draft = join(out, "drafts", `segment-${s.segment}-draft.mp4`);
-  const draftTake = await takeOf(s, "draft", "running");
-  const task = await generate(
-    `draft ${s.index}`,
-    SEEDANCE,
-    `${s.generateSeconds} s draft 480p + ${s.segmentSeconds} s ref video`,
-    s.draftCredits,
-    seedanceDraftBody({
-      prompt: s.prompt,
-      imageUrls: await Promise.all(
-        s.images.map((i) => upload(i.file, "image/png")),
-      ),
-      videoUrls: [await upload(s.refVideo, "video/mp4")],
-      seconds: s.generateSeconds,
-    }),
-    draft,
-  ).catch(async (error: Error) => {
-    // An ambiguous call stays running: kie may still deliver it, and it must not be paid again.
-    await store.patchTake(draftTake.id, {
-      ...(error instanceof RunStopped ? {} : { status: "failed" as const }),
-      gates: { error: error.message, ambiguous: error instanceof RunStopped },
-    });
-    throw error;
-  });
-  const gate = gateClip(s, draft, "draft");
+  const draft = draftFile(s);
+  // A draft a previous run already paid for and downloaded is gated again, never bought again.
+  const kept = await delivered(s, "draft", draft);
+  const draftTake = kept ?? (await takeOf(s, "draft", "running"));
+  const task = kept
+    ? { taskId: String(kept.params.taskId), credits: kept.cost_credits }
+    : await generate(
+        `draft ${s.index}`,
+        SEEDANCE,
+        `${s.generateSeconds} s draft 480p + ${s.segmentSeconds} s ref video`,
+        s.draftCredits,
+        seedanceDraftBody({
+          prompt: s.prompt,
+          imageUrls: await Promise.all(
+            s.images.map((i) => upload(i.file, "image/png")),
+          ),
+          videoUrls: [await upload(s.refVideo, "video/mp4")],
+          seconds: s.generateSeconds,
+        }),
+        draft,
+      ).catch(async (error: Error) => {
+        // An ambiguous call stays running: kie may still deliver it, and it must not be paid again.
+        await store.patchTake(draftTake.id, {
+          ...(error instanceof RunStopped ? {} : { status: "failed" as const }),
+          gates: {
+            error: error.message,
+            ambiguous: error instanceof RunStopped,
+          },
+        });
+        throw error;
+      });
+  if (kept)
+    await ledger.note(
+      `draft ${s.index}: kept task ${task.taskId} from an earlier run, not paid again`,
+    );
+  // Delivered: recorded as done with its task id before the gates run, so a re-run keeps it.
   await store.patchTake(draftTake.id, {
     status: "done",
     cost_credits: task.credits ?? s.draftCredits,
     params: { ...draftTake.params, taskId: task.taskId },
-    gates: gate,
   });
+  const gate = gateClip(s, draft, "draft");
+  await store.patchTake(draftTake.id, { gates: gate });
   const row: Record<string, unknown> = {
     shot: s.index,
     draftTask: task.taskId,
@@ -635,25 +665,37 @@ for (const s of shots) {
     draft: gate,
   };
   if (gate.pass && finalsPlanned.includes(s.index)) {
-    const finalTake = await takeOf(s, "final", "running");
+    const final = finalFile(s);
+    // Like the draft: a final already delivered is gated again, never bought again.
+    const keptFinal = await delivered(s, "final", final);
+    const finalTake = keptFinal ?? (await takeOf(s, "final", "running"));
     row.finalTake = finalTake.id;
-    const final = join(out, "finals", `segment-${s.segment}-1080p.mp4`);
+    let finalDelivered = Boolean(keptFinal);
     try {
-      await generate(
-        `final ${s.index}`,
-        SEEDANCE_UPGRADE,
-        `${s.generateSeconds} s 1080p upgrade + ${s.segmentSeconds} s ref video`,
-        s.finalCredits,
-        seedanceUpgradeBody(task.taskId),
-        final,
-      );
+      if (!keptFinal) {
+        const finalTask = await generate(
+          `final ${s.index}`,
+          SEEDANCE_UPGRADE,
+          `${s.generateSeconds} s 1080p upgrade + ${s.segmentSeconds} s ref video`,
+          s.finalCredits,
+          seedanceUpgradeBody(task.taskId),
+          final,
+        );
+        finalDelivered = true;
+        await store.patchTake(finalTake.id, {
+          status: "done",
+          cost_credits: finalTask.credits ?? s.finalCredits,
+          params: { ...finalTake.params, taskId: finalTask.taskId },
+        });
+      }
       row.final = gateClip(s, final, "final");
-      await store.patchTake(finalTake.id, { status: "done", gates: row.final });
+      await store.patchTake(finalTake.id, { gates: row.final });
     } catch (error) {
       const stopped = error instanceof RunStopped;
       row.final = { error: (error as Error).message, ambiguous: stopped };
+      // A delivered final stays done; an ambiguous one stays running (it must not be paid again).
       await store.patchTake(finalTake.id, {
-        ...(stopped ? {} : { status: "failed" as const }),
+        ...(stopped || finalDelivered ? {} : { status: "failed" as const }),
         gates: row.final,
       });
       // An outcome kie did not tell stops the run; a failure or a refusal leaves the draft.

@@ -3,12 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type CutPlanLine,
+  type MvTake,
   planCuts,
   planFromShotList,
   planShots,
 } from "@mellodifai/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  deliveredTake,
   LOCAL_VERSION,
   loadRung1Plan,
   MemoryMusicVideoStore,
@@ -160,5 +162,41 @@ describe("the storyboard store", () => {
       plan: edited,
       from: "storyboard",
     });
+  });
+});
+
+describe("a re-run of the paid rung", () => {
+  const take = (patch: Partial<MvTake>): MvTake => ({
+    id: "00000000-0000-4000-8000-0000000000a1",
+    shot_id: "00000000-0000-4000-8000-0000000000b1",
+    phase: "draft",
+    model: "m",
+    prompt: null,
+    refs: [],
+    params: { taskId: "t1" },
+    cost_credits: 408,
+    gates: null,
+    status: "done",
+    chosen: false,
+    created_at: "2026-11-14T00:00:00Z",
+    ...patch,
+  });
+
+  it("reuses a take kie delivered when its file is still there, so nothing is paid twice", () => {
+    const done = take({});
+    const later = take({
+      id: "00000000-0000-4000-8000-0000000000a2",
+      params: { taskId: "t2" },
+    });
+    expect(deliveredTake([done, later], "draft", true)).toBe(later);
+    expect(deliveredTake([done], "draft", false)).toBeNull();
+    expect(deliveredTake([done], "final", true)).toBeNull();
+    for (const other of [
+      take({ status: "failed" }),
+      take({ status: "running" }),
+      take({ status: "quoted" }),
+      take({ params: {} }),
+    ])
+      expect(deliveredTake([other], "draft", true)).toBeNull();
   });
 });
