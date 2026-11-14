@@ -43,7 +43,9 @@ it.skipIf(process.platform !== "win32")(
             existsSync(witness) &&
             readFileSync(witness, "utf8").split("attempt").length === 7 &&
             !existsSync(stateFile),
-          80_000,
+          // Backoff alone is 1+2+4+8+16 s; six hosted launches through PowerShell and CIM add
+          // about 30 s more, and over 80 s under full-suite load.
+          150_000,
           300,
         ),
       ).toBe(true);
@@ -53,5 +55,5 @@ it.skipIf(process.platform !== "win32")(
       rmSync(root, { recursive: true, force: true });
     }
   },
-  100_000,
+  180_000,
 );
