@@ -126,6 +126,15 @@ export function AgentsPanel({
       </section>
       <form
         className="space-y-4 rounded-2xl bg-[var(--surface-1)] p-6"
+        // The browser's own bubble is easy to miss: say in the form what is missing.
+        onInvalidCapture={(event) => {
+          const field = event.target as HTMLInputElement;
+          setError(
+            field.name === "name"
+              ? "Scrivi un nome per il token."
+              : "Completa i campi richiesti.",
+          );
+        }}
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.currentTarget;

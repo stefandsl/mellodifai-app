@@ -253,6 +253,28 @@ describe("RemakeCard", () => {
     });
   });
 
+  it("accepting a devil's-advocate objection rewrites the section of its line", async () => {
+    mock.row = remake();
+    card();
+    const jury = await screen.findByRole("region", { name: "Giuria" });
+    await userEvent.click(
+      within(jury).getByRole("button", { name: /^Note della giuria/u }),
+    );
+    const accept = within(jury).getByRole("button", {
+      name: "Accetta l'obiezione sulla riga 9",
+    });
+    await waitFor(() => expect(accept).toBeEnabled());
+    await userEvent.click(accept);
+    const section = (
+      LYRICS as { sections: { id: string; lines: { index: number }[] }[] }
+    ).sections.find((s) => s.lines.some((l) => l.index === 8));
+    expect(mock.section).toHaveBeenCalledWith({
+      remakeId: "11111111-1111-4111-8111-111111111111",
+      revision: 3,
+      section: section?.id,
+    });
+  });
+
   it("accepts clean lyrics with the panel's settings and the source's tempo and key", async () => {
     const clean = structuredClone(LYRICS);
     for (const section of clean.sections)

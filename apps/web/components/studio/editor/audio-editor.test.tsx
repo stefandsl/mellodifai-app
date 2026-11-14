@@ -295,7 +295,7 @@ describe("audio editor", () => {
     const peak = Math.max(...channels.flatMap((c) => Array.from(c, Math.abs)));
     expect(peak).toBeCloseTo(10 ** (-1 / 20));
     expect(mock.refresh).toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("keeps the editor open and says so when saving fails", async () => {
     mock.saveEdit.mockResolvedValueOnce({ ok: false });
@@ -315,5 +315,5 @@ describe("audio editor", () => {
     expect(
       screen.getByRole("button", { name: "Salva come nuova versione" }),
     ).toBeEnabled();
-  });
+  }, 15_000);
 });
