@@ -43,8 +43,21 @@ it.skipIf(
           () => reject(new Error("Backup checkpoint timeout")),
           120_000,
         );
-        child.once("message", () => {
+        child.once("message", (value) => {
           clearTimeout(timer);
+          const message = value as {
+            step?: string;
+            pid?: number;
+            error?: string;
+          };
+          if (
+            message.error ||
+            message.step !== "during-backup" ||
+            message.pid !== child.pid
+          )
+            return reject(
+              new Error(message.error ?? "Incorrect backup race checkpoint"),
+            );
           resolve();
         });
         child.once("exit", () => {

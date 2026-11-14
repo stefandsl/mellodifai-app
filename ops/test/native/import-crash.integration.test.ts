@@ -1,6 +1,6 @@
 import { fork } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
@@ -70,8 +70,21 @@ it.skipIf(process.env.MDF_NATIVE_IMPORT_CRASH_TESTS !== "1")(
             () => reject(new Error(`No import crash boundary: ${boundary}`)),
             180_000,
           );
-          child.once("message", () => {
+          child.once("message", (value) => {
             clearTimeout(timer);
+            const message = value as {
+              step?: string;
+              pid?: number;
+              error?: string;
+            };
+            if (
+              message.error ||
+              message.step !== boundary ||
+              message.pid !== child.pid
+            )
+              return reject(
+                new Error(message.error ?? "Incorrect import crash checkpoint"),
+              );
             resolve();
           });
           child.once("exit", () => {
@@ -99,6 +112,12 @@ it.skipIf(process.env.MDF_NATIVE_IMPORT_CRASH_TESTS !== "1")(
         ]);
         await withMaintenance("prod", "verify", async (db) => {
           assertEmptyTarget(parseDump(await db.dump()));
+          expect(
+            readdirSync(layout.objects, {
+              recursive: true,
+              withFileTypes: true,
+            }).filter((entry) => entry.isFile()),
+          ).toHaveLength(0);
         });
       } finally {
         child.kill("SIGKILL");

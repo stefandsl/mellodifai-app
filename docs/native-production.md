@@ -12,7 +12,7 @@ $env:MELLODIFAI_RUNTIME = 'native'
 $env:MELLODIFAI_ROOT = 'E:/mellodifai'
 ```
 
-Do not set MDF_NATIVE_REHEARSAL_PORT_BASE on production. It is accepted only on the literal, non-linked root E:/mellodifai/native-lab-prod and only for ten-port blocks within 46300-46399. The rehearsal used 46320, API 46321, DB 46322, Auth 46320, templates 46325, REST 46328 and Storage 46329. It shared only the installed immutable artifact cache with native-lab. Production retains its configured 44320-44329 block.
+Do not set MDF_NATIVE_REHEARSAL_PORT_BASE on production. It is accepted only on the literal, non-linked root E:/mellodifai/native-lab-prod and only for ten-port blocks within 46300-46399. Run 8 uses base 46300, API 46301, DB 46302, Auth 46300, templates 46305, REST 46308 and Storage 46309. It shares only the installed immutable artifact cache with native-lab. Production retains its configured 44320-44329 block.
 
 ## Preserve identity before the first move
 
@@ -112,6 +112,8 @@ pnpm ops deploy.ts --to <previous-reviewed-tag> --skip-migrations
 ```
 
 Native deploy starts the current stack if needed, stops writers, takes a native backup bundle, checks out the tag in the dedicated clone, installs dependencies, and runs that clone's native migration entry unless skipped. It reapplies stored database credentials, builds and verifies health before completing. Existing m1-floor checks remain. A health failure rolls back automatically only when the migration list is unchanged; otherwise writers stay stopped for recovery. No production deploy was rehearsed against the real clone. Unit tests use a fake runner for both runtimes and skip-migrations.
+
+Run 8 also rehearsed tagged native deploy, schema advance, skip-migrations rollback and cold start in a disposable local Git clone in the production-shaped lab. Native database, backups, migrations, credential probes and startup were real; application builds/processes and web health were simulated. This does not validate application compatibility with an older release or replace review of a production rollback.
 
 For a reviewed schema-compatible rollback, --skip-migrations records stacks/prod/native/schema-rollback.json durably after selecting the target. It binds the complete current version/checksum ledger and the older release's migration checksums, and records the accepted latest version for health checks. Cold start may accept the forward schema only while both fingerprints match exactly. A new ledger row, changed checksum, different release or unrecorded forward schema still refuses startup. The marker never applies pending migrations from an older release. A normal deploy clears this exception before migrating. Do not hand-edit or copy the marker to authorize a different schema.
 

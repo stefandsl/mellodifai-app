@@ -6,6 +6,7 @@ import {
 import { applyLogins } from "../../lib/native/postgres.js";
 import { migrateApp, type NativeContext } from "../../lib/native/supervisor.js";
 import { applyRolePasswords } from "../../lib/roles.js";
+import { fixture } from "./fixtures.js";
 
 vi.mock("../../lib/roles.js", () => ({
   applyRolePasswords: vi.fn(async () => {}),
@@ -35,7 +36,7 @@ it.each([
     );
     const context = {
       env: "e2e",
-      layout: { ports: { db: 46302 } },
+      layout: { root: fixture(), ports: { db: 45622 } },
       native: {
         logins: { postgres: "synthetic" },
         passwordFor: async () => "synthetic",

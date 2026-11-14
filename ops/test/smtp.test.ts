@@ -169,6 +169,9 @@ it("Docker interpolation disables SMTP without a key and passes a file value onl
 });
 
 it("forwards only the fixed SMTP diagnostic through service recovery", async () => {
+  // This exercises the subprocess adapter; native services now call runStack
+  // in process to retain the exclusive lease.
+  vi.stubEnv("MELLODIFAI_RUNTIME", "docker");
   const log = vi.spyOn(console, "warn").mockImplementation(() => {});
   await serviceCommand(
     async () => ({

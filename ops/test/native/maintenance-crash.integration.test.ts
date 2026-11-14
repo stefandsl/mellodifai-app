@@ -65,6 +65,11 @@ it.skipIf(
               clearTimeout(timer);
               if ((value as { error?: string }).error)
                 return reject(new Error((value as { error: string }).error));
+              if (
+                (value as { step?: string }).step !== boundary ||
+                (value as { pid?: number }).pid !== child.pid
+              )
+                return reject(new Error("Incorrect restore crash checkpoint"));
               resolve();
             });
             child.once("exit", () => {
