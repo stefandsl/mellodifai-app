@@ -128,6 +128,34 @@ it("saves the video choice at once while the lyrics are approved (R31)", async (
   await waitFor(() => expect(choice).toHaveAttribute("aria-checked", "true"));
 });
 
+it("switching the video off and on again keeps the song's visualizer", async () => {
+  const visualizer = clip({ settings: { video: "visualizer" } });
+  const { rerender } = render(<NextStep clip={visualizer} />);
+  await userEvent.click(screen.getByRole("button", { name: "Approva e crea" }));
+  const dialog = screen.getByRole("dialog");
+  const choice = within(dialog).getByRole("switch", {
+    name: "Crea anche il video",
+  });
+  expect(choice).toHaveAttribute("aria-checked", "true");
+  await userEvent.click(choice);
+  await waitFor(() =>
+    expect(mock.video).toHaveBeenLastCalledWith({
+      versionId: "v1",
+      video: "off",
+    }),
+  );
+  // The refresh brings the saved "off" back into the clip.
+  rerender(<NextStep clip={{ ...visualizer, settings: { video: "off" } }} />);
+  await userEvent.click(choice);
+  await waitFor(() =>
+    expect(mock.video).toHaveBeenLastCalledWith({
+      versionId: "v1",
+      video: "visualizer",
+    }),
+  );
+  expect(mock.video).toHaveBeenCalledTimes(2);
+});
+
 it("does not spend credits on lyrics that would fail validation", async () => {
   render(
     <NextStep clip={clip({ pack: { ...frPack, lyrics: "[Verse]\nOne" } })} />,

@@ -77,13 +77,20 @@ function ApproveDialog({
         });
   // R31: the video choice is saved at once; take_pick reads it after the song is made.
   const [videoOn, setVideoOn] = useState(clip.settings.video !== "off");
+  // Switching back on restores the song's own video (a visualizer stays a visualizer), read
+  // once so a refresh that brings back "off" does not lose it.
+  const [videoKind] = useState(() =>
+    clip.settings.video && clip.settings.video !== "off"
+      ? clip.settings.video
+      : "lyric",
+  );
   const toggleVideo = () =>
     start(async () => {
       const next = !videoOn;
       setVideoOn(next);
       const result = await setSongVideo({
         versionId: clip.id,
-        video: next ? "lyric" : "off",
+        video: next ? videoKind : "off",
       });
       if (!result.ok) {
         setVideoOn(!next);
