@@ -123,6 +123,7 @@ Dettaglio: `E:/mellodifai/research/2026-11-14/IMPROVED-research.md` e `GAUNTLET-
 |---|---|---|
 | 1. Piano dei tagli, inquadrature, previz Three.js, audio come video nero, montaggio (gratis) | In corso (ramo `feat/music-video-line`) | Zero parole tagliate; durata video = audio entro 1 fotogramma; previz di una canzone vera |
 | 2. Personaggio e set; bozze (locali Wan o Seedance draft via kie); lip sync; giuria prima del 1080p | Da fare dopo gradino 1 | Sfasamento labbiale max 2 fotogrammi; stessa faccia (SigLIP2); confronto cieco con il video del tutorial; max meta dei crediti di una generazione ingenua; totale entro 5000 |
+| 2b. Struttura Cinema da Parallax (MIT): progetto > scene > inquadrature, elementi (personaggio, luogo, oggetto con riferimenti), compositore inquadratura -> prompt + riferimenti, take come generazioni | Da fare prima del gradino 3 (`E:/mellodifai/research/2026-11-14/parallax.md`, P1) | Il gradino 3 usa questo modello; una take si rigenera senza toccare le altre |
 | 3. Linea completa dentro Rifai da YouTube, note sul fotogramma, rifare solo i pezzi segnati | Da fare | Un video finito da un link senza interventi; costo per minuto nel registro |
 
 ## F4. Pubblicazione e milestone pianificate (R13, R29)
@@ -130,6 +131,8 @@ Dettaglio: `E:/mellodifai/research/2026-11-14/IMPROVED-research.md` e `GAUNTLET-
 | Voce | Stato | Prossimo passo | Giudice |
 |---|---|---|---|
 | YouTube | `publish.ts` programma (`scheduled`, `publish_at`) | Verificare in produzione | Video privato programmato e reso pubblico allo slot |
+| Approvazione con prezzo per le chiamate a pagamento degli agenti (Parallax P2) | Assente: MCP e CLI avviano lavori pagati entro le riserve | Scheda con prezzo esatto che aspetta il si del proprietario, o regola automatica sotto una soglia | Test: chiamata pagata da agente resta in attesa finche non approvata; nessun addebito se rifiutata |
+| Prezzo prima di ogni pulsante pagato e tetto giornaliero (Parallax P3) | Riserve in `quota.ts` | Mostrare il prezzo; un tetto giornaliero per tutta l'app | e2e: il prezzo appare; oltre il tetto la richiesta e rifiutata |
 | Finestra di veto | Assente nel codice (nessun riferimento a "veto") | Costruirla come M4 la descrive | Test: un veto prima dello slot blocca la pubblicazione |
 | Altri social (TikTok, Instagram, come Blotato) | Assente | Adattatori ufficiali per piattaforma, stessa finestra di veto | Pubblicazione di prova su account del proprietario solo con suo permesso |
 
@@ -166,6 +169,7 @@ Rilievi aperti delle revisioni del 03/11, da chiudere prima di costruire le part
 ## F6. Migliorie misurate (R21, R22, R24, R28)
 
 - Videohub nel video studio (R33). Incorporato finora: nulla (solo studiato il 14/11). Da incorporare, in ordine, ciascuno con il suo giudice: note legate alla versione con giro di verifica (e2e `rerender`), protezione risorse dei render (test con memoria simulata), render a pezzi (fotogrammi decodificati uguali al render completo), anteprima fotogramma (confronto anteprima/export), prova encoder (codice adattato da Videohub o HyperFrames con licenza; test con runner finto), copertine da fotogrammi, pulizia in quarantena. Il codice di Videohub che esegue i progetti senza isolamento non entra.
+- Modalita demo senza chiavi (Parallax P4): ogni modello risponde con un file di esempio, attivabile dalla UI. Confronto prezzi e termini del gateway treg.to con kie (P6), nessun cambio senza un risparmio misurato.
 - Modelli leggeri, ognuno solo dopo una prova misurata contro l'attuale: Qwen3-ASR e ForcedAligner (allineamento cantato), beat-this (tagli), Qwen3-VL-4B (giuria locale), SigLIP2 (identita), FLUX.2-klein (immagini), Wan 2.2 5B (bozze video).
 - Cancelli di qualita: open-code-review su ogni ramo prima del merge; skill di Matt Pocock installate il 10/11 (software-factory per i piani, teach per i documenti) usate nei piani di fase; lint, test e flakiness sempre verdi.
 
