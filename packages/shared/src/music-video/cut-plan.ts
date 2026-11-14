@@ -437,7 +437,15 @@ export function checkCutPlan(plan: CutPlan, input: CutPlanInput): CutPlanCheck {
   if (segs.at(-1)?.endFrame !== plan.frames)
     reasons.push("last segment does not end on the last frame");
   const cuts = segs.slice(1).map((s) => s.start);
-  const wordsCut = cuts.filter((t) => insideWord(t, words)).length;
+  // The picture changes on the segment's start frame, so that is the cut a viewer sees; a cut
+  // whose label in seconds is also inside a word counts too (the two disagree only by rounding).
+  const wordsCut = segs
+    .slice(1)
+    .filter(
+      (s) =>
+        insideWord(s.startFrame / plan.fps, words) ||
+        insideWord(s.start, words),
+    ).length;
   let wordsLost = 0;
   for (const w of words) {
     const owners = segs.filter(

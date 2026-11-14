@@ -184,6 +184,29 @@ describe("planCuts", () => {
     expect(check.wordsCut).toBe(1);
     expect(check.gaps).toBe(1);
   });
+
+  it("the check judges a cut at its frame time, not its time in seconds", () => {
+    // Word w0 starts at 20.05 s. A cut labelled 20.04 s is outside it in seconds, but if its
+    // frame is 602 the picture changes at 20.0667 s, 17 ms after the word began.
+    const input = song();
+    const plan = planCuts(input);
+    const first = plan.segments[0];
+    const second = plan.segments[1];
+    if (!first || !second) throw new Error("plan too short");
+    const shifted = {
+      ...plan,
+      segments: [
+        { ...first, end: 20.04, endFrame: 602 },
+        { ...second, start: 20.04, startFrame: 602 },
+        ...plan.segments.slice(2),
+      ],
+    };
+    expect(insideWord(20.04, allWords(input))).toBe(false);
+    expect(insideWord(602 / 30, allWords(input))).toBe(true);
+    const check = checkCutPlan(shifted, input);
+    expect(check.wordsCut).toBe(1);
+    expect(check.ok).toBe(false);
+  });
 });
 
 describe("planShots", () => {
