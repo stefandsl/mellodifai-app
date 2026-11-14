@@ -44,6 +44,9 @@ export const STAGES = [
   "lyrics_assist",
   // On demand: local Whisper word timing for a playable take.
   "align_lyrics",
+  // On demand, free: the music video's cut plan, shot list and storyboard (F3 rung 1) of a song
+  // whose lyric video was rendered (its timing exists).
+  "music_video_plan",
 ] as const;
 
 export type Stage = (typeof STAGES)[number];
@@ -70,6 +73,7 @@ export const STAGE_RESOURCE_CLASS: Record<Stage, "gpu" | "cpu" | "net"> = {
   remake_rewrite: "net",
   lyrics_assist: "net",
   align_lyrics: "cpu",
+  music_video_plan: "cpu",
 };
 
 export const REMAKE_JOB_STAGES: readonly Stage[] = [
@@ -87,6 +91,7 @@ export const ON_DEMAND_STAGES: readonly Stage[] = [
   "visualizer",
   "replace_section",
   "align_lyrics",
+  "music_video_plan",
 ];
 export function isOnDemandStage(stage: Stage): boolean {
   return ON_DEMAND_STAGES.includes(stage);

@@ -198,6 +198,9 @@ const it = {
   "next.approveCost": "kie genera due versioni della canzone: 12 crediti.",
   "next.approveFlow":
     "Poi scegli la versione che preferisci e il video parte da solo sul PC: 16:9 e clip verticale 9:16.",
+  "next.videoChoice": "Crea anche il video",
+  "next.approveFlowAudio":
+    "Poi scegli la versione che preferisci: la canzone resta solo audio e il video puoi crearlo dopo.",
   "next.edit": "Modifica il testo",
   "next.confirm": "Approva · 12 crediti",
   "next.approving": "Avvio...",
@@ -1333,6 +1336,9 @@ const en: Record<StudioKey, string> = {
   "next.approveCost": "kie generates two versions of the song: 12 credits.",
   "next.approveFlow":
     "Then pick the version you like and the video starts on the PC by itself: 16:9 and a 9:16 vertical clip.",
+  "next.videoChoice": "Also make the video",
+  "next.approveFlowAudio":
+    "Then pick the version you like: the song stays audio only and you can make the video later.",
   "next.edit": "Edit the lyrics",
   "next.confirm": "Approve · 12 credits",
   "next.approving": "Starting...",

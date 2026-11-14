@@ -28,6 +28,13 @@ import { jobCancel } from "./defs/job-cancel";
 import { jobStatus } from "./defs/job-status";
 import { lyricsApprove } from "./defs/lyrics-approve";
 import { lyricsBack } from "./defs/lyrics-back";
+import {
+  musicVideoElementUpdate,
+  musicVideoPlanRequest,
+  musicVideoShotUpdate,
+  musicVideoStoryboard,
+  musicVideoTakeRequest,
+} from "./defs/music-video";
 import { remakeAccept } from "./defs/remake-accept";
 import { remakeCancel } from "./defs/remake-cancel";
 import { remakeDismiss } from "./defs/remake-dismiss";
@@ -332,6 +339,33 @@ export const tokenOps = {
     },
     "/remakes/{remake_id}/dismiss",
     "Hides an accepted or failed remake from remakes_list (scope create); a failed one also leaves the library, and a cancelled one is already hidden.",
+  ),
+  // The music-video storyboard (F3 rung 2b): plan it for free, read it, edit elements and shots,
+  // and get the price of a take. Starting a paid take stays with the owner.
+  music_video_plan_request: http(
+    musicVideoPlanRequest,
+    "/songs/{version_id}/music-video/plan",
+    "Queues the free music-video plan of a song with a rendered video: cut plan, shot list and storyboard (scope create); follow the job with job_status, then read it with music_video_storyboard.",
+  ),
+  music_video_storyboard: http(
+    musicVideoStoryboard,
+    "/songs/{version_id}/music-video",
+    "Returns the music-video storyboard of a song with its elements, scenes, shots and takes, null before the plan exists (scope read); edit it with music_video_element_update and music_video_shot_update.",
+  ),
+  music_video_element_update: http(
+    musicVideoElementUpdate,
+    "/music-video/elements/{element_id}",
+    "Changes the name, description or reference assets of a storyboard character, location or prop (scope create); read the result with music_video_storyboard.",
+  ),
+  music_video_shot_update: http(
+    musicVideoShotUpdate,
+    "/music-video/shots/{shot_id}",
+    "Changes the framing, mood, cast or location of a storyboard shot, never its lyrics (scope create); then ask the price of a take with music_video_take_request.",
+  ),
+  music_video_take_request: http(
+    musicVideoTakeRequest,
+    "/music-video/shots/{shot_id}/takes",
+    "Quotes a draft or final take of a storyboard shot in credits without spending (scope create); the owner starts paid takes in the app, and the quote shows in music_video_storyboard.",
   ),
 };
 

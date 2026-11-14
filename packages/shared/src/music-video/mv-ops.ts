@@ -15,7 +15,10 @@ import {
 const Id = z.string().uuid();
 
 export const MusicVideoStoryboardInput = z.object({ version_id: Id });
-export const MusicVideoStoryboardOutput = StoryboardSchema.nullable();
+// An object like every other operation answer: null before the plan exists.
+export const MusicVideoStoryboardOutput = z.object({
+  storyboard: StoryboardSchema.nullable(),
+});
 
 export const MusicVideoElementPatch = z
   .object({

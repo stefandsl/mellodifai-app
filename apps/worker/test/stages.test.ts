@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import {
   mkdir,
@@ -2373,6 +2374,16 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   await run("art");
   expect(ctx.version.status).toBe("video_review");
   expect(db.renders).toHaveLength(2);
+  // The free music-video plan: a storyboard from the real planner, the song status untouched.
+  // The storyboard keys songs by uuid; this fixture's version id is a plain word.
+  const planned = { ...ctx, version: { ...ctx.version, id: randomUUID() } };
+  expect(await registry.music_video_plan?.(planned)).toEqual({});
+  expect(ctx.version.status).toBe("video_review");
+  const board = await db.musicVideo.storyboard(planned.version.id);
+  const shots = board?.scenes.flatMap((scene) => scene.shots) ?? [];
+  expect(shots.length).toBeGreaterThan(1);
+  expect(shots.at(-1)?.end_frame).toBe(board?.project.frames);
+  expect(shots.map((shot) => shot.lyrics).join(" ")).toContain("line 1");
   for (const [file, codec, width] of [
     [join(ctx.ws.outDir, "take-1.mp3"), "mp3", undefined],
     [join(ctx.ws.renderDir, "video.mp4"), "h264", 1280],
@@ -2429,7 +2440,7 @@ it("fake stages generate playable temporary media, persist rows and advance the 
   expect(db.publications[1]?.render_id).toBe(replacement.id);
   await run("publish");
   expect(db.publications).toHaveLength(2);
-  expect(sleep).toHaveBeenCalledTimes(13);
+  expect(sleep).toHaveBeenCalledTimes(14);
   expect(ctx.storage.upload).toHaveBeenCalledWith(
     "previews/owner/project/fr/version/7/master-preview.mp4",
     join(ctx.ws.renderDir, "master-preview.mp4"),

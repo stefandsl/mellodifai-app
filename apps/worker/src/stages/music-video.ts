@@ -2,8 +2,7 @@
 // black-picture audio wrappers a lip-sync model takes, the assembly with the song master and
 // its sync check. Pure planning plus ffmpeg; no paid call, no database.
 //
-// Not yet a registered job stage: a new stage name needs a jobs_stage_check migration (rung 2).
-// The handler below runs on a song's workspace once it is registered.
+// musicVideoPlanStage is the on-demand job stage music_video_plan (migration 20261114190001).
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import {

@@ -8,6 +8,7 @@ import { audioKeep } from "@/lib/ops/defs/audio-keep";
 import { lyricsApprove } from "@/lib/ops/defs/lyrics-approve";
 import { lyricsBack } from "@/lib/ops/defs/lyrics-back";
 import { songGenerateAgain } from "@/lib/ops/defs/song-generate-again";
+import { songVideoSet } from "@/lib/ops/defs/song-video-set";
 import { stageRetry } from "@/lib/ops/defs/stage-retry";
 import { takePick } from "@/lib/ops/defs/take-pick";
 import { videoApprove } from "@/lib/ops/defs/video-approve";
@@ -18,6 +19,11 @@ import { VideoApprovalInput } from "./schemas";
 
 export async function approveLyrics(input: unknown) {
   return runAction(lyricsApprove, input);
+}
+
+// R31: choose the video while approving the lyrics; it is saved at once.
+export async function setSongVideo(input: unknown) {
+  return runAction(songVideoSet, input);
 }
 
 export async function pickTake(input: unknown) {

@@ -82,7 +82,7 @@ async function board(tx: TransactionSql, ctx: Ctx, version: string) {
     version,
   ]);
   expect(result.ok).toBe(true);
-  return StoryboardSchema.parse(result.data);
+  return StoryboardSchema.parse(result.data.storyboard);
 }
 
 it("saves the worker's plan and reads it back as the shared storyboard", async () => {
@@ -375,6 +375,7 @@ it("lets owners read storyboard rows but write none of them directly", async () 
       order by p.proname`;
     expect(grants.map((g) => [g.proname, g.web, g.auth, g.service])).toEqual([
       ["music_video_element_update", true, false, false],
+      ["music_video_plan_request", true, false, false],
       ["music_video_shot_update", true, false, false],
       ["music_video_storyboard", true, false, false],
       ["music_video_take_request", true, false, false],

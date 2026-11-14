@@ -19,12 +19,18 @@ const mock = vi.hoisted(() => ({
   approve: vi.fn(async () => ({ ok: true as const })),
   pick: vi.fn(async () => ({ ok: true as const })),
   keep: vi.fn(async () => ({ ok: true as const })),
+  video: vi.fn(
+    async (): Promise<{ ok: true } | { ok: false; error: string }> => ({
+      ok: true,
+    }),
+  ),
   refresh: vi.fn(),
 }));
 vi.mock("@/app/actions/checkpoints", () => ({
   approveLyrics: mock.approve,
   pickTake: mock.pick,
   keepAudio: mock.keep,
+  setSongVideo: mock.video,
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mock.refresh }),
@@ -68,6 +74,7 @@ beforeEach(() => {
   mock.approve.mockClear();
   mock.pick.mockClear();
   mock.keep.mockClear();
+  mock.video.mockClear();
   mock.refresh.mockClear();
 });
 
@@ -88,6 +95,37 @@ it("approves the drafted pack from the feed after showing lyrics and cost", asyn
     }),
   );
   expect(mock.refresh).toHaveBeenCalled();
+});
+
+it("saves the video choice at once while the lyrics are approved (R31)", async () => {
+  render(<NextStep clip={clip({ settings: { video: "off" } })} />);
+  await userEvent.click(screen.getByRole("button", { name: "Approva e crea" }));
+  const dialog = screen.getByRole("dialog");
+  const choice = within(dialog).getByRole("switch", {
+    name: "Crea anche il video",
+  });
+  expect(choice).toHaveAttribute("aria-checked", "false");
+  expect(dialog).toHaveTextContent("resta solo audio");
+  await userEvent.click(choice);
+  await waitFor(() =>
+    expect(mock.video).toHaveBeenCalledWith({
+      versionId: "v1",
+      video: "lyric",
+    }),
+  );
+  await waitFor(() => expect(choice).toHaveAttribute("aria-checked", "true"));
+  expect(dialog).toHaveTextContent("il video parte da solo");
+  expect(mock.approve).not.toHaveBeenCalled();
+  // A refused save puts the switch back.
+  mock.video.mockResolvedValueOnce({ ok: false, error: "No" });
+  await userEvent.click(choice);
+  await waitFor(() =>
+    expect(mock.video).toHaveBeenLastCalledWith({
+      versionId: "v1",
+      video: "off",
+    }),
+  );
+  await waitFor(() => expect(choice).toHaveAttribute("aria-checked", "true"));
 });
 
 it("does not spend credits on lyrics that would fail validation", async () => {

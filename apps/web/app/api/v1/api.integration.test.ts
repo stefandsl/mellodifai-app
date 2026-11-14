@@ -2,6 +2,7 @@ import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { planCuts, planFromShotList, planShots } from "@mellodifai/shared";
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import { opsSql } from "@/lib/db/ops-client";
 import { TOKEN_OPS } from "@/lib/ops/registry";
@@ -17,6 +18,7 @@ import {
 } from "@/test/api-cases";
 import { assertTestWebStack } from "../../../../../ops/test-db-guard";
 import { ownerSql } from "../../../../../supabase/tests/helpers/pg";
+
 import { actor } from "../../../../../supabase/tests/helpers/token-fixture";
 
 // Only Next cache invalidation is mocked. Authentication, SQL and idempotency are real.
@@ -69,8 +71,11 @@ async function invoke(row: ApiCase, query = "", bearer = token.token) {
   });
 }
 
-// The remake rows need a remake in a given stage: they have their own flow below.
-const songCases = apiCases.filter((row) => !row.name.startsWith("remake"));
+// The remake and music-video rows need a remake or a storyboard: they have their own flows.
+const songCases = apiCases.filter(
+  (row) =>
+    !row.name.startsWith("remake") && !row.name.startsWith("music_video"),
+);
 
 it.each(songCases)(
   "test-mode admin PAT: $method $path returns the $name shape",
@@ -456,4 +461,149 @@ it("a read-only PAT cannot start a remake and a live PAT cannot see a test remak
   const cancelled = await remakeApi("remake_cancel", { remakeId });
   expect(cancelled.status, JSON.stringify(cancelled.body)).toBe(200);
   expect(cancelled.body.data).toEqual({ jobs: [] });
+});
+
+// A 40 s song at 120 BPM: intro, six two-bar lines, outro (the fake worker's shape).
+function mvPlan() {
+  const beats = Array.from({ length: 80 }, (_, i) => i * 0.5);
+  const lines = Array.from({ length: 6 }, (_, i) => {
+    const t = 8 + i * 4;
+    return {
+      section: "Verse 1",
+      text: `a${i} b${i} c${i}`,
+      words: [
+        { w: `a${i}`, start: t + 0.05, end: t + 0.9 },
+        { w: `b${i}`, start: t + 1.0, end: t + 1.9 },
+        { w: `c${i}`, start: t + 2.1, end: t + 3.3 },
+      ],
+    };
+  });
+  const cut = planCuts({
+    duration: 40,
+    lines,
+    sections: [
+      { name: "Intro", start: 0, end: 8 },
+      { name: "Verse 1", start: 8, end: 32 },
+      { name: "Outro", start: 32, end: 40 },
+    ],
+    downbeats: beats.filter((_, i) => i % 4 === 0),
+    beats,
+  });
+  return planFromShotList(cut, planShots(cut, { genre: "pop" }), {
+    title: "API",
+    language: "Italian",
+  });
+}
+
+async function mvApi(
+  name: string,
+  ids: Record<string, string>,
+  body?: unknown,
+  bearer = token.token,
+) {
+  const row = apiCases.find((item) => item.name === name);
+  if (!row) throw new Error(`No API case for ${name}`);
+  const all = { ...pathParams, ...params, ...ids };
+  const route = (
+    await routes[`.${row.path.replace(/\{([^}]+)\}/g, "[$1]")}/route.ts`]()
+  )[row.method];
+  const base = requestFor(row, bearer, all);
+  const response = await route(
+    body === undefined
+      ? base
+      : new Request(base, { body: JSON.stringify(body) }),
+    { params: Promise.resolve(all) },
+  );
+  const json = await response.json();
+  if (response.status === 200)
+    expect(
+      TOKEN_OPS.find((def) => def.name === name)?.output.safeParse(json.data)
+        .success,
+      `${name} output`,
+    ).toBe(true);
+  return { status: response.status, body: json };
+}
+
+it("a test-mode PAT plans, reads, edits and quotes a music video; other tokens are refused", async () => {
+  await sql`update public.versions set status='video_review' where id=${params.version_id}`;
+  const empty = await mvApi("music_video_storyboard", {});
+  expect(empty.status, JSON.stringify(empty.body)).toBe(200);
+  expect(empty.body.data).toEqual({ storyboard: null });
+  const planned = await mvApi("music_video_plan_request", {});
+  expect(planned.status, JSON.stringify(planned.body)).toBe(200);
+  expect(planned.body.data.jobs[0].stage).toBe("music_video_plan");
+  const jobs =
+    await sql`select fake_providers from public.jobs where id=${planned.body.data.jobs[0].job_id}`;
+  expect(jobs).toEqual([{ fake_providers: true }]);
+  // The worker's save, as the fake stage does it.
+  const saved = mvPlan();
+  await sql`select public.mv_save_plan(${params.version_id}, ${sql.json(saved as never)})`;
+  const board = await mvApi("music_video_storyboard", {});
+  const storyboard = board.body.data.storyboard;
+  const shot = storyboard.scenes[0].shots[0];
+  const element = storyboard.elements[0];
+  const edited = await mvApi(
+    "music_video_element_update",
+    { element_id: element.id },
+    { patch: { description: "Giacca rossa" } },
+  );
+  expect(edited.status, JSON.stringify(edited.body)).toBe(200);
+  expect(edited.body.data.element.description).toBe("Giacca rossa");
+  const framed = await mvApi(
+    "music_video_shot_update",
+    { shot_id: shot.id },
+    { patch: { size: "wide" } },
+  );
+  expect(framed.status, JSON.stringify(framed.body)).toBe(200);
+  expect(framed.body.data.shot.size).toBe("wide");
+  const quote = await mvApi(
+    "music_video_take_request",
+    { shot_id: shot.id },
+    { phase: "draft" },
+  );
+  expect(quote.status, JSON.stringify(quote.body)).toBe(200);
+  expect(quote.body.data.status).toBe("quoted");
+  // The quote queues nothing: the only music-video job is the plan.
+  expect(
+    await sql`select stage from public.jobs where version_id=${params.version_id} and stage like 'music_video%'`,
+  ).toEqual([{ stage: "music_video_plan" }]);
+  // An unknown shot is not found.
+  const unknown = await mvApi(
+    "music_video_take_request",
+    { shot_id: randomUUID() },
+    { phase: "draft" },
+  );
+  expect(unknown.status).toBe(404);
+  expect(unknown.body.error).toMatchObject({ code: "not_found" });
+  // A live token of the same owner cannot see the test song nor change it.
+  const live = newPat();
+  await sql.begin(async (tx) => {
+    const session = randomUUID();
+    await tx`insert into auth.sessions (id, user_id, created_at) values (${session}, ${userId}, now())`;
+    const [made] =
+      await tx`select ops.admin_token_create(${tx.json({ actor_kind: "session", user_id: userId, session_id: session, remote: false })}, 'MV live', ${live.hash}, ${live.hint}, array['read','create'], false, false, null) result`;
+    expect(made.result.ok).toBe(true);
+  });
+  const hidden = await mvApi(
+    "music_video_storyboard",
+    {},
+    undefined,
+    live.token,
+  );
+  expect(hidden.status).toBe(404);
+  expect(hidden.body.error).toMatchObject({ code: "not_found" });
+  for (const [name, ids, body] of [
+    ["music_video_plan_request", {}, {}],
+    [
+      "music_video_element_update",
+      { element_id: element.id },
+      { patch: { name: "X" } },
+    ],
+    ["music_video_shot_update", { shot_id: shot.id }, { patch: { mood: "x" } }],
+    ["music_video_take_request", { shot_id: shot.id }, { phase: "draft" }],
+  ] as const) {
+    const refused = await mvApi(name, ids, body, live.token);
+    expect(refused.status, `${name} ${JSON.stringify(refused.body)}`).toBe(403);
+    expect(refused.body.error).toMatchObject({ code: "forbidden_scope" });
+  }
 });

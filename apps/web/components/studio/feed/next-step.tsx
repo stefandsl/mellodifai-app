@@ -25,6 +25,7 @@ import {
   keepAudio,
   makeVideo,
   pickTake,
+  setSongVideo,
 } from "@/app/actions/checkpoints";
 import { keepAudioWithVisualizer } from "@/app/actions/visualizer";
 import { useLocale } from "@/components/locale-provider";
@@ -74,6 +75,23 @@ function ApproveDialog({
           engine: engineName(engine),
           m: minutesPhrase(lang, minutes),
         });
+  // R31: the video choice is saved at once; take_pick reads it after the song is made.
+  const [videoOn, setVideoOn] = useState(clip.settings.video !== "off");
+  const toggleVideo = () =>
+    start(async () => {
+      const next = !videoOn;
+      setVideoOn(next);
+      const result = await setSongVideo({
+        versionId: clip.id,
+        video: next ? "lyric" : "off",
+      });
+      if (!result.ok) {
+        setVideoOn(!next);
+        toast.error(result.error);
+        return;
+      }
+      router.refresh();
+    });
   const approve = () =>
     start(async () => {
       const result = await approveLyrics({
@@ -130,9 +148,33 @@ function ApproveDialog({
             </li>
             <li className="flex gap-2">
               <Clapperboard className="mt-0.5 size-3.5 shrink-0 text-[var(--brand)]" />
-              {st(lang, "next.approveFlow")}
+              {st(lang, videoOn ? "next.approveFlow" : "next.approveFlowAudio")}
             </li>
           </ol>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={videoOn}
+            disabled={pending}
+            onClick={toggleVideo}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl bg-[var(--surface-2)] px-4 py-3 text-left text-[14px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {st(lang, "next.videoChoice")}
+            <span
+              aria-hidden
+              className={cn(
+                "relative inline-flex h-6 w-10 shrink-0 rounded-full transition-colors",
+                videoOn ? "bg-[var(--brand)]" : "bg-[var(--hairline)]",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform",
+                  videoOn && "translate-x-4",
+                )}
+              />
+            </span>
+          </button>
           {valid ? null : (
             <p role="alert" className="text-[13px] text-[var(--danger)]">
               {st(lang, "next.invalid")}

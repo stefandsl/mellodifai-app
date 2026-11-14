@@ -11,6 +11,8 @@ import { newPat } from "@/lib/ops/tokens";
 import {
   apiCases,
   jobId,
+  mvElementId,
+  mvShotId,
   remakeDetail,
   remakeId,
   sectionId,
@@ -62,9 +64,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-it("tools/list returns the 7.3 and 7.3b tools, each described and marked read-only or not", async () => {
+it("tools/list returns the 7.3, 7.3b and music-video tools, each described and marked read-only or not", async () => {
   const { result } = await rpc("tools/list");
-  expect(result.tools).toHaveLength(25);
+  expect(result.tools).toHaveLength(30);
   expect(
     result.tools.map((tool: { name: string }) => tool.name).sort(),
   ).toEqual(apiCases.map((row) => row.name).sort());
@@ -118,6 +120,10 @@ it.each(apiCases)(
         ...(row.path.includes("{take_id}") ? { take_id: takeId } : {}),
         ...(row.path.includes("{remake_id}") ? { remake_id: remakeId } : {}),
         ...(row.path.includes("{section_id}") ? { section_id: sectionId } : {}),
+        ...(row.path.includes("{element_id}")
+          ? { element_id: mvElementId }
+          : {}),
+        ...(row.path.includes("{shot_id}") ? { shot_id: mvShotId } : {}),
         ...(row.method === "POST" ? { idempotency_key: randomUUID() } : {}),
       },
     });
@@ -377,7 +383,7 @@ it.each([undefined, "mdf_pat_revoked"])(
 
 it("dev accepts database-validated PAT discovery", async () => {
   vi.stubEnv("SITE_URL", "http://127.0.0.1:3001");
-  expect((await rpc("tools/list")).result.tools).toHaveLength(25);
+  expect((await rpc("tools/list")).result.tools).toHaveLength(30);
   expect(mocks.sql).toHaveBeenCalledWith(
     "select ops.resolve_pat($1) as result",
     [expect.objectContaining({ actor_kind: "pat" })],
