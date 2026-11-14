@@ -4,19 +4,23 @@
 // the unit every later stage (shot list, previz, lip-sync generation, assembly) works on.
 import { z } from "zod";
 
-export type TimedWord = {
+export type CutPlanWord = {
   w?: string;
   word?: string;
   start: number;
   end: number;
 };
-export type TimedLine = { section?: string; text?: string; words: TimedWord[] };
+export type CutPlanLine = {
+  section?: string;
+  text?: string;
+  words: CutPlanWord[];
+};
 export type SongSection = { name: string; start: number; end: number };
 
 export type CutPlanInput = {
   // Song length in seconds.
   duration: number;
-  lines: TimedLine[];
+  lines: CutPlanLine[];
   sections?: SongSection[];
   // Downbeat (bar start) and beat times in seconds, from a beat tracker (beat-this).
   downbeats: number[];
@@ -91,7 +95,7 @@ type Candidate = Cut & { cost: number };
 
 const EPS = 1e-6;
 
-function flatWords(lines: TimedLine[]): Word[] {
+function flatWords(lines: CutPlanLine[]): Word[] {
   const words: Word[] = [];
   lines.forEach((line, lineIndex) => {
     const valid = (line.words ?? []).filter(

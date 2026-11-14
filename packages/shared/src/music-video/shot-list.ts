@@ -30,7 +30,7 @@ export const SECTION_KINDS = [
   "outro",
   "other",
 ] as const;
-export type SectionKind = (typeof SECTION_KINDS)[number];
+export type ShotSectionKind = (typeof SECTION_KINDS)[number];
 
 // A burst asks the video model for this many cuts in one generation.
 export const BURST_CUTS = 5;
@@ -93,7 +93,7 @@ export const ShotListSchema = z
   });
 export type ShotList = z.infer<typeof ShotListSchema>;
 
-export function sectionKind(name: string): SectionKind {
+export function sectionKind(name: string): ShotSectionKind {
   const n = name.toLowerCase();
   if (/pre[- ]?chorus|pre[- ]?ritornell/u.test(n)) return "prechorus";
   if (/chorus|ritornell|refrain|hook|post[- ]?chorus|shout|gang/u.test(n))
@@ -105,7 +105,7 @@ export function sectionKind(name: string): SectionKind {
   return "other";
 }
 
-const SETS: Record<SectionKind, string> = {
+const SETS: Record<ShotSectionKind, string> = {
   intro: "set-establishing",
   verse: "set-verse",
   prechorus: "set-verse",
@@ -115,7 +115,7 @@ const SETS: Record<SectionKind, string> = {
   other: "set-establishing",
 };
 
-const COSTUMES: Record<SectionKind, string> = {
+const COSTUMES: Record<ShotSectionKind, string> = {
   intro: "costume-a",
   verse: "costume-a",
   prechorus: "costume-a",

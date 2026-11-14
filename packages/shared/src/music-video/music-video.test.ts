@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   type CutPlanInput,
+  type CutPlanLine,
   checkCutPlan,
   insideWord,
   MAX_SEGMENT_S,
   planCuts,
-  type TimedLine,
 } from "./cut-plan.js";
 import {
   BURST_CUTS,
@@ -22,7 +22,7 @@ function song(): CutPlanInput {
   const duration = 100;
   const beats = Array.from({ length: 200 }, (_, i) => i * 0.5);
   const downbeats = beats.filter((_, i) => i % 4 === 0);
-  const lines: TimedLine[] = [];
+  const lines: CutPlanLine[] = [];
   const sections = [
     { name: "Intro", start: 0, end: 20 },
     { name: "Verse 1", start: 20, end: 52 },
