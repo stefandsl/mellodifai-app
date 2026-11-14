@@ -4,7 +4,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { nativeDatabase } from "../../lib/native/backup.js";
 import { assertEmptyTarget, parseDump } from "../../lib/native/import-data.js";
 import { nativeLayout } from "../../lib/native/layout.js";
 import { withMaintenance } from "../../lib/native/maintenance.js";
@@ -24,19 +23,24 @@ it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
         "Import crash tests require the production rehearsal lab",
       );
     const layout = nativeLayout("prod");
+    // Start from the known fresh bootstrap, whatever earlier tests left, and
+    // prepare it into the empty import target.
+    await nativeBackup([
+      "restore",
+      "--env",
+      "prod",
+      "E:/mellodifai/native-lab-prod/bootstrap-backup",
+      "--confirm-production",
+    ]);
     await runStack("start", "prod", { runtime: "native" });
-    const db = await nativeDatabase("prod");
-    try {
-      assertEmptyTarget(parseDump(await db.dump()));
-    } catch {
-      await prepareImport([
-        "--env",
-        "prod",
-        join(layout.root, `crash-bootstrap-${randomUUID()}`),
-        "--apply",
-        "--confirm-production",
-      ]);
-    }
+    await prepareImport([
+      "--env",
+      "prod",
+      join(layout.root, `crash-bootstrap-${randomUUID()}`),
+      "--apply",
+      "--confirm-production",
+    ]);
+    // Each import below runs with --replace-empty-only against this target.
     for (const boundary of [
       "during-backup",
       "database-committed",

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { journalPath } from "../../lib/native/journal.js";
 import { nativeLayout } from "../../lib/native/layout.js";
+import { nativeBackup } from "../../native-backup.js";
 import { prepareImport } from "../../native-prepare-import.js";
 import { runStack } from "../../stack.js";
 
@@ -16,7 +17,15 @@ it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
     )
       throw new Error("Requires the production rehearsal lab");
     const layout = nativeLayout("prod");
-    // The lab holds imported user data, so preparation must refuse it.
+    // Load the imported user data the rehearsal verified, whatever earlier
+    // tests left: preparation must refuse it.
+    await nativeBackup([
+      "restore",
+      "--env",
+      "prod",
+      "E:/mellodifai/native-lab-prod/verified-backup",
+      "--confirm-production",
+    ]);
     await expect(
       prepareImport([
         "--env",
