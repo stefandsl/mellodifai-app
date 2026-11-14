@@ -12,6 +12,7 @@ import { safeFailure } from "./lib/native/diagnostics.js";
 import {
   assertNoMaintenance,
   clearJournal,
+  preparing,
   readJournal,
   saveJournal,
 } from "./lib/native/journal.js";
@@ -72,21 +73,20 @@ export async function nativeBackup(
         recoveryPhase = journal.phase;
         if (recoveryPhase !== "preparing") readBackup(path, env);
       }
-      if (action === "restore") {
+      if (action === "restore")
         before = join(layout.root, `before-restore-${Date.now()}`);
-        await saveJournal(layout, {
-          format: 1,
-          operation: "restore",
-          phase: "preparing",
-          backup: before,
-        });
-      }
       maintenance = await maintenanceDatabase(env);
       if (action === "backup")
         await backupNative(env, path, undefined, checkpoint);
       else {
         if (action === "restore") {
-          await backupNative(env, before as string, undefined, checkpoint);
+          const safety = before as string;
+          // A failure before any data change leaves no journal behind.
+          await preparing(
+            layout,
+            { format: 1, operation: "restore", backup: safety },
+            () => backupNative(env, safety, undefined, checkpoint),
+          );
           await saveJournal(layout, {
             format: 1,
             operation: "restore",

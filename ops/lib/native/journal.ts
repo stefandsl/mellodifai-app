@@ -76,6 +76,24 @@ export async function saveJournal(
 ): Promise<void> {
   await durableJson(journalPath(layout), journal);
 }
+/** Write the `preparing` journal around a step that changes no data (the
+ * pre-change backup). A refusal or failure inside it removes the journal
+ * again, so a normal start stays possible; only a killed process leaves it
+ * for recover-import. Run every other check before calling this.
+ */
+export async function preparing<T>(
+  layout: NativeLayout,
+  journal: Omit<MaintenanceJournal, "phase">,
+  step: () => Promise<T>,
+): Promise<T> {
+  await saveJournal(layout, { ...journal, phase: "preparing" });
+  try {
+    return await step();
+  } catch (error) {
+    clearJournal(layout);
+    throw error;
+  }
+}
 export function clearJournal(layout: NativeLayout): void {
   if (existsSync(journalPath(layout))) unlinkSync(journalPath(layout));
 }
