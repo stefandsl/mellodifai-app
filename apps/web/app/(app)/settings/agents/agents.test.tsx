@@ -141,6 +141,16 @@ it("admin only and local only", async () => {
   ).toBe(true);
 });
 
+it("Nuovo token without a name says so in the form", async () => {
+  const user = userEvent.setup();
+  render(await AgentsPage());
+  await user.click(screen.getByRole("button", { name: "Nuovo token" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Scrivi un nome per il token.",
+  );
+  expect(mutations()).toHaveLength(0);
+});
+
 it("Nuovo token shows the token once", async () => {
   const user = userEvent.setup();
   const view = render(await AgentsPage());
