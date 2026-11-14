@@ -117,6 +117,8 @@ For a reviewed schema-compatible rollback, --skip-migrations records stacks/prod
 
 ## Rotation
 
+Migration planning follows the Docker include-all ordering: unapplied versions below 20261103080001 are applied in version order before lockdown has run. Versions above that final lockdown are forbidden. The existing lockdown is not idempotent (plain CREATE FUNCTION), so inserting a migration into a database that already applied it is refused before executing the insertion. Such upgrades require a reviewed replay-safe lockdown policy; changing an applied file is not a workaround. Edited applied migrations and ledger versions without local files remain errors, except for the exact deploy-recorded rollback marker described above.
+
 ```powershell
 pnpm ops rotate-db-passwords.ts --env prod
 pnpm ops rotate-supabase-keys.ts

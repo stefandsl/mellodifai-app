@@ -49,7 +49,7 @@ it("fresh apply records each migration once and the second run is a no-op", asyn
     execute.mock.calls.filter((args) => String(args[0]) === migration.sql),
   ).toHaveLength(1);
 });
-it("refuses edited, missing and backdated applied migrations", () => {
+it("refuses edited and missing applied migrations, includes older unapplied files", () => {
   const files = [file("001"), file("002")];
   expect(() =>
     planMigrations(files, [{ version: "001", sha256: "edited" }]),
@@ -57,9 +57,9 @@ it("refuses edited, missing and backdated applied migrations", () => {
   expect(() =>
     planMigrations(files, [{ version: "003", sha256: "missing" }]),
   ).toThrow("has no file");
-  expect(() =>
+  expect(
     planMigrations(files, [{ version: "002", sha256: file("002").sha256 }]),
-  ).toThrow("older than applied");
+  ).toEqual({ pending: [file("001")], adopt: [] });
 });
 it("adopts legacy rows without rerunning their SQL", async () => {
   const root = fixture();

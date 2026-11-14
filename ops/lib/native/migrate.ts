@@ -49,10 +49,11 @@ export function readMigrations(directory: string): MigrationFile[] {
   return files;
 }
 
-/** Decide what to run. Same refusals as the Supabase CLI (an applied version
- * without a file, a new file older than the latest applied one) plus one of
- * our own: an applied migration whose content changed.
- */
+const LOCKDOWN_VERSION = "20261103080001";
+
+/** Include unapplied older versions, while preserving the repository's
+ * lockdown-last rule. The existing lockdown uses CREATE FUNCTION and cannot
+ * safely be replayed after inserting a migration into an installed schema. */
 export function planMigrations(
   files: MigrationFile[],
   applied: AppliedMigration[],
@@ -62,6 +63,10 @@ export function planMigrations(
     validateRollback(rollback, files, applied);
     return { pending: [], adopt: [] };
   }
+  if (files.some((file) => file.version > LOCKDOWN_VERSION))
+    throw new Error(
+      `Migration version after final lockdown ${LOCKDOWN_VERSION} is forbidden`,
+    );
   const local = new Map(files.map((file) => [file.version, file]));
   const done = new Map(applied.map((row) => [row.version, row]));
   for (const row of applied)
@@ -69,19 +74,13 @@ export function planMigrations(
       throw new Error(
         `Applied migration ${row.version} has no file in supabase/migrations`,
       );
-  const latest = applied
-    .map((row) => row.version)
-    .sort()
-    .at(-1);
   const pending: MigrationFile[] = [];
   const adopt: MigrationFile[] = [];
-  for (const file of files) {
+  for (const file of [...files].sort((a, b) =>
+    a.version.localeCompare(b.version),
+  )) {
     const row = done.get(file.version);
     if (!row) {
-      if (latest !== undefined && file.version < latest)
-        throw new Error(
-          `Migration ${file.version}_${file.name} is older than applied migration ${latest}; give it a newer version`,
-        );
       pending.push(file);
     } else if (row.sha256 === null) adopt.push(file);
     else if (row.sha256 !== file.sha256)
@@ -89,6 +88,10 @@ export function planMigrations(
         `Applied migration ${file.version}_${file.name} was edited after it ran; add a new migration instead`,
       );
   }
+  if (done.has(LOCKDOWN_VERSION) && pending.length)
+    throw new Error(
+      `Cannot insert migrations before applied lockdown ${LOCKDOWN_VERSION}: the lockdown is not idempotent (plain CREATE FUNCTION). A reviewed replay-safe lockdown policy is required before upgrading this schema`,
+    );
   return { pending, adopt };
 }
 
