@@ -48,13 +48,13 @@ Preparation accepts only the exact bootstrap table counts, including zero users 
 
 Check reads the recovery directory and running target without changing either. Apply stops writers and API processes, takes a native backup, stages all 181 files, loads data in one SQL transaction with history triggers disabled, restores sequence values, validates foreign keys, compares every imported table's contents and counts, compares RLS policies, then restarts the stack and verifies five authenticated downloads and an Auth admin lookup. The expected totals are 15 users, 18 projects, 28 versions, 24 jobs, 101 current objects and 2180 audit rows. Historical files retain their manifest attributes; current metadata comes from storage.objects.
 
-On ordinary failure, apply restores its pre-import backup and leaves the stack and application writers stopped. A journal records the backup under stacks/prod/native/import-journal.json. After process termination or power loss, use the recorded backup path:
+On ordinary failure, apply restores its pre-import backup and leaves the stack and application writers stopped. Import and restore publish the same durable journal, stacks/prod/native/maintenance-journal.json, before shutdown and the pre-operation backup. Ordinary start, logon and direct supervisor startup refuse to serve while that journal exists (exit 1). After process termination or power loss, use the recorded backup path:
 
 ```powershell
 pnpm ops native-backup.ts recover-import --env prod <recorded-backup-directory> --confirm-production
 ```
 
-Recovery is repeatable until complete. It preserves displaced Storage directories for inspection. It does not delete the source, secrets or backup. Restart, prepare the empty target if necessary, and repeat check/apply. Do not erase a pending journal to bypass recovery.
+Recovery is repeatable until complete. If interrupted while preparing the backup, no target data was replaced: recovery stops the stack and abandons that operation. If replacement began, recovery restores both the database and object folder from the completed pre-operation backup before removing the journal. It preserves displaced Storage directories for inspection. It does not delete the source, secrets or backup. Restart, prepare the empty target if necessary, and repeat check/apply. Do not erase a pending journal to bypass recovery. The recover-import command also handles interrupted native restores and legacy import journals.
 
 ## Start, stop and status
 

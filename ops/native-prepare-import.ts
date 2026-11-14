@@ -24,7 +24,10 @@ export function assertBootstrapSeeds(counts: Record<string, number>): void {
     if (counts[name] !== allowed[name])
       throw new Error(`Missing bootstrap seed: ${name}`);
 }
-export async function prepareImport(args: string[]) {
+export async function prepareImport(
+  args: string[],
+  checkpoint: (step: string) => Promise<void> = async () => {},
+) {
   const [flag, env, backup, apply, confirm] = args;
   if (
     flag !== "--env" ||
@@ -53,6 +56,7 @@ export async function prepareImport(args: string[]) {
   await inspect();
   await nativeBackup(["backup", "--env", env, backup]);
   const dump = await inspect();
+  await checkpoint("before-truncate");
   await db.execute(
     `SET LOCAL session_replication_role=replica; TRUNCATE ${dataTables(dump)
       .map((table) => table.name)

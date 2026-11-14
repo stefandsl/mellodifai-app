@@ -28,6 +28,7 @@ import {
   sameProcess,
   terminateTree,
 } from "./host.js";
+import { assertNoMaintenance } from "./journal.js";
 import { loopback, type NativeLayout, nativeLayout } from "./layout.js";
 import { baseEnvironment, typescriptArgs } from "./plan.js";
 import { postmasterPid, stopPostgres, witness } from "./postgres.js";
@@ -255,6 +256,7 @@ async function startNative(
   dependencies: NativeDependencies,
 ): Promise<void> {
   const log = dependencies.log ?? (() => {});
+  assertNoMaintenance(nativeLayout(env));
   assertProductionInitialization(env, nativeLayout(env), flags);
   assertSystemDiskFree();
   nativeTools();

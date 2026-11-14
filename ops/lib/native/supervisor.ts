@@ -12,6 +12,7 @@ import { loadStackSecrets } from "../stack-secrets.js";
 import { type NativeTools, nativeTools } from "./build.js";
 import { NativeDiagnosticError, safeFailure } from "./diagnostics.js";
 import { processIdentities } from "./host.js";
+import { assertNoMaintenance } from "./journal.js";
 import { type NativeLayout, nativeLayout } from "./layout.js";
 import { applyAppMigrations, applyStackSettings } from "./migrate.js";
 import {
@@ -277,6 +278,7 @@ export function nativeDefinitions(
 }
 
 async function main(env: StackEnv): Promise<void> {
+  assertNoMaintenance(nativeLayout(env));
   const log = (message: string) =>
     process.stdout.write(`${new Date().toISOString()} ${message}\n`);
   const context = await nativeContext(env);

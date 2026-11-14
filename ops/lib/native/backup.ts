@@ -35,6 +35,7 @@ import {
   parseDump,
   tableRows,
 } from "./import-data.js";
+import { durableJson, flushFile } from "./journal.js";
 import { nativeLayout } from "./layout.js";
 import { baseEnvironment } from "./plan.js";
 import {
@@ -174,6 +175,7 @@ export async function backupNative(
   env: StackEnv,
   directory: string,
   runner: Runner = realRunner,
+  checkpoint: (step: string) => Promise<void> = async () => {},
 ): Promise<string> {
   runtimePath(directory);
   if (existsSync(directory))
@@ -192,6 +194,8 @@ export async function backupNative(
     throw new Error("Native backup Storage verification failed");
   mkdirSync(directory, { recursive: true });
   await writePrivate(join(directory, "database.sql"), dump);
+  flushFile(join(directory, "database.sql"));
+  await checkpoint("during-backup");
   const objects: BackupManifest["objects"] = [];
   for (const row of rows) {
     const from = storageObjectPath(layout, row);
@@ -199,6 +203,7 @@ export async function backupNative(
     mkdirSync(dirname(to), { recursive: true });
     await writePrivate(to, "");
     copyFileSync(from, to);
+    flushFile(to);
     objects.push({ row, hash: fileHash(to) });
   }
   const historical: NonNullable<BackupManifest["historical"]> = [];
@@ -208,6 +213,7 @@ export async function backupNative(
     mkdirSync(dirname(to), { recursive: true });
     await writePrivate(to, "");
     copyFileSync(from, to);
+    flushFile(to);
     const attributes = Object.fromEntries(
       ["user.supabase.content-type", "user.supabase.cache-control"].map(
         (name) => [name, getAttributeSync(from, name).toString()],
@@ -220,16 +226,13 @@ export async function backupNative(
     });
   }
   // A complete manifest is the commit marker. Metadata is portable JSON, never ADS-dependent.
-  await writePrivate(
-    join(directory, "manifest.json"),
-    JSON.stringify({
-      format: 1,
-      dumpHash: fileHash(join(directory, "database.sql")),
-      objects,
-      historical,
-      created: new Date().toISOString(),
-    } satisfies BackupManifest),
-  );
+  await durableJson(join(directory, "manifest.json"), {
+    format: 1,
+    dumpHash: fileHash(join(directory, "database.sql")),
+    objects,
+    historical,
+    created: new Date().toISOString(),
+  } satisfies BackupManifest);
   return directory;
 }
 export function readBackup(directory: string): {
@@ -272,6 +275,7 @@ export function readBackup(directory: string): {
 export async function restoreNativeData(
   env: StackEnv,
   directory: string,
+  checkpoint: (step: string) => Promise<void> = async () => {},
 ): Promise<void> {
   const { manifest, dump } = readBackup(directory);
   const db = await nativeDatabase(env);
@@ -317,12 +321,14 @@ export async function restoreNativeData(
     }
   }
   await db.execute(importSql(dump));
+  await checkpoint("database-committed");
   // Preserve the old directory for manual recovery; never delete owner data.
   if (existsSync(db.layout.objects))
     renameSync(
       db.layout.objects,
       `${db.layout.objects}.before-restore-${randomUUID()}`,
     );
+  await checkpoint("between-renames");
   renameSync(stage, db.layout.objects);
   const actual = parseDump(await db.dump());
   for (const table of dataTables(dump))

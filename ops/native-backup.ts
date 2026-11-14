@@ -7,13 +7,22 @@ import {
   readBackup,
   restoreNativeData,
 } from "./lib/native/backup.js";
+import {
+  assertNoMaintenance,
+  clearJournal,
+  readJournal,
+  saveJournal,
+} from "./lib/native/journal.js";
 import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
 import { maintenanceDatabase } from "./lib/native/maintenance.js";
 import { acquireLock } from "./lib/native/processes.js";
 import { writePrivate } from "./lib/private-file.js";
 import { runStack } from "./stack.js";
 
-export async function nativeBackup(args: string[]) {
+export async function nativeBackup(
+  args: string[],
+  checkpoint: (step: string) => Promise<void> = async () => {},
+) {
   const [action, flag, target, path, confirm] = args;
   if (
     !action ||
@@ -42,30 +51,53 @@ export async function nativeBackup(args: string[]) {
   let maintenance: Awaited<ReturnType<typeof maintenanceDatabase>> | undefined;
   let before: string | undefined;
   try {
-    if (action !== "backup") readBackup(path);
+    if (action !== "recover-import") assertNoMaintenance(layout);
+    if (action === "restore") readBackup(path);
+    let recoveryPhase: string | undefined;
     if (action === "recover-import") {
-      const journal = JSON.parse(
-        readFileSync(join(layout.root, "import-journal.json"), "utf8"),
-      );
+      const journal =
+        readJournal(layout) ??
+        JSON.parse(
+          readFileSync(join(layout.root, "import-journal.json"), "utf8"),
+        );
       if (
         resolve(journal.backup) !== resolve(path) ||
-        journal.phase !== "applying"
+        !["preparing", "applying", "prepared"].includes(journal.phase)
       )
         throw new Error("Backup does not match interrupted import journal");
+      recoveryPhase = journal.phase;
+      if (recoveryPhase !== "preparing") readBackup(path);
+    }
+    if (action === "restore") {
+      before = join(layout.root, `before-restore-${Date.now()}`);
+      await saveJournal(layout, {
+        format: 1,
+        operation: "restore",
+        phase: "preparing",
+        backup: before,
+      });
     }
     maintenance = await maintenanceDatabase(env);
-    if (action === "backup") await backupNative(env, path);
+    if (action === "backup")
+      await backupNative(env, path, undefined, checkpoint);
     else {
       if (action === "restore") {
-        before = join(layout.root, `before-restore-${Date.now()}`);
-        await backupNative(env, before);
+        await backupNative(env, before as string, undefined, checkpoint);
+        await saveJournal(layout, {
+          format: 1,
+          operation: "restore",
+          phase: "applying",
+          backup: before as string,
+        });
       }
-      await restoreNativeData(env, path);
+      if (recoveryPhase !== "preparing")
+        await restoreNativeData(env, path, checkpoint);
       if (action === "recover-import")
         await writePrivate(
           join(layout.root, "import-journal.json"),
           JSON.stringify({ phase: "rolled-back", backup: path }),
         );
+      clearJournal(layout);
     }
     await maintenance.stop();
     maintenance = undefined;
@@ -80,6 +112,7 @@ export async function nativeBackup(args: string[]) {
       if (maintenance) await maintenance.stop();
       maintenance = await maintenanceDatabase(env);
       await restoreNativeData(env, before);
+      clearJournal(layout);
       console.error(
         "Restore failed; previous data restored and stack left stopped.",
       );

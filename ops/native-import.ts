@@ -30,6 +30,11 @@ import {
   tableDigest,
   tableRows,
 } from "./lib/native/import-data.js";
+import {
+  assertNoMaintenance,
+  clearJournal,
+  saveJournal,
+} from "./lib/native/journal.js";
 import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
 import { maintenanceDatabase } from "./lib/native/maintenance.js";
 import { superuserConnection } from "./lib/native/postgres.js";
@@ -155,6 +160,7 @@ async function verifyApis(env: StackEnv, source: DumpData) {
 export async function nativeImport(
   options: ImportOptions,
   log = console.log,
+  checkpoint: (step: string) => Promise<void> = async () => {},
 ): Promise<void> {
   if (options.env === "prod" && !options.confirmProduction)
     throw new Error("Production import requires --confirm-production");
@@ -163,6 +169,7 @@ export async function nativeImport(
   if (resolveRuntime(undefined) !== "native")
     throw new Error("native-import requires the native runtime");
   const layout = nativeLayout(options.env);
+  assertNoMaintenance(layout);
   if (!existsSync(join(layout.root, "first-boot.done")))
     throw new Error("Target must be a freshly bootstrapped native stack");
   const db = await nativeDatabase(options.env);
@@ -295,10 +302,22 @@ export async function nativeImport(
           "Interrupted import exists; run native-backup.ts recover-import before retrying",
         );
     }
+    await saveJournal(layout, {
+      format: 1,
+      operation: "import",
+      phase: "preparing",
+      backup,
+    });
     maintenance = await maintenanceDatabase(options.env);
     assertEmptyTarget(parseDump(await maintenance.db.dump()));
-    await backupNative(options.env, backup);
+    await backupNative(options.env, backup, undefined, checkpoint);
     backedUp = true;
+    await saveJournal(layout, {
+      format: 1,
+      operation: "import",
+      phase: "applying",
+      backup,
+    });
     await writePrivate(journal, JSON.stringify({ phase: "applying", backup }));
     const stage = join(layout.root, `import-objects-${randomUUID()}`);
     mkdirSync(stage);
@@ -339,10 +358,12 @@ export async function nativeImport(
       }
     }
     await maintenance.db.execute(importSql(source));
+    await checkpoint("database-committed");
     renameSync(
       layout.objects,
       `${layout.objects}.before-import-${randomUUID()}`,
     );
+    await checkpoint("between-renames");
     renameSync(stage, layout.objects);
     await verifyData(options.env, source);
     const check = superuserConnection(layout, db.logins);
@@ -358,6 +379,8 @@ export async function nativeImport(
     }
     await maintenance.stop();
     maintenance = undefined;
+    await writePrivate(journal, JSON.stringify({ phase: "complete", backup }));
+    clearJournal(layout);
     await runStack("start", options.env, { runtime: "native" });
     const api = await verifyApis(options.env, source);
     await writePrivate(journal, JSON.stringify({ phase: "complete", backup }));
@@ -375,6 +398,12 @@ export async function nativeImport(
   } catch (error) {
     if (backedUp) {
       try {
+        await saveJournal(layout, {
+          format: 1,
+          operation: "import",
+          phase: "applying",
+          backup,
+        });
         if (maintenance) {
           await maintenance.stop();
           maintenance = undefined;
@@ -387,6 +416,7 @@ export async function nativeImport(
           journal,
           JSON.stringify({ phase: "rolled-back", backup }),
         );
+        clearJournal(layout);
         log(
           "IMPORT FAILED: target data restored from the pre-import backup; stack and application writers remain stopped.",
         );
