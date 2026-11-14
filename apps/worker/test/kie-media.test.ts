@@ -2,7 +2,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CapRefused, TsvCapLedger } from "../src/providers/cap-ledger.js";
+import {
+  CapRefused,
+  TsvCapLedger,
+  validCap,
+} from "../src/providers/cap-ledger.js";
 import { KieClient } from "../src/providers/kie-client.js";
 import {
   KIE_PRICES,
@@ -254,5 +258,29 @@ describe("TSV cap ledger", () => {
         /damaged/u,
       );
     }
+  });
+
+  it("refuses a cap that is not a number in (0, 5000] or differs from the ledger's", async () => {
+    for (const bad of ["abc", "", "NaN", "Infinity", "0", "-5", "5001"])
+      expect(() => validCap(bad), bad).toThrow(/cap_invalid/u);
+    expect(validCap("5000")).toBe(5000);
+    expect(validCap("12.5")).toBe(12.5);
+    for (const bad of [Number.NaN, 0, -1, 5000.01, Number.POSITIVE_INFINITY])
+      expect(() => new TsvCapLedger("unused.tsv", bad)).toThrow(/cap_invalid/u);
+
+    const root = await scratch();
+    const file = join(root, "ledger.tsv");
+    expect(await new TsvCapLedger(file, 1000).total()).toBe(0);
+    await expect(new TsvCapLedger(file, 2000).total()).rejects.toThrow(
+      /cap_mismatch/u,
+    );
+    const headless = join(root, "headless.tsv");
+    await writeFile(
+      headless,
+      "time\tentry\tmodel\tunits\testimated\tactual\trunning_total\tnote\n",
+    );
+    await expect(new TsvCapLedger(headless, 1000).total()).rejects.toThrow(
+      /cap_mismatch/u,
+    );
   });
 });

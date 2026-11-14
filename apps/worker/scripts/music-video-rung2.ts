@@ -41,7 +41,7 @@ import {
   loadRung1Plan,
   MemoryMusicVideoStore,
 } from "../src/music-video-store.js";
-import { TsvCapLedger } from "../src/providers/cap-ledger.js";
+import { TsvCapLedger, validCap } from "../src/providers/cap-ledger.js";
 import { KieClient } from "../src/providers/kie-client.js";
 import {
   KIE_PRICES,
@@ -92,7 +92,8 @@ if (!values.rung1 || !values.timing || !values.master || !values.out) {
 const rung1 = resolve(values.rung1);
 const out = resolve(values.out);
 const master = resolve(values.master);
-const cap = Number(values.cap);
+// Refused unless 0 < cap <= 5000; the ledger also refuses a cap other than the one it started with.
+const cap = validCap(values.cap as string);
 const pyDir = resolve(import.meta.dirname, "../python");
 for (const d of [
   "audio",

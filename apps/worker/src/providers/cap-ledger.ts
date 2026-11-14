@@ -31,17 +31,38 @@ function fmt(n: number) {
   return String(Math.round(n * 100) / 100);
 }
 
+// The highest cap a run may set, in credits.
+export const MAX_CAP = 5000;
+
+// A cap from the command line or a caller: a finite number above 0 and at most MAX_CAP.
+export function validCap(value: string | number): number {
+  const cap =
+    typeof value === "number"
+      ? value
+      : value.trim() === ""
+        ? Number.NaN
+        : Number(value);
+  if (!Number.isFinite(cap) || cap <= 0 || cap > MAX_CAP)
+    throw new Error(
+      `cap_invalid: the cap must be a number above 0 and at most ${MAX_CAP} credits, got "${String(value)}"`,
+    );
+  return cap;
+}
+
 export class TsvCapLedger implements Ledger {
   private rows = new Map<string, Row>();
   private loaded = false;
   private serial = 0;
+  readonly cap: number;
 
   constructor(
     private readonly file: string,
-    readonly cap: number,
+    cap: number,
     private readonly header: string[] = [],
     private readonly now: () => Date = () => new Date(),
-  ) {}
+  ) {
+    this.cap = validCap(cap);
+  }
 
   private async load() {
     if (this.loaded) return;
@@ -54,6 +75,13 @@ export class TsvCapLedger implements Ledger {
       return;
     }
     const lines = (await readFile(this.file, "utf8")).split(/\r?\n/u);
+    // The cap the ledger was started with: a run may not change it.
+    const capLine = lines.find((l) => l.startsWith("# cap\t"));
+    const fileCap = capLine ? Number(capLine.slice("# cap\t".length)) : null;
+    if (fileCap !== this.cap)
+      throw new Error(
+        `cap_mismatch: the run asks for cap ${this.cap} but ledger ${this.file} ${fileCap === null ? "has no cap line" : `was started with cap ${fileCap}`}`,
+      );
     for (const [index, line] of lines.entries()) {
       if (!line || line.startsWith("#") || line.startsWith("time\t")) continue;
       const [, entry, model, units, estimated, actual] = line.split("\t");
