@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -236,5 +236,23 @@ describe("TSV cap ledger", () => {
     expect(text).toMatch(
       /\te001\tbytedance\/seedance-2-5\t12 s draft\t408\t400\t400\tsettled/u,
     );
+  });
+
+  it("refuses a damaged ledger instead of counting a bad row as nothing", async () => {
+    const root = await scratch();
+    const head =
+      "# cap\t1000\ntime\tentry\tmodel\tunits\testimated\tactual\trunning_total\tnote\n";
+    for (const [name, row] of [
+      ["estimate", "t\te001\tm\tu\tabc\t\t0\treserved"],
+      ["empty estimate", "t\te001\tm\tu\t\t\t0\treserved"],
+      ["actual", "t\te001\tm\tu\t408\tNaN\t0\tsettled"],
+      ["infinite actual", "t\te001\tm\tu\t408\tInfinity\t0\tsettled"],
+    ] as const) {
+      const file = join(root, `${name.replace(/ /gu, "-")}.tsv`);
+      await writeFile(file, `${head}${row}\n`);
+      await expect(new TsvCapLedger(file, 1000).total()).rejects.toThrow(
+        /damaged/u,
+      );
+    }
   });
 });

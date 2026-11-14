@@ -53,18 +53,31 @@ export class TsvCapLedger implements Ledger {
       );
       return;
     }
-    for (const line of (await readFile(this.file, "utf8")).split(/\r?\n/u)) {
+    const lines = (await readFile(this.file, "utf8")).split(/\r?\n/u);
+    for (const [index, line] of lines.entries()) {
       if (!line || line.startsWith("#") || line.startsWith("time\t")) continue;
       const [, entry, model, units, estimated, actual] = line.split("\t");
       if (!entry || entry === "-") continue;
+      // A row the ledger cannot read would count as nothing: refuse the file instead.
+      const credits = (value: string | undefined) => {
+        const n =
+          value === undefined || value.trim() === ""
+            ? Number.NaN
+            : Number(value);
+        if (!Number.isFinite(n) || n < 0)
+          throw new Error(
+            `ledger ${this.file} is damaged at line ${index + 1}: credits "${value ?? ""}" are not a number; fix the file by hand`,
+          );
+        return n;
+      };
       const row = this.rows.get(entry) ?? {
         entry,
         model: model ?? "",
         units: units ?? "",
-        estimated: Number(estimated),
+        estimated: credits(estimated),
         actual: null,
       };
-      if (actual !== undefined && actual !== "") row.actual = Number(actual);
+      if (actual !== undefined && actual !== "") row.actual = credits(actual);
       this.rows.set(entry, row);
       this.serial = Math.max(this.serial, Number(entry.slice(1)) || 0);
     }
