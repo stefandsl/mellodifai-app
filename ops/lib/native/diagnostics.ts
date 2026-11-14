@@ -23,6 +23,17 @@ export function redactServiceOutput(
   text: string,
   environment: Record<string, string> = {},
 ): string {
+  return serviceRedactor(environment)(text);
+}
+
+/**
+ * The redaction of service output, prepared once for a child's environment:
+ * its own secret values, then any line naming a credential, then URLs (with
+ * their query strings and logins), JWT-shaped values and long tokens.
+ */
+export function serviceRedactor(
+  environment: Record<string, string> = {},
+): (text: string) => string {
   const secrets = Object.entries(environment)
     .filter(([key]) =>
       /pass|secret|token|key|cookie|authorization|(?:database|db)_?(?:url|uri)/i.test(
@@ -40,6 +51,10 @@ export function redactServiceOutput(
         .flatMap((value) => [value, encodeURIComponent(value)]);
     })
     .sort((a, b) => b.length - a.length);
+  return (text) => redactText(text, secrets);
+}
+
+function redactText(text: string, secrets: string[]): string {
   for (const secret of secrets) text = text.replaceAll(secret, "[REDACTED]");
   return text
     .split(/\r?\n/)
@@ -47,7 +62,7 @@ export function redactServiceOutput(
       // A SQL statement or credential-bearing field may include a secret absent
       // from this child's environment. Omit that line rather than guessing syntax.
       if (
-        /password|passwd|secret|token|authorization|api.?key|cookie|private.?key|statement:/i.test(
+        /password|passwd|secret|token|authorization|bearer|api.?key|cookie|private.?key|statement:/i.test(
           line,
         )
       )

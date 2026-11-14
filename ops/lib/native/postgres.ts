@@ -30,10 +30,16 @@ import {
   processIdentities,
 } from "./host.js";
 import type { NativeLayout } from "./layout.js";
+import { serviceLog } from "./logs.js";
 import { baseEnvironment, type DbLogins } from "./plan.js";
 import { postgresLaunch } from "./postgres-host.js";
 import { postgresReady } from "./postgres-ready.js";
-import { type ServiceDefinition, waitFor } from "./processes.js";
+import {
+  followOutput,
+  type ServiceDefinition,
+  waitFor,
+  withOutput,
+} from "./processes.js";
 import { retryInitialization } from "./start-retry.js";
 
 const SUPERUSER = "supabase_admin";
@@ -119,6 +125,20 @@ export function serverConfig(layout: NativeLayout): string {
     // Ruling 3: no logical replication, so no slot can pin WAL on disk.
     "wal_level = replica",
     "max_replication_slots = 0",
+    // Logs must never hold statements, parameters or row values (finding
+    // S1). The server writes to stderr; the supervisor redacts each line and
+    // rotates the file. Client errors (ERROR, WARNING) are not logged: their
+    // text can quote values. LOG, FATAL and PANIC stay, without DETAIL,
+    // HINT, QUERY or CONTEXT.
+    "logging_collector = off",
+    "log_destination = 'stderr'",
+    "log_min_messages = log",
+    "log_error_verbosity = terse",
+    "log_statement = 'none'",
+    "log_min_error_statement = panic",
+    "log_min_duration_statement = -1",
+    "log_parameter_max_length = 0",
+    "log_parameter_max_length_on_error = 0",
     "",
   ].join("\n");
 }
@@ -296,22 +316,30 @@ export function postgresService(
       writeServerConfig(layout);
       // The Windows host owns one hidden console shared by all backends.
       // Its lifetime follows PostgreSQL, not the initiating CLI process.
-      mkdirSync(layout.logs, { recursive: true });
       const logFile = join(layout.logs, "postgres.log");
+      const sink = serviceLog(logFile);
       const offset = logOffset(logFile);
-      const out = openSync(logFile, "a");
       const launch = postgresLaunch(tool(tools, "postgres"), [
         "-D",
         layout.pgdata,
       ]);
       const child = spawn(launch.command, launch.args, {
         env: toolEnvironment(layout) as NodeJS.ProcessEnv,
-        stdio: ["ignore", out, out, ...(launch.ipc ? ["ipc" as const] : [])],
+        // The server and every backend inherit this pipe; the supervisor
+        // reads it for their whole lifetime.
+        stdio: [
+          "ignore",
+          "pipe",
+          "pipe",
+          ...(launch.ipc ? ["ipc" as const] : []),
+        ],
         detached: true,
         windowsHide: true,
       });
-      closeSync(out);
-      const observed = observeService(child, "postgres", logFile, offset);
+      const observed = withOutput(
+        observeService(child, "postgres", logFile, offset),
+        followOutput(child, sink),
+      );
       let timer: ReturnType<typeof setTimeout> | undefined;
       let pid: number;
       try {

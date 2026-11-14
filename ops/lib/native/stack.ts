@@ -32,6 +32,7 @@ import { stackIdentity } from "./identity.js";
 import { assertNoMaintenance } from "./journal.js";
 import { loopback, type NativeLayout, nativeLayout } from "./layout.js";
 import { assertStackLease, withStackLease } from "./lease.js";
+import { assertDataDiskFree, securePrivateDirectory } from "./logs.js";
 import { baseEnvironment, typescriptArgs } from "./plan.js";
 import { postmasterPid, stopPostgres, witness } from "./postgres.js";
 import { readState, type StackState, waitFor } from "./processes.js";
@@ -278,6 +279,8 @@ async function startNative(
   assertObjectMetadataSupport(layout.objects);
   for (const directory of [layout.logs, layout.run, layout.tmp])
     mkdirSync(directory, { recursive: true });
+  await securePrivateDirectory(layout.logs);
+  assertDataDiskFree(layout.root);
   rmSync(statePath(layout), { force: true });
   rmSync(stopRequestPath(layout), { force: true });
 

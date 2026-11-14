@@ -198,6 +198,10 @@ export function nativePlan(input: PlanInput): ProcessSpec[] {
     GOTRUE_API_HOST: "127.0.0.1",
     GOTRUE_API_PORT: String(ports.auth),
     MDF_HOP_SECRET: input.hopSecret,
+    // Auth's request lines carry full redirect and referrer URLs, query
+    // strings included (finding S1). The gateway logs every request without
+    // them; Auth logs warnings and errors only.
+    GOTRUE_LOG_LEVEL: "warn",
     // Auth defaults to zero idle connections. PostgreSQL starts a process for
     // each connection on Windows, so keep a bounded pool available for reuse.
     GOTRUE_DB_MAX_POOL_SIZE: contract.auth.GOTRUE_DB_MAX_POOL_SIZE ?? "10",

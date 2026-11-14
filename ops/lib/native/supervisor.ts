@@ -15,6 +15,12 @@ import { processIdentities } from "./host.js";
 import { assertNoMaintenance } from "./journal.js";
 import { type NativeLayout, nativeLayout } from "./layout.js";
 import { acquireLease } from "./lease.js";
+import {
+  assertDataDiskFree,
+  securePrivateDirectory,
+  serviceLog,
+  watchDataDisk,
+} from "./logs.js";
 import { applyAppMigrations, applyStackSettings } from "./migrate.js";
 import {
   GATEWAY_CONFIG_FILE,
@@ -104,6 +110,7 @@ export async function nativeContext(env: StackEnv): Promise<NativeContext> {
     layout.objects,
   ])
     mkdirSync(directory, { recursive: true });
+  await securePrivateDirectory(layout.logs);
   await writePrivate(
     join(layout.config, GATEWAY_CONFIG_FILE),
     JSON.stringify(gatewayConfig(env, layout, secrets, hopSecret)),
@@ -293,10 +300,15 @@ async function main(env: StackEnv): Promise<void> {
     join(nativeLayout(env).root, "supervisor.lease"),
     "supervisor",
   );
-  const log = (message: string) =>
-    process.stdout.write(`${new Date().toISOString()} ${message}\n`);
+  assertDataDiskFree(nativeLayout(env).root);
   const context = await nativeContext(env);
   const { layout } = context;
+  // The supervisor's own lines are rotated and redacted like every service's.
+  // Its stdout stays on the file the starting command opened, for a crash.
+  const own = serviceLog(join(layout.logs, "supervisor.log"));
+  const log = (message: string) =>
+    own.line(`${new Date().toISOString()} ${message}`);
+  watchDataDisk(layout.root, log);
   const self = (await processIdentities([process.pid])).get(process.pid);
   if (!self) throw new Error("Cannot identify the supervisor process");
   const fresh = firstBootState(layout) === "new";
