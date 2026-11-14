@@ -5,6 +5,7 @@ import { ENV_TABLE, stackDir } from "../../lib/envs.js";
 import { rotateNativeLogins } from "../../lib/native/credentials.js";
 import { NativeDiagnosticError } from "../../lib/native/diagnostics.js";
 import { maintenanceDatabase } from "../../lib/native/maintenance.js";
+import { superuserConnection } from "../../lib/native/postgres.js";
 import { runStack } from "../../stack.js";
 import { fixture } from "./fixtures.js";
 
@@ -38,7 +39,7 @@ vi.mock("../../lib/native/postgres.js", () => {
     },
   );
   return {
-    superuserConnection: () => sql,
+    superuserConnection: vi.fn(() => sql),
     applyLogins: async () => {},
     roleConnection: () =>
       Object.assign(
@@ -54,6 +55,61 @@ vi.mock("../../lib/native/postgres.js", () => {
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
+});
+
+it("rolls back a lost pre-commit connection using the unchanged old login", async () => {
+  vi.stubEnv("MELLODIFAI_ROOT", fixture());
+  const secretDir = dirname(ENV_TABLE.e2e.signingKeysPath);
+  mkdirSync(secretDir, { recursive: true });
+  mkdirSync(stackDir("e2e"), { recursive: true });
+  const files = [
+    join(secretDir, "stack-secrets.json"),
+    join(stackDir("e2e"), "role-passwords.json"),
+    join(stackDir("e2e"), "native-logins.json"),
+  ];
+  for (const file of files)
+    writeFileSync(
+      file,
+      JSON.stringify({ postgres: "old-synthetic-credential" }),
+    );
+  const original = superuserConnection({} as never, {});
+  const failedUpdate = Object.assign(async () => [], {
+    end: async () => {},
+    begin: async () => {
+      throw Object.assign(new Error("private query"), {
+        code: "CONNECTION_CLOSED",
+      });
+    },
+  });
+  const wrongLogin = Object.assign(
+    async () => {
+      throw Object.assign(new Error("private login"), { code: "28P01" });
+    },
+    { end: vi.fn(async () => {}) },
+  );
+  vi.mocked(superuserConnection)
+    .mockReturnValueOnce(original)
+    .mockReturnValueOnce(failedUpdate as never)
+    .mockReturnValueOnce(wrongLogin as never)
+    .mockReturnValueOnce(original);
+  await expect(rotateNativeLogins("e2e")).rejects.toThrow(
+    "old credentials restored",
+  );
+  expect(wrongLogin.end).toHaveBeenCalledOnce();
+  expect(vi.mocked(superuserConnection).mock.calls.at(-1)?.[1]).toEqual({
+    postgres: "old-synthetic-credential",
+  });
+  expect(runStack).toHaveBeenCalledOnce();
+  for (const file of files)
+    expect(JSON.parse(readFileSync(file, "utf8")).postgres).toBe(
+      "old-synthetic-credential",
+    );
+  const journal = JSON.parse(
+    readFileSync(join(secretDir, "native-db-rotation.json"), "utf8"),
+  );
+  expect(journal.phase).toBe("rolled-back");
+  expect(journal.failure).toContain("CONNECTION_CLOSED");
+  expect(journal.failure).not.toContain("private query");
 });
 
 it("does not leave a blocking rotation journal when PostgreSQL fails before any role changes", async () => {

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { DllInitializationError } from "../../lib/native/diagnostics.js";
 import {
   childService,
   Supervisor,
@@ -140,3 +141,45 @@ it("does not mark a dead service ready or launch its dependent", async () => {
   expect(dependent).not.toHaveBeenCalled();
   expect(stop).toHaveBeenCalledOnce();
 });
+
+it.each(["stop request", "cleanup failure"])(
+  "does not relaunch a DLL-failed child after %s",
+  async (reason) => {
+    const stop = vi.fn(async () => {
+      if (reason === "cleanup failure") throw new Error("cleanup failed");
+    });
+    const launch = vi.fn(async () => ({
+      pid: 123,
+      exited: Promise.resolve(),
+      failure: () => new DllInitializationError("STATUS_DLL_INIT_FAILED"),
+      stop,
+    }));
+    let stopping: Promise<void> | undefined;
+    const supervisor = new Supervisor(
+      [
+        {
+          kind: "service",
+          id: "postgres",
+          dependsOn: [],
+          start: launch,
+          ready: async () => false,
+        },
+      ],
+      { pid: 99, startedAt: "test" },
+      {
+        statePath: join(fixture(), "state.json"),
+        identify: async (pid) => ({ pid, startedAt: "test" }),
+        log: (message) => {
+          if (reason === "stop request" && message.includes("retrying in"))
+            stopping = supervisor.stop();
+        },
+      },
+    );
+    await expect(supervisor.start()).rejects.toThrow(
+      reason === "stop request" ? "interrupted" : "Could not stop: postgres",
+    );
+    await stopping;
+    expect(launch).toHaveBeenCalledOnce();
+    expect(stop).toHaveBeenCalledTimes(reason === "stop request" ? 1 : 2);
+  },
+);

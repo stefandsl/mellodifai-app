@@ -19,6 +19,7 @@ import {
   terminateTree,
 } from "./host.js";
 import type { ProcessSpec } from "./plan.js";
+import { retryInitialization } from "./start-retry.js";
 
 export interface RunningService {
   pid: number;
@@ -287,6 +288,13 @@ export class Supervisor {
   }
 
   private async launch(definition: ServiceDefinition): Promise<void> {
+    await retryInitialization(async () => {
+      if (this.stopping) throw new Error("Stack start was interrupted");
+      await this.launchAttempt(definition);
+    }, this.log);
+  }
+
+  private async launchAttempt(definition: ServiceDefinition): Promise<void> {
     this.log(`${definition.id}: starting`);
     this.set(definition.id, { status: "starting" });
     const service = await definition.start();
@@ -320,8 +328,10 @@ export class Supervisor {
         service.failure?.(
           gone ? "exited during startup" : "failed during startup",
         ) ?? error;
+      // Keep ownership if cleanup fails, so the outer stop still tracks and
+      // reports this child. Never launch another copy after failed cleanup.
+      await service.stop();
       this.running.delete(definition.id);
-      await service.stop().catch(() => {});
       this.set(definition.id, { status: "failed" });
       this.log(
         failure instanceof Error

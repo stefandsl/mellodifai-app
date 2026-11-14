@@ -10,6 +10,7 @@ import { applyRolePasswords, readStackPasswords } from "../roles.js";
 import { loadSmtpEnvironment } from "../smtp.js";
 import { loadStackSecrets } from "../stack-secrets.js";
 import { type NativeTools, nativeTools } from "./build.js";
+import { NativeDiagnosticError, safeFailure } from "./diagnostics.js";
 import { processIdentities } from "./host.js";
 import { type NativeLayout, nativeLayout } from "./layout.js";
 import { applyAppMigrations, applyStackSettings } from "./migrate.js";
@@ -205,24 +206,38 @@ export async function migrateApp(
     native.logins.postgres as string,
   );
   let applied: string[];
+  let stage = "app migrations";
   try {
-    applied = await applyAppMigrations(
-      sql,
-      join(repo, "supabase/migrations"),
-      log,
+    try {
+      applied = await applyAppMigrations(
+        sql,
+        join(repo, "supabase/migrations"),
+        log,
+      );
+      stage = "stack settings";
+      await applyStackSettings(sql, ENV_TABLE[env].fakeStack);
+    } finally {
+      await sql.end();
+    }
+    // Same step as the Docker runtime: the app roles get LOGIN and their
+    // stored passwords from postgres, the role that created them.
+    stage = "app role credentials";
+    await applyRolePasswords(
+      databaseUrl(
+        "postgres",
+        native.logins.postgres as string,
+        layout.ports.db,
+      ),
+      await readStackPasswords(env),
     );
-    await applyStackSettings(sql, ENV_TABLE[env].fakeStack);
-  } finally {
-    await sql.end();
+    stage = "login normalization and default-login probes";
+    await applyLogins(layout, native.logins, native.passwordFor, true);
+    return applied;
+  } catch (error) {
+    throw new NativeDiagnosticError(
+      `Native database preparation failed at ${stage}: ${safeFailure(error)}`,
+    );
   }
-  // Same step as the Docker runtime: the app roles get LOGIN and their
-  // stored passwords from postgres, the role that created them.
-  await applyRolePasswords(
-    databaseUrl("postgres", native.logins.postgres as string, layout.ports.db),
-    await readStackPasswords(env),
-  );
-  await applyLogins(layout, native.logins, native.passwordFor, true);
-  return applied;
 }
 
 export function nativeDefinitions(

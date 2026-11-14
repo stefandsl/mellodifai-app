@@ -157,13 +157,26 @@ export async function rotateNativeLogins(env: StackEnv): Promise<void> {
     // If activation has started, connect using the persisted new credentials.
     try {
       maintenance = await maintenanceDatabase(env);
-      const recovery = superuserConnection(maintenance.db.layout, next);
+      let recovery = superuserConnection(maintenance.db.layout, next);
       try {
-        for (const role of roles) {
-          const [row] =
-            await recovery`select format('alter role %I password %L', ${role}::text, ${old[role] as string}::text) as ddl`;
-          await recovery.unsafe(row?.ddl as string);
+        try {
+          await recovery`select 1`;
+        } catch (error) {
+          // A backend may die before the role transaction commits. In that
+          // case every old login is still valid. Probe both possible committed
+          // states; never replay the failed transaction or assume it committed.
+          if ((error as { code?: string }).code !== "28P01") throw error;
+          await recovery.end();
+          recovery = superuserConnection(maintenance.db.layout, old);
+          await recovery`select 1`;
         }
+        await recovery.begin(async (tx) => {
+          for (const role of roles) {
+            const [row] =
+              await tx`select format('alter role %I password %L', ${role}::text, ${old[role] as string}::text) as ddl`;
+            await tx.unsafe(row?.ddl as string);
+          }
+        });
         for (const [file, content] of Object.entries(previous))
           await writePrivate(file, content);
       } finally {

@@ -43,10 +43,16 @@ export interface PlanInput {
 /** The tsx CLI spawns a child but does not relay IPC disconnect. Load tsx
  * in the gateway itself so its supervisor owns the actual IPC endpoint. */
 export function gatewayArgs(opsDir: string): string[] {
+  return typescriptArgs(join(opsDir, "native-gateway.ts"));
+}
+
+/** Load in the owning process. The tsx CLI wrapper adds a Windows console and
+ * a parent job lifetime between the detached caller and the actual service. */
+export function typescriptArgs(entry: string): string[] {
   return [
     "--import",
     pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
-    join(opsDir, "native-gateway.ts"),
+    entry,
   ];
 }
 

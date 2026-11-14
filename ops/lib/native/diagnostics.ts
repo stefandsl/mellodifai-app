@@ -4,6 +4,12 @@ import { closeSync, fstatSync, openSync, readSync, statSync } from "node:fs";
 /** Only these errors may cross an operator-facing boundary verbatim. */
 export class NativeDiagnosticError extends Error {}
 
+export class DllInitializationError extends NativeDiagnosticError {}
+
+export function dllInitializationExit(code: number | null): boolean {
+  return code !== null && code >>> 0 === 0xc0000142;
+}
+
 /** Arbitrary SQL/driver exceptions can contain credentials or complete queries. */
 export function safeFailure(error: unknown): string {
   if (error instanceof NativeDiagnosticError) return error.message;
@@ -96,8 +102,12 @@ export function observeService(
   environment: Record<string, string> = {},
 ) {
   let outcome = "still running";
+  let exitCode: number | null = null;
+  let ended = false;
   const exited = new Promise<void>((resolve) => {
     child.once("exit", (code, signal) => {
+      ended = true;
+      exitCode = code;
       outcome = `exit code ${code ?? "none"}, signal ${signal ?? "none"}`;
       resolve();
     });
@@ -109,8 +119,24 @@ export function observeService(
   return {
     exited,
     failure(reason: string): NativeDiagnosticError {
-      return new NativeDiagnosticError(
-        `Native service ${id} ${reason} (${outcome}); see ${logFile}\nLast 50 log lines for this launch:\n${redactServiceOutput(tail(logFile, offset), environment)}`,
+      const output = tail(logFile, offset);
+      // PostgreSQL's version-check child can fail before the postmaster starts.
+      // The postmaster then exits 1, so retain the nested Windows status too.
+      const nestedDllFailure =
+        id === "postgres" &&
+        ended &&
+        /^LOG:\s+child process was terminated by exception 0xC0000142\s*$/im.test(
+          output,
+        ) &&
+        /^FATAL:.*could not locate matching postgres executable\s*$/im.test(
+          output,
+        );
+      const dllFailure = dllInitializationExit(exitCode) || nestedDllFailure;
+      const ErrorType = dllFailure
+        ? DllInitializationError
+        : NativeDiagnosticError;
+      return new ErrorType(
+        `Native service ${id} ${reason} (${outcome}; pid ${child.pid ?? "unknown"}, parent ${process.pid}${dllFailure ? "; STATUS_DLL_INIT_FAILED 0xC0000142" : ""}); see ${logFile}\nLast 50 log lines for this launch:\n${redactServiceOutput(output, environment)}`,
       );
     },
   };

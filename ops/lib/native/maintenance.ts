@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { runStack } from "../../stack.js";
 import type { StackEnv } from "../envs.js";
@@ -8,6 +8,7 @@ import { runtimeRoot } from "../runtime.js";
 import { nativeDatabase } from "./backup.js";
 import { postgresService } from "./postgres.js";
 import { waitFor } from "./processes.js";
+import { retryInitialization } from "./start-retry.js";
 
 /** Keep all writers and network APIs stopped while dumping or restoring. */
 export async function maintenanceDatabase(env: StackEnv) {
@@ -16,13 +17,22 @@ export async function maintenanceDatabase(env: StackEnv) {
   await runStack("stop", env, { runtime: "native" });
   const db = await nativeDatabase(env);
   const service = postgresService(db.layout, db.tools);
-  const child = await service.start();
-  if (!(await waitFor(() => service.ready(), 30_000, 250, child.exited))) {
-    const failure =
-      child.failure?.("failed maintenance readiness") ??
-      new Error("Maintenance PostgreSQL readiness failed");
-    await child.stop();
-    throw failure;
-  }
-  return { db, stop: () => child.stop() };
+  return retryInitialization(
+    async () => {
+      const child = await service.start();
+      if (!(await waitFor(() => service.ready(), 30_000, 250, child.exited))) {
+        const failure =
+          child.failure?.("failed maintenance readiness") ??
+          new Error("Maintenance PostgreSQL readiness failed");
+        await child.stop();
+        throw failure;
+      }
+      return { db, stop: () => child.stop() };
+    },
+    (message) =>
+      appendFileSync(
+        join(db.layout.logs, "supervisor.log"),
+        `${new Date().toISOString()} ${message}\n`,
+      ),
+  );
 }

@@ -17,7 +17,12 @@ import { writePrivate } from "../private-file.js";
 import { type Runner, realRunner } from "../run.js";
 import { nativeAssets } from "./artifacts.js";
 import type { NativeTools } from "./build.js";
-import { logOffset, observeService } from "./diagnostics.js";
+import {
+  DllInitializationError,
+  dllInitializationExit,
+  logOffset,
+  observeService,
+} from "./diagnostics.js";
 import {
   executable,
   type ProcessIdentity,
@@ -26,7 +31,10 @@ import {
 } from "./host.js";
 import type { NativeLayout } from "./layout.js";
 import { baseEnvironment, type DbLogins } from "./plan.js";
-import type { ServiceDefinition } from "./processes.js";
+import { postgresLaunch } from "./postgres-host.js";
+import { postgresReady } from "./postgres-ready.js";
+import { type ServiceDefinition, waitFor } from "./processes.js";
+import { retryInitialization } from "./start-retry.js";
 
 const SUPERUSER = "supabase_admin";
 const INCLUDE = "include = 'mellodifai.conf'";
@@ -71,6 +79,30 @@ function toolEnvironment(layout: NativeLayout): Record<string, string> {
   return { ...baseEnvironment(layout), LC_MESSAGES: "C", LANG: "C" };
 }
 
+async function runTool(
+  name: string,
+  layout: NativeLayout,
+  operation: () => ReturnType<Runner>,
+): ReturnType<Runner> {
+  return retryInitialization(
+    async () => {
+      const result = await operation();
+      if (dllInitializationExit(result.code))
+        throw new DllInitializationError(
+          `${name} parent ${process.pid}: STATUS_DLL_INIT_FAILED 0xC0000142 before entry point; windowsHide=true`,
+        );
+      return result;
+    },
+    (message) => {
+      mkdirSync(layout.logs, { recursive: true });
+      appendFileSync(
+        join(layout.logs, "supervisor.log"),
+        `${new Date().toISOString()} ${message}\n`,
+      );
+    },
+  );
+}
+
 /** Settings that must hold on every start live in a file this module owns,
  * rewritten each time; postgresql.conf itself only gains one include line.
  */
@@ -113,23 +145,25 @@ export async function initCluster(
   const passwordFile = join(layout.config, "initdb-password");
   await writePrivate(passwordFile, superPassword);
   try {
-    const result = await runner(
-      tool(tools, "initdb"),
-      [
-        "-D",
-        layout.pgdata,
-        "-U",
-        SUPERUSER,
-        `--pwfile=${passwordFile}`,
-        "-A",
-        "scram-sha-256",
-        "-E",
-        "UTF8",
-        "--locale-provider=icu",
-        "--icu-locale=en-US",
-        `--locale=${process.platform === "win32" ? "en-US" : "en_US.UTF-8"}`,
-      ],
-      { env: toolEnvironment(layout) },
+    const result = await runTool("initdb.exe", layout, () =>
+      runner(
+        tool(tools, "initdb"),
+        [
+          "-D",
+          layout.pgdata,
+          "-U",
+          SUPERUSER,
+          `--pwfile=${passwordFile}`,
+          "-A",
+          "scram-sha-256",
+          "-E",
+          "UTF8",
+          "--locale-provider=icu",
+          "--icu-locale=en-US",
+          `--locale=${process.platform === "win32" ? "en-US" : "en_US.UTF-8"}`,
+        ],
+        { env: toolEnvironment(layout) },
+      ),
     );
     if (result.code !== 0)
       throw new Error("PostgreSQL initdb failed; the data folder is unusable");
@@ -141,23 +175,40 @@ export async function initCluster(
 /** pg_ctl never gets a pipe: on Windows the server would inherit it and the
  * caller would wait for a handle that stays open for the server's lifetime.
  */
-function pgCtl(
+async function pgCtl(
   tools: NativeTools,
   layout: NativeLayout,
   args: string[],
 ): Promise<number> {
   mkdirSync(layout.logs, { recursive: true });
-  const out = openSync(join(layout.logs, "pg_ctl.log"), "a");
-  return new Promise<number>((resolve, reject) => {
-    const child = spawn(tool(tools, "pg_ctl"), args, {
-      // Next's ambient ProcessEnv requires NODE_ENV, even for PostgreSQL tools.
-      env: toolEnvironment(layout) as NodeJS.ProcessEnv,
-      stdio: ["ignore", out, out],
-      windowsHide: true,
-    });
-    child.on("error", reject);
-    child.on("exit", (code) => resolve(code ?? 1));
-  }).finally(() => closeSync(out));
+  const logFile = join(layout.logs, "pg_ctl.log");
+  return retryInitialization(
+    async () => {
+      const out = openSync(logFile, "a");
+      return new Promise<number>((resolve, reject) => {
+        const child = spawn(tool(tools, "pg_ctl"), args, {
+          // Next's ambient ProcessEnv requires NODE_ENV, even for PostgreSQL tools.
+          env: toolEnvironment(layout) as NodeJS.ProcessEnv,
+          stdio: ["ignore", out, out],
+          windowsHide: true,
+          // File stdio plus windowsHide alone can allocate a hidden console.
+          detached: true,
+        });
+        child.on("error", reject);
+        child.on("exit", (code) => {
+          if (dllInitializationExit(code))
+            reject(
+              new DllInitializationError(
+                `pg_ctl.exe pid ${child.pid}, parent ${process.pid}: STATUS_DLL_INIT_FAILED 0xC0000142 before entry point; detached=true windowsHide=true`,
+              ),
+            );
+          else resolve(code ?? 1);
+        });
+      }).finally(() => closeSync(out));
+    },
+    (message) =>
+      appendFileSync(logFile, `${new Date().toISOString()} ${message}\n`),
+  );
 }
 
 export function postmasterPid(layout: NativeLayout): number | null {
@@ -234,41 +285,103 @@ export function postgresService(
   layout: NativeLayout,
   tools: NativeTools,
 ): ServiceDefinition {
+  let initialized = false;
   return {
     kind: "service",
     id: "postgres",
     dependsOn: ["cluster"],
     readyTimeoutMs: 120_000,
     async start() {
+      initialized = false;
       writeServerConfig(layout);
-      // Own the real server process. A detached pg_ctl creates a temporary
-      // Windows console whose teardown can kill its postgres children.
+      // The Windows host owns one hidden console shared by all backends.
+      // Its lifetime follows PostgreSQL, not the initiating CLI process.
       mkdirSync(layout.logs, { recursive: true });
       const logFile = join(layout.logs, "postgres.log");
       const offset = logOffset(logFile);
       const out = openSync(logFile, "a");
-      const child = spawn(tool(tools, "postgres"), ["-D", layout.pgdata], {
+      const launch = postgresLaunch(tool(tools, "postgres"), [
+        "-D",
+        layout.pgdata,
+      ]);
+      const child = spawn(launch.command, launch.args, {
         env: toolEnvironment(layout) as NodeJS.ProcessEnv,
-        stdio: ["ignore", out, out],
+        stdio: ["ignore", out, out, ...(launch.ipc ? ["ipc" as const] : [])],
         detached: true,
         windowsHide: true,
       });
       closeSync(out);
       const observed = observeService(child, "postgres", logFile, offset);
-      await new Promise<void>((resolve, reject) => {
-        child.once("spawn", resolve);
-        child.once("error", () => reject(observed.failure("could not spawn")));
-      });
-      const pid = child.pid as number;
-      return { pid, ...observed, stop: () => stopPostgres(layout, tools) };
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let pid: number;
+      try {
+        pid = await new Promise<number>((resolve, reject) => {
+          child.once("spawn", () => {
+            if (!launch.ipc) resolve(child.pid as number);
+          });
+          child.once("message", (message: unknown) => {
+            const value = (message as { pid?: unknown })?.pid;
+            if (
+              typeof value === "number" &&
+              Number.isInteger(value) &&
+              value > 0
+            )
+              resolve(value);
+            else reject(observed.failure("invalid console host identity"));
+          });
+          void observed.exited.then(() =>
+            reject(
+              observed.failure("exited before identifying the postmaster"),
+            ),
+          );
+          timer = setTimeout(
+            () => reject(observed.failure("console host identity timed out")),
+            5000,
+          );
+        });
+      } catch (error) {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill();
+          await observed.exited;
+        }
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+      return {
+        pid,
+        ...observed,
+        failure: (reason: string) =>
+          observed.failure(
+            `${reason}; postmaster pid ${pid}, host pid ${child.pid}, sharedConsole=${launch.ipc}, windowsHide=true`,
+          ),
+        async stop() {
+          await stopPostgres(layout, tools);
+          // pg_ctl observes the postmaster; the console host may need one more
+          // event-loop turn to forward that exit and release its own handles.
+          if (initialized)
+            await waitFor(
+              async () => child.exitCode !== null || child.signalCode !== null,
+              2000,
+              25,
+            );
+          if (child.exitCode === null && child.signalCode === null) {
+            if (initialized)
+              throw new Error(
+                "PostgreSQL shutdown could not be verified; refusing a hard stop of an initialized server",
+              );
+            // No postmaster.pid means this owned child failed before the
+            // server initialized. It still must not outlive a failed start.
+            child.kill();
+            await observed.exited;
+          }
+        },
+      };
     },
     async ready() {
-      const result = await realRunner(
-        tool(tools, "pg_isready"),
-        ["-h", "127.0.0.1", "-p", String(layout.ports.db), "-t", "3"],
-        { env: toolEnvironment(layout) },
-      );
-      return result.code === 0;
+      const ready = await postgresReady(layout.ports.db);
+      initialized ||= ready;
+      return ready;
     },
     async stopOrphan(_identity: ProcessIdentity) {
       await stopPostgres(layout, tools);
@@ -305,32 +418,34 @@ async function psqlFile(
   file: string,
   runner: Runner,
 ): Promise<void> {
-  const result = await runner(
-    tool(tools, "psql"),
-    [
-      "-X",
-      "-q",
-      "-w",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-h",
-      "127.0.0.1",
-      "-p",
-      String(layout.ports.db),
-      "-U",
-      role,
-      "-d",
-      "postgres",
-      "-f",
-      file,
-    ],
-    {
-      env: {
-        ...toolEnvironment(layout),
-        PGPASSWORD: password,
-        PGCLIENTENCODING: "UTF8",
+  const result = await runTool("psql.exe", layout, () =>
+    runner(
+      tool(tools, "psql"),
+      [
+        "-X",
+        "-q",
+        "-w",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        "127.0.0.1",
+        "-p",
+        String(layout.ports.db),
+        "-U",
+        role,
+        "-d",
+        "postgres",
+        "-f",
+        file,
+      ],
+      {
+        env: {
+          ...toolEnvironment(layout),
+          PGPASSWORD: password,
+          PGCLIENTENCODING: "UTF8",
+        },
       },
-    },
+    ),
   );
   if (result.code !== 0) {
     // The pinned scripts hold no credentials, so their first error is safe

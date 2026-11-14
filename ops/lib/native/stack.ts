@@ -29,7 +29,7 @@ import {
   terminateTree,
 } from "./host.js";
 import { loopback, type NativeLayout, nativeLayout } from "./layout.js";
-import { baseEnvironment } from "./plan.js";
+import { baseEnvironment, typescriptArgs } from "./plan.js";
 import { postmasterPid, stopPostgres, witness } from "./postgres.js";
 import {
   acquireLock,
@@ -283,7 +283,7 @@ async function startNative(
   const out = openSync(join(layout.logs, "supervisor.log"), "a");
   let exitCode: number | null = null;
   try {
-    const child = spawn(tsx.node, [tsx.cli, supervisorEntry, env], {
+    const child = spawn(tsx.node, [...typescriptArgs(supervisorEntry), env], {
       cwd: dirname(supervisorEntry),
       detached: true,
       stdio: ["ignore", out, out],
