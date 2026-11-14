@@ -5,9 +5,11 @@ import { ENV_TABLE, type StackEnv, stackDir } from "../../lib/envs.js";
 import { parseGatewayConfig } from "../../lib/native/gateway.js";
 import { nativeLayout } from "../../lib/native/layout.js";
 import {
+  baseEnvironment,
   gatewayArgs,
   gatewayConfig,
   nativePlan,
+  supervisorEnvironment,
 } from "../../lib/native/plan.js";
 import {
   assertNativeCommand,
@@ -155,4 +157,24 @@ it("refuses empty production boot before any tools or secrets, and refuses reset
     runNativeCommand("start", "prod", {}, { writeEnvFile }),
   ).rejects.toThrow("--init-production");
   expect(writeEnvFile).not.toHaveBeenCalled();
+});
+
+it("passes the data volume reserve to the supervisor but never to a service", () => {
+  vi.stubEnv("MELLODIFAI_ROOT", fixture());
+  const layout = nativeLayout("e2e");
+  const parent = {
+    PATH: "C:/bin",
+    MELLODIFAI_ROOT: "E:/root",
+    MDF_NATIVE_DATA_RESERVE_BYTES: "1024",
+    UNRELATED_KEY: "never",
+  };
+  const env = supervisorEnvironment(layout, parent);
+  expect(env.MDF_NATIVE_DATA_RESERVE_BYTES).toBe("1024");
+  expect(env.MELLODIFAI_ROOT).toBe("E:/root");
+  expect(env.UNRELATED_KEY).toBeUndefined();
+  expect(env.TEMP).toBe(layout.tmp);
+  // Services start from the base environment, which never carries it.
+  expect(
+    baseEnvironment(layout, parent).MDF_NATIVE_DATA_RESERVE_BYTES,
+  ).toBeUndefined();
 });

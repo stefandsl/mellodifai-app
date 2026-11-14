@@ -151,6 +151,34 @@ export function baseEnvironment(
   };
 }
 
+/** Operator settings the supervisor itself reads (never passed on to the
+ * services): the root, cache, rehearsal ports, CI root, e2e ports and the
+ * data volume reserve its start check and watcher enforce.
+ */
+const SUPERVISOR_SETTINGS = [
+  "MELLODIFAI_ROOT",
+  "MELLODIFAI_NATIVE_CACHE",
+  "MDF_NATIVE_REHEARSAL_PORT_BASE",
+  "MDF_NATIVE_DATA_RESERVE_BYTES",
+  "RUNNER_TEMP",
+  "CI",
+  "E2E_PORT",
+  "E2E_EDGE_PORT",
+];
+
+/** The environment of the detached supervisor process. */
+export function supervisorEnvironment(
+  layout: NativeLayout,
+  parent: Record<string, string | undefined> = process.env,
+): Record<string, string> {
+  const env = baseEnvironment(layout, parent);
+  for (const name of SUPERVISOR_SETTINGS) {
+    const value = parent[name];
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
+}
+
 /** Origins of the web app of a stack: the only pages CORS answers. */
 export function appOrigins(env: StackEnv): string[] {
   const origins = [ENV_TABLE[env].siteUrl, ...redirectUrls(env)].map(
