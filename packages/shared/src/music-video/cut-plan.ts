@@ -43,6 +43,11 @@ export const MAX_SEGMENT_S = 30;
 // A downbeat this close to a word edge still counts as "on the downbeat" once the cut moves to
 // the gap next to that word.
 export const DOWNBEAT_SNAP_S = 0.35;
+// A cut within DOWNBEAT_FULL_S of a bar line is on it; the credit fades to 0 at DOWNBEAT_ZERO_S.
+const DOWNBEAT_FULL_S = 0.05;
+const DOWNBEAT_ZERO_S = 0.25;
+const DOWNBEAT_COST = 25;
+const PHRASE_COST = 25;
 // A pause this long inside a line also ends a phrase.
 const PHRASE_PAUSE_S = 1.2;
 
@@ -115,6 +120,16 @@ function flatWords(lines: CutPlanLine[]): Word[] {
   return words.sort((a, b) => a.start - b.start || a.end - b.end);
 }
 
+function downbeatCredit(t: number, downbeats: number[]) {
+  let d = Number.POSITIVE_INFINITY;
+  for (const b of downbeats) d = Math.min(d, Math.abs(b - t));
+  if (d <= DOWNBEAT_FULL_S) return 1;
+  return Math.max(
+    0,
+    1 - (d - DOWNBEAT_FULL_S) / (DOWNBEAT_ZERO_S - DOWNBEAT_FULL_S),
+  );
+}
+
 // True when `t` falls strictly inside a word.
 export function insideWord(t: number, words: { start: number; end: number }[]) {
   return words.some((w) => w.start + EPS < t && t < w.end - EPS);
@@ -184,8 +199,10 @@ function candidates(
     if (at === null || !inRange(at)) return;
     const snap = Math.abs(at - target);
     const phraseEnd = endsPhrase(words, at);
-    let cost = base + snap * 10;
-    if (!phraseEnd) cost += kind === "gap" ? 30 : 25;
+    // The cut is judged on where it lands, whatever made it a candidate: how far from the
+    // nearest bar line, and whether it ends a phrase.
+    let cost = base + DOWNBEAT_COST * (1 - downbeatCredit(at, input.downbeats));
+    if (!phraseEnd) cost += PHRASE_COST;
     if (nearSection(at)) cost -= 6;
     out.push({ at, kind, phraseEnd, snap, cost });
   };
@@ -200,23 +217,23 @@ function candidates(
     // The singer lands the word on the bar: cut in the gap just before it.
     if (d - host.start <= DOWNBEAT_SNAP_S) {
       const prevEnd = words[i - 1]?.end ?? 0;
-      add(Math.max(prevEnd, host.start - 0.04), "downbeat", d, 2);
+      add(Math.max(prevEnd, host.start - 0.04), "downbeat", d, 0);
     }
     // The word ends just after the bar line: cut in the gap after it.
     if (host.end - d <= DOWNBEAT_SNAP_S) {
       const nextStart = words[i + 1]?.start ?? input.duration;
-      add(Math.min(nextStart, host.end + 0.04), "downbeat", d, 2);
+      add(Math.min(nextStart, host.end + 0.04), "downbeat", d, 0);
     }
   }
   const downbeats = new Set(input.downbeats.map((d) => d.toFixed(3)));
   for (const b of input.beats ?? [])
-    if (!downbeats.has(b.toFixed(3))) add(b, "beat", b, 12);
+    if (!downbeats.has(b.toFixed(3))) add(b, "beat", b, 0);
   for (let i = 1; i < words.length; i++) {
     const a = words[i - 1] as Word;
     const b = words[i] as Word;
     if (b.start - a.end > EPS) {
       const mid = (a.end + b.start) / 2;
-      add(mid, "gap", mid, 60);
+      add(mid, "gap", mid, 0);
     }
   }
   // One candidate per 50 ms, the cheapest.
