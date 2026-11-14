@@ -19,6 +19,14 @@ it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
       nativeLayout("prod").root,
       `provenance-before-${randomUUID()}`,
     );
+    // Start from the verified imported data, whatever earlier tests left.
+    await nativeBackup([
+      "restore",
+      "--env",
+      "prod",
+      join(prod, "verified-backup"),
+      "--confirm-production",
+    ]);
     await nativeBackup(["backup", "--env", "prod", before]);
     let bundle: string;
     try {
