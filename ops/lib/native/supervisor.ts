@@ -293,6 +293,39 @@ export function nativeDefinitions(
   ];
 }
 
+/**
+ * The handler for an error nothing else caught (an exception in a stream or
+ * timer callback): stop every child cleanly, then exit 1. Runs once; a stop
+ * that hangs or fails still ends in exit after `timeoutMs`.
+ */
+export function lastResort(
+  stop: () => Promise<void>,
+  log: (message: string) => void,
+  exit: (code: number) => void,
+  timeoutMs = 180_000,
+): (error: unknown) => void {
+  let fired = false;
+  return (error) => {
+    if (fired) return;
+    fired = true;
+    try {
+      log(`supervisor error: ${safeFailure(error)}; stopping the stack`);
+    } catch {
+      /* The log itself may be what failed. */
+    }
+    let timer: NodeJS.Timeout | undefined;
+    Promise.race([
+      stop().catch(() => {}),
+      new Promise<void>((done) => {
+        timer = setTimeout(done, timeoutMs);
+      }),
+    ]).then(() => {
+      clearTimeout(timer);
+      exit(1);
+    });
+  };
+}
+
 async function main(env: StackEnv): Promise<void> {
   assertNoMaintenance(nativeLayout(env));
   // Separate from the command lease: this survives the initiating CLI.
@@ -318,6 +351,13 @@ async function main(env: StackEnv): Promise<void> {
     self,
     { statePath: statePath(layout), log },
   );
+  const fatal = lastResort(
+    () => supervisor.stop(),
+    log,
+    (code) => process.exit(code),
+  );
+  process.on("uncaughtException", fatal);
+  process.on("unhandledRejection", fatal);
   let stopping = false;
   const watch = setInterval(() => {
     if (stopping || !existsSync(stopRequestPath(layout))) return;

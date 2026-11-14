@@ -76,13 +76,62 @@ export class RotatingLog {
     this.size = fstatSync(this.fd).size;
   }
 
-  /** Write one complete line (without its line break). */
+  /** Lines lost to a failed write or to the hard bound, since this log opened. */
+  dropped = 0;
+  /** Lost lines not yet reported in the file itself. */
+  private unreported = 0;
+  private lastError = "";
+
+  /**
+   * Write one complete line (without its line break). Never throws: it runs
+   * inside child stream handlers, where an exception would end the
+   * supervisor. A line that cannot be written is counted and reported in the
+   * file as soon as writing works again.
+   */
   line(text: string): void {
-    const bytes = Buffer.from(`${this.redact(text)}\n`, "utf8");
+    let bytes: Buffer;
+    try {
+      bytes = Buffer.from(`${this.redact(text)}\n`, "utf8");
+    } catch {
+      this.drop("redaction");
+      return;
+    }
     if (this.size > 0 && this.size + bytes.length > this.maxBytes)
       this.rotate();
-    writeSync(this.fd, bytes);
-    this.size += bytes.length;
+    // Rotation kept failing: past twice the bound, drop rather than grow.
+    if (this.size > 0 && this.size + bytes.length > 2 * this.maxBytes) {
+      this.drop("rotation blocked");
+      return;
+    }
+    if (this.unreported > 0) {
+      const notice = Buffer.from(
+        `${new Date().toISOString()} ${this.unreported} log line(s) dropped (${this.lastError})\n`,
+        "utf8",
+      );
+      if (!this.write(notice)) {
+        this.drop(this.lastError);
+        return;
+      }
+      this.unreported = 0;
+    }
+    if (!this.write(bytes)) this.drop(this.lastError);
+  }
+
+  private write(bytes: Buffer): boolean {
+    try {
+      writeSync(this.fd, bytes);
+      this.size += bytes.length;
+      return true;
+    } catch (error) {
+      this.lastError = (error as NodeJS.ErrnoException).code ?? "write error";
+      return false;
+    }
+  }
+
+  private drop(reason: string): void {
+    this.dropped++;
+    this.unreported++;
+    this.lastError = reason;
   }
 
   /** A line splitter for one output stream of a child. */
@@ -120,8 +169,13 @@ export class RotatingLog {
     source.on("error", () => lines.end());
   }
 
+  /**
+   * Shift the rotated files and start a new live file. Any failure (a reader
+   * locking a file on Windows, a full disk) keeps the current handle and the
+   * live file's content: the next line tries again, and `line` drops lines
+   * past twice the bound instead of truncating anything.
+   */
   private rotate(): void {
-    closeSync(this.fd);
     try {
       // Each rename replaces its target, so the oldest file drops out.
       for (let index = this.keep - 1; index >= 1; index--) {
@@ -131,18 +185,36 @@ export class RotatingLog {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
       }
+      // Node opens files with delete sharing, so the open handle does not
+      // block this rename; it follows the file to name.1.
       renameSync(this.file, `${this.file}.1`);
-      this.fd = openSync(this.file, "a", 0o600);
-    } catch {
-      // A reader holding the file open can block the rename on Windows. The
-      // bound still holds: start the live file again from empty.
-      this.fd = openSync(this.file, "w", 0o600);
+    } catch (error) {
+      this.lastError = (error as NodeJS.ErrnoException).code ?? "rotate error";
+      return;
     }
+    let next: number;
+    try {
+      next = openSync(this.file, "a", 0o600);
+    } catch (error) {
+      // The handle still writes to name.1: keep it until a new file opens.
+      this.lastError = (error as NodeJS.ErrnoException).code ?? "open error";
+      return;
+    }
+    try {
+      closeSync(this.fd);
+    } catch {
+      /* The old handle is no longer used either way. */
+    }
+    this.fd = next;
     this.size = 0;
   }
 
   close(): void {
-    closeSync(this.fd);
+    try {
+      closeSync(this.fd);
+    } catch {
+      /* Nothing more can be written either way. */
+    }
   }
 }
 
