@@ -205,6 +205,7 @@ describe("TSV cap ledger", () => {
   it("reserves before a paid call, settles the real cost and refuses past the cap", async () => {
     const file = join(await scratch(), "ledger.tsv");
     const ledger = new TsvCapLedger(file, 1000, ["prices checked 2026-11-14"]);
+    await ledger.lock();
     const spent = await paidCall(
       ledger,
       `${SEEDANCE}|12 s draft`,
@@ -226,8 +227,10 @@ describe("TSV cap ledger", () => {
 
     // A reservation left open (a crash) still holds its credits when the file is read again.
     await ledger.open(`${SEEDANCE}|1080p`, { credits: 500 });
+    await ledger.unlock();
     const again = new TsvCapLedger(file, 1000);
     expect(await again.total()).toBe(900);
+    await again.lock();
     await expect(again.open("x|y", { credits: 101 })).rejects.toThrow(
       /cap_exceeded/u,
     );
@@ -240,6 +243,47 @@ describe("TSV cap ledger", () => {
     expect(text).toMatch(
       /\te001\tbytedance\/seedance-2-5\t12 s draft\t408\t400\t400\tsettled/u,
     );
+    await again.unlock();
+  });
+
+  it("holds one paid run at a time and reads the rows again under the lock", async () => {
+    const root = await scratch();
+    const file = join(root, "ledger.tsv");
+    const first = new TsvCapLedger(file, 1000);
+    const second = new TsvCapLedger(file, 1000);
+    // Loaded before the first run wrote anything.
+    expect(await second.total()).toBe(0);
+    await expect(first.open("m|u", { credits: 1 })).rejects.toThrow(/lock/u);
+    await first.lock();
+    await expect(second.lock()).rejects.toThrow(/locked by process/u);
+    const entry = await first.open("m|u", { credits: 600 });
+    await first.settle(entry, { credits: 600 });
+    await first.unlock();
+    await second.lock();
+    // 600 spent by the first run: 500 more would pass the cap of 1000.
+    await expect(second.open("m|u", { credits: 500 })).rejects.toThrow(
+      /cap_exceeded/u,
+    );
+    await second.unlock();
+
+    // A lock left by a process that is gone is taken over.
+    await writeFile(`${file}.lock`, "999999");
+    await first.lock();
+    await first.unlock();
+
+    // Concurrent first reads all see every row.
+    const fresh = new TsvCapLedger(file, 1000);
+    expect(await Promise.all([fresh.total(), fresh.total()])).toEqual([
+      600, 600,
+    ]);
+    // A damaged file stays refused on every later read.
+    await writeFile(
+      file,
+      `${await readFile(file, "utf8")}t\te009\tm\tu\tx\t\t0\tr\n`,
+    );
+    const damaged = new TsvCapLedger(file, 1000);
+    await expect(damaged.total()).rejects.toThrow(/damaged/u);
+    await expect(damaged.total()).rejects.toThrow(/damaged/u);
   });
 
   it("refuses a damaged ledger instead of counting a bad row as nothing", async () => {

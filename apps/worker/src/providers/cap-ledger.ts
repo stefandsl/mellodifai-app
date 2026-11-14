@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { appendFile, readFile, writeFile } from "node:fs/promises";
+import { existsSync, rmSync } from "node:fs";
+import { appendFile, readFile, rm, writeFile } from "node:fs/promises";
 import type { Items, Ledger } from "./ledger.js";
 
 // A credit ledger in a TSV file with a hard cap, for paid runs outside the job database (the
@@ -49,10 +49,24 @@ export function validCap(value: string | number): number {
   return cap;
 }
 
+// True when a process with this id runs (EPERM: it runs under another user).
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
 export class TsvCapLedger implements Ledger {
   private rows = new Map<string, Row>();
-  private loaded = false;
+  // The read in progress or done, shared by every caller (a failed read stays failed).
+  private loading: Promise<void> | null = null;
   private serial = 0;
+  private locked = false;
+  // Reservations and settlements of this process, one at a time.
+  private queue: Promise<unknown> = Promise.resolve();
   readonly cap: number;
 
   constructor(
@@ -64,15 +78,89 @@ export class TsvCapLedger implements Ledger {
     this.cap = validCap(cap);
   }
 
-  private async load() {
-    if (this.loaded) return;
-    this.loaded = true;
-    if (!existsSync(this.file)) {
-      await writeFile(
-        this.file,
-        `${[...this.header.map((h) => `# ${h}`), `# cap\t${this.cap}`, HEAD].join("\n")}\n`,
+  private get lockFile() {
+    return `${this.file}.lock`;
+  }
+
+  // The exclusive lock of a paid run: a lock file with this process id, created only when absent.
+  // A lock left by a process that is gone is taken over; a live one refuses the run.
+  async lock(): Promise<void> {
+    if (this.locked) return;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await writeFile(this.lockFile, String(process.pid), { flag: "wx" });
+        this.locked = true;
+        return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+      const text = await readFile(this.lockFile, "utf8").catch(() => "");
+      const pid = Number(text.trim());
+      if (
+        !Number.isInteger(pid) ||
+        pid <= 0 ||
+        pid === process.pid ||
+        alive(pid)
+      )
+        throw new Error(
+          `ledger ${this.file} is locked by process ${text.trim() || "unknown"}: another paid run uses it (delete ${this.lockFile} only if no run is going)`,
+        );
+      await rm(this.lockFile, { force: true });
+    }
+    throw new Error(`ledger ${this.file}: the lock could not be taken`);
+  }
+
+  async unlock(): Promise<void> {
+    if (!this.locked) return;
+    this.locked = false;
+    await rm(this.lockFile, { force: true });
+  }
+
+  // For a process "exit" handler, where only synchronous work runs.
+  unlockSync(): void {
+    if (!this.locked) return;
+    this.locked = false;
+    rmSync(this.lockFile, { force: true });
+  }
+
+  private requireLock() {
+    if (!this.locked)
+      throw new Error(
+        `ledger ${this.file} must be locked (lock()) before a paid call`,
       );
-      return;
+  }
+
+  private exclusive<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(work, work);
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  private load(): Promise<void> {
+    this.loading ??= this.read();
+    return this.loading;
+  }
+
+  // Reads the file again (under the lock, so no other run writes it meanwhile).
+  private reload(): Promise<void> {
+    this.loading = this.read();
+    return this.loading;
+  }
+
+  private async read() {
+    this.rows = new Map();
+    this.serial = 0;
+    if (!existsSync(this.file)) {
+      try {
+        await writeFile(
+          this.file,
+          `${[...this.header.map((h) => `# ${h}`), `# cap\t${this.cap}`, HEAD].join("\n")}\n`,
+          { flag: "wx" },
+        );
+        return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
     }
     const lines = (await readFile(this.file, "utf8")).split(/\r?\n/u);
     // The cap the ledger was started with: a run may not change it.
@@ -138,33 +226,43 @@ export class TsvCapLedger implements Ledger {
 
   // Ledger.open: `key` is "model|units" and `items.credits` the estimate.
   async open(key: string, items: Items): Promise<string> {
-    await this.load();
-    const estimated = items.credits;
-    if (estimated === undefined || !Number.isFinite(estimated) || estimated < 0)
-      throw new Error("a reservation needs its estimated credits");
-    const before = await this.total();
-    const [model = key, units = ""] = key.split("|");
-    if (before + estimated > this.cap + 1e-9)
-      throw new CapRefused(
-        `cap_exceeded: ${model} needs ${fmt(estimated)} credits, ${fmt(before)} of ${this.cap} already held`,
-      );
-    this.serial++;
-    const entry = `e${String(this.serial).padStart(3, "0")}`;
-    const row: Row = { entry, model, units, estimated, actual: null };
-    this.rows.set(entry, row);
-    await this.write(row, "reserved");
-    return entry;
+    this.requireLock();
+    return this.exclusive(async () => {
+      await this.reload();
+      const estimated = items.credits;
+      if (
+        estimated === undefined ||
+        !Number.isFinite(estimated) ||
+        estimated < 0
+      )
+        throw new Error("a reservation needs its estimated credits");
+      const before = await this.total();
+      const [model = key, units = ""] = key.split("|");
+      if (before + estimated > this.cap + 1e-9)
+        throw new CapRefused(
+          `cap_exceeded: ${model} needs ${fmt(estimated)} credits, ${fmt(before)} of ${this.cap} already held`,
+        );
+      this.serial++;
+      const entry = `e${String(this.serial).padStart(3, "0")}`;
+      const row: Row = { entry, model, units, estimated, actual: null };
+      this.rows.set(entry, row);
+      await this.write(row, "reserved");
+      return entry;
+    });
   }
 
   async settle(entryId: string, items: Items): Promise<void> {
-    await this.load();
-    const row = this.rows.get(entryId);
-    if (!row) throw new Error(`unknown ledger entry ${entryId}`);
-    const actual = items.credits;
-    if (actual === undefined || !Number.isFinite(actual) || actual < 0)
-      throw new Error("a settlement needs the credits actually spent");
-    row.actual = actual;
-    await this.write(row, "settled");
+    this.requireLock();
+    return this.exclusive(async () => {
+      await this.load();
+      const row = this.rows.get(entryId);
+      if (!row) throw new Error(`unknown ledger entry ${entryId}`);
+      const actual = items.credits;
+      if (actual === undefined || !Number.isFinite(actual) || actual < 0)
+        throw new Error("a settlement needs the credits actually spent");
+      row.actual = actual;
+      await this.write(row, "settled");
+    });
   }
 
   // A note row that does not hold credits (a refusal, a balance check, a stop).

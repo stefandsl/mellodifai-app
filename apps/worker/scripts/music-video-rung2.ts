@@ -540,6 +540,9 @@ if (!values.paid || balance < plan.estimate.phase1) {
 // ---------------------------------------------------------------- paid path
 if (!client) throw new Error("no kie key");
 const kie = client;
+// One paid run per ledger: the lock is held until this process ends, however it ends.
+await ledger.lock();
+process.on("exit", () => ledger.unlockSync());
 
 // One paid generation: reservation, submit, wait, download, settle with kie's own count (or the
 // balance difference). A failed task is retried once, logged; a cap refusal stops the step.
