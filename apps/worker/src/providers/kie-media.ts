@@ -2,53 +2,20 @@ import type { KieClient } from "./kie-client.js";
 
 // kie.ai media models used by the music-video line. Request shapes from docs.kie.ai, read
 // 2026-11-14: market/bytedance/seedance-2-5, market/bytedance/seedance-2-5-draft,
-// market/seedream/5-flash-text-to-image and 5-flash-image-to-image. Prices from
-// kie.ai/seedance-2-5 and kie.ai/seedream-5-0-flash the same day (credits; "beta, may change").
+// market/seedream/5-flash-text-to-image and 5-flash-image-to-image.
 export const SEEDANCE = "bytedance/seedance-2-5";
 export const SEEDANCE_UPGRADE = "bytedance/seedance-2-5-draft";
 export const SEEDREAM_T2I = "seedream/5-flash-text-to-image";
 export const SEEDREAM_I2I = "seedream/5-flash-image-to-image";
 
-export const KIE_PRICES = {
-  checked: "2026-11-14",
-  // Seedance 2.5 per second. With a reference video the lower rate applies to the reference
-  // videos' total length plus the output length; images and audio add nothing. A draft is
-  // 480p; its 1080p upgrade keeps the draft's billing mode at the 1080p rate.
-  seedance: {
-    "480p": { withVideo: 17, noVideo: 28 },
-    "720p": { withVideo: 38, noVideo: 63 },
-    "1080p": { withVideo: 95, noVideo: 158 },
-  },
-  // Seedream 5 Flash, 1K to 2K, text or reference-image edit: one price per image.
-  seedreamFlashPerImage: 3.24,
-} as const;
-
-export type Resolution = keyof typeof KIE_PRICES.seedance;
-
-// Credits of a Seedance generation. Seconds are rounded up, so the estimate never undershoots a
-// per-started-second bill.
-export function seedanceCredits(options: {
-  resolution: Resolution;
-  outputSeconds: number;
-  referenceVideoSeconds?: number;
-}): number {
-  const rates = KIE_PRICES.seedance[options.resolution];
-  const ref = Math.ceil(options.referenceVideoSeconds ?? 0);
-  const out = Math.ceil(options.outputSeconds);
-  return ref > 0 ? rates.withVideo * (ref + out) : rates.noVideo * out;
-}
-
-export function seedreamCredits(images: number): number {
-  return Math.round(KIE_PRICES.seedreamFlashPerImage * images * 100) / 100;
-}
-
-// Seedance accepts whole seconds from 4 to 30; a segment is generated at the next whole second
-// and trimmed to its frames afterwards.
-export function seedanceSeconds(segmentSeconds: number): number {
-  const seconds = Math.ceil(segmentSeconds - 1e-6);
-  if (seconds > 30) throw new Error("a Seedance shot is at most 30 s");
-  return Math.max(4, seconds);
-}
+// Prices and the Seedance length rule live in @mellodifai/shared (storyboard quotes use them too).
+export {
+  KIE_PRICES,
+  type Resolution,
+  seedanceCredits,
+  seedanceSeconds,
+  seedreamCredits,
+} from "@mellodifai/shared";
 
 export type SeedanceDraftRequest = {
   prompt: string;

@@ -11,6 +11,12 @@
 // With --paid it still stops, and says by how much, when the kie balance or the cap cannot cover
 // the next phase: topping up is the owner's decision. Every paid call is reserved in
 // <out>/ledger.tsv before it is made and settled with what kie charged.
+//
+// Shots, elements and takes live in the music-video storyboard (<out>/storyboard.json): it is
+// read from the rung-1 folder's storyboard.json, or imported from its old cutplan.json and
+// shotlist.json. Each draft and final is a take (model, prompt, references, credits, gate
+// results, status); the take used in the assembly is the chosen one. Prompts come from the
+// composer.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -18,17 +24,23 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   bibleFor,
-  type CutPlan,
+  CAMERA_FRAMING,
+  type Camera,
+  composeShot,
   type DraftMeasurements,
   evaluateDraftGates,
   GATE_THRESHOLDS,
-  generationPrompt,
   insideWord,
+  type MvPlan,
+  type MvTake,
   parseSceneCuts,
-  type Shot,
   type ShotKind,
-  type ShotList,
 } from "@mellodifai/shared";
+import {
+  LOCAL_VERSION,
+  loadRung1Plan,
+  MemoryMusicVideoStore,
+} from "../src/music-video-store.js";
 import { TsvCapLedger } from "../src/providers/cap-ledger.js";
 import { KieClient } from "../src/providers/kie-client.js";
 import {
@@ -151,8 +163,6 @@ function loadKey(file: string | undefined): string {
 }
 
 // ---------------------------------------------------------------- plan (free)
-const cutPlan = json(join(rung1, "cutplan.json")) as CutPlan;
-const shotList = json(join(rung1, "shotlist.json")) as ShotList;
 const timing = json(values.timing) as {
   lines: { words: { start: number; end: number }[] }[];
 };
@@ -163,7 +173,7 @@ const words = timing.lines.flatMap((l) => l.words);
 type Pick = {
   index: number;
   kind: ShotKind;
-  camera: Shot["camera"];
+  camera: Camera;
   set: "set-verse" | "set-chorus";
   costume: "costume-a" | "costume-b" | "costume-c";
   performer: boolean;
@@ -202,7 +212,9 @@ const PICKS: Pick[] = [
 const song = {
   title: "Va bene, passa",
   language: "Italian",
-  genre: shotList.genre,
+  // The genre the rung-1 shot list took from the song's style.
+  genre: loadRung1Plan(rung1, { title: "Va bene, passa", language: "Italian" })
+    .plan.project.genre,
   story:
     "an ironic Italian office song about the AI chatbot the boss bought to cut costs; the singer is the employee promoted to 'bot caretaker' who approves everything it writes with 'va bene, passa' (looks good to me) while the code, the tests and the company fall apart.",
 };
@@ -245,11 +257,72 @@ const bible = bibleFor(
   sets.chorus,
 );
 
+// The elements of this song: the singer in each costume, the two sets. References are the bible
+// images, as paths inside --out.
+const OUTFIT_LABEL: Record<Pick["costume"], string> = {
+  "costume-a": "her office outfit",
+  "costume-b": "her sequinned stage outfit",
+  "costume-c": "her lilac tracksuit",
+};
+const elements: MvPlan["elements"] = [costumes.base, ...costumes.variants].map(
+  (c) => ({
+    key: c.id,
+    kind: "character" as const,
+    name: `the singer, wearing ${OUTFIT_LABEL[c.id as Pick["costume"]]}`,
+    description: c.outfit,
+    ref_asset_ids: [`images/${c.id}.png`],
+  }),
+);
+elements.push(
+  {
+    key: sets.verse.id,
+    kind: "location",
+    name: "the night office where she works",
+    description: sets.verse.description,
+    ref_asset_ids: [`images/${sets.verse.id}.png`],
+  },
+  {
+    key: sets.chorus.id,
+    kind: "location",
+    name: "the disco stage with the office on its LED wall",
+    description: sets.chorus.description,
+    ref_asset_ids: [`images/${sets.chorus.id}.png`],
+  },
+);
+const loaded = loadRung1Plan(rung1, {
+  title: song.title,
+  language: song.language,
+  elements,
+});
+// Each pick sets its shot's camera, costume (cast) and set (location).
+for (const p of PICKS) {
+  const shot = loaded.plan.shots[p.index];
+  if (!shot || shot.kind !== p.kind)
+    throw new Error(`segment ${p.index} is not a ${p.kind}`);
+  Object.assign(shot, CAMERA_FRAMING[p.camera], {
+    cast_keys: [p.costume],
+    location_key: p.set,
+  });
+}
+const store = new MemoryMusicVideoStore(join(out, "storyboard.json"));
+const stored = await store.storyboard(LOCAL_VERSION);
+const hasTakes = stored?.scenes.some((s) =>
+  s.shots.some((t) => t.takes.length),
+);
+if (!hasTakes) await store.savePlan(LOCAL_VERSION, loaded.plan);
+const board = await store.storyboard(LOCAL_VERSION);
+if (!board) throw new Error("no storyboard");
+console.log(
+  `storyboard: ${hasTakes ? "kept (it has takes)" : `saved from the rung-1 ${loaded.from}`}`,
+);
+const cutPlan = board.project.cut_plan;
+const boardShots = board.scenes.flatMap((s) => s.shots);
+
 const fps = cutPlan.fps;
 const shots = PICKS.map((p) => {
-  const shot = shotList.shots[p.index] as Shot;
+  const shot = boardShots[p.index];
   const seg = cutPlan.segments[p.index];
-  if (!seg || shot.kind !== p.kind)
+  if (!seg || !shot || shot.kind !== p.kind)
     throw new Error(`segment ${p.index} is not a ${p.kind}`);
   for (const f of [seg.startFrame, seg.endFrame])
     if (insideWord(f / fps, words))
@@ -262,32 +335,24 @@ const shots = PICKS.map((p) => {
     p.video === "song-audio"
       ? join(out, "audio", `segment-${n}-audio.mp4`)
       : join(out, "refs", `segment-${n}-previz.mp4`);
-  const images = [
-    ...(p.performer || p.kind === "instrumental-broll"
-      ? [
-          {
-            role: "performer" as const,
-            label: `the singer, wearing ${p.costume === "costume-a" ? "her office outfit" : p.costume === "costume-b" ? "her sequinned stage outfit" : "her lilac tracksuit"}`,
-            file: join(out, "images", `${p.costume}.png`),
-          },
-        ]
-      : []),
-    {
-      role: "set" as const,
-      label:
-        p.set === "set-verse"
-          ? "the night office where she works"
-          : "the disco stage with the office on its LED wall",
-      file: join(out, "images", `${p.set}.png`),
-    },
-  ];
-  const prompt = generationPrompt(
-    { ...shot, camera: p.camera, kind: p.kind },
-    song.genre,
-    { images, video: p.video },
-  );
+  const composed = composeShot(shot, board.elements, {
+    genre: board.project.genre,
+    language: board.project.language,
+    look: board.project.look,
+  });
+  if (composed.video !== p.video || composed.notes.length)
+    throw new Error(
+      `shot ${p.index}: composer video ${composed.video}, notes ${composed.notes.join("; ")}`,
+    );
+  const images = composed.images.map((img) => ({
+    label: img.label,
+    asset: img.asset_id,
+    file: join(out, img.asset_id),
+  }));
+  const prompt = composed.prompt;
   return {
     ...p,
+    shotId: shot.id,
     segment: p.index + 1,
     startFrame: seg.startFrame,
     endFrame: seg.endFrame,
@@ -379,7 +444,7 @@ const plan = {
   })),
   shots: shots.map(({ images, ...s }) => ({
     ...s,
-    images: images.map((i) => ({ role: i.role, label: i.label, file: i.file })),
+    images: images.map((i) => ({ label: i.label, file: i.file })),
   })),
   estimate: {
     images: imageCredits,
@@ -396,6 +461,36 @@ const plan = {
   },
 };
 await save("plan.json", plan);
+
+// The shot's open take of a phase in the storyboard (a quote until it runs), with this run's
+// model, prompt, references and estimate.
+async function takeOf(
+  s: (typeof shots)[number],
+  phase: MvTake["phase"],
+  status: MvTake["status"],
+) {
+  const shot = (await store.storyboard(LOCAL_VERSION))?.scenes
+    .flatMap((x) => x.shots)
+    .find((x) => x.id === s.shotId);
+  const open = shot?.takes.find(
+    (t) => t.phase === phase && t.status === "quoted",
+  );
+  const fields = {
+    model: phase === "draft" ? SEEDANCE : SEEDANCE_UPGRADE,
+    prompt: s.prompt,
+    refs: s.images.map((i) => i.asset),
+    params: {
+      seconds: s.generateSeconds,
+      resolution: phase === "draft" ? "480p" : "1080p",
+    },
+    cost_credits: phase === "draft" ? s.draftCredits : s.finalCredits,
+    status,
+  };
+  return open
+    ? store.patchTake(open.id, fields)
+    : store.addTake({ shot_id: s.shotId, phase, gates: null, ...fields });
+}
+for (const s of shots) await takeOf(s, "draft", "quoted");
 console.log(
   `plan: phase 1 (images + drafts) ${plan.estimate.phase1} credits, finals ${JSON.stringify(plan.estimate.finals)}, total ${plan.estimate.total} of cap ${cap}`,
 );
@@ -534,6 +629,7 @@ const identityBible = score("identity", [
 const results = [];
 for (const s of shots) {
   const draft = join(out, "drafts", `segment-${s.segment}-draft.mp4`);
+  const draftTake = await takeOf(s, "draft", "running");
   const task = await generate(
     `draft ${s.index}`,
     SEEDANCE,
@@ -548,14 +644,29 @@ for (const s of shots) {
       seconds: s.generateSeconds,
     }),
     draft,
-  );
+  ).catch(async (error: Error) => {
+    await store.patchTake(draftTake.id, {
+      status: "failed",
+      gates: { error: error.message },
+    });
+    throw error;
+  });
   const gate = gateClip(s, draft, "draft");
+  await store.patchTake(draftTake.id, {
+    status: "done",
+    cost_credits: task.credits ?? s.draftCredits,
+    params: { ...draftTake.params, taskId: task.taskId },
+    gates: gate,
+  });
   const row: Record<string, unknown> = {
     shot: s.index,
     draftTask: task.taskId,
+    draftTake: draftTake.id,
     draft: gate,
   };
   if (gate.pass && finalsPlanned.includes(s.index)) {
+    const finalTake = await takeOf(s, "final", "running");
+    row.finalTake = finalTake.id;
     const final = join(out, "finals", `segment-${s.segment}-1080p.mp4`);
     try {
       await generate(
@@ -567,8 +678,13 @@ for (const s of shots) {
         final,
       );
       row.final = gateClip(s, final, "final");
+      await store.patchTake(finalTake.id, { status: "done", gates: row.final });
     } catch (error) {
       row.final = { error: (error as Error).message };
+      await store.patchTake(finalTake.id, {
+        status: "failed",
+        gates: row.final,
+      });
     }
   }
   results.push(row);
@@ -589,15 +705,19 @@ for (const s of shots) {
   const r = results.find((x) => x.shot === s.index) as
     | {
         draft: { pass: boolean; fit: string };
+        draftTake: string;
         final?: { pass?: boolean; fit?: string };
+        finalTake?: string;
       }
     | undefined;
   const pick = r?.final?.pass
-    ? r.final.fit
+    ? { fit: r.final.fit, take: r.finalTake }
     : r?.draft.pass
-      ? r.draft.fit
+      ? { fit: r.draft.fit, take: r.draftTake }
       : null;
-  if (pick) replacements.set(s.index, pick);
+  if (pick?.fit) replacements.set(s.index, pick.fit);
+  // The take in the edit is the shot's chosen take in the storyboard.
+  if (pick?.take) await store.patchTake(pick.take, { chosen: true });
 }
 const list = join(out, "assembly.txt");
 const joined = withReplacements(clips, replacements);

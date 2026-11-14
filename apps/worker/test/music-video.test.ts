@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,6 +9,7 @@ import {
   ShotListSchema,
 } from "@mellodifai/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import { InMemoryDb } from "../src/db.js";
 import type { StageContext } from "../src/loop.js";
 import {
   assembleArgs,
@@ -175,8 +177,9 @@ describe("music video plan", () => {
       expect(frames).toBe(Math.round(segment.duration * 30));
       expect(ffprobe(file, "stream=width,height", "v:0")).toBe("1280\n720");
     }
-    const saved = JSON.parse(await readFile(join(dir, "cutplan.json"), "utf8"));
-    expect(saved).toEqual(result.cutPlan);
+    // The plan lives in the storyboard now, not in loose files.
+    expect(existsSync(join(dir, "cutplan.json"))).toBe(false);
+    expect(existsSync(join(dir, "shotlist.json"))).toBe(false);
   }, 60_000);
 
   it("cuts the wrapper on the segment's frames, not its time in seconds", () => {
@@ -257,7 +260,7 @@ describe("sync check", () => {
 });
 
 describe("music video plan stage", () => {
-  it("writes the plan into the render folder and wraps sung audio with ffmpeg", async () => {
+  it("saves the storyboard in the database and wraps sung audio with ffmpeg", async () => {
     const root = await scratch();
     const ws = {
       root,
@@ -273,9 +276,12 @@ describe("music video plan stage", () => {
     );
     const calls: { command: string; args: string[] }[] = [];
     const logs: string[] = [];
+    const db = new InMemoryDb();
     const context = {
       ws,
+      db,
       version: {
+        id: "11111111-1111-4111-8111-111111111111",
         lang: "it",
         lyric_pack: {
           title: "Prova",
@@ -298,16 +304,23 @@ describe("music video plan stage", () => {
       },
     } as unknown as StageContext;
     await expect(musicVideoPlanStage(context)).resolves.toEqual({});
-    const shots = ShotListSchema.parse(
-      JSON.parse(
-        await readFile(
-          join(ws.renderDir, "music-video", "shotlist.json"),
-          "utf8",
-        ),
-      ),
+    const board = await db.musicVideo.storyboard(
+      "11111111-1111-4111-8111-111111111111",
     );
-    expect(shots.genre).toBe("Italo-disco revival nu-disco");
-    const sung = shots.shots.filter((s) => s.kind !== "instrumental-broll");
+    expect(board?.project).toMatchObject({
+      title: "Prova",
+      language: "Italian",
+      genre: "Italo-disco revival nu-disco",
+    });
+    const planned = musicVideoPlan(timing(), {
+      genre: "Italo-disco revival nu-disco",
+    });
+    expect(board?.project.cut_plan).toEqual(planned.cutPlan);
+    const shots = board?.scenes.flatMap((s) => s.shots) ?? [];
+    expect(shots.map((s) => [s.start_frame, s.end_frame, s.kind])).toEqual(
+      planned.shotList.shots.map((s) => [s.startFrame, s.endFrame, s.kind]),
+    );
+    const sung = shots.filter((s) => s.kind !== "instrumental-broll");
     expect(calls).toHaveLength(sung.length);
     expect(calls.every((c) => c.command === "ffmpeg")).toBe(true);
     expect(calls[0]?.args).toContain(join(ws.publicDir, "audio", "it.wav"));

@@ -4,7 +4,7 @@
 //
 // Not yet a registered job stage: a new stage name needs a jobs_stage_check migration (rung 2).
 // The handler below runs on a song's workspace once it is registered.
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type CutPlan,
@@ -12,8 +12,12 @@ import {
   type CutPlanInput,
   type CutPlanLine,
   checkCutPlan,
+  type Lang,
   LyricPackSchema,
+  type MvPlan,
+  type PlanOptions,
   planCuts,
+  planFromShotList,
   planShots,
   type Segment,
   type Shot,
@@ -331,27 +335,35 @@ export function syncCheck(
   };
 }
 
+// The language a video prompt names ("sings exactly these Italian lyrics").
+export const LANGUAGE_NAMES: Record<Lang, string> = {
+  it: "Italian",
+  ru: "Russian",
+  ro: "Romanian",
+  ja: "Japanese",
+  en: "English",
+  es: "Spanish",
+  de: "German",
+  zh: "Chinese",
+  pt: "Portuguese",
+  ko: "Korean",
+  fr: "French",
+};
+
 export type Run = (
   command: string,
   args: string[],
   outputs: string[],
 ) => Promise<unknown>;
 
-// Writes cutplan.json, shotlist.json and one black-picture wrapper per sung segment into `dir`.
+// Writes one black-picture wrapper per sung segment into `dir`/audio and returns the plan. The
+// cut plan and shot list are kept as the storyboard (storyboardPlan), not as loose files.
 export async function writeMusicVideoPlan(
   timing: SongTiming,
   options: { genre: string; master: string; dir: string; run: Run },
 ) {
   const plan = musicVideoPlan(timing, { genre: options.genre });
   await mkdir(join(options.dir, "audio"), { recursive: true });
-  await writeFile(
-    join(options.dir, "cutplan.json"),
-    `${JSON.stringify(plan.cutPlan, null, 2)}\n`,
-  );
-  await writeFile(
-    join(options.dir, "shotlist.json"),
-    `${JSON.stringify(plan.shotList, null, 2)}\n`,
-  );
   const wrappers: string[] = [];
   for (const segment of plan.cutPlan.segments.filter((s) => s.sung)) {
     const out = join(options.dir, "audio", wrapperName(segment));
@@ -365,7 +377,16 @@ export async function writeMusicVideoPlan(
   return { ...plan, wrappers };
 }
 
-// On demand on a timed song: the plan files and the audio wrappers in the render folder.
+// The storyboard plan of a planned song.
+export function storyboardPlan(
+  plan: { cutPlan: CutPlan; shotList: ShotList },
+  options: PlanOptions,
+): MvPlan {
+  return planFromShotList(plan.cutPlan, plan.shotList, options);
+}
+
+// On demand on a timed song: the storyboard in the database and the audio wrappers in the
+// render folder.
 export const musicVideoPlanStage: StageHandler = async (context) => {
   const lang = language(context);
   const timing = await readJson<SongTiming>(
@@ -373,13 +394,21 @@ export const musicVideoPlanStage: StageHandler = async (context) => {
   );
   const pack = LyricPackSchema.parse(context.version.lyric_pack);
   const dir = join(context.ws.renderDir, "music-video");
-  const { check } = await writeMusicVideoPlan(timing, {
+  const plan = await writeMusicVideoPlan(timing, {
     genre: genreOf(pack.style),
     master: join(context.ws.publicDir, "audio", `${lang}.wav`),
     dir,
     run: (command, args, outputs) =>
       context.engine.run(command, args, { cwd: ENGINE_ROOT, outputs }),
   });
+  await context.db.musicVideo.savePlan(
+    context.version.id,
+    storyboardPlan(plan, {
+      title: pack.title.trim() || "Untitled",
+      language: LANGUAGE_NAMES[lang],
+    }),
+  );
+  const { check } = plan;
   await context.log(
     `Music video plan: ${check.segments} segments, ${check.minS}-${check.maxS} s, ${check.wordsCut} words cut`,
   );

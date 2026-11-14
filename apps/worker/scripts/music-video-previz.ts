@@ -1,7 +1,8 @@
 // Rung 1 proof, without the database: one real song through the free music-video stages.
 //   tsx scripts/music-video-previz.ts --timing timing.json --master master.wav --style "..."
-//     --out <folder> [--work <folder>] [--only 3]
-// Writes cutplan.json, shotlist.json, audio/segment-NN-audio.mp4 (black picture + segment audio),
+//     --out <folder> [--work <folder>] [--only 3] [--title "..."] [--language Italian]
+// Writes storyboard.json (the music-video storyboard: project with the cut plan, scenes, shots,
+// elements), audio/segment-NN-audio.mp4 (black picture + segment audio),
 // clips/segment-NN.mp4 (previz, Remotion), previz.mp4 (all clips + the master), sync.json and
 // contact-sheet-N.jpg into --out.
 import { spawnSync } from "node:child_process";
@@ -10,11 +11,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
+  LOCAL_VERSION,
+  MemoryMusicVideoStore,
+} from "../src/music-video-store.js";
+import {
   assembleArgs,
   concatList,
   genreOf,
   previzProps,
   type SongTiming,
+  storyboardPlan,
   syncCheck,
   writeMusicVideoPlan,
 } from "../src/stages/music-video.js";
@@ -24,6 +30,8 @@ const { values } = parseArgs({
     timing: { type: "string" },
     master: { type: "string" },
     style: { type: "string", default: "pop" },
+    title: { type: "string", default: "Untitled" },
+    language: { type: "string", default: "Italian" },
     out: { type: "string" },
     work: { type: "string" },
     only: { type: "string" },
@@ -88,6 +96,10 @@ const plan = await writeMusicVideoPlan(timing, {
   dir: out,
   run: async (command, args) => run(command, args),
 });
+await new MemoryMusicVideoStore(join(out, "storyboard.json")).savePlan(
+  LOCAL_VERSION,
+  storyboardPlan(plan, { title: values.title, language: values.language }),
+);
 console.log(
   `plan: ${JSON.stringify(plan.check)} wrappers=${plan.wrappers.length} (${((Date.now() - t0) / 1000).toFixed(1)} s)`,
 );
