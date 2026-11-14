@@ -55,6 +55,28 @@ export function dumpLedgerHead(dump: DumpData): string {
     .sort((a, b) => String(a.version).localeCompare(String(b.version)));
   return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
 }
+/** The application ledger with its native checksums, as startup reads it. */
+export function dumpAppliedMigrations(
+  dump: DumpData,
+): { version: string; sha256: string | null }[] {
+  const ledger = dump.tables.find(
+    (table) => table.name === "supabase_migrations.schema_migrations",
+  );
+  if (!ledger) throw new Error("Missing migration ledger");
+  const checksums = dump.tables.find(
+    (table) => table.name === "supabase_migrations.mdf_checksums",
+  );
+  const hashes = new Map(
+    (checksums ? tableRows(checksums) : []).map((row) => [
+      row.version,
+      row.sha256,
+    ]),
+  );
+  return tableRows(ledger).map((row) => ({
+    version: String(row.version),
+    sha256: hashes.get(row.version) ?? null,
+  }));
+}
 export function dumpFakeStack(dump: DumpData, env: StackEnv): boolean {
   const table = dump.tables.find(
     (entry) => entry.name === "public.stack_settings",

@@ -30,6 +30,7 @@ import { executable } from "./host.js";
 import {
   assertBackupSource,
   type BackupSource,
+  dumpAppliedMigrations,
   dumpFakeStack,
   dumpLedgerHead,
   stackIdentity,
@@ -45,7 +46,10 @@ import {
 import { durableJson, flushFile } from "./journal.js";
 import { nativeLayout } from "./layout.js";
 import { assertStackLease } from "./lease.js";
+import { readMigrations } from "./migrate.js";
 import { baseEnvironment } from "./plan.js";
+import { refreshRollback } from "./rollback.js";
+import { nativeSourceRoot } from "./source.js";
 import {
   rebuildStorageMetadata,
   type StorageRow,
@@ -293,6 +297,18 @@ export function readBackup(
     if (fileHash(join(directory, "objects", safeFile(item.path))) !== item.hash)
       throw new Error("Historical Storage checksum mismatch");
   return { manifest, dump };
+}
+/** After restore, import or recovery: keep the schema rollback marker only
+ * if it still fits this release and the ledger now in the database. */
+export async function refreshSchemaRollback(
+  env: StackEnv,
+  dump: string,
+): Promise<"none" | "kept" | "cleared"> {
+  return refreshRollback(
+    nativeLayout(env),
+    readMigrations(join(nativeSourceRoot(), "supabase/migrations")),
+    dumpAppliedMigrations(parseDump(dump)),
+  );
 }
 /** Caller owns maintenance shutdown and rollback. Stage before any database write. */
 export async function restoreNativeData(

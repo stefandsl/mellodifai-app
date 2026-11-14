@@ -17,6 +17,7 @@ import {
   objectLayout,
   objectRows,
   readBackup,
+  refreshSchemaRollback,
   restoreNativeData,
   safeFile,
 } from "./lib/native/backup.js";
@@ -417,6 +418,7 @@ async function nativeImportLocked(
       } finally {
         await check.end();
       }
+      await refreshSchemaRollback(options.env, await maintenance.db.dump());
       await maintenance.stop();
       maintenance = undefined;
       await writePrivate(

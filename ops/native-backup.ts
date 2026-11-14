@@ -5,6 +5,7 @@ import { ENV_TABLE, type StackEnv } from "./lib/envs.js";
 import {
   backupNative,
   readBackup,
+  refreshSchemaRollback,
   restoreNativeData,
 } from "./lib/native/backup.js";
 import { safeFailure } from "./lib/native/diagnostics.js";
@@ -95,6 +96,8 @@ export async function nativeBackup(
         }
         if (recoveryPhase !== "preparing")
           await restoreNativeData(env, path, checkpoint);
+        // The data a deploy-recorded rollback was bound to has been replaced.
+        await refreshSchemaRollback(env, await maintenance.db.dump());
         if (action === "recover-import")
           await writePrivate(
             join(layout.root, "import-journal.json"),

@@ -12,6 +12,8 @@ export interface SchemaRollback {
   releaseHead: string;
   ledgerHead: string;
   latestVersion: string;
+  /** Where the marker was read from; never written into the file. */
+  path?: string;
 }
 export const rollbackPath = (layout: NativeLayout) =>
   join(layout.root, "schema-rollback.json");
@@ -29,9 +31,9 @@ export const rollbackHash = (
     .digest("hex");
 export function readRollback(layout: NativeLayout): SchemaRollback | undefined {
   const path = rollbackPath(layout);
-  return existsSync(path)
-    ? (JSON.parse(readFileSync(path, "utf8")) as SchemaRollback)
-    : undefined;
+  if (!existsSync(path)) return undefined;
+  const marker = JSON.parse(readFileSync(path, "utf8")) as SchemaRollback;
+  return { ...marker, path };
 }
 export function validateRollback(
   marker: SchemaRollback,
@@ -56,8 +58,40 @@ export function validateRollback(
     )
   )
     throw new NativeDiagnosticError(
-      "Recorded schema rollback does not match this exact ledger and release; startup refused",
+      `Recorded schema rollback ${marker.path ?? "schema-rollback.json"} does not match this exact ledger and release; startup refused. Deploy the release it names, or remove the marker only after reviewing that this release accepts the current schema`,
     );
+}
+/** Restore, import and recovery replace the data the marker was bound to.
+ * Keep the marker only if it still exactly fits the running release and the
+ * ledger now in the database (re-recorded); otherwise remove it, so startup
+ * plans normally and refuses an unknown forward schema on its own terms.
+ */
+export async function refreshRollback(
+  layout: NativeLayout,
+  files: MigrationFile[],
+  applied: AppliedMigration[],
+): Promise<"none" | "kept" | "cleared"> {
+  if (!existsSync(rollbackPath(layout))) return "none";
+  let release: string | undefined;
+  try {
+    const marker = readRollback(layout);
+    if (marker && marker.releaseHead === rollbackHash(files))
+      release = marker.release;
+  } catch {
+    // An unreadable marker can never authorize anything.
+  }
+  if (
+    release !== undefined &&
+    applied.some((row) => !files.some((file) => file.version === row.version))
+  )
+    try {
+      await recordRollback(layout, release, files, applied);
+      return "kept";
+    } catch {
+      // Falls through: the marker no longer fits this ledger.
+    }
+  clearRollback(layout);
+  return "cleared";
 }
 export async function recordRollback(
   layout: NativeLayout,
