@@ -92,6 +92,8 @@ Molte richieste sono gia nel codice ma non verificate dal proprietario. Prima si
 
 Uscita di F1: un elenco di difetti ordinato; ogni difetto diventa un compito con test che fallisce prima.
 
+**Stato 14/11 (autoresearch run 2, `E:/mellodifai/research/2026-11-14/autoresearch/f1-report.md`):** giudice congelato `apps/web/e2e/audit.spec.ts` + `ops/autoresearch/eval-f1.ts`; difetti reali 6 -> 4 (accettare l'obiezione dell'avvocato del diavolo; nome mancante nel modulo token; errore "S" del deploy, che eseguiva il deploy due volte). Restano R31 (in corso, con migrazione) e 3 falsi difetti audio del giudice (Web Audio non rilevato). Unito in `main` (`1c44f5f`).
+
 ## F2. Motore di miglioramento autoresearch (R15)
 
 Il disegno M6 originale usava container Docker: non e piu possibile. Si adotta il metodo di Karpathy
@@ -109,7 +111,7 @@ fisso per esperimento, si tiene solo cio che migliora, il resto si annulla.
 | Isolamento senza Docker | Worktree dedicato, stack di laboratorio, nessun file di segreti, provider finti; la giuria usa una chiave OpenRouter con tetto proprio |
 | Quando | Di notte tramite Utilita di pianificazione (lanciatore gia pronto in `G:\claude-data\night`; serve `claude setup-token` del proprietario) |
 
-Primo esperimento: prompt della giuria testi (R06) contro il set d'oro. Giudice: punteggio medio della giuria cieca e zero regressioni nei test.
+Gia fatti 14/11: run 1 sul piano dei tagli (`ops/autoresearch/eval-cutplan.ts`, punteggio 0 -> 71,8, trovato il taglio di parole al fotogramma) e run 2 sull'audit F1 (sopra). Prossimo esperimento: prompt della giuria testi (R06) contro il set d'oro. Giudice: punteggio medio della giuria cieca e zero regressioni nei test.
 
 Anche questo piano segue il metodo: il giudice e `requisiti.md` (congelato), ogni versione del piano e
 valutata da un critico cieco, si tiene la versione con punteggio piu alto (registro in
