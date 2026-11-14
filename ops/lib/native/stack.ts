@@ -28,6 +28,7 @@ import {
   sameProcess,
   terminateTree,
 } from "./host.js";
+import { stackIdentity } from "./identity.js";
 import { assertNoMaintenance } from "./journal.js";
 import { loopback, type NativeLayout, nativeLayout } from "./layout.js";
 import { assertStackLease, withStackLease } from "./lease.js";
@@ -258,6 +259,7 @@ async function startNative(
   assertSystemDiskFree();
   nativeTools();
   const layout = await renderNative(env);
+  await stackIdentity(env);
   const previous = readState(statePath(layout));
   if (await supervisorAlive(previous)) {
     if (previous?.phase !== "ready")

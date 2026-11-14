@@ -16,6 +16,7 @@ import {
   nativeDatabase,
   objectLayout,
   objectRows,
+  readBackup,
   restoreNativeData,
   safeFile,
 } from "./lib/native/backup.js";
@@ -106,6 +107,28 @@ function validateRecovered(dump: DumpData): void {
   for (const [name, count] of Object.entries(expected))
     if (found[name] !== count)
       throw new Error(`Recovered count mismatch: ${name}`);
+  const settings = dump.tables.find(
+    (table) => table.name === "public.stack_settings",
+  );
+  if (
+    !settings ||
+    tableRows(settings).length !== 1 ||
+    tableRows(settings)[0]?.fake_stack !== "f"
+  )
+    throw new Error(
+      "Offline recovery requires production provenance with fake_stack=false",
+    );
+  const ledger = dump.tables.find(
+    (table) => table.name === "supabase_migrations.schema_migrations",
+  );
+  if (
+    ledger?.lines.length !== 54 ||
+    tableRows(ledger)
+      .map((row) => row.version)
+      .sort()
+      .at(-1) !== "20261103080001"
+  )
+    throw new Error("Offline recovery migration provenance mismatch");
 }
 async function verifyData(env: StackEnv, source: DumpData) {
   const db = await nativeDatabase(env);
@@ -179,6 +202,8 @@ async function nativeImportLocked(
   if (resolveRuntime(undefined) !== "native")
     throw new Error("native-import requires the native runtime");
   const layout = nativeLayout(options.env);
+  if (existsSync(join(resolve(options.from), "manifest.json")))
+    readBackup(resolve(options.from), options.env);
   if (readJournal(layout)?.phase !== "prepared") assertNoMaintenance(layout);
   if (!existsSync(join(layout.root, "first-boot.done")))
     throw new Error("Target must be a freshly bootstrapped native stack");

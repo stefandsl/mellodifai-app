@@ -28,6 +28,13 @@ import { loadStackSecrets } from "../stack-secrets.js";
 import { nativeTools } from "./build.js";
 import { executable } from "./host.js";
 import {
+  assertBackupSource,
+  type BackupSource,
+  dumpFakeStack,
+  dumpLedgerHead,
+  stackIdentity,
+} from "./identity.js";
+import {
   compareLedgers,
   type DumpData,
   dataTables,
@@ -162,7 +169,8 @@ export async function nativeDatabase(
   };
 }
 export interface BackupManifest {
-  format: 1;
+  format: 1 | 2;
+  source?: BackupSource;
   dumpHash: string;
   objects: { row: StorageRow; hash: string }[];
   historical?: {
@@ -184,7 +192,13 @@ export async function backupNative(
     throw new Error("Refusing to overwrite a native backup");
   const db = await nativeDatabase(env, runner);
   const dump = await db.dump();
-  const rows = objectRows(parseDump(dump));
+  const parsed = parseDump(dump);
+  const rows = objectRows(parsed);
+  const source = {
+    ...(await stackIdentity(env)),
+    fakeStack: dumpFakeStack(parsed, env),
+    ledgerHead: dumpLedgerHead(parsed),
+  };
   const layout = objectLayout(db.layout.objects);
   // Refuse links, missing files and bad sizes before copying any private data.
   const report = rebuildStorageMetadata(layout, rows);
@@ -229,7 +243,8 @@ export async function backupNative(
   }
   // A complete manifest is the commit marker. Metadata is portable JSON, never ADS-dependent.
   await durableJson(join(directory, "manifest.json"), {
-    format: 1,
+    format: 2,
+    source,
     dumpHash: fileHash(join(directory, "database.sql")),
     objects,
     historical,
@@ -237,7 +252,10 @@ export async function backupNative(
   } satisfies BackupManifest);
   return directory;
 }
-export function readBackup(directory: string): {
+export function readBackup(
+  directory: string,
+  target?: StackEnv,
+): {
   manifest: BackupManifest;
   dump: DumpData;
 } {
@@ -246,11 +264,14 @@ export function readBackup(directory: string): {
     readFileSync(join(directory, "manifest.json"), "utf8"),
   ) as BackupManifest;
   if (
-    manifest.format !== 1 ||
+    ![1, 2].includes(manifest.format) ||
     fileHash(join(directory, "database.sql")) !== manifest.dumpHash
   )
     throw new Error("Native backup checksum mismatch");
   const dump = parseDump(readFileSync(join(directory, "database.sql"), "utf8"));
+  if (manifest.format === 2 && !manifest.source)
+    throw new Error("Native backup source identity is missing");
+  assertBackupSource(manifest.source, dump, target);
   const rows = objectRows(dump);
   if (
     JSON.stringify(rows) !==
@@ -280,7 +301,7 @@ export async function restoreNativeData(
   checkpoint: (step: string) => Promise<void> = async () => {},
 ): Promise<void> {
   assertStackLease(env);
-  const { manifest, dump } = readBackup(directory);
+  const { manifest, dump } = readBackup(directory, env);
   const db = await nativeDatabase(env);
   const current = parseDump(await db.dump());
   compareLedgers(dump, current);

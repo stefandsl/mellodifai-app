@@ -55,7 +55,7 @@ export async function nativeBackup(
     let before: string | undefined;
     try {
       if (action !== "recover-import") assertNoMaintenance(layout);
-      if (action === "restore") readBackup(path);
+      if (action === "restore") readBackup(path, env);
       let recoveryPhase: string | undefined;
       if (action === "recover-import") {
         const journal =
@@ -69,7 +69,7 @@ export async function nativeBackup(
         )
           throw new Error("Backup does not match interrupted import journal");
         recoveryPhase = journal.phase;
-        if (recoveryPhase !== "preparing") readBackup(path);
+        if (recoveryPhase !== "preparing") readBackup(path, env);
       }
       if (action === "restore") {
         before = join(layout.root, `before-restore-${Date.now()}`);

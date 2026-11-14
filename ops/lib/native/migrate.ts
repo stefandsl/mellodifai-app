@@ -141,6 +141,16 @@ export async function applyStackSettings(
   sql: Sql,
   fakeStack: boolean,
 ): Promise<void> {
-  await sql`update public.stack_settings set fake_stack = ${fakeStack} where id`;
+  const rows = await sql`select fake_stack from public.stack_settings where id`;
+  if (rows.length !== 1 || typeof rows[0]?.fake_stack !== "boolean")
+    throw new Error(
+      "Missing or invalid stack settings; import or recover before startup",
+    );
+  if (!fakeStack && rows[0]?.fake_stack !== false)
+    throw new Error(
+      "Refusing to hide a fake stack on production or development startup",
+    );
+  if (fakeStack)
+    await sql`update public.stack_settings set fake_stack = true where id`;
   await sql`notify pgrst, 'reload schema'`;
 }

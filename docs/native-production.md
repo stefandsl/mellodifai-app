@@ -102,6 +102,8 @@ pnpm ops services.ts start
 
 Backup stops application writers and API services, uses pg_dump, copies current and historical files, and writes a checksum/metadata manifest last. The manifest is the completion marker. Restore verifies checksums and migration ledgers before changing data, backs up the current target, loads data transactionally into the existing schema and rebuilds NTFS metadata streams. It retains displaced object directories. Writers remain stopped after either operation until explicitly started. Do not restore a data bundle into different migration ledgers. For a schema-changing rollback, prepare a separately reviewed target at the matching schema; this tool does not undo migrations.
 
+New native bundles use manifest format 2 and record source environment, stable installation UUID, the database fake-stack flag and a fingerprint of every application ledger row/checksum. The UUID is created at first boot (existing native roots adopt one once) and survives imports, restores and resets. Production restore rejects non-production, fake or unidentified native bundles before shutdown, even with --confirm-production. Older native format-1 bundles have no production provenance and are refused for production. Startup refuses a true fake_stack flag for a non-fake environment instead of overwriting it. The manifest-less recovered Docker directory is accepted only by native-import with its exact counts, 54-row migration ledger ending at 20261103080001, matching target/service ledgers and false fake-stack flag.
+
 ## Deploy and rollback
 
 ```powershell
