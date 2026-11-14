@@ -196,7 +196,7 @@ function candidates(
     return null;
   };
   // `target` is the instant the cut stands for (the downbeat, the beat, the gap middle).
-  const add = (want: number, kind: CutKind, target: number, base: number) => {
+  const add = (want: number, kind: CutKind, target: number) => {
     const at = onFrame(want);
     if (at === null || !inRange(at)) return;
     const snap = Math.abs(at - target);
@@ -204,16 +204,14 @@ function candidates(
     // The cut is judged on where it lands, whatever made it a candidate: how far from the
     // nearest bar line, and whether it ends a phrase.
     let cost =
-      base -
-      CUT_BONUS +
-      DOWNBEAT_COST * (1 - downbeatCredit(at, input.downbeats));
+      DOWNBEAT_COST * (1 - downbeatCredit(at, input.downbeats)) - CUT_BONUS;
     if (!phraseEnd) cost += PHRASE_COST;
     if (nearSection(at)) cost -= 6;
     out.push({ at, kind, phraseEnd, snap, cost });
   };
   for (const d of input.downbeats) {
     if (!insideWord(d, words)) {
-      add(d, "downbeat", d, 0);
+      add(d, "downbeat", d);
       continue;
     }
     const host = words.find((w) => w.start + EPS < d && d < w.end - EPS);
@@ -222,27 +220,27 @@ function candidates(
     // The singer lands the word on the bar: cut in the gap just before it.
     if (d - host.start <= DOWNBEAT_SNAP_S) {
       const prevEnd = words[i - 1]?.end ?? 0;
-      add(Math.max(prevEnd, host.start - 0.04), "downbeat", d, 0);
+      add(Math.max(prevEnd, host.start - 0.04), "downbeat", d);
     }
     // The word ends just after the bar line: cut in the gap after it.
     if (host.end - d <= DOWNBEAT_SNAP_S) {
       const nextStart = words[i + 1]?.start ?? input.duration;
-      add(Math.min(nextStart, host.end + 0.04), "downbeat", d, 0);
+      add(Math.min(nextStart, host.end + 0.04), "downbeat", d);
     }
   }
   const downbeats = new Set(input.downbeats.map((d) => d.toFixed(3)));
   for (const b of input.beats ?? [])
-    if (!downbeats.has(b.toFixed(3))) add(b, "beat", b, 0);
+    if (!downbeats.has(b.toFixed(3))) add(b, "beat", b);
   for (let i = 1; i < words.length; i++) {
     const a = words[i - 1] as Word;
     const b = words[i] as Word;
     if (b.start - a.end > EPS) {
       const mid = (a.end + b.start) / 2;
-      add(mid, "gap", mid, 0);
+      add(mid, "gap", mid);
       // Both edges of the gap too: the one nearest a bar line may be on it.
       if (b.start - a.end > 0.12) {
-        add(a.end + 0.04, "gap", a.end + 0.04, 0);
-        add(b.start - 0.04, "gap", b.start - 0.04, 0);
+        add(a.end + 0.04, "gap", a.end + 0.04);
+        add(b.start - 0.04, "gap", b.start - 0.04);
       }
     }
   }
