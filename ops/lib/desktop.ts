@@ -30,8 +30,9 @@ export function desktopPaths(root = runtimeRoot()) {
     owner: join(base, "config", "owner.json"),
     webEnv: join(stack, "web.env"),
     workerEnv: join(stack, "worker.env"),
-    storage: join(stack, "compose", "volumes", "storage"),
     state: join(base, "run", "desktop-state.json"),
+    // The app window's own browser profile: its sign-in cookie stays with the app.
+    browser: join(base, "browser"),
   };
 }
 
@@ -150,19 +151,17 @@ export function validOwnerEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
 }
 
-/** The engine's version from `docker version`, or null when only the CLI answered. */
-export function dockerServerVersion(stdout: string): string | null {
-  const version = stdout.trim();
-  return /^\d+\.\d+\.\d+/.test(version) ? version : null;
-}
-
-/** A Docker Desktop that is not running leaves socket files behind; after an unclean
- * shutdown Docker 4.41 cannot delete them and quits at start ("dockerInference"). */
-export function staleDockerSockets(
-  entries: { name: string; reparsePoint: boolean }[],
-  dockerRunning: boolean,
-): boolean {
-  return !dockerRunning && entries.some((entry) => entry.reparsePoint);
+/** Edge (part of Windows 11) as an app window: no tabs or address bar, its own profile
+ * under the data folder, so the app's sign-in never mixes with the owner's browser. */
+export function appWindowArgs(url: string, profile: string): string[] {
+  return [
+    `--app=${url}`,
+    `--user-data-dir=${profile}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-sync",
+    "--window-size=1440,900",
+  ];
 }
 
 export const MSG = {
@@ -170,24 +169,17 @@ export const MSG = {
     "MellodifAI non puo' tenere i dati sul disco C:. Reinstallalo su un altro disco (per esempio E:).",
   notInstalled:
     "MellodifAI non e' installato correttamente: esegui di nuovo il programma di installazione.",
-  dockerMissing:
-    "Serve Docker Desktop. Installalo da https://www.docker.com/products/docker-desktop/ , avvialo una volta, poi riapri MellodifAI.",
-  dockerStarting: "Avvio Docker Desktop (puo' richiedere qualche minuto)...",
-  dockerHealed:
-    "Docker Desktop si era chiuso male: ho messo da parte i suoi file temporanei.",
-  dockerTimeout:
-    "Docker Desktop non si avvia. Aprilo dal menu Start, aspetta che dica 'Engine running', poi riapri MellodifAI. Se resta fermo, riavvia il PC.",
   ports: (detail: string) =>
     `Windows ha riservato una porta che serve a MellodifAI. Riavvia il PC e riprova.\n(${detail})`,
   portBusy: (port: number) =>
     `La porta ${port} e' usata da un altro programma. Chiudilo o riavvia il PC, poi riprova.`,
-  images:
-    "Scarico i componenti del database (solo la prima volta, serve Internet)...",
-  imagesFailed:
-    "Non riesco a scaricare i componenti del database. Controlla la connessione a Internet e riprova.",
+  components:
+    "Preparo i componenti del database (solo la prima volta, 10-30 minuti, serve Internet)...",
+  componentsFailed:
+    "Non riesco a preparare i componenti del database. Controlla la connessione a Internet e riprova.",
   dbStarting: "Avvio il database...",
   dbFailed:
-    "Il database non parte. Riprova tra un minuto; se non basta riavvia Docker Desktop. I tuoi dati non sono stati toccati.",
+    "Il database non parte. Riprova tra un minuto; se non basta riavvia il PC. I tuoi dati non sono stati toccati.",
   building:
     "Preparo l'app (la prima volta e dopo un aggiornamento, qualche minuto)...",
   buildFailed: "Preparazione dell'app non riuscita.",
@@ -199,13 +191,13 @@ export const MSG = {
     "Il motore delle canzoni si e' fermato: l'app si apre lo stesso, ma non crea canzoni finche' non lo sistemi.",
   workerKeys: (file: string) =>
     `Per creare canzoni servono le tue chiavi (kie, OpenRouter): aggiungile in ${file}`,
-  opening: "Apro MellodifAI nel browser...",
+  opening: "Apro MellodifAI...",
   ready: "MellodifAI e' pronto.",
   stopping: "Spengo MellodifAI...",
   stopped: "MellodifAI e' spento. I tuoi dati sono al sicuro.",
   backupStart: "Salvo un backup...",
   backupDone: (dir: string) => `Backup salvato in ${dir}`,
-  backupFailed: "Backup non riuscito. MellodifAI deve essere acceso.",
+  backupFailed: "Backup non riuscito. I tuoi dati non sono stati toccati.",
   restoreNone: (dir: string) => `Non ci sono backup in ${dir}`,
   restoreDone: "Ripristino completato.",
   log: (file: string) => `Dettagli: ${file}`,

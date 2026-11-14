@@ -4,13 +4,11 @@
 import { spawn } from "node:child_process";
 import {
   appendFileSync,
-  cpSync,
   createWriteStream,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -23,33 +21,31 @@ import { createClient } from "@supabase/supabase-js";
 import { addUser } from "./add-user.js";
 import {
   API_URL,
+  appWindowArgs,
   backupFolder,
   buildStamp,
   DESKTOP,
   type DesktopProcess,
   desktopPaths,
-  dockerServerVersion,
   isBackupFolder,
   isDesktopProcess,
   MSG,
   parseEnvFile,
   SITE_URL,
-  staleDockerSockets,
   validOwnerEmail,
   WEB_HOST,
   WEB_PORT,
   WORKER_KEYS_TEMPLATE,
 } from "./lib/desktop.js";
-import { stackDir } from "./lib/envs.js";
+import { nativeTools } from "./lib/native/build.js";
+import { nativeLayout } from "./lib/native/layout.js";
+import { witness } from "./lib/native/postgres.js";
 import { databaseUrl, ownerConnection } from "./lib/pg.js";
 import { writePrivate } from "./lib/private-file.js";
-import { recoveryDatabase } from "./lib/recovery.js";
-import { realRunner } from "./lib/run.js";
 import { loadStackSecrets } from "./lib/stack-secrets.js";
-import { assertWindowsPorts } from "./lib/windows-ports.js";
-import { restoreDatabase } from "./restore.js";
+import { nativeBackup } from "./native-backup.js";
 import { signInLink } from "./sign-in-link.js";
-import { runStackCommand } from "./stack.js";
+import { runStack } from "./stack.js";
 
 const app = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const webDir = join(app, "apps", "web");
@@ -73,7 +69,7 @@ const say = (line: string) => {
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 type Reply = { code: number; stdout: string; stderr: string };
-/** Docker's CLI hangs while its engine is stuck, so every probe has a deadline. */
+/** Every child process has a deadline. */
 function run(
   cmd: string,
   args: string[],
@@ -113,105 +109,29 @@ function appVersion(): string {
   return "checkout";
 }
 
-// ---- Docker ----
+// ---- native stack ----
 
-function dockerDesktopExe(): string | null {
-  for (const base of [process.env.ProgramFiles, "C:\\Program Files"]) {
-    if (!base) continue;
-    const exe = join(base, "Docker", "Docker", "Docker Desktop.exe");
-    if (existsSync(exe)) return exe;
-  }
-  return null;
-}
-
-async function dockerReady() {
-  // `docker info` exits 0 as soon as Docker Desktop's proxy answers, engine or not.
-  const reply = await run(
-    "docker",
-    ["version", "--format", "{{.Server.Version}}"],
-    20_000,
-  );
-  return reply.code === 0 && dockerServerVersion(reply.stdout) !== null;
-}
-
-async function dockerProcessRunning() {
-  const list = await run("tasklist", [
-    "/FI",
-    "IMAGENAME eq com.docker.backend.exe",
-    "/FO",
-    "CSV",
-    "/NH",
-  ]);
-  return /com\.docker\.backend\.exe/i.test(list.stdout);
-}
-
-/** Docker 4.41 quits at start when a socket from an unclean shutdown is left in
- * %LOCALAPPDATA%\Docker\run. Move that folder aside (Docker recreates it). */
-async function healDockerRunFolder() {
-  const local = process.env.LOCALAPPDATA;
-  if (!local) return;
-  const folder = join(local, "Docker", "run");
-  if (!existsSync(folder)) return;
-  const listed = await powershell(
-    `Get-ChildItem -Force -LiteralPath '${folder.replaceAll("'", "''")}' | ForEach-Object { '{0}|{1}' -f $_.Name, [bool]($_.Attributes -band [IO.FileAttributes]::ReparsePoint) }`,
-  );
-  const entries = listed.stdout
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map((line) => {
-      const [name = "", flag] = line.split("|");
-      return { name, reparsePoint: flag === "True" };
-    });
-  if (!staleDockerSockets(entries, await dockerProcessRunning())) return;
-  const aside = `${folder}.stale-${new Date().toISOString().replaceAll(/[:.]/g, "-")}`;
+/** The stack runs from the app's own artifact cache under the data folder. The first start
+ * downloads (or takes from MELLODIFAI_NATIVE_SEED) the pinned, checksummed components and
+ * builds Auth and Storage; later starts only check that they are there. */
+async function ensureComponents() {
   try {
-    renameSync(folder, aside);
-    say(MSG.dockerHealed);
-    log(`moved ${folder} to ${aside}`);
+    nativeTools();
+    return;
+  } catch {}
+  say(MSG.components);
+  try {
+    await runStack("install", "desktop", { runtime: "native" });
+    nativeTools();
   } catch (error) {
-    log(`could not move ${folder}: ${(error as Error).message}`);
+    log(`native install: ${(error as Error).message}`);
+    fail(MSG.componentsFailed);
   }
 }
 
-async function ensureDocker(waitSeconds: number) {
-  if (await dockerReady()) return;
-  const exe = dockerDesktopExe();
-  if (!exe) fail(MSG.dockerMissing);
-  await healDockerRunFolder();
-  say(MSG.dockerStarting);
-  if (!(await dockerProcessRunning()))
-    spawn(exe as string, [], { detached: true, stdio: "ignore" }).unref();
-  const until = Date.now() + waitSeconds * 1000;
-  while (Date.now() < until) {
-    await sleep(5000);
-    if (await dockerReady()) return;
-  }
-  fail(MSG.dockerTimeout);
-}
-
-async function ensureImages() {
-  const compose = JSON.parse(
-    readFileSync(join(stackDir("desktop"), "compose.json"), "utf8"),
-  ) as { services: Record<string, { image?: string }> };
-  const images = [
-    ...new Set(
-      Object.values(compose.services)
-        .map((service) => service.image)
-        .filter((image): image is string => Boolean(image)),
-    ),
-  ];
-  const missing: string[] = [];
-  for (const image of images)
-    if ((await run("docker", ["image", "inspect", image])).code !== 0)
-      missing.push(image);
-  if (!missing.length) return;
-  say(MSG.images);
-  for (const image of missing) {
-    say(`  ${image}`);
-    const pulled = await run("docker", ["pull", "--quiet", image], 1_800_000);
-    log(`docker pull ${image} exit ${pulled.code}`);
-    if (pulled.code !== 0) fail(MSG.imagesFailed);
-  }
+/** The database exists once the native first boot completed. */
+function databaseExists(): boolean {
+  return existsSync(witness(nativeLayout("desktop")).done);
 }
 
 // ---- processes ----
@@ -314,8 +234,10 @@ function baseEnv(): NodeJS.ProcessEnv {
   return {
     ...env,
     MELLODIFAI_ROOT: P.root,
+    MELLODIFAI_RUNTIME: "native",
     TEMP: temp,
     TMP: temp,
+    TMPDIR: temp,
     NEXT_TELEMETRY_DISABLED: "1",
   };
 }
@@ -325,24 +247,23 @@ function webEnv(): NodeJS.ProcessEnv {
 }
 
 async function startStack() {
+  await ensureComponents();
   say(MSG.dbStarting);
   try {
-    await assertWindowsPorts(DESKTOP, realRunner);
+    await runStack("start", "desktop", { runtime: "native" });
   } catch (error) {
-    fail(MSG.ports((error as Error).message));
-  }
-  await runStackCommand("render", "desktop");
-  await ensureImages();
-  try {
-    await runStackCommand("start", "desktop");
-  } catch (error) {
-    log(`stack start: ${(error as Error).message}`);
+    const message = (error as Error).message;
+    log(`stack start: ${message}`);
+    if (/reserved|excluded/i.test(message)) fail(MSG.ports(message));
+    const busy = /port (\d+) is already in use/.exec(message)?.[1];
+    if (busy) fail(MSG.portBusy(Number(busy)));
     fail(MSG.dbFailed);
   }
 }
 
-async function ensureOwner() {
-  if (!existsSync(P.owner)) return;
+/** Creates the owner's account once and returns its id, which the worker's row is owned by. */
+async function ensureOwner(): Promise<string | undefined> {
+  if (!existsSync(P.owner)) return undefined;
   const { email } = JSON.parse(readFileSync(P.owner, "utf8")) as {
     email: string;
   };
@@ -353,12 +274,16 @@ async function ensureOwner() {
   try {
     const rows =
       await sql`select 1 from public.admin_allowlist where lower(email) = lower(${email})`;
-    if (rows.length) return;
-    say(MSG.owner);
-    const admin = createClient(API_URL, secrets.service, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    }).auth.admin;
-    await addUser(sql, admin, email, "admin");
+    if (!rows.length) {
+      say(MSG.owner);
+      const admin = createClient(API_URL, secrets.service, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      }).auth.admin;
+      await addUser(sql, admin, email, "admin");
+    }
+    const [profile] =
+      await sql`select id from public.profiles where lower(email) = lower(${email})`;
+    return profile?.id as string | undefined;
   } finally {
     await sql.end();
   }
@@ -416,7 +341,7 @@ async function ensureWeb() {
   fail(`${MSG.webFailed}\n${MSG.log(logFile("web"))}`);
 }
 
-async function ensureWorker() {
+async function ensureWorker(ownerId: string | undefined) {
   if ((await desktopProcesses("worker")).length) return;
   if (!existsSync(P.workerKeys))
     await writePrivate(P.workerKeys, WORKER_KEYS_TEMPLATE);
@@ -431,6 +356,8 @@ async function ensureWorker() {
     {
       ...baseEnv(),
       WORKER_ID: `desktop-${process.env.COMPUTERNAME ?? "pc"}`,
+      // The worker creates its own row, owned by the owner's account.
+      ...(ownerId ? { WORKER_OWNER_ID: ownerId } : {}),
       // Later files win: the stack's own keys override anything in the owner's file.
       WORKER_ENV_FILES: [P.workerKeys, P.workerEnv].join(";"),
     },
@@ -450,20 +377,32 @@ function requireInstall() {
     fail(MSG.notInstalled);
 }
 
-async function start(waitDocker = 300) {
+async function start() {
   requireInstall();
   for (const dir of [P.logs, P.run, P.backups, P.config])
     mkdirSync(dir, { recursive: true });
-  await ensureDocker(waitDocker);
   await startStack();
-  await ensureOwner();
+  const ownerId = await ensureOwner();
   await ensureWeb();
-  await ensureWorker();
+  await ensureWorker(ownerId);
   writeFileSync(
     P.state,
     JSON.stringify({ startedAt: new Date().toISOString() }),
   );
   say(MSG.ready);
+}
+
+function edgeExe(): string | null {
+  for (const base of [
+    process.env["ProgramFiles(x86)"],
+    process.env.ProgramFiles,
+    process.env.LOCALAPPDATA,
+  ]) {
+    if (!base) continue;
+    const exe = join(base, "Microsoft", "Edge", "Application", "msedge.exe");
+    if (existsSync(exe)) return exe;
+  }
+  return null;
 }
 
 async function openBrowser() {
@@ -483,7 +422,16 @@ async function openBrowser() {
     }
   }
   say(MSG.opening);
-  // No shell: the link carries '&', which cmd would split.
+  // No shell anywhere: the link carries '&', which cmd would split.
+  const edge = edgeExe();
+  if (edge) {
+    mkdirSync(P.browser, { recursive: true });
+    spawn(edge, appWindowArgs(target, P.browser), {
+      detached: true,
+      stdio: "ignore",
+    }).unref();
+    return;
+  }
   spawn("rundll32.exe", ["url.dll,FileProtocolHandler", target], {
     detached: true,
     stdio: "ignore",
@@ -517,20 +465,19 @@ async function setup(args: string[]) {
   if (!args.includes("--no-browser")) await openBrowser();
 }
 
+async function stopStack() {
+  try {
+    await runStack("stop", "desktop", { runtime: "native" });
+  } catch (error) {
+    log(`stack stop: ${(error as Error).message}`);
+  }
+}
+
 async function stop() {
   say(MSG.stopping);
   await killDesktop("worker");
   await killDesktop("web");
-  if (
-    existsSync(join(stackDir("desktop"), "compose.json")) &&
-    (await dockerReady())
-  ) {
-    try {
-      await runStackCommand("stop", "desktop");
-    } catch (error) {
-      log(`stack stop: ${(error as Error).message}`);
-    }
-  }
+  if (existsSync(P.stack)) await stopStack();
   rmSync(P.state, { force: true });
   say(MSG.stopped);
 }
@@ -557,29 +504,23 @@ async function status(json: boolean) {
   }
 }
 
+/** A verified native bundle (database dump, every stored file, checksums, manifest last).
+ * Writers stop for the dump; the stack starts again afterwards, the app if it was on. */
 async function backup(): Promise<string> {
-  if (!(await dockerReady())) fail(MSG.backupFailed);
+  if (!databaseExists()) fail(MSG.backupFailed);
   say(MSG.backupStart);
   const dir = backupFolder(P.backups);
-  mkdirSync(dir, { recursive: true });
+  const wasOn = await webUp();
+  await killDesktop("worker");
+  await killDesktop("web");
   try {
-    const database = await recoveryDatabase("desktop");
-    await database.backup(join(dir, "database.sql"));
-    if (existsSync(P.storage))
-      cpSync(P.storage, join(dir, "storage"), { recursive: true });
+    await nativeBackup(["backup", "--env", "desktop", dir]);
   } catch (error) {
     log(`backup: ${(error as Error).message}`);
     fail(MSG.backupFailed);
   }
-  writeFileSync(
-    join(dir, "manifest.json"),
-    JSON.stringify(
-      { createdAt: new Date().toISOString(), version: appVersion() },
-      null,
-      2,
-    ),
-  );
   say(MSG.backupDone(dir));
+  if (wasOn) await start();
   return dir;
 }
 
@@ -589,7 +530,7 @@ function backups(): string[] {
     .filter(
       (name) =>
         isBackupFolder(name) &&
-        existsSync(join(P.backups, name, "database.sql")),
+        existsSync(join(P.backups, name, "manifest.json")),
     )
     .sort()
     .reverse();
@@ -613,7 +554,7 @@ async function restore(args: string[]) {
       if (!picked) fail("Numero non valido. Nessuna modifica fatta.");
       dir = join(P.backups, picked as string);
     }
-    if (!existsSync(join(dir, "database.sql")))
+    if (!existsSync(join(dir, "manifest.json")))
       fail("Cartella di backup non valida.");
     console.log(
       `Ripristino ${dir}.\nTutto quello che hai creato dopo quel backup viene sostituito (prima salvo comunque lo stato attuale).`,
@@ -626,65 +567,40 @@ async function restore(args: string[]) {
   } finally {
     rl.close();
   }
-  await start();
-  const safety = await backup();
   await killDesktop("worker");
   await killDesktop("web");
-  say("Ripristino il database...");
-  await restoreDatabase("desktop", join(dir as string, "database.sql"));
-  const files = join(dir as string, "storage");
-  if (existsSync(files)) {
-    say("Ripristino i file...");
-    const database = await recoveryDatabase("desktop");
-    await database.compose(["stop", "storage"]);
-    if (existsSync(P.storage))
-      rmSync(P.storage, { recursive: true, force: true });
-    cpSync(files, P.storage, { recursive: true });
-    await database.compose(["start", "storage"]);
+  say("Ripristino database e file...");
+  // Saves the current state first and puts it back by itself if anything fails.
+  try {
+    await nativeBackup(["restore", "--env", "desktop", dir as string]);
+  } catch (error) {
+    log(`restore: ${(error as Error).message}`);
+    fail(
+      "Ripristino non riuscito: i tuoi dati di prima sono stati rimessi a posto.",
+    );
   }
   await start();
-  say(`${MSG.restoreDone} (Lo stato di prima e' in ${safety})`);
+  say(MSG.restoreDone);
 }
 
 async function update() {
-  // The installer has just replaced the app files. Back up with the previous release's
-  // rendered stack and only its database running, before any new migration applies.
-  if (existsSync(join(stackDir("desktop"), "compose.json"))) {
-    await ensureDocker(300);
-    const database = await recoveryDatabase("desktop");
-    await database.compose([
-      "up",
-      "-d",
-      "--pull",
-      "never",
-      "--wait",
-      "--wait-timeout",
-      "180",
-      "db",
-    ]);
-    await backup();
-  }
+  // The installer has just replaced the app files. Back up the data before the new
+  // release's first start applies its migrations.
   await killDesktop("worker");
   await killDesktop("web");
+  if (databaseExists()) {
+    await stopStack();
+    await backup();
+  }
   await start();
 }
 
 async function removeData(args: string[]) {
   if (!args.includes("--yes"))
     fail("Serve --yes: elimina database e file di MellodifAI.");
-  await killDesktop("worker");
-  await killDesktop("web");
-  const compose = join(stackDir("desktop"), "compose.json");
-  if (existsSync(compose) && (await dockerReady())) {
-    // Only this project's containers and named volumes; bind-mounted data goes with the folder.
-    try {
-      const database = await recoveryDatabase("desktop");
-      await database.compose(["down", "--volumes", "--remove-orphans"]);
-    } catch (error) {
-      log(`compose down: ${(error as Error).message}`);
-    }
-  }
-  say("Dati di MellodifAI rimossi da Docker.");
+  // Everything lives in the data folder, which the uninstaller deletes next: here only
+  // every process that holds files in it is stopped.
+  await stop();
 }
 
 async function main(argv: string[]) {
@@ -698,8 +614,7 @@ async function main(argv: string[]) {
       if (!args.includes("--no-browser")) await openBrowser();
       return;
     case "autostart":
-      // At logon Docker Desktop and WSL can take several minutes.
-      return start(900);
+      return start();
     case "open":
       if (!(await webUp())) await start();
       return openBrowser();

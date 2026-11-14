@@ -142,6 +142,8 @@ describe("shortcut shim", () => {
       MELLODIFAI_ROOT: "E:\\mellodifai",
     });
     expect(env.MELLODIFAI_ROOT).toBe(paths.data);
+    // Never Docker: the app's stack is always the native runtime.
+    expect(env.MELLODIFAI_RUNTIME).toBe("native");
     for (const name of [
       "TEMP",
       "TMP",

@@ -145,9 +145,11 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
     fakeStack: true,
     emailSentPerHour: 2,
   },
-  // The Windows desktop app (docs/windows-app.md). MELLODIFAI_ROOT is its install's data
-  // folder. Ports sit below the Windows dynamic range 49152-65535, whose reserved blocks
-  // move at every boot (54322 died that way), and away from prod 443xx and e2e 456xx.
+  // The Windows desktop app (docs/windows-app.md), native runtime. MELLODIFAI_ROOT is its
+  // install's data folder. Block 46300-46329: below the Windows dynamic range 49152-65535,
+  // whose reserved blocks move at every boot (54322 died that way), and away from prod 443xx
+  // and e2e 456xx. The native runtime puts the mail catcher's SMTP listener on the analytics
+  // port (layout.ts), so 46327 is Mailpit SMTP, never Logflare.
   desktop: {
     projectId: "mellodifai_desktop",
     ...AUTH_ORIGINS.desktop,
@@ -156,7 +158,7 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
       db: 46322,
       studio: null,
       inbucket: 46324,
-      analytics: null,
+      analytics: 46327,
     },
     listeners: { shadow: 46320, inspector: 46328, pooler: 46329 },
     smtp: "catcher",

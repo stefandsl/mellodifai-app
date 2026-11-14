@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,23 +10,23 @@ import {
 } from "../lib/auth-origins.js";
 import {
   API_URL,
+  appWindowArgs,
   backupFolder,
   buildStamp,
   DESKTOP,
   desktopEnvValues,
   desktopPaths,
-  dockerServerVersion,
   formatEnvFile,
   isBackupFolder,
   isDesktopProcess,
   parseEnvFile,
   SITE_URL,
-  staleDockerSockets,
   validOwnerEmail,
   WEB_PORT,
   WORKER_KEYS_TEMPLATE,
 } from "../lib/desktop.js";
 import { ENV_TABLE, type StackEnv } from "../lib/envs.js";
+import { nativePorts } from "../lib/native/layout.js";
 import { assertTestStack } from "../test-db-guard.js";
 
 const passwords = { mdf_web: "web pass/&", mdf_auth: "auth" };
@@ -97,8 +97,49 @@ describe("desktop stack", () => {
     const paths = desktopPaths();
     expect(paths.stack).toBe(join(root, "stacks", "desktop"));
     expect(paths.workerKeys).toBe(join(root, "config", "worker.env"));
-    expect(paths.storage).toBe(
-      join(root, "stacks", "desktop", "compose", "volumes", "storage"),
+    expect(paths.browser).toBe(join(root, "browser"));
+  });
+
+  it("runs every native listener inside its own block 46300-46329", () => {
+    const native = Object.values(nativePorts("desktop")).filter(
+      (port): port is number => port !== null,
+    );
+    const all = [...native, WEB_PORT];
+    expect(new Set(all).size).toBe(all.length);
+    for (const port of all) {
+      expect(port).toBeGreaterThanOrEqual(46300);
+      expect(port).toBeLessThanOrEqual(46329);
+    }
+    for (const env of ["dev", "e2e", "prod"] as StackEnv[])
+      for (const port of Object.values(nativePorts(env)))
+        expect(native).not.toContain(port);
+    // The mail catcher needs both its web and SMTP listener, or status reports it stopped.
+    expect(nativePorts("desktop").mailHttp).not.toBeNull();
+    expect(nativePorts("desktop").mailSmtp).not.toBeNull();
+  });
+
+  it("never runs Docker or WSL: the controller drives the native runtime only", () => {
+    const source = readFileSync(
+      new URL("../desktop.ts", import.meta.url),
+      "utf8",
+    ).replaceAll(/^\s*(\/\/|\*).*$/gm, "");
+    expect(source).not.toMatch(/docker|wsl/i);
+    expect(source).toContain('runtime: "native"');
+  });
+});
+
+describe("app window", () => {
+  it("opens the link as an app window with its own profile", () => {
+    const args = appWindowArgs(
+      "http://127.0.0.1:46321/auth/v1/verify?token=t&type=magiclink",
+      "E:\\MellodifAI\\data\\browser",
+    );
+    expect(args[0]).toBe(
+      "--app=http://127.0.0.1:46321/auth/v1/verify?token=t&type=magiclink",
+    );
+    expect(args).toContain("--user-data-dir=E:\\MellodifAI\\data\\browser");
+    expect(args.some((arg) => arg.startsWith("--profile-directory"))).toBe(
+      false,
     );
   });
 });
@@ -205,30 +246,8 @@ describe("desktop backups and checks", () => {
       expect(validOwnerEmail(bad)).toBe(false);
   });
 
-  it("moves Docker's socket folder aside only while Docker is not running", () => {
-    const sockets = [
-      { name: "dockerInference", reparsePoint: true },
-      { name: "notes.txt", reparsePoint: false },
-    ];
-    expect(staleDockerSockets(sockets, false)).toBe(true);
-    expect(staleDockerSockets(sockets, true)).toBe(false);
-    expect(
-      staleDockerSockets([{ name: "a", reparsePoint: false }], false),
-    ).toBe(false);
-    expect(staleDockerSockets([], false)).toBe(false);
-  });
-
   it("starts the owner's keys file with no active entry", () => {
     expect(parseEnvFile(WORKER_KEYS_TEMPLATE)).toEqual({});
     expect(WORKER_KEYS_TEMPLATE).toContain("# KIE_API_KEY=\n");
-  });
-});
-
-describe("docker readiness", () => {
-  it("counts Docker as ready only when the engine reports a version", () => {
-    expect(dockerServerVersion("27.5.1\n")).toBe("27.5.1");
-    expect(dockerServerVersion("")).toBeNull();
-    expect(dockerServerVersion("\n")).toBeNull();
-    expect(dockerServerVersion("<no value>")).toBeNull();
   });
 });

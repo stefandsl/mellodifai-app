@@ -41,10 +41,10 @@ VIAddVersionKey "LegalCopyright" "MellodifAI"
 !define MUI_ICON "${STAGE}\mellodifai.ico"
 !define MUI_UNICON "${STAGE}\mellodifai.ico"
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "Questo programma installa ${APP} ${VERSION} sul tuo PC.$\r$\n$\r$\nServe Docker Desktop (gratuito) gia' installato e una connessione a Internet per la prima preparazione.$\r$\n$\r$\nI tuoi dati restano su questo PC, nella cartella che scegli."
+!define MUI_WELCOMEPAGE_TEXT "Questo programma installa ${APP} ${VERSION} sul tuo PC.$\r$\n$\r$\nNon servono Docker ne' diritti di amministratore. La prima preparazione scarica i componenti (serve Internet, 10-30 minuti).$\r$\n$\r$\nI tuoi dati restano su questo PC, nella cartella che scegli."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Scegli dove installare ${APP}. Serve un disco diverso da C: con almeno 20 GB liberi: qui finiscono anche canzoni, video e database."
 !define MUI_FINISHPAGE_TITLE "${APP} e' pronto"
-!define MUI_FINISHPAGE_TEXT "Apri ${APP} con l'icona sul desktop o dal menu Start.$\r$\n$\r$\nPer spegnerlo usa 'Ferma MellodifAI' nel menu Start."
+!define MUI_FINISHPAGE_TEXT "${APP} si apre nella sua finestra. Le volte successive usa l'icona sul desktop o il menu Start.$\r$\n$\r$\nPer spegnerlo usa 'Ferma MellodifAI' nel menu Start."
 
 !insertmacro MUI_PAGE_WELCOME
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirectoryLeave
@@ -212,7 +212,7 @@ Section "MellodifAI" SecApp
   CreateShortcut "$SMPROGRAMS\${APP}\Cartella dei backup.lnk" "$WINDIR\explorer.exe" '"$INSTDIR\data\backups"' "$INSTDIR\mellodifai.ico" 0 SW_SHOWNORMAL "" "Apri i backup"
   CreateShortcut "$SMPROGRAMS\${APP}\Disinstalla MellodifAI.lnk" "$INSTDIR\Disinstalla MellodifAI.exe" "" "$INSTDIR\mellodifai.ico" 0
 
-  DetailPrint "Preparo MellodifAI: segui la finestra 'MellodifAI' (la prima volta 5-20 minuti)..."
+  DetailPrint "Preparo MellodifAI: segui la finestra 'MellodifAI' (la prima volta 10-30 minuti)..."
   ${If} ${Silent}
     ExecWait '${NODE} ${RUN} install --email "$Email" --no-browser --unattended' $0
   ${ElseIf} $Updating == "1"
@@ -254,7 +254,7 @@ SectionEnd
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecApp} "L'app, il suo motore e i componenti necessari."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "Un'icona MellodifAI sul desktop."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecAutostart} "Accende MellodifAI (e Docker Desktop) quando entri in Windows, cosi' e' pronto dopo un riavvio."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecAutostart} "Accende MellodifAI quando entri in Windows, cosi' e' pronto dopo un riavvio."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; ---- uninstall ----
@@ -281,7 +281,7 @@ Section "Uninstall"
   ${EndIf}
   ${If} $2 == "1"
   ${AndIf} ${FileExists} "$INSTDIR\app\apps\windows\src\run.mjs"
-    DetailPrint "Elimino i dati da Docker..."
+    DetailPrint "Spengo tutto prima di eliminare i dati..."
     nsExec::ExecToLog /TIMEOUT=900000 '${NODE} ${RUN} remove-data --yes'
     Pop $0
     RMDir /r "$INSTDIR\data"

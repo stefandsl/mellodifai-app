@@ -25,6 +25,7 @@ export function childEnv(paths, env = process.env) {
   return {
     ...env,
     MELLODIFAI_ROOT: paths.data,
+    MELLODIFAI_RUNTIME: "native",
     TEMP: temp,
     TMP: temp,
     TMPDIR: temp,

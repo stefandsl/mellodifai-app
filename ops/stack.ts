@@ -352,12 +352,18 @@ export async function runStack(
     return runStackCommand(cmd, env, flags);
   }
   return runNativeCommand(cmd, env, flags, {
+    // The desktop app gets per-process files without the postgres superuser URL.
     writeEnvFile: async (target) =>
-      writeTestEnv(
-        target,
-        await loadStackSecrets(target),
-        await readStackPasswords(target),
-      ),
+      target === "desktop"
+        ? writeDesktopEnv(
+            await loadStackSecrets(target),
+            await readStackPasswords(target),
+          )
+        : writeTestEnv(
+            target,
+            await loadStackSecrets(target),
+            await readStackPasswords(target),
+          ),
     log: (message) => process.stderr.write(`${message}\n`),
   });
 }
