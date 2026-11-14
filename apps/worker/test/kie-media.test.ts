@@ -408,6 +408,17 @@ describe("paid generation", () => {
     expect(await readFile(job.file, "utf8")).toBe("mp4");
   });
 
+  it("settles at the estimate when kie does not say what it charged", async () => {
+    const kie = fakeKie(
+      () => ok({ taskId: "t1" }),
+      () => success(),
+    );
+    const { result, held } = await run(kie);
+    await expect(result).resolves.toMatchObject({ taskId: "t1" });
+    // The balance did not move (another worker spends from it too): never settle at 0.
+    expect(await held()).toBe(408);
+  });
+
   it("retries once a refused submission, and stops after a second refusal", async () => {
     const once = fakeKie(
       (n) => (n === 1 ? refused() : ok({ taskId: "t2" })),

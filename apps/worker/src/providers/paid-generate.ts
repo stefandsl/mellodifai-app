@@ -84,10 +84,13 @@ export async function generatePaid(
       if (attempt >= 2) throw error;
       continue;
     }
-    const after = await kie.credits().catch(() => before - estimate);
-    await ledger.settle(entry, {
-      credits: task.credits ?? Math.max(0, before - after),
-    });
+    // kie's own count, else the estimate: the balance difference means nothing while the
+    // production worker spends from the same account.
+    await ledger.settle(entry, { credits: task.credits ?? estimate });
+    if (task.credits === undefined)
+      await ledger.note(
+        `${label}: kie gave no credits for task ${task.taskId}, settled at the ${estimate} estimate`,
+      );
     try {
       await kie.download(task.urls[0] as string, file);
     } catch (error) {
