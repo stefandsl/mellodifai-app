@@ -162,4 +162,7 @@ node apps/windows/src/build.mjs --out E:/mellodifai/dist/windows
 Then: silent install into a scratch folder on E: (`/S /EMAIL=<email> /D=<folder>`),
 `run.mjs status --json`, open the sign-in link, create a project, `stop`, `start`, install a
 newer build over it, silent uninstall (keeps data) and then with `/REMOVEDATA`. Never point a
-test at the ports of the owner's real installation.
+test at the ports of the owner's real installation. Do not wait on the installer with
+PowerShell `Start-Process -Wait`: it waits for every descendant, and the app's web, worker and
+database keep running after the installer exits, so it never returns. Wait on the installer
+process alone (`$p = Start-Process ... -PassThru; $p.WaitForExit()`).
