@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   appendFileSync,
   closeSync,
@@ -192,8 +193,11 @@ export async function initCluster(
   }
 }
 
-/** pg_ctl never gets a pipe: on Windows the server would inherit it and the
- * caller would wait for a handle that stays open for the server's lifetime.
+/** pg_ctl never gets a pipe: on Windows a server it started would inherit it
+ * and the caller would wait for a handle that stays open for the server's
+ * lifetime. It writes into a private capture file in the log folder instead;
+ * once it exits, every captured line goes through the same redacting,
+ * rotating log as the services (pg_ctl.log) and the capture is removed.
  */
 async function pgCtl(
   tools: NativeTools,
@@ -201,34 +205,64 @@ async function pgCtl(
   args: string[],
 ): Promise<number> {
   mkdirSync(layout.logs, { recursive: true });
-  const logFile = join(layout.logs, "pg_ctl.log");
-  return retryInitialization(
-    async () => {
-      const out = openSync(logFile, "a");
-      return new Promise<number>((resolve, reject) => {
-        const child = spawn(tool(tools, "pg_ctl"), args, {
-          // Next's ambient ProcessEnv requires NODE_ENV, even for PostgreSQL tools.
-          env: toolEnvironment(layout) as NodeJS.ProcessEnv,
-          stdio: ["ignore", out, out],
-          windowsHide: true,
-          // File stdio plus windowsHide alone can allocate a hidden console.
-          detached: true,
-        });
-        child.on("error", reject);
-        child.on("exit", (code) => {
-          if (dllInitializationExit(code))
-            reject(
-              new DllInitializationError(
-                `pg_ctl.exe pid ${child.pid}, parent ${process.pid}: STATUS_DLL_INIT_FAILED 0xC0000142 before entry point; detached=true windowsHide=true`,
-              ),
-            );
-          else resolve(code ?? 1);
-        });
-      }).finally(() => closeSync(out));
-    },
-    (message) =>
-      appendFileSync(logFile, `${new Date().toISOString()} ${message}\n`),
-  );
+  const environment = toolEnvironment(layout);
+  const sink = serviceLog(join(layout.logs, "pg_ctl.log"), environment);
+  try {
+    return await retryInitialization(
+      async () => {
+        const capture = join(
+          layout.logs,
+          `pg_ctl.${process.pid}.${randomUUID()}.capture`,
+        );
+        try {
+          return await pgCtlOnce(tools, environment, args, capture);
+        } finally {
+          try {
+            const text = readFileSync(capture, "utf8");
+            const lines = sink.stream();
+            lines.write(text);
+            lines.end();
+          } catch {
+            /* No output was captured. */
+          }
+          rmSync(capture, { force: true });
+        }
+      },
+      (message) =>
+        sink.line(`${new Date().toISOString()} ${message.replace(/\n/g, " ")}`),
+    );
+  } finally {
+    sink.close();
+  }
+}
+
+function pgCtlOnce(
+  tools: NativeTools,
+  environment: Record<string, string>,
+  args: string[],
+  capture: string,
+): Promise<number> {
+  const out = openSync(capture, "w", 0o600);
+  return new Promise<number>((resolve, reject) => {
+    const child = spawn(tool(tools, "pg_ctl"), args, {
+      // Next's ambient ProcessEnv requires NODE_ENV, even for PostgreSQL tools.
+      env: environment as NodeJS.ProcessEnv,
+      stdio: ["ignore", out, out],
+      windowsHide: true,
+      // File stdio plus windowsHide alone can allocate a hidden console.
+      detached: true,
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (dllInitializationExit(code))
+        reject(
+          new DllInitializationError(
+            `pg_ctl.exe pid ${child.pid}, parent ${process.pid}: STATUS_DLL_INIT_FAILED 0xC0000142 before entry point; detached=true windowsHide=true`,
+          ),
+        );
+      else resolve(code ?? 1);
+    });
+  }).finally(() => closeSync(out));
 }
 
 export function postmasterPid(layout: NativeLayout): number | null {
