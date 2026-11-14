@@ -36,6 +36,7 @@ import { baseEnvironment, typescriptArgs } from "./plan.js";
 import { postmasterPid, stopPostgres, witness } from "./postgres.js";
 import { readState, type StackState, waitFor } from "./processes.js";
 import { assertProductionSecrets } from "./production-secrets.js";
+import { clearRollback } from "./rollback.js";
 import { nativeSourceRoot, prepareNativeSource } from "./source.js";
 import {
   migrateApp,
@@ -479,6 +480,7 @@ export async function runNativeCommand(
     } else if (cmd === "reset") {
       await stopNative(layout);
       wipeNative(layout);
+      clearRollback(layout);
       await startNative(env, flags, dependencies);
     }
     return undefined;

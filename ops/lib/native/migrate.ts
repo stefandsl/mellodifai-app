@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Sql } from "postgres";
+import { type SchemaRollback, validateRollback } from "./rollback.js";
 
 export interface MigrationFile {
   version: string;
@@ -55,7 +56,12 @@ export function readMigrations(directory: string): MigrationFile[] {
 export function planMigrations(
   files: MigrationFile[],
   applied: AppliedMigration[],
+  rollback?: SchemaRollback,
 ): { pending: MigrationFile[]; adopt: MigrationFile[] } {
+  if (rollback) {
+    validateRollback(rollback, files, applied);
+    return { pending: [], adopt: [] };
+  }
   const local = new Map(files.map((file) => [file.version, file]));
   const done = new Map(applied.map((row) => [row.version, row]));
   for (const row of applied)
@@ -95,6 +101,7 @@ export async function applyAppMigrations(
   sql: Sql,
   directory: string,
   log: (message: string) => void = () => {},
+  rollback?: SchemaRollback,
 ): Promise<string[]> {
   await sql.unsafe(`
     create schema if not exists supabase_migrations;
@@ -114,7 +121,11 @@ export async function applyAppMigrations(
     from supabase_migrations.schema_migrations m
     left join supabase_migrations.mdf_checksums c using (version)
     order by m.version`) as unknown as AppliedMigration[];
-  const { pending, adopt } = planMigrations(readMigrations(directory), applied);
+  const { pending, adopt } = planMigrations(
+    readMigrations(directory),
+    applied,
+    rollback,
+  );
   for (const file of adopt)
     await sql`insert into supabase_migrations.mdf_checksums (version, sha256) values (${file.version}, ${file.sha256})`;
   for (const file of pending) {

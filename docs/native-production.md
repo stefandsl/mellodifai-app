@@ -113,6 +113,8 @@ pnpm ops deploy.ts --to <previous-reviewed-tag> --skip-migrations
 
 Native deploy starts the current stack if needed, stops writers, takes a native backup bundle, checks out the tag in the dedicated clone, installs dependencies, and runs that clone's native migration entry unless skipped. It reapplies stored database credentials, builds and verifies health before completing. Existing m1-floor checks remain. A health failure rolls back automatically only when the migration list is unchanged; otherwise writers stay stopped for recovery. No production deploy was rehearsed against the real clone. Unit tests use a fake runner for both runtimes and skip-migrations.
 
+For a reviewed schema-compatible rollback, --skip-migrations records stacks/prod/native/schema-rollback.json durably after selecting the target. It binds the complete current version/checksum ledger and the older release's migration checksums, and records the accepted latest version for health checks. Cold start may accept the forward schema only while both fingerprints match exactly. A new ledger row, changed checksum, different release or unrecorded forward schema still refuses startup. The marker never applies pending migrations from an older release. A normal deploy clears this exception before migrating. Do not hand-edit or copy the marker to authorize a different schema.
+
 ## Rotation
 
 ```powershell

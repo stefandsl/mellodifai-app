@@ -40,6 +40,7 @@ import {
   Supervisor,
   writeState,
 } from "./processes.js";
+import { readRollback } from "./rollback.js";
 import { loadNativeLogins, type NativeLogins } from "./secrets.js";
 import { nativeSourceRoot } from "./source.js";
 
@@ -215,6 +216,7 @@ export async function migrateApp(
         sql,
         join(repo, "supabase/migrations"),
         log,
+        readRollback(layout),
       );
       stage = "stack settings";
       await applyStackSettings(sql, ENV_TABLE[env].fakeStack);

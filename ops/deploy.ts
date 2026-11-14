@@ -23,8 +23,14 @@ import {
 import { ENV_TABLE, runtimePath, stackDir } from "./lib/envs.js";
 import { nativeEntry } from "./lib/native/commands.js";
 import { safeFailure } from "./lib/native/diagnostics.js";
-import { resolveRuntime } from "./lib/native/layout.js";
+import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
 import { withStackLease } from "./lib/native/lease.js";
+import { type AppliedMigration, readMigrations } from "./lib/native/migrate.js";
+import {
+  clearRollback,
+  readRollback,
+  recordRollback,
+} from "./lib/native/rollback.js";
 import { databaseUrl, ownerConnection } from "./lib/pg.js";
 import { prepareStackDir } from "./lib/render.js";
 import { type Runner, realRunner } from "./lib/run.js";
@@ -319,6 +325,16 @@ async function productionDeployLocked(
     ENV_TABLE.prod.ports.db,
   );
   const sql = ownerConnection(url);
+  const recordSchemaRollback = async (release: string) => {
+    const ledger =
+      await sql`select m.version, c.sha256 from supabase_migrations.schema_migrations m left join supabase_migrations.mdf_checksums c using (version) order by m.version`;
+    await recordRollback(
+      nativeLayout("prod"),
+      release,
+      readMigrations(join(repo, "supabase/migrations")),
+      ledger as unknown as AppliedMigration[],
+    );
+  };
   const cli = require.resolve("supabase/dist/supabase.js");
   const dbCommand = (args: string[]) =>
     checked(
@@ -379,6 +395,7 @@ async function productionDeployLocked(
         }
         case "migrate":
           if (native) {
+            clearRollback(nativeLayout("prod"));
             await nativeCommand(
               "stack.ts",
               ["migrate", "--env", "prod", "--runtime", "native"],
@@ -416,16 +433,23 @@ async function productionDeployLocked(
           break;
         }
         case "health":
-          await checkHealth(newestMigration(repo));
+          await checkHealth(
+            (native
+              ? readRollback(nativeLayout("prod"))?.latestVersion
+              : undefined) ?? newestMigration(repo),
+          );
           break;
         default:
           for (const command of deployCommands(step, repo, here, pnpm))
             await checked(runner, command.cmd, command.args, command.cwd);
+          if (native && step.kind === "checkout" && input.skipMigrations)
+            await recordSchemaRollback(target);
       }
     },
     async rollback() {
       await assertAtOrAfterFloor(repo, previous, runner);
       await git("checkout", "--detach", previous);
+      if (native) await recordSchemaRollback(previous);
       const hasAuth = existsSync(join(repo, "apps/auth/package.json"));
       const kinds: DeployStep["kind"][] = [
         "check-no-keys",

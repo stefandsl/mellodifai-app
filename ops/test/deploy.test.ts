@@ -30,6 +30,7 @@ import {
 import { type Runner, realRunner } from "../lib/run.js";
 
 const mocks = vi.hoisted(() => ({
+  schemaRollback: vi.fn(async () => {}),
   secrets: vi.fn(async () => ({ postgres: "test-only-password" })),
   sql: Object.assign(
     vi.fn(async (strings: TemplateStringsArray) => {
@@ -43,6 +44,10 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   passwords: vi.fn(async () => {}),
   probe: vi.fn(async () => ({ ok: true })),
+}));
+vi.mock("../lib/native/rollback.js", async (original) => ({
+  ...(await original<object>()),
+  recordRollback: mocks.schemaRollback,
 }));
 vi.mock("../lib/pg.js", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -436,6 +441,7 @@ it.each([false, true])(
       ),
     ).toBe(true);
     const migration = calls.find((args) => args.includes("migrate"));
+    expect(mocks.schemaRollback.mock.calls.length).toBe(skipMigrations ? 1 : 0);
     expect(Boolean(migration)).toBe(!skipMigrations);
     if (migration) expect(migration).toContain(join(repo, "ops/stack.ts"));
     expect(
