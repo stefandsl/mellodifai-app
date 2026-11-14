@@ -253,7 +253,7 @@ function lengthCost(len: number, max: number) {
   if (len > max + EPS) return Number.POSITIVE_INFINITY;
   if (len < 4) return 400 + (4 - len) * 50;
   if (len < MIN_SEGMENT_S) return 120 + (MIN_SEGMENT_S - len) * 25;
-  if (len <= TARGET_MAX_S) return 0.1 * (len - 11.5) ** 2;
+  if (len <= TARGET_MAX_S) return 0.1 * (len - 11) ** 2;
   return 60 + (len - TARGET_MAX_S) * 12;
 }
 
