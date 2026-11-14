@@ -21,7 +21,10 @@ import {
   runDeploy,
 } from "./lib/deploy-plan.js";
 import { ENV_TABLE, runtimePath, stackDir } from "./lib/envs.js";
+import { nativeEntry } from "./lib/native/commands.js";
+import { safeFailure } from "./lib/native/diagnostics.js";
 import { resolveRuntime } from "./lib/native/layout.js";
+import { withStackLease } from "./lib/native/lease.js";
 import { databaseUrl, ownerConnection } from "./lib/pg.js";
 import { prepareStackDir } from "./lib/render.js";
 import { type Runner, realRunner } from "./lib/run.js";
@@ -250,6 +253,20 @@ export async function productionDeploy(
   root: string,
   pnpm: string,
   commandRunner: Runner = realRunner,
+  executeNative = nativeEntry,
+) {
+  const run = () =>
+    productionDeployLocked(input, root, pnpm, commandRunner, executeNative);
+  if (resolveRuntime(undefined) === "native")
+    return withStackLease("prod", "deploy", run);
+  return run();
+}
+async function productionDeployLocked(
+  input: DeployInput,
+  root: string,
+  pnpm: string,
+  commandRunner: Runner,
+  executeNative: typeof nativeEntry,
 ) {
   const repo = runtimePath(join(root, "deploy"));
   const native = resolveRuntime(undefined) === "native";
@@ -262,12 +279,7 @@ export async function productionDeploy(
     });
   const git = (...args: string[]) => checked(runner, "git", args, repo);
   const nativeCommand = (entry: string, args: string[], from = here) =>
-    checked(
-      runner,
-      process.execPath,
-      [require.resolve("tsx/cli"), join(from, entry), ...args],
-      repo,
-    );
+    executeNative(entry, args, from);
   // Refuse an unprovisioned or dirty deploy clone before stopping any writers.
   if (resolve(await git("rev-parse", "--show-toplevel")) !== resolve(repo))
     throw new Error("Dedicated deploy clone required");
@@ -487,7 +499,8 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 )
-  main(process.argv.slice(2)).catch(() => {
+  main(process.argv.slice(2)).catch((error: unknown) => {
+    process.stderr.write(`${safeFailure(error)}\n`);
     process.stderr.write(
       "Deploy failed; inspect logs/deploy.log and verify floor, clone and owner prerequisites. Subprocess output withheld.\n",
     );

@@ -37,6 +37,7 @@ import {
 } from "./import-data.js";
 import { durableJson, flushFile } from "./journal.js";
 import { nativeLayout } from "./layout.js";
+import { assertStackLease } from "./lease.js";
 import { baseEnvironment } from "./plan.js";
 import {
   rebuildStorageMetadata,
@@ -177,6 +178,7 @@ export async function backupNative(
   runner: Runner = realRunner,
   checkpoint: (step: string) => Promise<void> = async () => {},
 ): Promise<string> {
+  assertStackLease(env);
   runtimePath(directory);
   if (existsSync(directory))
     throw new Error("Refusing to overwrite a native backup");
@@ -277,6 +279,7 @@ export async function restoreNativeData(
   directory: string,
   checkpoint: (step: string) => Promise<void> = async () => {},
 ): Promise<void> {
+  assertStackLease(env);
   const { manifest, dump } = readBackup(directory);
   const db = await nativeDatabase(env);
   const current = parseDump(await db.dump());

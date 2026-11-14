@@ -1,9 +1,13 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ENV_TABLE, type StackEnv } from "./lib/envs.js";
-import { nativeDatabase } from "./lib/native/backup.js";
+import { backupNative } from "./lib/native/backup.js";
+import { safeFailure } from "./lib/native/diagnostics.js";
 import { dataTables, parseDump } from "./lib/native/import-data.js";
-import { nativeBackup } from "./native-backup.js";
+import { assertNoMaintenance, saveJournal } from "./lib/native/journal.js";
+import { nativeLayout } from "./lib/native/layout.js";
+import { withStackLease } from "./lib/native/lease.js";
+import { maintenanceDatabase } from "./lib/native/maintenance.js";
 
 /** Explicit removal of bootstrap seeds, never an escape hatch for user data. */
 export function assertBootstrapSeeds(counts: Record<string, number>): void {
@@ -43,36 +47,64 @@ export async function prepareImport(
     );
   if (env === "prod" && confirm !== "--confirm-production")
     throw new Error("Production preparation requires --confirm-production");
-  const db = await nativeDatabase(env as StackEnv);
-  const inspect = async () => {
-    const dump = parseDump(await db.dump());
-    assertBootstrapSeeds(
-      Object.fromEntries(
-        dataTables(dump).map((table) => [table.name, table.lines.length]),
-      ),
-    );
-    return dump;
-  };
-  await inspect();
-  await nativeBackup(["backup", "--env", env, backup]);
-  const dump = await inspect();
-  await checkpoint("before-truncate");
-  await db.execute(
-    `SET LOCAL session_replication_role=replica; TRUNCATE ${dataTables(dump)
-      .map((table) => table.name)
-      .join(", ")};`,
-  );
-  console.log(
-    "Bootstrap seeds cleared after backup. Run native-import immediately, before restarting the stack. No user data was accepted.",
-  );
+  return withStackLease(env as StackEnv, "prepare-import", async () => {
+    const layout = nativeLayout(env as StackEnv);
+    assertNoMaintenance(layout);
+    await saveJournal(layout, {
+      format: 1,
+      operation: "prepare-import",
+      phase: "preparing",
+      backup,
+    });
+    const maintenance = await maintenanceDatabase(env as StackEnv);
+    const db = maintenance.db;
+    try {
+      const inspect = async () => {
+        const dump = parseDump(await db.dump());
+        assertBootstrapSeeds(
+          Object.fromEntries(
+            dataTables(dump).map((table) => [table.name, table.lines.length]),
+          ),
+        );
+        return dump;
+      };
+      await inspect();
+      await backupNative(env as StackEnv, backup);
+      const dump = await inspect();
+      await saveJournal(layout, {
+        format: 1,
+        operation: "prepare-import",
+        phase: "applying",
+        backup,
+      });
+      await checkpoint("before-truncate");
+      await db.execute(
+        `SET LOCAL session_replication_role=replica; TRUNCATE ${dataTables(dump)
+          .map((table) => table.name)
+          .join(", ")};`,
+      );
+      await saveJournal(layout, {
+        format: 1,
+        operation: "prepare-import",
+        phase: "prepared",
+        backup,
+      });
+      console.log(
+        "Bootstrap seeds cleared after backup. Run native-import immediately, before restarting the stack. No user data was accepted.",
+      );
+    } finally {
+      await maintenance.stop();
+    }
+  });
 }
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 )
-  prepareImport(process.argv.slice(2)).catch(() => {
+  prepareImport(process.argv.slice(2)).catch((error: unknown) => {
     console.error(
       "Bootstrap preparation refused or failed; verify the empty stack and backup prerequisites.",
     );
+    console.error(safeFailure(error));
     process.exitCode = 1;
   });

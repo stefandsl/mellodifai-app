@@ -6,12 +6,29 @@ import { stopWriters } from "../recovery.js";
 import { realRunner } from "../run.js";
 import { runtimeRoot } from "../runtime.js";
 import { nativeDatabase } from "./backup.js";
+import { assertStackLease, withStackLease } from "./lease.js";
 import { postgresService } from "./postgres.js";
 import { waitFor } from "./processes.js";
 import { retryInitialization } from "./start-retry.js";
 
+export async function withMaintenance<T>(
+  env: StackEnv,
+  command: string,
+  operation: (db: Awaited<ReturnType<typeof nativeDatabase>>) => Promise<T>,
+): Promise<T> {
+  return withStackLease(env, command, async () => {
+    const maintenance = await maintenanceDatabase(env);
+    try {
+      return await operation(maintenance.db);
+    } finally {
+      await maintenance.stop();
+    }
+  });
+}
+
 /** Keep all writers and network APIs stopped while dumping or restoring. */
 export async function maintenanceDatabase(env: StackEnv) {
+  assertStackLease(env);
   if (env === "prod" && existsSync(join(runtimeRoot(), "deploy")))
     await stopWriters(realRunner);
   await runStack("stop", env, { runtime: "native" });

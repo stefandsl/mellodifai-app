@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { nativeBackup } from "../native-backup.js";
 import { composeEnvironment } from "./compose.js";
 import { ENV_TABLE, runtimePath, type StackEnv, stackDir } from "./envs.js";
-import { backupNative, restoreNativeData } from "./native/backup.js";
 import { nativeLayout, resolveRuntime } from "./native/layout.js";
 import { databaseUrl, ownerConnection } from "./pg.js";
 import { writePrivate } from "./private-file.js";
@@ -72,10 +72,16 @@ export async function recoveryDatabase(
       },
       async backup(file: string, legacy = false): Promise<void> {
         if (legacy) throw new Error("Legacy backup is Docker-only");
-        await backupNative(env, file, runner);
+        await nativeBackup(["backup", "--env", env, file]);
       },
       async import(file: string): Promise<void> {
-        await restoreNativeData(env, file);
+        await nativeBackup([
+          "restore",
+          "--env",
+          env,
+          file,
+          ...(env === "prod" ? ["--confirm-production"] : []),
+        ]);
       },
     };
   }

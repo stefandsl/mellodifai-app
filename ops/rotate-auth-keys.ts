@@ -4,6 +4,9 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import { ENV_TABLE, runtimePath, type StackEnv } from "./lib/envs.js";
+import { safeFailure } from "./lib/native/diagnostics.js";
+import { resolveRuntime } from "./lib/native/layout.js";
+import { withStackLease } from "./lib/native/lease.js";
 import { databaseUrl } from "./lib/pg.js";
 import { writePrivate } from "./lib/private-file.js";
 import { readStackPasswords } from "./lib/roles.js";
@@ -14,6 +17,16 @@ import { serviceCommand } from "./lib/services.js";
 export async function rotateAuthKeys(
   env: Exclude<StackEnv, "dev">,
   runner: Runner = realRunner,
+) {
+  if (resolveRuntime(undefined) === "native")
+    return withStackLease(env, "rotation", () =>
+      rotateAuthKeysLocked(env, runner),
+    );
+  return rotateAuthKeysLocked(env, runner);
+}
+async function rotateAuthKeysLocked(
+  env: Exclude<StackEnv, "dev">,
+  runner: Runner,
 ) {
   const root = runtimePath(
     env === "ci" ? (process.env.RUNNER_TEMP ?? "") : runtimeRoot(),
@@ -164,7 +177,8 @@ if (
           "Auth material provisioned. Start initial services with the private environment file.\n",
         );
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        process.stderr.write(`${safeFailure(error)}\n`);
         process.stderr.write(
           "Auth provisioning failed; verify service account, private environment access and service health\n",
         );

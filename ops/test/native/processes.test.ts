@@ -3,12 +3,9 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import * as host from "../../lib/native/host.js";
 import { nativeLayout } from "../../lib/native/layout.js";
+import { acquireLease, withStackLease } from "../../lib/native/lease.js";
 import { verifiedPostmaster } from "../../lib/native/postgres.js";
-import {
-  acquireLock,
-  type StackState,
-  Supervisor,
-} from "../../lib/native/processes.js";
+import { type StackState, Supervisor } from "../../lib/native/processes.js";
 import {
   assertPortsFree,
   nativeStatus,
@@ -79,14 +76,18 @@ it("never signals a foreign process referenced by a stale pid record", async () 
 it("takes over a stale lock but refuses a live holder", async () => {
   const path = join(fixture(), "stack.lock");
   writeFileSync(path, JSON.stringify({ pid: 98765, startedAt: "old" }));
-  const release = await acquireLock(path);
-  expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({
+  const release = await acquireLease(path, "start");
+  expect(JSON.parse(readFileSync(`${path}.holder.json`, "utf8"))).toEqual({
     pid: process.pid,
-    startedAt: "now",
+    command: "start",
   });
-  vi.mocked(host.sameProcess).mockResolvedValueOnce(true);
-  await expect(acquireLock(path)).rejects.toThrow("Another stack operation");
-  release();
+  try {
+    await expect(acquireLease(path, "stop", 50)).rejects.toThrow(
+      "Stack lease held by start",
+    );
+  } finally {
+    await release();
+  }
 });
 it("refuses an occupied lab port with a clear message without opening sockets", async () => {
   vi.stubEnv("MELLODIFAI_ROOT", fixture());
@@ -133,7 +134,10 @@ it("stops orphan records in reverse order with creation-time identities", async 
       },
     },
   };
-  await stopOrphans(layout, state);
+  await expect(stopOrphans(layout, state)).rejects.toThrow(
+    "requires the exclusive stack lease",
+  );
+  await withStackLease("e2e", "stop", () => stopOrphans(layout, state));
   expect(vi.mocked(host.terminateTree).mock.calls).toEqual([
     [{ pid: 20, startedAt: "gateway-time" }],
     [{ pid: 10, startedAt: "auth-time" }],

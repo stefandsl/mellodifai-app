@@ -5,7 +5,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { probe } from "../probe.js";
 import { reapplyDbPasswords } from "../rotate-db-passwords.js";
+import { runStack } from "../stack.js";
 import { ENV_TABLE, runtimePath } from "./envs.js";
+import { resolveRuntime } from "./native/layout.js";
+import { withStackLease } from "./native/lease.js";
 import type { Runner } from "./run.js";
 import { realRunner } from "./run.js";
 import { runtimeRoot } from "./runtime.js";
@@ -344,6 +347,11 @@ export async function serviceCommand(
   service: Service,
   root = runtimeRoot(),
 ) {
+  if (service === "supabase" && resolveRuntime(undefined) === "native") {
+    if (resolve(root) !== resolve(runtimeRoot()))
+      throw new Error("Set MELLODIFAI_ROOT before native services commands");
+    return (await runStack(action, "prod", { runtime: "native" })) ?? "";
+  }
   const result = await runner(
     process.execPath,
     [
@@ -366,6 +374,14 @@ export async function serviceCommand(
 }
 
 export async function startAll(
+  runner: Runner,
+  opts: { root: string; present: Set<Service> },
+): Promise<void> {
+  if (resolveRuntime(undefined) === "native")
+    return withStackLease("prod", "start", () => startAllLocked(runner, opts));
+  return startAllLocked(runner, opts);
+}
+async function startAllLocked(
   runner: Runner,
   opts: { root: string; present: Set<Service> },
 ): Promise<void> {
@@ -434,6 +450,16 @@ export async function waitForPortOwners(
 }
 
 export async function stopAll(
+  runner: Runner,
+  services: Service[],
+): Promise<void> {
+  if (resolveRuntime(undefined) === "native")
+    return withStackLease("prod", "stop", () =>
+      stopAllLocked(runner, services),
+    );
+  return stopAllLocked(runner, services);
+}
+async function stopAllLocked(
   runner: Runner,
   services: Service[],
 ): Promise<void> {

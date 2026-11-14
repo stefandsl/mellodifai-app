@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { nativeDatabase } from "../../lib/native/backup.js";
 import { nativeLayout } from "../../lib/native/layout.js";
-import { maintenanceDatabase } from "../../lib/native/maintenance.js";
+import { withMaintenance } from "../../lib/native/maintenance.js";
 import { typescriptArgs } from "../../lib/native/plan.js";
 import { setAttributeSync } from "../../native/storage/fs-xattr/index.js";
 import { nativeBackup } from "../../native-backup.js";
@@ -86,30 +86,22 @@ it.skipIf(process.env.MDF_NATIVE_CRASH_TESTS !== "1")(
             .backup as string;
           await nativeBackup(["recover-import", "--env", "e2e", before]);
           expect(existsSync(journal)).toBe(false);
-          const maintenance = await maintenanceDatabase("e2e");
-          try {
+          await withMaintenance("e2e", "verify", async (db) => {
             expect(
-              (
-                await maintenance.db.execute(`select value from ${table}`)
-              ).trim(),
+              (await db.execute(`select value from ${table}`)).trim(),
             ).toBe("2");
             expect(readFileSync(object, "utf8")).toBe("snapshot-two");
-          } finally {
-            await maintenance.stop();
-          }
+          });
         } finally {
           if (child.exitCode === null) child.kill("SIGKILL");
           await runStack("stop", "e2e", { runtime: "native" });
         }
       }
     } finally {
-      const maintenance = await maintenanceDatabase("e2e");
-      try {
-        await maintenance.db.execute(`drop table ${table};`);
+      await withMaintenance("e2e", "cleanup", async (db) => {
+        await db.execute(`drop table ${table};`);
         rmSync(object, { force: true });
-      } finally {
-        await maintenance.stop();
-      }
+      });
     }
   },
   600_000,

@@ -6,6 +6,7 @@ import { writePrivate } from "../private-file.js";
 import { randomPassword } from "../roles.js";
 import { nativeDatabase } from "./backup.js";
 import { NativeDiagnosticError, safeFailure } from "./diagnostics.js";
+import { withStackLease } from "./lease.js";
 import { maintenanceDatabase } from "./maintenance.js";
 import {
   applyLogins,
@@ -56,6 +57,9 @@ export async function reapplyNativeLogins(env: StackEnv): Promise<void> {
   await applyLogins(db.layout, native.logins, native.passwordFor, true);
 }
 export async function rotateNativeLogins(env: StackEnv): Promise<void> {
+  return withStackLease(env, "rotation", () => rotateNativeLoginsLocked(env));
+}
+async function rotateNativeLoginsLocked(env: StackEnv): Promise<void> {
   const old = (await loadNativeLogins(env)).logins;
   const roles = await nativeLoginInventory(env);
   const next = Object.fromEntries(

@@ -12,6 +12,7 @@ import {
 } from "./lib/native/credentials.js";
 import { safeFailure } from "./lib/native/diagnostics.js";
 import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
+import { withStackLease } from "./lib/native/lease.js";
 import { loadNativeLogins } from "./lib/native/secrets.js";
 import { databaseUrl } from "./lib/pg.js";
 import { writePrivate } from "./lib/private-file.js";
@@ -150,8 +151,10 @@ export async function rotateDbPasswords(
   runner: Runner,
 ): Promise<void> {
   if (resolveRuntime(undefined) === "native") {
-    await rotateNativeLogins(env);
-    await reapplyDbPasswords(env, runner);
+    await withStackLease(env, "rotation", async () => {
+      await rotateNativeLogins(env);
+      await reapplyDbPasswords(env, runner);
+    });
     return;
   }
   const roles = await inventoryDbLogins(env, runner);

@@ -7,6 +7,7 @@ import {
   readBackup,
   restoreNativeData,
 } from "./lib/native/backup.js";
+import { safeFailure } from "./lib/native/diagnostics.js";
 import {
   assertNoMaintenance,
   clearJournal,
@@ -14,8 +15,8 @@ import {
   saveJournal,
 } from "./lib/native/journal.js";
 import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
+import { withStackLease } from "./lib/native/lease.js";
 import { maintenanceDatabase } from "./lib/native/maintenance.js";
-import { acquireLock } from "./lib/native/processes.js";
 import { writePrivate } from "./lib/private-file.js";
 import { runStack } from "./stack.js";
 
@@ -47,89 +48,92 @@ export async function nativeBackup(
   )
     throw new Error("Production restore requires --confirm-production");
   const layout = nativeLayout(env);
-  const release = await acquireLock(join(layout.root, "import.lock"));
-  let maintenance: Awaited<ReturnType<typeof maintenanceDatabase>> | undefined;
-  let before: string | undefined;
-  try {
-    if (action !== "recover-import") assertNoMaintenance(layout);
-    if (action === "restore") readBackup(path);
-    let recoveryPhase: string | undefined;
-    if (action === "recover-import") {
-      const journal =
-        readJournal(layout) ??
-        JSON.parse(
-          readFileSync(join(layout.root, "import-journal.json"), "utf8"),
-        );
-      if (
-        resolve(journal.backup) !== resolve(path) ||
-        !["preparing", "applying", "prepared"].includes(journal.phase)
-      )
-        throw new Error("Backup does not match interrupted import journal");
-      recoveryPhase = journal.phase;
-      if (recoveryPhase !== "preparing") readBackup(path);
-    }
-    if (action === "restore") {
-      before = join(layout.root, `before-restore-${Date.now()}`);
-      await saveJournal(layout, {
-        format: 1,
-        operation: "restore",
-        phase: "preparing",
-        backup: before,
-      });
-    }
-    maintenance = await maintenanceDatabase(env);
-    if (action === "backup")
-      await backupNative(env, path, undefined, checkpoint);
-    else {
+  return withStackLease(env, action, async () => {
+    let maintenance:
+      | Awaited<ReturnType<typeof maintenanceDatabase>>
+      | undefined;
+    let before: string | undefined;
+    try {
+      if (action !== "recover-import") assertNoMaintenance(layout);
+      if (action === "restore") readBackup(path);
+      let recoveryPhase: string | undefined;
+      if (action === "recover-import") {
+        const journal =
+          readJournal(layout) ??
+          JSON.parse(
+            readFileSync(join(layout.root, "import-journal.json"), "utf8"),
+          );
+        if (
+          resolve(journal.backup) !== resolve(path) ||
+          !["preparing", "applying", "prepared"].includes(journal.phase)
+        )
+          throw new Error("Backup does not match interrupted import journal");
+        recoveryPhase = journal.phase;
+        if (recoveryPhase !== "preparing") readBackup(path);
+      }
       if (action === "restore") {
-        await backupNative(env, before as string, undefined, checkpoint);
+        before = join(layout.root, `before-restore-${Date.now()}`);
         await saveJournal(layout, {
           format: 1,
           operation: "restore",
-          phase: "applying",
-          backup: before as string,
+          phase: "preparing",
+          backup: before,
         });
       }
-      if (recoveryPhase !== "preparing")
-        await restoreNativeData(env, path, checkpoint);
-      if (action === "recover-import")
-        await writePrivate(
-          join(layout.root, "import-journal.json"),
-          JSON.stringify({ phase: "rolled-back", backup: path }),
-        );
-      clearJournal(layout);
-    }
-    await maintenance.stop();
-    maintenance = undefined;
-    // Recover leaves the exact pre-import database stopped, without startup seed changes.
-    if (action !== "recover-import")
-      await runStack("start", env, { runtime: "native" });
-    console.log(
-      `Native ${action} verified: ${path}. Application writers remain stopped.`,
-    );
-  } catch (error) {
-    if (before && existsSync(join(before, "manifest.json"))) {
-      if (maintenance) await maintenance.stop();
       maintenance = await maintenanceDatabase(env);
-      await restoreNativeData(env, before);
-      clearJournal(layout);
-      console.error(
-        "Restore failed; previous data restored and stack left stopped.",
+      if (action === "backup")
+        await backupNative(env, path, undefined, checkpoint);
+      else {
+        if (action === "restore") {
+          await backupNative(env, before as string, undefined, checkpoint);
+          await saveJournal(layout, {
+            format: 1,
+            operation: "restore",
+            phase: "applying",
+            backup: before as string,
+          });
+        }
+        if (recoveryPhase !== "preparing")
+          await restoreNativeData(env, path, checkpoint);
+        if (action === "recover-import")
+          await writePrivate(
+            join(layout.root, "import-journal.json"),
+            JSON.stringify({ phase: "rolled-back", backup: path }),
+          );
+        clearJournal(layout);
+      }
+      await maintenance.stop();
+      maintenance = undefined;
+      // Recover leaves the exact pre-import database stopped, without startup seed changes.
+      if (action !== "recover-import")
+        await runStack("start", env, { runtime: "native" });
+      console.log(
+        `Native ${action} verified: ${path}. Application writers remain stopped.`,
       );
+    } catch (error) {
+      if (before && existsSync(join(before, "manifest.json"))) {
+        if (maintenance) await maintenance.stop();
+        maintenance = await maintenanceDatabase(env);
+        await restoreNativeData(env, before);
+        clearJournal(layout);
+        console.error(
+          "Restore failed; previous data restored and stack left stopped.",
+        );
+      }
+      throw error;
+    } finally {
+      if (maintenance) await maintenance.stop();
     }
-    throw error;
-  } finally {
-    if (maintenance) await maintenance.stop();
-    release();
-  }
+  });
 }
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 )
-  nativeBackup(process.argv.slice(2)).catch(() => {
+  nativeBackup(process.argv.slice(2)).catch((error: unknown) => {
     console.error(
       "Native backup/restore failed; verify backup integrity and maintenance prerequisites. Private output withheld.",
     );
+    console.error(safeFailure(error));
     process.exitCode = 1;
   });

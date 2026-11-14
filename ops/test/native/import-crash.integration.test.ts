@@ -7,7 +7,7 @@ import { expect, it } from "vitest";
 import { nativeDatabase } from "../../lib/native/backup.js";
 import { assertEmptyTarget, parseDump } from "../../lib/native/import-data.js";
 import { nativeLayout } from "../../lib/native/layout.js";
-import { maintenanceDatabase } from "../../lib/native/maintenance.js";
+import { withMaintenance } from "../../lib/native/maintenance.js";
 import { typescriptArgs } from "../../lib/native/plan.js";
 import { nativeBackup } from "../../native-backup.js";
 import { prepareImport } from "../../native-prepare-import.js";
@@ -42,8 +42,6 @@ it.skipIf(process.env.MDF_NATIVE_IMPORT_CRASH_TESTS !== "1")(
       "database-committed",
       "between-renames",
     ]) {
-      // The original importer preflight needs a running DB; the new maintenance path also accepts a stopped one.
-      const maintenance = await maintenanceDatabase("prod");
       const entry = fileURLToPath(
         new URL("./fixtures/maintenance-child.ts", import.meta.url),
       );
@@ -99,15 +97,11 @@ it.skipIf(process.env.MDF_NATIVE_IMPORT_CRASH_TESTS !== "1")(
           journal.backup,
           "--confirm-production",
         ]);
-        const verify = await maintenanceDatabase("prod");
-        try {
-          assertEmptyTarget(parseDump(await verify.db.dump()));
-        } finally {
-          await verify.stop();
-        }
+        await withMaintenance("prod", "verify", async (db) => {
+          assertEmptyTarget(parseDump(await db.dump()));
+        });
       } finally {
         child.kill("SIGKILL");
-        await maintenance.stop();
         await runStack("stop", "prod", { runtime: "native" });
       }
     }

@@ -2,7 +2,6 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   closeSync,
-  existsSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -15,7 +14,6 @@ import { logOffset, observeService } from "./diagnostics.js";
 import {
   type ProcessIdentity,
   processIdentities,
-  sameProcess,
   terminateTree,
 } from "./host.js";
 import type { ProcessSpec } from "./plan.js";
@@ -476,44 +474,6 @@ export function childService(
       };
     },
   };
-}
-
-/** One stack operation at a time. A lock whose holder is gone is taken over;
- * a holder is recognised by pid and creation time, never by name.
- */
-export async function acquireLock(path: string): Promise<() => void> {
-  mkdirSync(dirname(path), { recursive: true });
-  const self = await identify(process.pid);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      writeFileSync(path, JSON.stringify(self), { flag: "wx" });
-      return () => {
-        try {
-          const holder = JSON.parse(
-            readFileSync(path, "utf8"),
-          ) as ProcessIdentity;
-          if (holder.pid === self.pid && holder.startedAt === self.startedAt)
-            rmSync(path);
-        } catch {
-          // Already released.
-        }
-      };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    }
-    let holder: ProcessIdentity | null = null;
-    try {
-      holder = JSON.parse(readFileSync(path, "utf8")) as ProcessIdentity;
-    } catch {
-      // Unreadable lock: its writer died mid-write.
-    }
-    if (holder && (await sameProcess(holder)))
-      throw new Error(
-        `Another stack operation is running for this stack (pid ${holder.pid})`,
-      );
-    if (existsSync(path)) rmSync(path);
-  }
-  throw new Error("Cannot take the stack lock");
 }
 
 /** Run a one-shot tool with its output appended to a log file. Returns the

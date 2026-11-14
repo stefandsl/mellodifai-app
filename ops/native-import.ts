@@ -33,12 +33,13 @@ import {
 import {
   assertNoMaintenance,
   clearJournal,
+  readJournal,
   saveJournal,
 } from "./lib/native/journal.js";
 import { nativeLayout, resolveRuntime } from "./lib/native/layout.js";
+import { withStackLease } from "./lib/native/lease.js";
 import { maintenanceDatabase } from "./lib/native/maintenance.js";
 import { superuserConnection } from "./lib/native/postgres.js";
-import { acquireLock } from "./lib/native/processes.js";
 import {
   rebuildStorageMetadata,
   storageObjectPath,
@@ -162,6 +163,15 @@ export async function nativeImport(
   log = console.log,
   checkpoint: (step: string) => Promise<void> = async () => {},
 ): Promise<void> {
+  return withStackLease(options.env, "import", () =>
+    nativeImportLocked(options, log, checkpoint),
+  );
+}
+async function nativeImportLocked(
+  options: ImportOptions,
+  log: (message: string) => void,
+  checkpoint: (step: string) => Promise<void>,
+): Promise<void> {
   if (options.env === "prod" && !options.confirmProduction)
     throw new Error("Production import requires --confirm-production");
   if (options.apply && !options.replaceEmptyOnly)
@@ -169,270 +179,281 @@ export async function nativeImport(
   if (resolveRuntime(undefined) !== "native")
     throw new Error("native-import requires the native runtime");
   const layout = nativeLayout(options.env);
-  assertNoMaintenance(layout);
+  if (readJournal(layout)?.phase !== "prepared") assertNoMaintenance(layout);
   if (!existsSync(join(layout.root, "first-boot.done")))
     throw new Error("Target must be a freshly bootstrapped native stack");
-  const db = await nativeDatabase(options.env);
-  const source = await db.readArchive(
-    join(resolve(options.from), "prod-full.dump"),
-  );
-  validateRecovered(source);
-  const target = parseDump(await db.dump());
-  compareLedgers(source, target);
-  const sourceNames = dataTables(source)
-    .map((table) => table.name)
-    .sort();
-  if (
-    JSON.stringify(sourceNames) !==
-    JSON.stringify(
-      dataTables(target)
-        .map((table) => table.name)
-        .sort(),
-    )
-  )
-    throw new Error("Source and target data tables differ");
-  const sql = superuserConnection(layout, db.logins);
-  let policies: string;
+  let maintenance: Awaited<ReturnType<typeof maintenanceDatabase>> | undefined =
+    await maintenanceDatabase(options.env);
   try {
-    const roles = new Set(
-      (await sql`select rolname from pg_roles`).map((row) => row.rolname),
+    const db = maintenance.db;
+    const source = await db.readArchive(
+      join(resolve(options.from), "prod-full.dump"),
     );
-    const users = source.tables.find((table) => table.name === "auth.users");
-    for (const row of users ? tableRows(users) : [])
-      if (row.role && !roles.has(row.role))
-        throw new Error(
-          "Recovered Auth data refers to a missing database role",
-        );
-    policies = JSON.stringify(
-      await sql`select schemaname, tablename, policyname, roles, cmd, qual, with_check from pg_policies order by schemaname, tablename, policyname`,
-    );
-    if (policies === "[]") throw new Error("Target has no RLS policies");
-  } finally {
-    await sql.end();
-  }
-  const rows = objectRows(source);
-  const recoveryLayout = {
-    ...objectLayout(join(resolve(options.from), "r3/storage")),
-    internalBucket: "stub",
-    tenant: "stub",
-    fileVersionSeparator: false,
-  };
-  // The recovery manifest is read only. SQL metadata is authoritative for current versions.
-  const manifest = readFileSync(
-    join(resolve(options.from), "r3/storage.manifest.jsonl"),
-    "utf8",
-  )
-    .trim()
-    .split(/\r?\n/)
-    .map((line) => JSON.parse(line))
-    .filter((entry) => entry.type === "file");
-  if (manifest.length !== 181)
-    throw new Error("Unexpected recovered Storage manifest count");
-  const recoveredMetadata = rebuildStorageMetadata(
-    recoveryLayout,
-    rows,
-    false,
-    {
-      get: () => Buffer.from(""),
-      set: () => {
-        throw new Error("Recovery is read only");
+    validateRecovered(source);
+    const target = parseDump(await db.dump());
+    compareLedgers(source, target);
+    const sourceNames = dataTables(source)
+      .map((table) => table.name)
+      .sort();
+    if (
+      JSON.stringify(sourceNames) !==
+      JSON.stringify(
+        dataTables(target)
+          .map((table) => table.name)
+          .sort(),
+      )
+    )
+      throw new Error("Source and target data tables differ");
+    const sql = superuserConnection(layout, db.logins);
+    let policies: string;
+    try {
+      const roles = new Set(
+        (await sql`select rolname from pg_roles`).map((row) => row.rolname),
+      );
+      const users = source.tables.find((table) => table.name === "auth.users");
+      for (const row of users ? tableRows(users) : [])
+        if (row.role && !roles.has(row.role))
+          throw new Error(
+            "Recovered Auth data refers to a missing database role",
+          );
+      policies = JSON.stringify(
+        await sql`select schemaname, tablename, policyname, roles, cmd, qual, with_check from pg_policies order by schemaname, tablename, policyname`,
+      );
+      if (policies === "[]") throw new Error("Target has no RLS policies");
+    } finally {
+      await sql.end();
+    }
+    const rows = objectRows(source);
+    const recoveryLayout = {
+      ...objectLayout(join(resolve(options.from), "r3/storage")),
+      internalBucket: "stub",
+      tenant: "stub",
+      fileVersionSeparator: false,
+    };
+    // The recovery manifest is read only. SQL metadata is authoritative for current versions.
+    const manifest = readFileSync(
+      join(resolve(options.from), "r3/storage.manifest.jsonl"),
+      "utf8",
+    )
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.type === "file");
+    if (manifest.length !== 181)
+      throw new Error("Unexpected recovered Storage manifest count");
+    const recoveredMetadata = rebuildStorageMetadata(
+      recoveryLayout,
+      rows,
+      false,
+      {
+        get: () => Buffer.from(""),
+        set: () => {
+          throw new Error("Recovery is read only");
+        },
       },
-    },
-  );
-  if (
-    recoveredMetadata.missingFiles.length ||
-    recoveredMetadata.sizeMismatches.length ||
-    recoveredMetadata.invalidMetadata.length
-  )
-    throw new Error("Recovered Storage metadata is incomplete");
-  const sourceHashes = new Map<string, string>();
-  for (const entry of manifest) {
-    const path = safeFile(entry.path);
-    if (!path.startsWith("stub/stub/") || sourceHashes.has(path))
-      throw new Error("Invalid or duplicate recovered Storage path");
-    for (const name of [
-      "user.supabase.content-type",
-      "user.supabase.cache-control",
-    ])
-      if (typeof entry.xattr?.[name] !== "string")
-        throw new Error("Missing recovered Storage metadata");
-    sourceHashes.set(path, fileHash(join(recoveryLayout.root, path)));
-  }
-  for (const row of rows) {
-    const path = storageObjectPath(recoveryLayout, row);
-    if (statSync(path).size !== row.metadata?.size)
-      throw new Error("Recovered Storage size mismatch");
-    const entry = manifest.find(
-      (item) =>
-        item.path === relative(recoveryLayout.root, path).replaceAll("\\", "/"),
     );
     if (
-      !entry ||
-      entry.xattr?.["user.supabase.content-type"] !== row.metadata?.mimetype ||
-      entry.xattr?.["user.supabase.cache-control"] !==
-        row.metadata?.cacheControl
+      recoveredMetadata.missingFiles.length ||
+      recoveredMetadata.sizeMismatches.length ||
+      recoveredMetadata.invalidMetadata.length
     )
-      throw new Error("Recovery manifest metadata differs from database");
-  }
-  assertEmptyTarget(target);
-  log(
-    JSON.stringify({
-      mode: options.apply ? "apply" : "check",
-      counts: counts(source),
-      ledgers: "match",
-      storageFiles: rows.length,
-      historicalFiles: manifest.length,
-      passwords: "native logins preserved",
-      action:
-        "backup, stop writers, transactional data import, copy and rebuild metadata, verify",
-    }),
-  );
-  if (!options.apply) return;
-  const release = await acquireLock(join(layout.root, "import.lock"));
-  const journal = join(layout.root, "import-journal.json");
-  const started = Date.now();
-  const backup = join(layout.root, `before-import-${randomUUID()}`);
-  let maintenance: Awaited<ReturnType<typeof maintenanceDatabase>> | undefined;
-  let backedUp = false;
-  try {
-    if (existsSync(journal)) {
-      const prior = JSON.parse(readFileSync(journal, "utf8"));
-      if (prior.phase !== "complete" && prior.phase !== "rolled-back")
-        throw new Error(
-          "Interrupted import exists; run native-backup.ts recover-import before retrying",
-        );
-    }
-    await saveJournal(layout, {
-      format: 1,
-      operation: "import",
-      phase: "preparing",
-      backup,
-    });
-    maintenance = await maintenanceDatabase(options.env);
-    assertEmptyTarget(parseDump(await maintenance.db.dump()));
-    await backupNative(options.env, backup, undefined, checkpoint);
-    backedUp = true;
-    await saveJournal(layout, {
-      format: 1,
-      operation: "import",
-      phase: "applying",
-      backup,
-    });
-    await writePrivate(journal, JSON.stringify({ phase: "applying", backup }));
-    const stage = join(layout.root, `import-objects-${randomUUID()}`);
-    mkdirSync(stage);
-    for (const row of rows) {
-      const from = storageObjectPath(recoveryLayout, row);
-      const to = storageObjectPath(objectLayout(stage), row);
-      mkdirSync(dirname(to), { recursive: true });
-      copyFileSync(from, to);
-      if (fileHash(from) !== fileHash(to))
-        throw new Error("Copied Storage hash mismatch");
-    }
-    rebuildStorageMetadata(objectLayout(stage), rows, true);
-    const current = new Set(
-      rows.map((row) =>
-        relative(
-          recoveryLayout.root,
-          storageObjectPath(recoveryLayout, row),
-        ).replaceAll("\\", "/"),
-      ),
-    );
+      throw new Error("Recovered Storage metadata is incomplete");
+    const sourceHashes = new Map<string, string>();
     for (const entry of manifest) {
-      if (current.has(entry.path)) continue;
       const path = safeFile(entry.path);
-      if (!path.startsWith("stub/stub/"))
-        throw new Error("Unexpected historical Storage prefix");
-      const destination = join(stage, path);
-      mkdirSync(dirname(destination), { recursive: true });
-      copyFileSync(join(recoveryLayout.root, path), destination);
-      if (sourceHashes.get(path) !== fileHash(destination))
-        throw new Error("Historical Storage copy hash mismatch");
+      if (!path.startsWith("stub/stub/") || sourceHashes.has(path))
+        throw new Error("Invalid or duplicate recovered Storage path");
       for (const name of [
         "user.supabase.content-type",
         "user.supabase.cache-control",
-      ]) {
+      ])
         if (typeof entry.xattr?.[name] !== "string")
           throw new Error("Missing recovered Storage metadata");
-        setAttributeSync(destination, name, entry.xattr[name]);
-      }
+      sourceHashes.set(path, fileHash(join(recoveryLayout.root, path)));
     }
-    await maintenance.db.execute(importSql(source));
-    await checkpoint("database-committed");
-    renameSync(
-      layout.objects,
-      `${layout.objects}.before-import-${randomUUID()}`,
-    );
-    await checkpoint("between-renames");
-    renameSync(stage, layout.objects);
-    await verifyData(options.env, source);
-    const check = superuserConnection(layout, db.logins);
-    try {
+    for (const row of rows) {
+      const path = storageObjectPath(recoveryLayout, row);
+      if (statSync(path).size !== row.metadata?.size)
+        throw new Error("Recovered Storage size mismatch");
+      const entry = manifest.find(
+        (item) =>
+          item.path ===
+          relative(recoveryLayout.root, path).replaceAll("\\", "/"),
+      );
       if (
-        JSON.stringify(
-          await check`select schemaname, tablename, policyname, roles, cmd, qual, with_check from pg_policies order by schemaname, tablename, policyname`,
-        ) !== policies
+        !entry ||
+        entry.xattr?.["user.supabase.content-type"] !==
+          row.metadata?.mimetype ||
+        entry.xattr?.["user.supabase.cache-control"] !==
+          row.metadata?.cacheControl
       )
-        throw new Error("RLS policies changed during import");
-    } finally {
-      await check.end();
+        throw new Error("Recovery manifest metadata differs from database");
     }
-    await maintenance.stop();
-    maintenance = undefined;
-    await writePrivate(journal, JSON.stringify({ phase: "complete", backup }));
-    clearJournal(layout);
-    await runStack("start", options.env, { runtime: "native" });
-    const api = await verifyApis(options.env, source);
-    await writePrivate(journal, JSON.stringify({ phase: "complete", backup }));
+    assertEmptyTarget(target);
     log(
       JSON.stringify({
-        result: "verified",
+        mode: options.apply ? "apply" : "check",
         counts: counts(source),
-        ...api,
-        foreignKeys: "validated",
-        rls: "unchanged",
-        seconds: (Date.now() - started) / 1000,
-        backup,
+        ledgers: "match",
+        storageFiles: rows.length,
+        historicalFiles: manifest.length,
+        passwords: "native logins preserved",
+        action:
+          "backup, stop writers, transactional data import, copy and rebuild metadata, verify",
       }),
     );
-  } catch (error) {
-    if (backedUp) {
+    if (!options.apply) return;
+    const journal = join(layout.root, "import-journal.json");
+    const started = Date.now();
+    const backup = join(layout.root, `before-import-${randomUUID()}`);
+    let backedUp = false;
+    try {
+      if (existsSync(journal)) {
+        const prior = JSON.parse(readFileSync(journal, "utf8"));
+        if (prior.phase !== "complete" && prior.phase !== "rolled-back")
+          throw new Error(
+            "Interrupted import exists; run native-backup.ts recover-import before retrying",
+          );
+      }
+      await saveJournal(layout, {
+        format: 1,
+        operation: "import",
+        phase: "preparing",
+        backup,
+      });
+      assertEmptyTarget(parseDump(await maintenance.db.dump()));
+      await backupNative(options.env, backup, undefined, checkpoint);
+      backedUp = true;
+      await saveJournal(layout, {
+        format: 1,
+        operation: "import",
+        phase: "applying",
+        backup,
+      });
+      await writePrivate(
+        journal,
+        JSON.stringify({ phase: "applying", backup }),
+      );
+      const stage = join(layout.root, `import-objects-${randomUUID()}`);
+      mkdirSync(stage);
+      for (const row of rows) {
+        const from = storageObjectPath(recoveryLayout, row);
+        const to = storageObjectPath(objectLayout(stage), row);
+        mkdirSync(dirname(to), { recursive: true });
+        copyFileSync(from, to);
+        if (fileHash(from) !== fileHash(to))
+          throw new Error("Copied Storage hash mismatch");
+      }
+      rebuildStorageMetadata(objectLayout(stage), rows, true);
+      const current = new Set(
+        rows.map((row) =>
+          relative(
+            recoveryLayout.root,
+            storageObjectPath(recoveryLayout, row),
+          ).replaceAll("\\", "/"),
+        ),
+      );
+      for (const entry of manifest) {
+        if (current.has(entry.path)) continue;
+        const path = safeFile(entry.path);
+        if (!path.startsWith("stub/stub/"))
+          throw new Error("Unexpected historical Storage prefix");
+        const destination = join(stage, path);
+        mkdirSync(dirname(destination), { recursive: true });
+        copyFileSync(join(recoveryLayout.root, path), destination);
+        if (sourceHashes.get(path) !== fileHash(destination))
+          throw new Error("Historical Storage copy hash mismatch");
+        for (const name of [
+          "user.supabase.content-type",
+          "user.supabase.cache-control",
+        ]) {
+          if (typeof entry.xattr?.[name] !== "string")
+            throw new Error("Missing recovered Storage metadata");
+          setAttributeSync(destination, name, entry.xattr[name]);
+        }
+      }
+      await maintenance.db.execute(importSql(source));
+      await checkpoint("database-committed");
+      renameSync(
+        layout.objects,
+        `${layout.objects}.before-import-${randomUUID()}`,
+      );
+      await checkpoint("between-renames");
+      renameSync(stage, layout.objects);
+      await verifyData(options.env, source);
+      const check = superuserConnection(layout, db.logins);
       try {
-        await saveJournal(layout, {
-          format: 1,
-          operation: "import",
-          phase: "applying",
+        if (
+          JSON.stringify(
+            await check`select schemaname, tablename, policyname, roles, cmd, qual, with_check from pg_policies order by schemaname, tablename, policyname`,
+          ) !== policies
+        )
+          throw new Error("RLS policies changed during import");
+      } finally {
+        await check.end();
+      }
+      await maintenance.stop();
+      maintenance = undefined;
+      await writePrivate(
+        journal,
+        JSON.stringify({ phase: "complete", backup }),
+      );
+      clearJournal(layout);
+      await runStack("start", options.env, { runtime: "native" });
+      const api = await verifyApis(options.env, source);
+      await writePrivate(
+        journal,
+        JSON.stringify({ phase: "complete", backup }),
+      );
+      log(
+        JSON.stringify({
+          result: "verified",
+          counts: counts(source),
+          ...api,
+          foreignKeys: "validated",
+          rls: "unchanged",
+          seconds: (Date.now() - started) / 1000,
           backup,
-        });
-        if (maintenance) {
+        }),
+      );
+    } catch (error) {
+      if (backedUp) {
+        try {
+          await saveJournal(layout, {
+            format: 1,
+            operation: "import",
+            phase: "applying",
+            backup,
+          });
+          if (maintenance) {
+            await maintenance.stop();
+            maintenance = undefined;
+          }
+          maintenance = await maintenanceDatabase(options.env);
+          await restoreNativeData(options.env, backup);
           await maintenance.stop();
           maintenance = undefined;
+          await writePrivate(
+            journal,
+            JSON.stringify({ phase: "rolled-back", backup }),
+          );
+          clearJournal(layout);
+          log(
+            "IMPORT FAILED: target data restored from the pre-import backup; stack and application writers remain stopped.",
+          );
+        } catch {
+          log(
+            `IMPORT ROLLBACK FAILED: keep writers stopped. Recover using native-backup.ts recover-import --env ${options.env} ${backup}${options.env === "prod" ? " --confirm-production" : ""}.`,
+          );
+          throw new Error(
+            "Import and automatic rollback failed; backup and recovery journal retained",
+          );
         }
-        maintenance = await maintenanceDatabase(options.env);
-        await restoreNativeData(options.env, backup);
-        await maintenance.stop();
-        maintenance = undefined;
-        await writePrivate(
-          journal,
-          JSON.stringify({ phase: "rolled-back", backup }),
-        );
-        clearJournal(layout);
-        log(
-          "IMPORT FAILED: target data restored from the pre-import backup; stack and application writers remain stopped.",
-        );
-      } catch {
-        log(
-          `IMPORT ROLLBACK FAILED: keep writers stopped. Recover using native-backup.ts recover-import --env ${options.env} ${backup}${options.env === "prod" ? " --confirm-production" : ""}.`,
-        );
-        throw new Error(
-          "Import and automatic rollback failed; backup and recovery journal retained",
-        );
       }
+      throw error;
     }
-    throw error;
   } finally {
     if (maintenance) await maintenance.stop();
-    release();
   }
 }
 if (

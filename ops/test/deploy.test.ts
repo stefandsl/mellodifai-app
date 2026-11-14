@@ -395,6 +395,7 @@ it.each([false, true])(
   async (skipMigrations) => {
     vi.stubEnv("MELLODIFAI_RUNTIME", "native");
     const root = temp();
+    vi.stubEnv("MELLODIFAI_ROOT", root);
     const repo = join(root, "deploy");
     mkdirSync(join(repo, "supabase/migrations"), { recursive: true });
     writeFileSync(join(repo, "supabase/migrations/002_test.sql"), "-- test");
@@ -423,6 +424,9 @@ it.each([false, true])(
       root,
       "pnpm.cjs",
       runner,
+      async (entry, args, from) => {
+        await runner(process.execPath, [join(from, entry), ...args]);
+      },
     );
     expect(
       calls.some(

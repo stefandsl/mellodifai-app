@@ -14,7 +14,9 @@ import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import { composeEnvironment } from "./lib/compose.js";
 import { ENV_TABLE, runtimePath, stackDir } from "./lib/envs.js";
+import { safeFailure } from "./lib/native/diagnostics.js";
 import { resolveRuntime } from "./lib/native/layout.js";
+import { withStackLease } from "./lib/native/lease.js";
 import { writePrivate } from "./lib/private-file.js";
 import { checked } from "./lib/recovery.js";
 import { randomPassword } from "./lib/roles.js";
@@ -41,6 +43,13 @@ function replaceEnvValue(file: string, name: string, value: string) {
 export async function rotateSupabaseKeys(
   runner: Runner = realRunner,
 ): Promise<void> {
+  if (resolveRuntime(undefined) === "native")
+    return withStackLease("prod", "rotation", () =>
+      rotateSupabaseKeysLocked(runner),
+    );
+  return rotateSupabaseKeysLocked(runner);
+}
+async function rotateSupabaseKeysLocked(runner: Runner): Promise<void> {
   const root = runtimePath(runtimeRoot());
   const native = resolveRuntime(undefined) === "native";
   const dir = stackDir("prod");
@@ -255,7 +264,8 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 )
-  rotateSupabaseKeys().catch(() => {
+  rotateSupabaseKeys().catch((error: unknown) => {
+    process.stderr.write(`${safeFailure(error)}\n`);
     process.stderr.write(
       "Supabase rotation failed; verify canonical env access, service health and private rotation backups\n",
     );

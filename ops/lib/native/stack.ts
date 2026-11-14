@@ -30,14 +30,10 @@ import {
 } from "./host.js";
 import { assertNoMaintenance } from "./journal.js";
 import { loopback, type NativeLayout, nativeLayout } from "./layout.js";
+import { assertStackLease, withStackLease } from "./lease.js";
 import { baseEnvironment, typescriptArgs } from "./plan.js";
 import { postmasterPid, stopPostgres, witness } from "./postgres.js";
-import {
-  acquireLock,
-  readState,
-  type StackState,
-  waitFor,
-} from "./processes.js";
+import { readState, type StackState, waitFor } from "./processes.js";
 import { assertProductionSecrets } from "./production-secrets.js";
 import { nativeSourceRoot, prepareNativeSource } from "./source.js";
 import {
@@ -135,6 +131,7 @@ export async function stopOrphans(
   layout: NativeLayout,
   state: StackState | null,
 ): Promise<void> {
+  assertStackLease(layout.env);
   const records = Object.entries(state?.services ?? {})
     .filter(
       ([id, service]) =>
@@ -456,19 +453,19 @@ export async function runNativeCommand(
     await installNative({ seedDirs: flags.seedDirs ?? seedDirsFromEnv(), log });
     return;
   }
-  if (cmd === "env-file") return dependencies.writeEnvFile(env);
+  if (cmd === "env-file")
+    return withStackLease(env, cmd, () => dependencies.writeEnvFile(env));
   if (cmd === "status") {
     const status = await nativeStatus(env);
     if (!status.healthy) process.exitCode = 1;
     return formatStatus(env, status);
   }
   if (cmd === "render") {
-    await renderNative(env);
+    await withStackLease(env, cmd, () => renderNative(env));
     return;
   }
   const layout = nativeLayout(env);
-  const release = await acquireLock(join(layout.root, "stack.lock"));
-  try {
+  return withStackLease(env, cmd, async () => {
     if (cmd === "start") await startNative(env, flags, dependencies);
     else if (cmd === "stop") await stopNative(layout);
     else if (cmd === "migrate") {
@@ -482,7 +479,6 @@ export async function runNativeCommand(
       wipeNative(layout);
       await startNative(env, flags, dependencies);
     }
-  } finally {
-    release();
-  }
+    return undefined;
+  });
 }

@@ -1,6 +1,8 @@
 // Never echo subprocess output or arbitrary exception messages: either can
 // contain connection strings, environment values or credentials.
+import { NativeDiagnosticError } from "./native/diagnostics.js";
 export function serviceFailureReason(error: unknown): string {
+  if (error instanceof NativeDiagnosticError) return error.message;
   if (error instanceof AggregateError)
     return serviceFailureReason(error.errors[0]);
   const code = (error as { code?: unknown } | null)?.code;

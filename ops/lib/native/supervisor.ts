@@ -14,6 +14,7 @@ import { NativeDiagnosticError, safeFailure } from "./diagnostics.js";
 import { processIdentities } from "./host.js";
 import { assertNoMaintenance } from "./journal.js";
 import { type NativeLayout, nativeLayout } from "./layout.js";
+import { acquireLease } from "./lease.js";
 import { applyAppMigrations, applyStackSettings } from "./migrate.js";
 import {
   GATEWAY_CONFIG_FILE,
@@ -279,6 +280,11 @@ export function nativeDefinitions(
 
 async function main(env: StackEnv): Promise<void> {
   assertNoMaintenance(nativeLayout(env));
+  // Separate from the command lease: this survives the initiating CLI.
+  await acquireLease(
+    join(nativeLayout(env).root, "supervisor.lease"),
+    "supervisor",
+  );
   const log = (message: string) =>
     process.stdout.write(`${new Date().toISOString()} ${message}\n`);
   const context = await nativeContext(env);
