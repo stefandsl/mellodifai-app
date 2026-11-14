@@ -256,9 +256,14 @@ export async function backupNative(
   } satisfies BackupManifest);
   return directory;
 }
+export interface ReadBackupOptions {
+  /** Only recover-import of the exact backup a legacy import journal names. */
+  allowLegacy?: boolean;
+}
 export function readBackup(
   directory: string,
   target?: StackEnv,
+  options: ReadBackupOptions = {},
 ): {
   manifest: BackupManifest;
   dump: DumpData;
@@ -275,7 +280,7 @@ export function readBackup(
   const dump = parseDump(readFileSync(join(directory, "database.sql"), "utf8"));
   if (manifest.format === 2 && !manifest.source)
     throw new Error("Native backup source identity is missing");
-  assertBackupSource(manifest.source, dump, target);
+  assertBackupSource(manifest.source, dump, target, options.allowLegacy);
   const rows = objectRows(dump);
   if (
     JSON.stringify(rows) !==
@@ -315,9 +320,10 @@ export async function restoreNativeData(
   env: StackEnv,
   directory: string,
   checkpoint: (step: string) => Promise<void> = async () => {},
+  options: ReadBackupOptions = {},
 ): Promise<void> {
   assertStackLease(env);
-  const { manifest, dump } = readBackup(directory, env);
+  const { manifest, dump } = readBackup(directory, env, options);
   const db = await nativeDatabase(env);
   const current = parseDump(await db.dump());
   compareLedgers(dump, current);

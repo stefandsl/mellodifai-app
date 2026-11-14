@@ -59,9 +59,13 @@ export async function nativeBackup(
       if (action !== "recover-import") assertNoMaintenance(layout);
       if (action === "restore") readBackup(path, env);
       let recoveryPhase: string | undefined;
+      // Old format-1 bundles (no source identity) are accepted only here: the
+      // exact backup a legacy import journal names, recovered by recover-import.
+      let allowLegacy = false;
       if (action === "recover-import") {
+        const current = readJournal(layout);
         const journal =
-          readJournal(layout) ??
+          current ??
           JSON.parse(
             readFileSync(join(layout.root, "import-journal.json"), "utf8"),
           );
@@ -71,7 +75,9 @@ export async function nativeBackup(
         )
           throw new Error("Backup does not match interrupted import journal");
         recoveryPhase = journal.phase;
-        if (recoveryPhase !== "preparing") readBackup(path, env);
+        allowLegacy = current === undefined;
+        if (recoveryPhase !== "preparing")
+          readBackup(path, env, { allowLegacy });
       }
       if (action === "restore")
         before = join(layout.root, `before-restore-${Date.now()}`);
@@ -95,7 +101,7 @@ export async function nativeBackup(
           });
         }
         if (recoveryPhase !== "preparing")
-          await restoreNativeData(env, path, checkpoint);
+          await restoreNativeData(env, path, checkpoint, { allowLegacy });
         // The data a deploy-recorded rollback was bound to has been replaced.
         await refreshSchemaRollback(env, await maintenance.db.dump());
         if (action === "recover-import")
