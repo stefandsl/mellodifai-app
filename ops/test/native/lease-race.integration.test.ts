@@ -10,10 +10,7 @@ import { nativeStatus } from "../../lib/native/stack.js";
 import { runStack } from "../../stack.js";
 import { assertNativeTestRoot } from "./integration-env.js";
 
-it.skipIf(
-  process.env.MDF_NATIVE_LEASE_TESTS !== "1" &&
-    process.env.MDF_NATIVE_INTEGRATION !== "1",
-)(
+it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
   "start cannot stop a live backup postmaster",
   async () => {
     assertNativeTestRoot();
@@ -80,10 +77,7 @@ it.skipIf(
   300_000,
 );
 
-it.skipIf(
-  process.env.MDF_NATIVE_LEASE_TESTS !== "1" &&
-    process.env.MDF_NATIVE_INTEGRATION !== "1",
-)(
+it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
   "two actual starts from stale state cannot both own the stack",
   async () => {
     assertNativeTestRoot();

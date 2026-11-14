@@ -22,10 +22,24 @@ const helper = fileURLToPath(
 export const leasePath = (env: StackEnv) =>
   resolve(join(nativeLayout(env).root, "stack.lease"));
 
+/** A short command has nothing to stop: losing its lease ends it at once. */
+const exitOnLoss = () => {
+  process.stderr.write(
+    "Exclusive stack lease helper died; terminating the operation\n",
+  );
+  process.exit(1);
+};
+
+/**
+ * Hold an OS-backed exclusive lease while the returned release is pending.
+ * `onLost` runs once if the helper dies while the lease is held. The
+ * supervisor passes one that stops its children cleanly before it exits.
+ */
 export async function acquireLease(
   path: string,
   command: string,
   timeoutMs = 5000,
+  onLost: () => void = exitOnLoss,
 ): Promise<() => Promise<void>> {
   if (process.platform !== "win32")
     throw new Error("Native stack leases require Windows");
@@ -57,12 +71,7 @@ export async function acquireLease(
   let active = false;
   let releasing = false;
   child.once("exit", () => {
-    if (active && !releasing) {
-      process.stderr.write(
-        "Exclusive stack lease helper died; terminating the operation\n",
-      );
-      process.exit(1);
-    }
+    if (active && !releasing) onLost();
   });
   try {
     await new Promise<void>((done, fail) => {

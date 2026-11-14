@@ -15,6 +15,12 @@ import { processIdentities } from "./host.js";
 import { assertNoMaintenance } from "./journal.js";
 import { type NativeLayout, nativeLayout } from "./layout.js";
 import { acquireLease } from "./lease.js";
+import {
+  assertDataDiskFree,
+  securePrivateDirectory,
+  serviceLog,
+  watchDataDisk,
+} from "./logs.js";
 import { applyAppMigrations, applyStackSettings } from "./migrate.js";
 import {
   GATEWAY_CONFIG_FILE,
@@ -41,7 +47,11 @@ import {
   writeState,
 } from "./processes.js";
 import { readRollback } from "./rollback.js";
-import { loadNativeLogins, type NativeLogins } from "./secrets.js";
+import {
+  loadHopSecret,
+  loadNativeLogins,
+  type NativeLogins,
+} from "./secrets.js";
 import { nativeSourceRoot } from "./source.js";
 
 const opsDir = fileURLToPath(new URL("../../", import.meta.url));
@@ -75,6 +85,7 @@ export async function nativeContext(env: StackEnv): Promise<NativeContext> {
   const tools = nativeTools();
   const secrets = await loadStackSecrets(env);
   const native = await loadNativeLogins(env);
+  const hopSecret = await loadHopSecret(env);
   const toml = readFileSync(
     join(stackDir(env), "supabase/config.toml"),
     "utf8",
@@ -86,6 +97,7 @@ export async function nativeContext(env: StackEnv): Promise<NativeContext> {
     toml,
     secrets,
     logins: native.logins,
+    hopSecret,
     smtp: await loadSmtpEnvironment(env),
     tsx: tsxRuntime(),
     opsDir,
@@ -98,9 +110,10 @@ export async function nativeContext(env: StackEnv): Promise<NativeContext> {
     layout.objects,
   ])
     mkdirSync(directory, { recursive: true });
+  await securePrivateDirectory(layout.logs);
   await writePrivate(
     join(layout.config, GATEWAY_CONFIG_FILE),
-    JSON.stringify(gatewayConfig(env, layout, secrets)),
+    JSON.stringify(gatewayConfig(env, layout, secrets, hopSecret)),
   );
   return { env, layout, tools, native, specs };
 }
@@ -280,17 +293,63 @@ export function nativeDefinitions(
   ];
 }
 
+/**
+ * The handler for an error nothing else caught (an exception in a stream or
+ * timer callback): stop every child cleanly, then exit 1. Runs once; a stop
+ * that hangs or fails still ends in exit after `timeoutMs`.
+ */
+export function lastResort(
+  stop: () => Promise<void>,
+  log: (message: string) => void,
+  exit: (code: number) => void,
+  timeoutMs = 180_000,
+): (error: unknown) => void {
+  let fired = false;
+  return (error) => {
+    if (fired) return;
+    fired = true;
+    try {
+      log(`supervisor error: ${safeFailure(error)}; stopping the stack`);
+    } catch {
+      /* The log itself may be what failed. */
+    }
+    let timer: NodeJS.Timeout | undefined;
+    Promise.race([
+      stop().catch(() => {}),
+      new Promise<void>((done) => {
+        timer = setTimeout(done, timeoutMs);
+      }),
+    ]).then(() => {
+      clearTimeout(timer);
+      exit(1);
+    });
+  };
+}
+
 async function main(env: StackEnv): Promise<void> {
   assertNoMaintenance(nativeLayout(env));
-  // Separate from the command lease: this survives the initiating CLI.
+  // Separate from the command lease: this survives the initiating CLI. Until
+  // children exist, losing it simply ends the process; afterwards the stack
+  // is stopped cleanly first.
+  let leaseLost: () => void = () => {
+    process.stderr.write("Supervisor lease helper died; exiting\n");
+    process.exit(1);
+  };
   await acquireLease(
     join(nativeLayout(env).root, "supervisor.lease"),
     "supervisor",
+    5000,
+    () => leaseLost(),
   );
-  const log = (message: string) =>
-    process.stdout.write(`${new Date().toISOString()} ${message}\n`);
+  assertDataDiskFree(nativeLayout(env).root);
   const context = await nativeContext(env);
   const { layout } = context;
+  // The supervisor's own lines are rotated and redacted like every service's.
+  // Its stdout stays on the file the starting command opened, for a crash.
+  const own = serviceLog(join(layout.logs, "supervisor.log"));
+  const log = (message: string) =>
+    own.line(`${new Date().toISOString()} ${message}`);
+  watchDataDisk(layout.root, log);
   const self = (await processIdentities([process.pid])).get(process.pid);
   if (!self) throw new Error("Cannot identify the supervisor process");
   const fresh = firstBootState(layout) === "new";
@@ -300,6 +359,15 @@ async function main(env: StackEnv): Promise<void> {
     self,
     { statePath: statePath(layout), log },
   );
+  const fatal = lastResort(
+    () => supervisor.stop(),
+    log,
+    (code) => process.exit(code),
+  );
+  process.on("uncaughtException", fatal);
+  process.on("unhandledRejection", fatal);
+  leaseLost = () =>
+    fatal(new Error("the supervisor lease helper died; exclusivity is lost"));
   let stopping = false;
   const watch = setInterval(() => {
     if (stopping || !existsSync(stopRequestPath(layout))) return;

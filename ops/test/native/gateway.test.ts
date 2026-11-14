@@ -17,7 +17,13 @@ import {
   request,
   type Server,
 } from "node:http";
-import { type AddressInfo, connect, type Socket } from "node:net";
+import {
+  type AddressInfo,
+  connect,
+  createServer as createNetServer,
+  type Server as NetServer,
+  type Socket,
+} from "node:net";
 import { basename, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -36,6 +42,7 @@ import { loadGatewayConfig } from "../../native-gateway.js";
 // Made-up credentials: nothing here signs or opens anything.
 const ANON = `anon.${"a".repeat(40)}`;
 const SERVICE = `service.${"s".repeat(40)}`;
+const HOP = `hop.${"h".repeat(40)}`;
 const USER_JWT = "user-header.user-payload.user-signature";
 const APP = "http://127.0.0.1:3999";
 const MIB = 1024 * 1024;
@@ -62,14 +69,19 @@ afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-async function listen(server: Server): Promise<number> {
+async function listen(server: Server | NetServer): Promise<number> {
+  const sockets = new Set<Socket>();
+  server.on("connection", (socket: Socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   closers.push(
     () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
-        server.closeAllConnections();
+        for (const socket of sockets) socket.destroy();
       }),
   );
   const address = server.address() as AddressInfo;
@@ -94,6 +106,8 @@ async function stack(
     limits?: Partial<GatewayLimits>;
     appOrigins?: string[];
     down?: "auth" | "rest" | "storage";
+    /** A raw TCP service in place of an HTTP one, to send malformed answers. */
+    rawRest?: (socket: Socket) => void;
   } = {},
 ) {
   const seen: Seen[] = [];
@@ -116,11 +130,29 @@ async function stack(
         .end(JSON.stringify(record));
     };
   const ports = { auth: 0, rest: 0, storage: 0 };
-  for (const name of ["auth", "rest", "storage"] as const)
-    ports[name] =
-      options.down === name
-        ? await closedPort()
-        : await listen(createServer(options[name] ?? echo(name)));
+  // Every byte each service received, one string per upstream connection.
+  const wire: Record<"auth" | "rest" | "storage", string[]> = {
+    auth: [],
+    rest: [],
+    storage: [],
+  };
+  for (const name of ["auth", "rest", "storage"] as const) {
+    if (options.down === name) {
+      ports[name] = await closedPort();
+      continue;
+    }
+    const server =
+      name === "rest" && options.rawRest
+        ? createNetServer(options.rawRest)
+        : createServer(options[name] ?? echo(name));
+    server.on("connection", (socket: Socket) => {
+      const index = wire[name].push("") - 1;
+      socket.on("data", (chunk: Buffer) => {
+        wire[name][index] += chunk.toString("latin1");
+      });
+    });
+    ports[name] = await listen(server);
+  }
   const config: GatewayConfig = {
     host: "127.0.0.1",
     port: 0,
@@ -130,12 +162,13 @@ async function stack(
       storage: `http://127.0.0.1:${ports.storage}`,
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: options.appOrigins ?? [APP],
     ...(options.limits ? { limits: options.limits } : {}),
     log: (entry) => logs.push(entry),
   };
   const port = await listen(createGateway(config));
-  return { port, ports, seen, logs, config };
+  return { port, ports, seen, logs, config, wire };
 }
 
 function open(
@@ -206,6 +239,90 @@ function raw(port: number, text: string): Promise<string> {
 const statuses = (reply: string) =>
   [...reply.matchAll(/HTTP\/1\.1 (\d{3}) /g)].map((match) => Number(match[1]));
 
+interface RawReply {
+  status: number;
+  head: string;
+  body: string;
+}
+
+/** One complete response at the start of `text`, or undefined if partial. */
+function parseReply(
+  text: string,
+  head: boolean,
+): { reply: RawReply; rest: string } | undefined {
+  const end = text.indexOf("\r\n\r\n");
+  if (end === -1) return undefined;
+  const top = text.slice(0, end);
+  const status = Number(/^HTTP\/1\.1 (\d{3}) /.exec(top)?.[1]);
+  let rest = text.slice(end + 4);
+  const length = /\r\ncontent-length: *(\d+)/i.exec(top)?.[1];
+  if (head || status === 204 || status === 304)
+    return { reply: { status, head: top, body: "" }, rest };
+  if (length !== undefined) {
+    if (rest.length < Number(length)) return undefined;
+    return {
+      reply: { status, head: top, body: rest.slice(0, Number(length)) },
+      rest: rest.slice(Number(length)),
+    };
+  }
+  if (!/\r\ntransfer-encoding: *chunked/i.test(top))
+    throw new Error(`Unframed response: ${top}`);
+  let body = "";
+  for (;;) {
+    const line = rest.indexOf("\r\n");
+    if (line === -1) return undefined;
+    const size = Number.parseInt(rest.slice(0, line), 16);
+    if (rest.length < line + 2 + size + 2) return undefined;
+    body += rest.slice(line + 2, line + 2 + size);
+    rest = rest.slice(line + 2 + size + 2);
+    if (size === 0) return { reply: { status, head: top, body }, rest };
+  }
+}
+
+/**
+ * A kept-alive client connection that sends one raw request at a time and
+ * waits for its whole answer, so every request is reused on one connection.
+ */
+async function rawSession(port: number) {
+  const socket = connect(port, "127.0.0.1");
+  socket.setEncoding("latin1");
+  await once(socket, "connect");
+  closers.push(() => {
+    socket.destroy();
+  });
+  let buffer = "";
+  let closed = false;
+  let wake = () => {};
+  socket.on("data", (chunk: string) => {
+    buffer += chunk;
+    wake();
+  });
+  socket.on("close", () => {
+    closed = true;
+    wake();
+  });
+  socket.on("error", () => {});
+  return {
+    async exchange(text: string, head = false): Promise<RawReply> {
+      socket.write(text, "latin1");
+      for (;;) {
+        const parsed = parseReply(buffer, head);
+        if (parsed) {
+          buffer = parsed.rest;
+          return parsed.reply;
+        }
+        if (closed) throw new Error(`Connection closed: ${buffer}`);
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
+      }
+    },
+    /** Bytes the gateway sent that belong to no answer. */
+    leftover: () => buffer,
+    isClosed: () => closed,
+  };
+}
+
 async function stream(req: ClientRequest, chunk: Buffer, count: number) {
   for (let index = 0; index < count; index++)
     if (!req.write(chunk)) await once(req, "drain");
@@ -222,6 +339,7 @@ it("accepts the agreed config shape and fills in the default limits", () => {
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: ["http://127.0.0.1:3210", "https://app.mellodifai.com"],
     limits: { upstreamTimeoutMs: 30_000 },
   });
@@ -234,6 +352,7 @@ it("accepts the agreed config shape and fills in the default limits", () => {
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: ["http://127.0.0.1:3210", "https://app.mellodifai.com"],
     limits: { upstreamTimeoutMs: 30_000 },
   });
@@ -258,6 +377,7 @@ it("refuses a config that would expose or misroute the gateway, never echoing a 
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: [APP],
     limits: {},
   });
@@ -290,6 +410,10 @@ it("refuses a config that would expose or misroute the gateway, never echoing a 
     ["one key for both", { keys: { anon: SERVICE } }],
     ["missing key", { keys: { service: undefined } }],
     ["undeclared key", { keys: { jwt: SERVICE } }],
+    ["missing hop secret", { hopSecret: undefined }],
+    ["short hop secret", { hopSecret: "hop" }],
+    ["hop secret with a space", { hopSecret: `${HOP} x` }],
+    ["hop secret is a key", { hopSecret: SERVICE }],
     ["origin with a slash", { appOrigins: [`${APP}/`] }],
     ["origin without scheme", { appOrigins: ["127.0.0.1:3999"] }],
     ["wildcard origin", { appOrigins: ["*"] }],
@@ -319,6 +443,7 @@ it("refuses a config that would expose or misroute the gateway, never echoing a 
     expect(message, name).toMatch(/^Invalid gateway config: /);
     expect(message, name).not.toContain(ANON);
     expect(message, name).not.toContain(SERVICE);
+    expect(message, name).not.toContain(HOP);
   }
   for (const value of ["http://127.0.0.1:45621", null, 45621, [valid()]])
     expect(() => parseGatewayConfig(value)).toThrow(
@@ -707,6 +832,22 @@ it("replaces forged identity and forwarding headers with its own", async () => {
   }
 });
 
+it("proves every forwarded request came through it with the hop secret, never the client's copy", async () => {
+  const { port, seen, logs } = await stack();
+  for (const route of ["auth", "rest", "storage"] as const) {
+    const reply = await send(port, `/${route}/v1/thing`, {
+      headers: withKey(ANON, { "x-mellodifai-hop": "forged-by-the-client" }),
+    });
+    expect(reply.status).toBe(200);
+    expect(seenBy(reply).headers["x-mellodifai-hop"]).toBe(HOP);
+  }
+  // A public route too, and a request without any client copy.
+  const verify = await send(port, "/auth/v1/verify?token=t&type=signup");
+  expect(seenBy(verify).headers["x-mellodifai-hop"]).toBe(HOP);
+  expect(seen).toHaveLength(4);
+  expect(JSON.stringify(logs)).not.toContain(HOP);
+});
+
 it("serves only the loopback names of its own port", async () => {
   const { port, seen } = await stack();
   for (const host of [
@@ -1069,6 +1210,212 @@ it("keeps a chunked body chunked for every method", async () => {
   });
   expect(record.headers["transfer-encoding"]).toBe("chunked");
   expect(record.headers["content-length"]).toBe(undefined);
+});
+
+it("refuses a Connection header that would drop framing or a header the gateway relies on", async () => {
+  const { port, seen, wire } = await stack();
+  // The review's attack: a public GET whose length is nominated away, with a
+  // whole second Auth request as its body.
+  const hidden = `GET /admin/users HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Forwarded-For: 203.0.113.9\r\n\r\n`;
+  const attack = await raw(
+    port,
+    `GET /auth/v1/verify?token=t&type=magiclink HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: content-length\r\nContent-Length: ${hidden.length}\r\n\r\n${hidden}` +
+      `GET /health HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`,
+  );
+  expect(statuses(attack)).toEqual([400, 200]);
+  for (const name of [
+    "content-length",
+    "Transfer-Encoding",
+    "host",
+    "apikey",
+    "authorization",
+    "origin",
+    "expect",
+    "x-forwarded-for",
+    "x-real-ip",
+    "x-mellodifai-hop",
+    "access-control-request-method",
+  ]) {
+    const reply = await raw(
+      port,
+      `POST /rest/v1/songs HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\napikey: ${SERVICE}\r\nAuthorization: Bearer ${SERVICE}\r\nOrigin: ${APP}\r\nConnection: keep-alive, ${name}\r\nContent-Length: ${hidden.length}\r\n\r\n${hidden}` +
+        `GET /health HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`,
+    );
+    expect(statuses(reply), name).toEqual([400, 200]);
+  }
+  expect(seen).toHaveLength(0);
+  expect([...wire.auth, ...wire.rest, ...wire.storage].join("")).toBe("");
+});
+
+it("refuses a GET or HEAD with a body and keeps the connection in step", async () => {
+  const { port, seen, wire } = await stack();
+  const hidden = `GET /admin/users HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n`;
+  const session = await rawSession(port);
+  const start = (method: string) =>
+    `${method} /storage/v1/object/list HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\napikey: ${SERVICE}\r\n`;
+  const chunked = `${hidden.length.toString(16)}\r\n${hidden}\r\n0\r\n\r\n`;
+  for (const [method, text] of [
+    ["GET", `${start("GET")}Content-Length: ${hidden.length}\r\n\r\n${hidden}`],
+    ["GET", `${start("GET")}Transfer-Encoding: chunked\r\n\r\n${chunked}`],
+    [
+      "HEAD",
+      `${start("HEAD")}Content-Length: ${hidden.length}\r\n\r\n${hidden}`,
+    ],
+    ["HEAD", `${start("HEAD")}Transfer-Encoding: chunked\r\n\r\n${chunked}`],
+  ] as const) {
+    const reply = await session.exchange(text, method === "HEAD");
+    expect(reply.status, text).toBe(400);
+  }
+  // An explicit empty length is no body.
+  expect(
+    (await session.exchange(`${start("GET")}Content-Length: 0\r\n\r\n`)).status,
+  ).toBe(200);
+  expect(
+    (
+      await session.exchange(
+        `GET /health HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n\r\n`,
+      )
+    ).status,
+  ).toBe(200);
+  expect(session.leftover()).toBe("");
+  expect(seen.map((record) => record.method)).toEqual(["GET"]);
+  expect(seen[0]?.headers["content-length"]).toBe("0");
+  expect(wire.storage.join("")).not.toContain("/admin/users");
+});
+
+it("sends the service exactly one framed request per client request, for every method, on a reused connection", async () => {
+  const { port, seen, wire } = await stack();
+  // Each body is itself a complete request: unframed, it would become one.
+  const hidden = `GET /admin/users HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n`;
+  const chunked = `${hidden.length.toString(16)}\r\n${hidden}\r\n0\r\n\r\n`;
+  const session = await rawSession(port);
+  const cases: { method: string; framing: string; body: string }[] = [];
+  for (const method of ["GET", "DELETE"])
+    cases.push({ method, framing: "", body: "" });
+  for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+    cases.push({ method, framing: "", body: "" });
+    cases.push({ method, framing: "Content-Length: 0\r\n", body: "" });
+    cases.push({
+      method,
+      framing: `Content-Length: ${hidden.length}\r\n`,
+      body: hidden,
+    });
+    cases.push({
+      method,
+      framing: "Transfer-Encoding: chunked\r\n",
+      body: chunked,
+    });
+  }
+  // Last: Node's echo service closes its side after answering a HEAD.
+  cases.push({ method: "HEAD", framing: "", body: "" });
+  for (const [index, { method, framing, body }] of cases.entries()) {
+    const reply = await session.exchange(
+      `${method} /storage/v1/object/case-${index} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\napikey: ${SERVICE}\r\nConnection: keep-alive\r\n${framing}\r\n${body}`,
+      method === "HEAD",
+    );
+    expect(reply.status, `${index} ${method} ${framing}`).toBe(200);
+    expect(seen, `${index} ${method} ${framing}`).toHaveLength(index + 1);
+    const record = seen[index];
+    expect(record?.method).toBe(method);
+    expect(record?.url).toBe(`/object/case-${index}`);
+    expect(record?.body).toBe(body === "" ? "" : hidden);
+    if (body !== "")
+      expect(
+        record?.headers["content-length"] ??
+          record?.headers["transfer-encoding"],
+      ).toBe(
+        framing.startsWith("Content-Length")
+          ? String(hidden.length)
+          : "chunked",
+      );
+  }
+  expect(session.leftover()).toBe("");
+  // One upstream connection carried every request, and it saw no request the
+  // client did not send.
+  expect(wire.storage).toHaveLength(1);
+  expect(
+    wire.storage[0]?.match(/ \/object\/case-\d+ HTTP\/1\.1\r\n/g),
+  ).toHaveLength(cases.length);
+  expect(seen.some((record) => record.url.includes("admin"))).toBe(false);
+});
+
+it("keeps the client connection in step whatever framing a service answers with", async () => {
+  const answers: Record<string, string> = {
+    "/nominated":
+      "HTTP/1.1 200 OK\r\nConnection: content-length\r\nContent-Length: 5\r\n\r\nhello",
+    "/length-and-chunked":
+      "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+    "/two-lengths":
+      "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nhello!",
+    "/double":
+      "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok" +
+      "HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nsmuggled",
+    "/plain": "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nplain",
+    "/chunked":
+      "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n",
+  };
+  const { port } = await stack({
+    rawRest: (socket) => {
+      let buffer = "";
+      socket.setEncoding("latin1");
+      socket.on("error", () => {});
+      socket.on("data", (chunk: string) => {
+        buffer += chunk;
+        for (
+          let end = buffer.indexOf("\r\n\r\n");
+          end !== -1;
+          end = buffer.indexOf("\r\n\r\n")
+        ) {
+          const path = buffer.split(" ", 2)[1] ?? "";
+          buffer = buffer.slice(end + 4);
+          if (path === "/until-close") {
+            socket.end(
+              "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nuntil-close",
+            );
+            return;
+          }
+          socket.write(
+            answers[path] ??
+              "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n",
+          );
+        }
+      });
+    },
+  });
+  const session = await rawSession(port);
+  const get = (path: string) =>
+    session.exchange(
+      `GET /rest/v1${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\napikey: ${SERVICE}\r\n\r\n`,
+    );
+  const results: [number, string][] = [];
+  for (const path of [
+    "/nominated",
+    "/length-and-chunked",
+    "/two-lengths",
+    "/double",
+    "/plain",
+    "/chunked",
+    "/until-close",
+    "/plain",
+  ]) {
+    const reply = await get(path);
+    results.push([reply.status, reply.status === 200 ? reply.body : ""]);
+    // The length the service sent is rebuilt even when it named it away.
+    if (path === "/nominated")
+      expect(reply.head).toMatch(/\r\ncontent-length: 5(\r\n|$)/i);
+  }
+  expect(results).toEqual([
+    [200, "hello"],
+    [502, ""],
+    [502, ""],
+    [200, "ok"],
+    [200, "plain"],
+    [200, "abc"],
+    [200, "until-close"],
+    [200, "plain"],
+  ]);
+  expect(session.leftover()).toBe("");
+  expect(session.isClosed()).toBe(false);
 });
 
 it("streams a large upload with its length and with chunks, byte for byte", {
@@ -1835,6 +2182,7 @@ it("reads its config file without ever quoting it in an error", () => {
       storage: "http://127.0.0.1:45629",
     },
     keys: { anon: ANON, service: SERVICE },
+    hopSecret: HOP,
     appOrigins: [APP],
   };
   // PowerShell writes a byte-order mark; it is not part of the JSON.
@@ -1924,6 +2272,7 @@ it("runs as a process: listens on loopback, serves, and stops cleanly when its s
         storage: `http://127.0.0.1:${ports.storage}`,
       },
       keys: { anon: ANON, service: SERVICE },
+      hopSecret: HOP,
       appOrigins: [APP],
     }),
   );
@@ -2085,6 +2434,7 @@ it("stops as a process, instead of crashing or lingering, when its log pipe brea
         storage: `http://127.0.0.1:${ports.storage}`,
       },
       keys: { anon: ANON, service: SERVICE },
+      hopSecret: HOP,
       appOrigins: [APP],
     }),
   );

@@ -17,6 +17,7 @@ import {
   objectLayout,
   objectRows,
   readBackup,
+  refreshSchemaRollback,
   restoreNativeData,
   safeFile,
 } from "./lib/native/backup.js";
@@ -34,6 +35,7 @@ import {
 import {
   assertNoMaintenance,
   clearJournal,
+  preparing,
   readJournal,
   saveJournal,
 } from "./lib/native/journal.js";
@@ -340,14 +342,11 @@ async function nativeImportLocked(
             "Interrupted import exists; run native-backup.ts recover-import before retrying",
           );
       }
-      await saveJournal(layout, {
-        format: 1,
-        operation: "import",
-        phase: "preparing",
-        backup,
-      });
       assertEmptyTarget(parseDump(await maintenance.db.dump()));
-      await backupNative(options.env, backup, undefined, checkpoint);
+      // A refusal or failure before any data change leaves no journal.
+      await preparing(layout, { format: 1, operation: "import", backup }, () =>
+        backupNative(options.env, backup, undefined, checkpoint),
+      );
       backedUp = true;
       await saveJournal(layout, {
         format: 1,
@@ -417,6 +416,7 @@ async function nativeImportLocked(
       } finally {
         await check.end();
       }
+      await refreshSchemaRollback(options.env, await maintenance.db.dump());
       await maintenance.stop();
       maintenance = undefined;
       await writePrivate(

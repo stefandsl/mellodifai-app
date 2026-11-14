@@ -1,0 +1,69 @@
+Supabase Storage v1.84.19: answer only requests that came through the native gateway.
+
+On the native runtime every service listens on loopback, where any local account can reach it.
+The gateway adds the header x-mellodifai-hop with a per-stack random secret (environment
+variable MDF_HOP_SECRET). This patch gives Fastify a server factory that checks that header in
+constant time before Fastify routes anything, removes it, and answers 403 otherwise. Without a
+secret of at least 32 characters every request is refused. The factory copies the timeouts
+Fastify itself sets on the servers it creates. Applied by ops/lib/native/build.ts at install
+time; the pinned source archive itself is never modified.
+
+--- /dev/null
++++ b/src/hop-guard.ts
+@@ -0,0 +1,44 @@
++import { createHash, timingSafeEqual } from 'node:crypto'
++import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http'
++
++export const HOP_HEADER = 'x-mellodifai-hop'
++
++const digest = (text: string) => createHash('sha256').update(text).digest()
++
++/** True when the request carries the gateway's hop secret. */
++export function fromGateway(req: IncomingMessage, secret: string): boolean {
++  const value = req.headers[HOP_HEADER]
++  if (secret.length < 32 || typeof value !== 'string') return false
++  return timingSafeEqual(digest(value), digest(secret))
++}
++
++interface FactoryOptions {
++  http?: object
++  keepAliveTimeout?: number
++  requestTimeout?: number
++  connectionTimeout?: number
++  maxRequestsPerSocket?: number | null
++}
++
++export function hopGuardServerFactory(
++  handler: (req: IncomingMessage, res: ServerResponse) => void,
++  options: FactoryOptions
++): Server {
++  const secret = process.env.MDF_HOP_SECRET ?? ''
++  const server = createServer(options.http ?? {}, (req, res) => {
++    if (fromGateway(req, secret)) {
++      delete req.headers[HOP_HEADER]
++      handler(req, res)
++      return
++    }
++    const body = '{"statusCode":"403","error":"Forbidden","message":"Use the API gateway"}'
++    res.writeHead(403, { 'content-type': 'application/json', 'content-length': body.length })
++    res.end(body)
++  })
++  if (options.keepAliveTimeout !== undefined) server.keepAliveTimeout = options.keepAliveTimeout
++  if (options.requestTimeout !== undefined) server.requestTimeout = options.requestTimeout
++  server.setTimeout(options.connectionTimeout ?? 0)
++  if (options.maxRequestsPerSocket && options.maxRequestsPerSocket > 0)
++    server.maxRequestsPerSocket = options.maxRequestsPerSocket
++  return server
++}
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -5,3 +5,4 @@
+ import { getConfig } from './config'
++import { hopGuardServerFactory } from './hop-guard'
+ import { plugins, routes, schemas, setErrorHandler } from './http'
+ import { finiteSwaggerTransform, withFiniteAjv } from './http/finite'
+@@ -16,1 +17,3 @@
+-  const app = fastify(withFiniteAjv(opts))
++  const app = fastify(
++    withFiniteAjv({ serverFactory: hopGuardServerFactory as never, ...opts })
++  )

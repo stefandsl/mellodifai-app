@@ -30,6 +30,7 @@ import { executable } from "./host.js";
 import {
   assertBackupSource,
   type BackupSource,
+  dumpAppliedMigrations,
   dumpFakeStack,
   dumpLedgerHead,
   stackIdentity,
@@ -45,7 +46,10 @@ import {
 import { durableJson, flushFile } from "./journal.js";
 import { nativeLayout } from "./layout.js";
 import { assertStackLease } from "./lease.js";
+import { readMigrations } from "./migrate.js";
 import { baseEnvironment } from "./plan.js";
+import { refreshRollback } from "./rollback.js";
+import { nativeSourceRoot } from "./source.js";
 import {
   rebuildStorageMetadata,
   type StorageRow,
@@ -252,9 +256,14 @@ export async function backupNative(
   } satisfies BackupManifest);
   return directory;
 }
+export interface ReadBackupOptions {
+  /** Only recover-import of the exact backup a legacy import journal names. */
+  allowLegacy?: boolean;
+}
 export function readBackup(
   directory: string,
   target?: StackEnv,
+  options: ReadBackupOptions = {},
 ): {
   manifest: BackupManifest;
   dump: DumpData;
@@ -271,7 +280,7 @@ export function readBackup(
   const dump = parseDump(readFileSync(join(directory, "database.sql"), "utf8"));
   if (manifest.format === 2 && !manifest.source)
     throw new Error("Native backup source identity is missing");
-  assertBackupSource(manifest.source, dump, target);
+  assertBackupSource(manifest.source, dump, target, options.allowLegacy);
   const rows = objectRows(dump);
   if (
     JSON.stringify(rows) !==
@@ -294,14 +303,27 @@ export function readBackup(
       throw new Error("Historical Storage checksum mismatch");
   return { manifest, dump };
 }
+/** After restore, import or recovery: keep the schema rollback marker only
+ * if it still fits this release and the ledger now in the database. */
+export async function refreshSchemaRollback(
+  env: StackEnv,
+  dump: string,
+): Promise<"none" | "kept" | "cleared"> {
+  return refreshRollback(
+    nativeLayout(env),
+    readMigrations(join(nativeSourceRoot(), "supabase/migrations")),
+    dumpAppliedMigrations(parseDump(dump)),
+  );
+}
 /** Caller owns maintenance shutdown and rollback. Stage before any database write. */
 export async function restoreNativeData(
   env: StackEnv,
   directory: string,
   checkpoint: (step: string) => Promise<void> = async () => {},
+  options: ReadBackupOptions = {},
 ): Promise<void> {
   assertStackLease(env);
-  const { manifest, dump } = readBackup(directory, env);
+  const { manifest, dump } = readBackup(directory, env, options);
   const db = await nativeDatabase(env);
   const current = parseDump(await db.dump());
   compareLedgers(dump, current);

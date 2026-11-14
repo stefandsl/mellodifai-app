@@ -4,7 +4,11 @@ import { ENV_TABLE, type StackEnv } from "./lib/envs.js";
 import { backupNative } from "./lib/native/backup.js";
 import { safeFailure } from "./lib/native/diagnostics.js";
 import { dataTables, parseDump } from "./lib/native/import-data.js";
-import { assertNoMaintenance, saveJournal } from "./lib/native/journal.js";
+import {
+  assertNoMaintenance,
+  preparing,
+  saveJournal,
+} from "./lib/native/journal.js";
 import { nativeLayout } from "./lib/native/layout.js";
 import { withStackLease } from "./lib/native/lease.js";
 import { maintenanceDatabase } from "./lib/native/maintenance.js";
@@ -50,12 +54,6 @@ export async function prepareImport(
   return withStackLease(env as StackEnv, "prepare-import", async () => {
     const layout = nativeLayout(env as StackEnv);
     assertNoMaintenance(layout);
-    await saveJournal(layout, {
-      format: 1,
-      operation: "prepare-import",
-      phase: "preparing",
-      backup,
-    });
     const maintenance = await maintenanceDatabase(env as StackEnv);
     const db = maintenance.db;
     try {
@@ -68,9 +66,16 @@ export async function prepareImport(
         );
         return dump;
       };
+      // Every refusal before the truncate leaves no journal behind.
       await inspect();
-      await backupNative(env as StackEnv, backup);
-      const dump = await inspect();
+      const dump = await preparing(
+        layout,
+        { format: 1, operation: "prepare-import", backup },
+        async () => {
+          await backupNative(env as StackEnv, backup);
+          return inspect();
+        },
+      );
       await saveJournal(layout, {
         format: 1,
         operation: "prepare-import",

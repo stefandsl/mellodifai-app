@@ -55,6 +55,28 @@ export function dumpLedgerHead(dump: DumpData): string {
     .sort((a, b) => String(a.version).localeCompare(String(b.version)));
   return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
 }
+/** The application ledger with its native checksums, as startup reads it. */
+export function dumpAppliedMigrations(
+  dump: DumpData,
+): { version: string; sha256: string | null }[] {
+  const ledger = dump.tables.find(
+    (table) => table.name === "supabase_migrations.schema_migrations",
+  );
+  if (!ledger) throw new Error("Missing migration ledger");
+  const checksums = dump.tables.find(
+    (table) => table.name === "supabase_migrations.mdf_checksums",
+  );
+  const hashes = new Map(
+    (checksums ? tableRows(checksums) : []).map((row) => [
+      row.version,
+      row.sha256,
+    ]),
+  );
+  return tableRows(ledger).map((row) => ({
+    version: String(row.version),
+    sha256: hashes.get(row.version) ?? null,
+  }));
+}
 export function dumpFakeStack(dump: DumpData, env: StackEnv): boolean {
   const table = dump.tables.find(
     (entry) => entry.name === "public.stack_settings",
@@ -69,23 +91,33 @@ export function dumpFakeStack(dump: DumpData, env: StackEnv): boolean {
     throw new Error("Invalid source fake-stack flag");
   return rows[0]?.fake_stack === "t";
 }
+/** `allowLegacy` is only for recover-import of the exact backup named in a
+ * legacy import journal: old format-1 bundles carry no source identity. */
 export function assertBackupSource(
   source: BackupSource | undefined,
   dump: DumpData,
   target?: StackEnv,
+  allowLegacy = false,
 ): void {
+  if (!source) {
+    if (allowLegacy) return;
+    throw new Error(
+      target === "prod"
+        ? "Production restore requires a production source identity; this backup has none (format 1)"
+        : "Native backup has no source identity (format 1); only recover-import of the backup a legacy import journal names accepts it",
+    );
+  }
   if (
-    source &&
-    (source.format !== 1 ||
-      !Object.hasOwn(ENV_TABLE, source.env) ||
-      !/^[a-f0-9-]{36}$/.test(source.stackId) ||
-      source.ledgerHead !== dumpLedgerHead(dump) ||
-      source.fakeStack !== dumpFakeStack(dump, source.env))
+    source.format !== 1 ||
+    !Object.hasOwn(ENV_TABLE, source.env) ||
+    !/^[a-f0-9-]{36}$/.test(source.stackId) ||
+    source.ledgerHead !== dumpLedgerHead(dump) ||
+    source.fakeStack !== dumpFakeStack(dump, source.env)
   )
     throw new Error("Native backup source identity does not match its data");
   if (
     target === "prod" &&
-    (source?.env !== "prod" || source.fakeStack !== false)
+    (source.env !== "prod" || source.fakeStack !== false)
   )
     throw new Error(
       "Production restore requires a production source identity with fake_stack=false; use native-import only for the verified offline Docker recovery",

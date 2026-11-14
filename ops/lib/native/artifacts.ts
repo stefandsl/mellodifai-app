@@ -34,7 +34,8 @@ export interface ArtifactDownload {
 
 export interface Artifact {
   version: string;
-  kind: "binary" | "source";
+  /** "dependency": an archive a source recipe installs, never on its own. */
+  kind: "binary" | "source" | "dependency";
   licence: string;
   project: string;
   /** Licence notice kept in the repository under ops/native/. */

@@ -1,9 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
-  closeSync,
   mkdirSync,
-  openSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -16,6 +14,7 @@ import {
   processIdentities,
   terminateTree,
 } from "./host.js";
+import { type RotatingLog, serviceLog } from "./logs.js";
 import type { ProcessSpec } from "./plan.js";
 import { retryInitialization } from "./start-retry.js";
 
@@ -412,8 +411,9 @@ export class Supervisor {
   }
 }
 
-/** Turn a process description into a supervised child. Output goes to a log
- * file; the child never holds a pipe to the supervisor.
+/** Turn a process description into a supervised child. The supervisor owns
+ * its output: every line is redacted and written to a size-bounded, rotated
+ * log file, so no token reaches the disk and no log grows without end.
  */
 export function childService(
   spec: ProcessSpec,
@@ -423,9 +423,8 @@ export function childService(
   return {
     ready: () => httpReady(spec.ready, spec.readyHeaders),
     async start() {
-      mkdirSync(dirname(logFile), { recursive: true });
+      const sink = serviceLog(logFile, spec.env);
       const offset = logOffset(logFile);
-      const out = openSync(logFile, "a");
       let child: ChildProcess;
       try {
         child = spawn(spec.command, spec.args, {
@@ -433,21 +432,25 @@ export function childService(
           // Process specs are complete OS environments, independent of Next's
           // ambient requirement for NODE_ENV. Preserve their exact contents.
           env: spec.env as NodeJS.ProcessEnv,
-          stdio: ["ignore", out, out, ...(spec.ipc ? ["ipc" as const] : [])],
+          stdio: [
+            "ignore",
+            "pipe",
+            "pipe",
+            ...(spec.ipc ? ["ipc" as const] : []),
+          ],
           // A separate Windows process group survives the parent's console
           // teardown long enough to handle IPC disconnect and drain cleanly.
           detached: true,
           windowsHide: true,
         });
-      } finally {
-        closeSync(out);
+      } catch (error) {
+        sink.close();
+        throw error;
       }
-      const observed = observeService(
-        child,
-        spec.id,
-        logFile,
-        offset,
-        spec.env,
+      const written = followOutput(child, sink);
+      const observed = withOutput(
+        observeService(child, spec.id, logFile, offset, spec.env),
+        written,
       );
       const { exited } = observed;
       await new Promise<void>((resolve, reject) => {
@@ -484,20 +487,55 @@ export async function runLogged(
   args: string[],
   options: { cwd: string; env: Record<string, string>; logFile: string },
 ): Promise<number> {
-  mkdirSync(dirname(options.logFile), { recursive: true });
-  const out = openSync(options.logFile, "a");
-  try {
-    return await new Promise<number>((resolve, reject) => {
-      const child = spawn(command, args, {
+  const sink = serviceLog(options.logFile, options.env);
+  return await new Promise<number>((resolve, reject) => {
+    let child: ChildProcess;
+    try {
+      child = spawn(command, args, {
         cwd: options.cwd,
         env: options.env as NodeJS.ProcessEnv,
-        stdio: ["ignore", out, out],
+        stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });
-      child.on("error", reject);
-      child.on("close", (status) => resolve(status ?? 1));
-    });
-  } finally {
-    closeSync(out);
-  }
+    } catch (error) {
+      sink.close();
+      reject(error);
+      return;
+    }
+    followOutput(child, sink);
+    child.on("error", reject);
+    child.on("close", (status) => resolve(status ?? 1));
+  });
+}
+
+/** Both output streams of a child into one log, closed once both ended.
+ * Settles when every line the child wrote is on disk. */
+export function followOutput(
+  child: ChildProcess,
+  sink: RotatingLog,
+): Promise<void> {
+  sink.follow(child.stdout);
+  sink.follow(child.stderr);
+  const streams = [child.stdout, child.stderr].filter((stream) => !!stream);
+  return Promise.all(
+    streams.map(
+      (stream) =>
+        new Promise<void>((resolve) => stream.once("close", () => resolve())),
+    ),
+  ).then(() => sink.close());
+}
+
+/** A child counts as exited once its last output lines are written, so a
+ * failure report quotes them. A grandchild still holding the pipe cannot
+ * delay that by more than two seconds. */
+export function withOutput<T extends { exited: Promise<void> }>(
+  observed: T,
+  written: Promise<void>,
+): T {
+  return {
+    ...observed,
+    exited: observed.exited.then(() =>
+      Promise.race([written, sleep(2_000)]).then(() => {}),
+    ),
+  };
 }

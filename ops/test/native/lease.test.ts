@@ -1,10 +1,41 @@
-import { type ChildProcess, fork } from "node:child_process";
+import { type ChildProcess, fork, spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
+import { acquireLease } from "../../lib/native/lease.js";
 import { typescriptArgs } from "../../lib/native/plan.js";
 import { fixture } from "./fixtures.js";
+
+it.runIf(process.platform === "win32")(
+  "hands a dead lease helper to the owner's stop handler instead of exiting at once",
+  async () => {
+    const path = join(fixture(), "supervisor.lease");
+    let lost = () => {};
+    const notified = new Promise<void>((resolve) => {
+      lost = resolve;
+    });
+    await acquireLease(path, "supervisor", 5000, () => lost());
+    // Kill the PowerShell helper this process started, as if it crashed.
+    const found = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `Get-CimInstance Win32_Process -Filter "ParentProcessId=${process.pid} and Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*lease.ps1*' } | ForEach-Object { $_.ProcessId }`,
+      ],
+      { encoding: "utf8", windowsHide: true },
+    );
+    const pids = found.stdout.split(/\s+/).filter(Boolean);
+    expect(pids.length).toBe(1);
+    spawnSync("taskkill", ["/F", "/PID", pids[0] as string], {
+      windowsHide: true,
+    });
+    await notified;
+  },
+  30_000,
+);
 
 it("serializes simultaneous stale-state takeovers and releases ownership after a real kill", async () => {
   const path = join(fixture(), "stack.lease");

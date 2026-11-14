@@ -3,8 +3,10 @@ import { EventEmitter } from "node:events";
 import {
   appendFileSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
@@ -196,4 +198,47 @@ it("retries initdb only when its entry point has not run, without logging tool o
     ),
   ).rejects.toThrow("initdb failed");
   expect(ordinary.calls).toHaveLength(1);
+});
+
+it("redacts and rotates pg_ctl's own output through the service log handling", async () => {
+  const { layout } = setup([]);
+  const epoch = Math.floor(Date.now() / 1000);
+  writeFileSync(
+    join(layout.pgdata, "postmaster.pid"),
+    `${process.pid}\n${layout.pgdata}\n${epoch}\n`,
+  );
+  vi.mocked(processIdentities).mockResolvedValue(
+    new Map([
+      [
+        process.pid,
+        {
+          pid: process.pid,
+          startedAt: new Date(epoch * 1000).toISOString(),
+        },
+      ],
+    ]),
+  );
+  mkdirSync(layout.logs, { recursive: true });
+  const log = join(layout.logs, "pg_ctl.log");
+  // A full live file: the next line must rotate it, never grow it.
+  writeFileSync(log, `${"old line\n".repeat((10 * 1024 * 1024) / 9)}`);
+  const secret = "Synthetic-PgCtl-Password-1";
+  vi.mocked(spawn).mockImplementation((_command, _args, options) => {
+    const stdio = (options as { stdio: unknown[] }).stdio;
+    writeSync(
+      stdio[1] as number,
+      `pg_ctl: could not connect postgres://supabase_admin:${secret}@127.0.0.1:45622/postgres\nwaiting for server to shut down.... done\n`,
+    );
+    const child = new EventEmitter();
+    queueMicrotask(() => child.emit("exit", 0, null));
+    return child as unknown as ReturnType<typeof spawn>;
+  });
+  await stopPostgres(layout, { pgBin: fixture() } as NativeTools);
+  const live = readFileSync(log, "utf8");
+  expect(live).not.toContain(secret);
+  expect(live).toContain("waiting for server to shut down.... done");
+  expect(readFileSync(`${log}.1`, "utf8")).toContain("old line");
+  expect(
+    readdirSync(layout.logs).filter((name) => name.startsWith("pg_ctl")),
+  ).toEqual(["pg_ctl.log", "pg_ctl.log.1"]);
 });

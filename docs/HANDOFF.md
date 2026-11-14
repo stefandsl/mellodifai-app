@@ -70,7 +70,21 @@ pnpm e2e          # e2e stack only
 
 ## 3. Where things stand (2026-11-13)
 
-### Production is down; the app is being moved off Docker (2026-11-13, in progress)
+### Production runs natively without Docker (since 2026-11-14)
+
+Cut over on 2026-11-14 at tag `native-20261114-r1` (`491e6b8`, also on `main` and `build/studio-ui`):
+native stack install, `--init-production`, prepare-import, import check and apply from
+`E:/mellodifai/recovery/20261113` (verified: 15 users, 18 projects, 28 versions, 24 jobs, 101
+objects, 2180 audit rows, 56 Auth sessions kept, 5 authenticated downloads), then `deploy.ts`.
+`services.ts status`: native stack ready, worker, auth, web, edge running; web on 127.0.0.1:3000.
+Before-import backup: `E:/mellodifai/stacks/prod/native/before-import-72da4547-...`; hashed copy of
+the recovery folder: `E:/mellodifai/backups/recovery-20261113-copy`. Runbook:
+`docs/native-production.md`. Open: the owner's one-time logon task update (pinned copy
+`E:/mellodifai/ops-pinned/native-20261114-r1`); deploy printed a stray Windows error
+`"S" non e riconosciuto come comando` without failing (cause not yet found). Work list:
+`PIANO-UNIFICATO.md`.
+
+### How the move off Docker happened (2026-11-13)
 
 **Read this first.** The owner's order of 2026-11-13: "redevelop without docker". The app must
 run on his Windows PC with no Docker and no WSL.
@@ -252,7 +266,10 @@ M1 worktree. Its PARKED rows and R4 artifacts are historical findings, with fina
 dispositions in the review report. Do not rerun completed production cutovers or
 key rotations because an old task note below says they are pending.
 The task driver remains `scripts/codex-sdd/run.sh`; `PLAN=` selects a later plan.
-Owner actions are never faked. Migrations are additive and the lockdown stays last.
+Owner actions are never faked. Migrations are additive; a new one takes a version after the newest
+applied one and may never undo the lockdown (`20261103080001`): the native runner asserts the
+lockdown guarantees (`ops/native/postgres/lockdown-guarantees.sql`) in the same transaction after
+the lockdown and every later migration, and a broken guarantee rolls the migration back.
 
 ## 4b. Parallel workstreams runner
 

@@ -13,10 +13,7 @@ import { nativeBackup } from "../../native-backup.js";
 import { runStack } from "../../stack.js";
 import { assertNativeTestRoot } from "./integration-env.js";
 
-it.skipIf(
-  process.env.MDF_NATIVE_CRASH_TESTS !== "1" &&
-    process.env.MDF_NATIVE_INTEGRATION !== "1",
-)(
+it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
   "refuses startup after real process death at each restore boundary",
   async () => {
     assertNativeTestRoot();

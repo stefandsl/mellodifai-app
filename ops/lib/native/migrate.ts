@@ -50,11 +50,25 @@ export function readMigrations(directory: string): MigrationFile[] {
   return files;
 }
 
-const LOCKDOWN_VERSION = "20261103080001";
+export const LOCKDOWN_VERSION = "20261103080001";
 
-/** Include unapplied older versions, while preserving the repository's
- * lockdown-last rule. The existing lockdown uses CREATE FUNCTION and cannot
- * safely be replayed after inserting a migration into an installed schema. */
+/** SQL assertions of every guarantee the lockdown migration establishes. */
+export const lockdownGuarantees = () =>
+  readFileSync(
+    new URL("../../native/postgres/lockdown-guarantees.sql", import.meta.url),
+    "utf8",
+  );
+
+/** The lockdown itself and every migration after it are followed, in their
+ * own transaction, by the lockdown guarantee check. */
+export const checksLockdown = (file: MigrationFile) =>
+  file.version >= LOCKDOWN_VERSION;
+
+/** Include unapplied older versions until the lockdown has run (the Docker
+ * include-all order). New migrations after the lockdown are allowed; none may
+ * undo it (see checksLockdown). Once the lockdown is applied, a file older
+ * than the newest applied version is refused: the lockdown uses plain CREATE
+ * FUNCTION and cannot be replayed after a migration inserted before it. */
 export function planMigrations(
   files: MigrationFile[],
   applied: AppliedMigration[],
@@ -64,10 +78,6 @@ export function planMigrations(
     validateRollback(rollback, files, applied);
     return { pending: [], adopt: [] };
   }
-  if (files.some((file) => file.version > LOCKDOWN_VERSION))
-    throw new NativeDiagnosticError(
-      `Migration version after final lockdown ${LOCKDOWN_VERSION} is forbidden`,
-    );
   const local = new Map(files.map((file) => [file.version, file]));
   const done = new Map(applied.map((row) => [row.version, row]));
   for (const row of applied)
@@ -89,9 +99,16 @@ export function planMigrations(
         `Applied migration ${file.version}_${file.name} was edited after it ran; add a new migration instead`,
       );
   }
-  if (done.has(LOCKDOWN_VERSION) && pending.length)
+  const newest = applied
+    .map((row) => row.version)
+    .sort()
+    .at(-1);
+  const backdated = pending.filter(
+    (file) => newest !== undefined && file.version < newest,
+  );
+  if (done.has(LOCKDOWN_VERSION) && backdated.length)
     throw new NativeDiagnosticError(
-      `Cannot insert migrations before applied lockdown ${LOCKDOWN_VERSION}: the lockdown is not idempotent (plain CREATE FUNCTION). A reviewed replay-safe lockdown policy is required before upgrading this schema`,
+      `Cannot insert migration ${backdated[0]?.version} before applied migration ${newest}: the lockdown ${LOCKDOWN_VERSION} is not idempotent (plain CREATE FUNCTION). Give the new migration a version after ${newest}`,
     );
   return { pending, adopt };
 }
@@ -137,6 +154,7 @@ export async function applyAppMigrations(
     try {
       await sql.begin(async (tx) => {
         await tx.unsafe(file.sql);
+        if (checksLockdown(file)) await tx.unsafe(lockdownGuarantees());
         await tx`insert into supabase_migrations.schema_migrations (version, name, statements) values (${file.version}, ${file.name}, ${[file.sql]})`;
         await tx`insert into supabase_migrations.mdf_checksums (version, sha256) values (${file.version}, ${file.sha256})`;
       });

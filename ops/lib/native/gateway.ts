@@ -66,6 +66,11 @@ export interface GatewayConfig {
   upstreams: { auth: string; rest: string; storage: string };
   /** Accepted apikey values. */
   keys: { anon: string; service: string };
+  /**
+   * Per-stack secret sent to every upstream in HOP_HEADER. Auth and Storage
+   * refuse requests without it, so they answer only through the gateway.
+   */
+  hopSecret: string;
   /** Origins allowed by CORS on non-public routes, e.g. "http://127.0.0.1:3000". */
   appOrigins: string[];
   limits?: Partial<GatewayLimits>;
@@ -81,6 +86,8 @@ const ROUTES = {
 type RouteName = keyof typeof ROUTES;
 const ROUTE_NAMES = Object.keys(ROUTES) as RouteName[];
 
+/** Carries the hop secret; a client's own copy is removed, never forwarded. */
+export const HOP_HEADER = "x-mellodifai-hop";
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
 const HOP_BY_HOP = [
   "connection",
@@ -110,6 +117,21 @@ const IDENTITY_HEADERS = new Set([
   "x-anonymous-consumer",
 ]);
 const IDENTITY_PREFIXES = ["x-forwarded-", "x-consumer-"];
+// Headers that frame the message or that the gateway reads to route, key or
+// rewrite it. A client that names one in `Connection` asks the gateway to drop
+// it for the next hop; that request is refused instead (400).
+const RELIED_ON_HEADERS = new Set([
+  "content-length",
+  "transfer-encoding",
+  "host",
+  "apikey",
+  "authorization",
+  "origin",
+  "expect",
+  HOP_HEADER,
+  ...IDENTITY_HEADERS,
+]);
+const RELIED_ON_PREFIXES = [...IDENTITY_PREFIXES, "access-control-"];
 const HEADER_LIST = /^[\w!#$%&'*+.^`|~-]+(?:\s*,\s*[\w!#$%&'*+.^`|~-]+)*$/;
 // Idle upstream sockets are dropped before any upstream's own keep-alive
 // timeout can close them under a new request.
@@ -154,6 +176,7 @@ export function parseGatewayConfig(value: unknown): GatewayConfig {
     "port",
     "upstreams",
     "keys",
+    "hopSecret",
     "appOrigins",
     "limits",
     "log",
@@ -199,6 +222,11 @@ export function parseGatewayConfig(value: unknown): GatewayConfig {
   };
   const keys = { anon: key("anon"), service: key("service") };
   if (keys.anon === keys.service) invalid("keys.anon and keys.service match");
+  const hopSecret = root.hopSecret;
+  if (typeof hopSecret !== "string" || !/^[\x21-\x7e]{32,}$/.test(hopSecret))
+    invalid("hopSecret must be at least 32 visible ASCII characters");
+  if (hopSecret === keys.anon || hopSecret === keys.service)
+    invalid("hopSecret must differ from both keys");
 
   if (!Array.isArray(root.appOrigins)) invalid("appOrigins must be an array");
   const appOrigins = root.appOrigins.map((origin: unknown, index) => {
@@ -237,22 +265,60 @@ export function parseGatewayConfig(value: unknown): GatewayConfig {
     port,
     upstreams,
     keys,
+    hopSecret,
     appOrigins,
     limits,
     ...(root.log ? { log: root.log as (entry: GatewayLogEntry) => void } : {}),
   };
 }
 
+function connectionNames(headers: IncomingHttpHeaders): string[] {
+  return (headers.connection ?? "")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** True when `Connection` names a header the gateway must keep. */
+function nominatesReliedOnHeader(headers: IncomingHttpHeaders): boolean {
+  return connectionNames(headers).some(
+    (name) =>
+      RELIED_ON_HEADERS.has(name) ||
+      RELIED_ON_PREFIXES.some((prefix) => name.startsWith(prefix)),
+  );
+}
+
+/**
+ * The end-to-end headers of a message, without its framing. The caller sets
+ * the framing again from the message the parser validated, so no `Connection`
+ * header can leave a body unframed.
+ */
 function endToEndHeaders(source: IncomingHttpHeaders): IncomingHttpHeaders {
   const headers = { ...source };
-  for (const name of [
-    ...(source.connection ?? "")
-      .split(",")
-      .map((name) => name.trim().toLowerCase()),
-    ...HOP_BY_HOP,
-  ])
+  for (const name of [...connectionNames(source), ...HOP_BY_HOP])
     delete headers[name];
+  delete headers["content-length"];
   return headers;
+}
+
+/**
+ * The framing of a parsed message, as Node's strict parser accepted it: a
+ * single "chunked" encoding, or one valid length, or neither.
+ */
+function framingOf(source: IncomingHttpHeaders): OutgoingHttpHeaders {
+  if (source["transfer-encoding"] !== undefined)
+    return { "transfer-encoding": "chunked" };
+  const length = source["content-length"];
+  return length !== undefined ? { "content-length": length } : {};
+}
+
+/** Whether a parsed request carries body bytes. */
+function hasBody(source: IncomingHttpHeaders): boolean {
+  const length = source["content-length"];
+  return (
+    source["transfer-encoding"] !== undefined ||
+    (length !== undefined && Number(length) > 0)
+  );
 }
 
 function hasControlCharacter(text: string): boolean {
@@ -460,6 +526,8 @@ export function createGateway(config: GatewayConfig): Server {
       return answer(414, "url_too_long", "Request target too long");
     const split = splitTarget(target);
     if (!split) return answer(400, "target", "Invalid request target");
+    if (nominatesReliedOnHeader(req.headers))
+      return answer(400, "connection", "Invalid Connection header");
 
     if (split.path === "/health") {
       entry.route = "health";
@@ -496,6 +564,10 @@ export function createGateway(config: GatewayConfig): Server {
       split.query,
     );
     const cors = corsHeaders(origin, signedObject);
+
+    // No service reads a GET or HEAD body, and Node would send one unframed.
+    if ((method === "GET" || method === "HEAD") && hasBody(req.headers))
+      return answer(400, "body", "A GET or HEAD request takes no body", cors);
 
     // Preflights carry no key and are answered here, never by an upstream.
     if (method === "OPTIONS") {
@@ -563,18 +635,19 @@ export function createGateway(config: GatewayConfig): Server {
     delete headers.expect;
     // PostgREST shows request headers to SQL; like Kong, keep the key from it.
     if (route === "rest") delete headers.apikey;
+    // Only the gateway proves a request came through it: a client's own
+    // copy of the header is replaced, never forwarded.
+    headers[HOP_HEADER] = settings.hopSecret;
     headers.host = upstream.host;
     headers["x-forwarded-for"] = req.socket.remoteAddress ?? "127.0.0.1";
     headers["x-forwarded-proto"] = "http";
     headers["x-forwarded-host"] = host;
     headers["x-forwarded-port"] = String(port);
     headers["x-forwarded-prefix"] = ROUTES[route];
-    // Keep the client's framing: a length stays a length, and a chunked body
+    // Framing comes from the message the parser validated, never from what
+    // survived header filtering: a length stays a length, and a chunked body
     // stays chunked for every method instead of being sent unframed.
-    if (req.headers["transfer-encoding"] !== undefined) {
-      delete headers["content-length"];
-      headers["transfer-encoding"] = "chunked";
-    }
+    Object.assign(headers, framingOf(req.headers));
 
     let responded = false;
     let timedOut = false;
@@ -603,7 +676,12 @@ export function createGateway(config: GatewayConfig): Server {
       // The service can answer before the upload ends. Stop forwarding at
       // once, but consume the client body so keep-alive framing stays valid.
       drain();
+      // A length the strict client parser accepted (never next to an
+      // encoding) is kept; any other answer is framed by Node towards the
+      // client: chunked, or a close for an HTTP/1.0 client.
       const reply = endToEndHeaders(incoming.headers);
+      const length = incoming.headers["content-length"];
+      if (length !== undefined) reply["content-length"] = length;
       // One CORS policy: the gateway's. Upstream copies would double headers.
       for (const name of Object.keys(reply))
         if (name.startsWith("access-control-")) delete reply[name];

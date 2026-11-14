@@ -23,6 +23,17 @@ export function redactServiceOutput(
   text: string,
   environment: Record<string, string> = {},
 ): string {
+  return serviceRedactor(environment)(text);
+}
+
+/**
+ * The redaction of service output, prepared once for a child's environment:
+ * its own secret values, then any line naming a credential, then URLs (with
+ * their query strings and logins), JWT-shaped values and long tokens.
+ */
+export function serviceRedactor(
+  environment: Record<string, string> = {},
+): (text: string) => string {
   const secrets = Object.entries(environment)
     .filter(([key]) =>
       /pass|secret|token|key|cookie|authorization|(?:database|db)_?(?:url|uri)/i.test(
@@ -40,22 +51,63 @@ export function redactServiceOutput(
         .flatMap((value) => [value, encodeURIComponent(value)]);
     })
     .sort((a, b) => b.length - a.length);
+  return (text) => redactText(text, secrets);
+}
+
+/** Words that make a whole log line unsafe to keep. */
+const SENSITIVE_LINE =
+  /password|passwd|secret|token|authorization|bearer|api.?key|cookie|private.?key|statement:/i;
+
+/** True when a line names a credential, so it is omitted as a whole. */
+export function sensitiveLogLine(line: string): boolean {
+  return SENSITIVE_LINE.test(line);
+}
+
+export const SENSITIVE_LINE_MARK = "[REDACTED sensitive log line]";
+
+/** Characters a key, hash or encoded token is made of. */
+export const TOKEN_CHARACTER = /[A-Za-z0-9_+/=-]/;
+const LONG_TOKEN = /[A-Za-z0-9_+/=-]{32,}/g;
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/**
+ * Keep a long run that is only a path or holds UUIDs: every piece left
+ * between slashes and UUIDs must be shorter than 32 characters, and in a path
+ * no piece of 12 or more may mix upper case, lower case and digits (the look
+ * of a random base64 value). Anything else of 32 or more is redacted.
+ */
+function keepLongToken(token: string): boolean {
+  const segments = token.split("/");
+  const path = segments.length > 1;
+  for (const segment of segments)
+    for (const piece of segment.split(UUID)) {
+      if (piece.length >= 32) return false;
+      if (
+        path &&
+        piece.length >= 12 &&
+        /[A-Z]/.test(piece) &&
+        /[a-z]/.test(piece) &&
+        /\d/.test(piece)
+      )
+        return false;
+    }
+  return true;
+}
+
+function redactText(text: string, secrets: string[]): string {
   for (const secret of secrets) text = text.replaceAll(secret, "[REDACTED]");
   return text
     .split(/\r?\n/)
     .map((line) => {
       // A SQL statement or credential-bearing field may include a secret absent
       // from this child's environment. Omit that line rather than guessing syntax.
-      if (
-        /password|passwd|secret|token|authorization|api.?key|cookie|private.?key|statement:/i.test(
-          line,
-        )
-      )
-        return "[REDACTED sensitive log line]";
+      if (sensitiveLogLine(line)) return SENSITIVE_LINE_MARK;
       return line
         .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"']+/gi, "[REDACTED URL]")
         .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, "[REDACTED JWT]")
-        .replace(/[A-Za-z0-9_+/=-]{32,}/g, "[REDACTED value]");
+        .replace(LONG_TOKEN, (token) =>
+          keepLongToken(token) ? token : "[REDACTED value]",
+        );
     })
     .join("\n");
 }

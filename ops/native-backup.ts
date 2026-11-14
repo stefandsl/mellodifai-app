@@ -5,12 +5,14 @@ import { ENV_TABLE, type StackEnv } from "./lib/envs.js";
 import {
   backupNative,
   readBackup,
+  refreshSchemaRollback,
   restoreNativeData,
 } from "./lib/native/backup.js";
 import { safeFailure } from "./lib/native/diagnostics.js";
 import {
   assertNoMaintenance,
   clearJournal,
+  preparing,
   readJournal,
   saveJournal,
 } from "./lib/native/journal.js";
@@ -57,9 +59,13 @@ export async function nativeBackup(
       if (action !== "recover-import") assertNoMaintenance(layout);
       if (action === "restore") readBackup(path, env);
       let recoveryPhase: string | undefined;
+      // Old format-1 bundles (no source identity) are accepted only here: the
+      // exact backup a legacy import journal names, recovered by recover-import.
+      let allowLegacy = false;
       if (action === "recover-import") {
+        const current = readJournal(layout);
         const journal =
-          readJournal(layout) ??
+          current ??
           JSON.parse(
             readFileSync(join(layout.root, "import-journal.json"), "utf8"),
           );
@@ -69,23 +75,24 @@ export async function nativeBackup(
         )
           throw new Error("Backup does not match interrupted import journal");
         recoveryPhase = journal.phase;
-        if (recoveryPhase !== "preparing") readBackup(path, env);
+        allowLegacy = current === undefined;
+        if (recoveryPhase !== "preparing")
+          readBackup(path, env, { allowLegacy });
       }
-      if (action === "restore") {
+      if (action === "restore")
         before = join(layout.root, `before-restore-${Date.now()}`);
-        await saveJournal(layout, {
-          format: 1,
-          operation: "restore",
-          phase: "preparing",
-          backup: before,
-        });
-      }
       maintenance = await maintenanceDatabase(env);
       if (action === "backup")
         await backupNative(env, path, undefined, checkpoint);
       else {
         if (action === "restore") {
-          await backupNative(env, before as string, undefined, checkpoint);
+          const safety = before as string;
+          // A failure before any data change leaves no journal behind.
+          await preparing(
+            layout,
+            { format: 1, operation: "restore", backup: safety },
+            () => backupNative(env, safety, undefined, checkpoint),
+          );
           await saveJournal(layout, {
             format: 1,
             operation: "restore",
@@ -94,7 +101,9 @@ export async function nativeBackup(
           });
         }
         if (recoveryPhase !== "preparing")
-          await restoreNativeData(env, path, checkpoint);
+          await restoreNativeData(env, path, checkpoint, { allowLegacy });
+        // The data a deploy-recorded rollback was bound to has been replaced.
+        await refreshSchemaRollback(env, await maintenance.db.dump());
         if (action === "recover-import")
           await writePrivate(
             join(layout.root, "import-journal.json"),

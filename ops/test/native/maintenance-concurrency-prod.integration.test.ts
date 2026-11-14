@@ -12,7 +12,7 @@ import { nativeBackup } from "../../native-backup.js";
 import { prepareImport } from "../../native-prepare-import.js";
 import { runStack } from "../../stack.js";
 
-it.skipIf(process.env.MDF_NATIVE_PROD_LEASE_TESTS !== "1")(
+it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
   "blocks a concurrent stop during import and real logon during restore",
   async () => {
     const root = "E:/mellodifai/native-lab-prod";

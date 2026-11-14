@@ -14,11 +14,8 @@ import { runStack } from "../../stack.js";
 import { fixture } from "./fixtures.js";
 import { assertNativeTestRoot } from "./integration-env.js";
 
-it.skipIf(
-  process.env.MDF_NATIVE_MIGRATION_TESTS !== "1" &&
-    process.env.MDF_NATIVE_INTEGRATION !== "1",
-)(
-  "rolls back failed real migrations and proves lockdown cannot be replayed",
+it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
+  "rolls back failed real migrations, refuses a lockdown replay and checks the lockdown after a new migration",
   async () => {
     assertNativeTestRoot();
     await runStack("start", "e2e", { runtime: "native" });
@@ -123,6 +120,61 @@ it.skipIf(
                 await live`select count(*)::int as n from supabase_migrations.schema_migrations`
               )[0]?.n,
             ).toBe(54);
+            // A new migration after the lockdown applies; one that undoes a
+            // lockdown guarantee is rolled back with no ledger row.
+            const forward = fixture();
+            cpSync(
+              new URL("../../../supabase/migrations", import.meta.url),
+              forward,
+              { recursive: true },
+            );
+            try {
+              writeFileSync(
+                join(forward, "29991231000001_run11_additive.sql"),
+                "create table public.run11_additive(id integer);",
+              );
+              expect(await applyAppMigrations(live, forward)).toEqual([
+                "29991231000001",
+              ]);
+              expect(
+                (
+                  await live`select to_regclass('public.run11_additive') as object`
+                )[0]?.object,
+              ).toBe("run11_additive");
+              writeFileSync(
+                join(forward, "29991231000002_run11_regrant.sql"),
+                "create table public.run11_regrant(id integer); grant insert on public.jobs to authenticated;",
+              );
+              await expect(applyAppMigrations(live, forward)).rejects.toThrow(
+                /rolled back: Lockdown guarantee broken: authenticated may insert into public\.jobs/,
+              );
+              expect(
+                (
+                  await live`select has_any_column_privilege('authenticated', 'public.jobs', 'INSERT') as granted, to_regclass('public.run11_regrant') as object`
+                )[0],
+              ).toEqual({ granted: false, object: null });
+              expect(
+                (
+                  await live`select count(*)::int as n from supabase_migrations.schema_migrations where version = '29991231000002'`
+                )[0]?.n,
+              ).toBe(0);
+              expect(
+                (
+                  await live`select count(*)::int as n from supabase_migrations.mdf_checksums where version = '29991231000002'`
+                )[0]?.n,
+              ).toBe(0);
+              expect(
+                (
+                  await live`select count(*)::int as n from supabase_migrations.schema_migrations`
+                )[0]?.n,
+              ).toBe(55);
+            } finally {
+              await live.begin(async (tx) => {
+                await tx`drop table if exists public.run11_additive, public.run11_regrant`;
+                await tx`delete from supabase_migrations.mdf_checksums where version like '29991231%'`;
+                await tx`delete from supabase_migrations.schema_migrations where version like '29991231%'`;
+              });
+            }
           } finally {
             await live.end();
           }

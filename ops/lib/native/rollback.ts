@@ -12,10 +12,14 @@ export interface SchemaRollback {
   releaseHead: string;
   ledgerHead: string;
   latestVersion: string;
+  /** Where the marker was read from; never written into the file. */
+  path?: string;
 }
 export const rollbackPath = (layout: NativeLayout) =>
   join(layout.root, "schema-rollback.json");
-const hash = (rows: { version: string; sha256: string | null }[]) =>
+export const rollbackHash = (
+  rows: { version: string; sha256: string | null }[],
+) =>
   createHash("sha256")
     .update(
       JSON.stringify(
@@ -27,9 +31,9 @@ const hash = (rows: { version: string; sha256: string | null }[]) =>
     .digest("hex");
 export function readRollback(layout: NativeLayout): SchemaRollback | undefined {
   const path = rollbackPath(layout);
-  return existsSync(path)
-    ? (JSON.parse(readFileSync(path, "utf8")) as SchemaRollback)
-    : undefined;
+  if (!existsSync(path)) return undefined;
+  const marker = JSON.parse(readFileSync(path, "utf8")) as SchemaRollback;
+  return { ...marker, path };
 }
 export function validateRollback(
   marker: SchemaRollback,
@@ -38,18 +42,56 @@ export function validateRollback(
 ): void {
   if (
     marker.format !== 1 ||
-    marker.ledgerHead !== hash(applied) ||
-    marker.releaseHead !== hash(files) ||
+    marker.ledgerHead !== rollbackHash(applied) ||
+    marker.releaseHead !== rollbackHash(files) ||
     marker.latestVersion !==
       applied
         .map((row) => row.version)
         .sort()
         .at(-1) ||
-    files.some((file) => !applied.some((row) => row.version === file.version))
+    // Every file of the older release must be the exact text its ledger row ran.
+    files.some(
+      (file) =>
+        !applied.some(
+          (row) => row.version === file.version && row.sha256 === file.sha256,
+        ),
+    )
   )
     throw new NativeDiagnosticError(
-      "Recorded schema rollback does not match this exact ledger and release; startup refused",
+      `Recorded schema rollback ${marker.path ?? "schema-rollback.json"} does not match this exact ledger and release; startup refused. Deploy the release it names, or remove the marker only after reviewing that this release accepts the current schema`,
     );
+}
+/** Restore, import and recovery replace the data the marker was bound to.
+ * Keep the marker only if it still exactly fits the running release and the
+ * ledger now in the database (re-recorded); otherwise remove it, so startup
+ * plans normally and refuses an unknown forward schema on its own terms.
+ */
+export async function refreshRollback(
+  layout: NativeLayout,
+  files: MigrationFile[],
+  applied: AppliedMigration[],
+): Promise<"none" | "kept" | "cleared"> {
+  if (!existsSync(rollbackPath(layout))) return "none";
+  let release: string | undefined;
+  try {
+    const marker = readRollback(layout);
+    if (marker && marker.releaseHead === rollbackHash(files))
+      release = marker.release;
+  } catch {
+    // An unreadable marker can never authorize anything.
+  }
+  if (
+    release !== undefined &&
+    applied.some((row) => !files.some((file) => file.version === row.version))
+  )
+    try {
+      await recordRollback(layout, release, files, applied);
+      return "kept";
+    } catch {
+      // Falls through: the marker no longer fits this ledger.
+    }
+  clearRollback(layout);
+  return "cleared";
 }
 export async function recordRollback(
   layout: NativeLayout,
@@ -67,8 +109,8 @@ export async function recordRollback(
   const marker: SchemaRollback = {
     format: 1,
     release,
-    releaseHead: hash(files),
-    ledgerHead: hash(applied),
+    releaseHead: rollbackHash(files),
+    ledgerHead: rollbackHash(applied),
     latestVersion: applied
       .map((row) => row.version)
       .sort()

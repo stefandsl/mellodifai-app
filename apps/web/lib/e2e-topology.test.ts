@@ -20,6 +20,9 @@ function environment(ci = false) {
   vi.stubEnv("MDF_AUTH_DATABASE_URL", `postgresql://mdf_auth@${db}`);
   vi.stubEnv("MELLODIFAI_ROOT", "E:/mellodifai");
   vi.stubEnv("RUNNER_TEMP", ci ? "/tmp/mellodifai-ci" : "");
+  // The config refuses to start without the fake worker; do not depend on
+  // the shell that runs the unit suite.
+  vi.stubEnv("WORKER_FAKE", "1");
   for (const name of ["TEMP", "TMP", "TMPDIR"])
     vi.stubEnv(name, "C:/Users/Asus/AppData/Local/Temp");
 }

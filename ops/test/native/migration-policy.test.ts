@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { safeFailure } from "../../lib/native/diagnostics.js";
 import {
+  checksLockdown,
+  lockdownGuarantees,
   migrationChecksum,
   planMigrations,
   readMigrations,
@@ -31,21 +33,52 @@ it("preserves the safe lockdown explanation at the operator boundary", () => {
   }
   expect(message).toMatch(/lockdown.*not idempotent/i);
 });
-it("refuses versions beyond the mandatory final lockdown", () => {
+it("plans a new migration after the applied lockdown and checks the lockdown after it", () => {
+  const later = {
+    version: "20261201000001",
+    name: "additive",
+    sql: "select 1",
+    sha256: migrationChecksum("select 1"),
+  };
+  const { pending } = planMigrations([...files, later], applied);
+  expect(pending).toEqual([later]);
+  expect(pending.every(checksLockdown)).toBe(true);
+  expect(files.filter(checksLockdown).map((file) => file.version)).toEqual([
+    "20261103080001",
+  ]);
+});
+it("refuses a file older than a migration applied after the lockdown", () => {
+  const make = (version: string) => ({
+    version,
+    name: `m${version}`,
+    sql: "select 1",
+    sha256: migrationChecksum("select 1"),
+  });
+  const newer = make("20261201000002");
+  const backdated = make("20261201000001");
   expect(() =>
     planMigrations(
-      [
-        ...files,
-        {
-          version: "20261103080002",
-          name: "too_late",
-          sql: "select 1",
-          sha256: migrationChecksum("select 1"),
-        },
-      ],
-      applied,
+      [...files, newer, backdated],
+      [...applied, { version: newer.version, sha256: newer.sha256 }],
     ),
-  ).toThrow(/after.*lockdown/i);
+  ).toThrow(/20261201000001 before applied migration 20261201000002/);
+});
+it("asserts every lockdown guarantee in one block that fails with its own code", () => {
+  const sql = lockdownGuarantees();
+  for (const guarantee of [
+    "ops.lyric_alignment_request(jsonb, uuid, uuid)",
+    "public.playlist_membership(uuid[])",
+    "'public.jobs', 'INSERT'",
+    "'public.jobs', 'UPDATE'",
+    "'public.projects', 'INSERT'",
+    "'public.versions', 'INSERT'",
+    "owners enqueue jobs",
+    "owners cancel queued jobs",
+    "resolve_kie_submission",
+    "owners delete studio files",
+  ])
+    expect(sql).toContain(guarantee);
+  expect(sql).toContain("errcode = 'MDFLK'");
 });
 it("explains why an insertion cannot replay this non-idempotent lockdown", () => {
   expect(() =>

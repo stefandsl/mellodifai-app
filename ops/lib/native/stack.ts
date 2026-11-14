@@ -32,7 +32,8 @@ import { stackIdentity } from "./identity.js";
 import { assertNoMaintenance } from "./journal.js";
 import { loopback, type NativeLayout, nativeLayout } from "./layout.js";
 import { assertStackLease, withStackLease } from "./lease.js";
-import { baseEnvironment, typescriptArgs } from "./plan.js";
+import { assertDataDiskFree, securePrivateDirectory } from "./logs.js";
+import { supervisorEnvironment, typescriptArgs } from "./plan.js";
 import { postmasterPid, stopPostgres, witness } from "./postgres.js";
 import { readState, type StackState, waitFor } from "./processes.js";
 import { assertProductionSecrets } from "./production-secrets.js";
@@ -278,6 +279,8 @@ async function startNative(
   assertObjectMetadataSupport(layout.objects);
   for (const directory of [layout.logs, layout.run, layout.tmp])
     mkdirSync(directory, { recursive: true });
+  await securePrivateDirectory(layout.logs);
+  assertDataDiskFree(layout.root);
   rmSync(statePath(layout), { force: true });
   rmSync(stopRequestPath(layout), { force: true });
 
@@ -290,22 +293,7 @@ async function startNative(
       detached: true,
       stdio: ["ignore", out, out],
       windowsHide: true,
-      env: {
-        ...baseEnvironment(layout),
-        ...Object.fromEntries(
-          [
-            "MELLODIFAI_ROOT",
-            "MELLODIFAI_NATIVE_CACHE",
-            "MDF_NATIVE_REHEARSAL_PORT_BASE",
-            "RUNNER_TEMP",
-            "CI",
-            "E2E_PORT",
-            "E2E_EDGE_PORT",
-          ]
-            .filter((name) => process.env[name] !== undefined)
-            .map((name) => [name, process.env[name] as string]),
-        ),
-      } as NodeJS.ProcessEnv,
+      env: supervisorEnvironment(layout) as NodeJS.ProcessEnv,
     });
     child.once("exit", (code) => {
       exitCode = code ?? 1;

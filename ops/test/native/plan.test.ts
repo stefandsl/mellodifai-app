@@ -5,9 +5,11 @@ import { ENV_TABLE, type StackEnv, stackDir } from "../../lib/envs.js";
 import { parseGatewayConfig } from "../../lib/native/gateway.js";
 import { nativeLayout } from "../../lib/native/layout.js";
 import {
+  baseEnvironment,
   gatewayArgs,
   gatewayConfig,
   nativePlan,
+  supervisorEnvironment,
 } from "../../lib/native/plan.js";
 import {
   assertNativeCommand,
@@ -58,7 +60,9 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
       expect(port).toBeGreaterThanOrEqual(base);
       expect(port).toBeLessThan(base + 10);
     }
-    const config = gatewayConfig(env, layout, secrets);
+    const hopSecret = "synthetic-hop-".repeat(4);
+    const config = gatewayConfig(env, layout, secrets, hopSecret);
+    expect(config.hopSecret).toBe(hopSecret);
     expect(parseGatewayConfig(config)).toMatchObject(config);
     if (env === "prod")
       expect(layout.root).toBe(join(root, "stacks/prod/native"));
@@ -91,6 +95,7 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
         authenticator: "fake",
       },
       smtp: { MDF_SMTP_PASS: "fake" },
+      hopSecret,
       tsx: { node: process.execPath, cli: "unused" },
       opsDir,
     });
@@ -115,10 +120,21 @@ it.each(["dev", "e2e", "ci", "prod"] as StackEnv[])(
     expect(find("storage")?.ready).toBe(
       `http://127.0.0.1:${layout.ports.storage}/bucket`,
     );
-    for (const id of ["auth", "storage"])
+    for (const id of ["auth", "storage"]) {
       expect(find(id)?.readyHeaders).toEqual({
         Authorization: `Bearer ${secrets.service}`,
+        "x-mellodifai-hop": hopSecret,
       });
+      expect(find(id)?.env.MDF_HOP_SECRET).toBe(hopSecret);
+    }
+    // PostgREST cannot check the hop; it gets no secret (decision S3).
+    expect(find("rest")?.env.MDF_HOP_SECRET).toBe(undefined);
+    expect(find("rest")?.env.PGRST_SERVER_CORS_ALLOWED_ORIGINS).toBe(
+      config.appOrigins.join(","),
+    );
+    expect(config.appOrigins).not.toContain("*");
+    for (const spec of specs)
+      expect(spec.args.join(" ")).not.toContain(hopSecret);
     for (const spec of specs)
       expect(Number(new URL(spec.ready).port)).toBeGreaterThanOrEqual(base);
   },
@@ -141,4 +157,24 @@ it("refuses empty production boot before any tools or secrets, and refuses reset
     runNativeCommand("start", "prod", {}, { writeEnvFile }),
   ).rejects.toThrow("--init-production");
   expect(writeEnvFile).not.toHaveBeenCalled();
+});
+
+it("passes the data volume reserve to the supervisor but never to a service", () => {
+  vi.stubEnv("MELLODIFAI_ROOT", fixture());
+  const layout = nativeLayout("e2e");
+  const parent = {
+    PATH: "C:/bin",
+    MELLODIFAI_ROOT: "E:/root",
+    MDF_NATIVE_DATA_RESERVE_BYTES: "1024",
+    UNRELATED_KEY: "never",
+  };
+  const env = supervisorEnvironment(layout, parent);
+  expect(env.MDF_NATIVE_DATA_RESERVE_BYTES).toBe("1024");
+  expect(env.MELLODIFAI_ROOT).toBe("E:/root");
+  expect(env.UNRELATED_KEY).toBeUndefined();
+  expect(env.TEMP).toBe(layout.tmp);
+  // Services start from the base environment, which never carries it.
+  expect(
+    baseEnvironment(layout, parent).MDF_NATIVE_DATA_RESERVE_BYTES,
+  ).toBeUndefined();
 });
