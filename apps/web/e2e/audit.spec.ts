@@ -447,9 +447,20 @@ const INIT = () => {
   const w = window as unknown as {
     __mut: number;
     __media: Set<HTMLMediaElement>;
+    __webaudio: number;
   };
   w.__mut = 0;
   w.__media = new Set();
+  w.__webaudio = 0;
+  // The audio editor plays through Web Audio, not a media element.
+  const startSource = AudioScheduledSourceNode.prototype.start;
+  AudioScheduledSourceNode.prototype.start = function start(
+    this: AudioScheduledSourceNode,
+    ...args: Parameters<AudioScheduledSourceNode["start"]>
+  ) {
+    if (this.context.state !== "suspended") w.__webaudio++;
+    return startSource.apply(this, args);
+  };
   const original = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
     w.__media.add(this);
@@ -504,6 +515,13 @@ const SCAN = ({
   for (const el of document.querySelectorAll(SELECTOR)) {
     const html = el as HTMLElement;
     if (html.closest("[aria-hidden='true'], [inert]")) continue;
+    // Choosing the option already chosen changes nothing, like a link to the page shown.
+    if (
+      html.getAttribute("aria-checked") === "true" ||
+      html.getAttribute("aria-selected") === "true" ||
+      (html instanceof HTMLInputElement && html.checked)
+    )
+      continue;
     if (
       (html as HTMLButtonElement).disabled ||
       html.getAttribute("aria-disabled") === "true"
@@ -550,7 +568,8 @@ const OVERLAPS = (titles: string[]): string[] => {
       right: box.right,
       bottom: box.bottom,
     };
-    for (let p = el.parentElement; p; p = p.parentElement) {
+    // The element itself clips too: screen-reader-only labels and truncated titles.
+    for (let p: Element | null = el; p; p = p.parentElement) {
       const style = getComputedStyle(p);
       if (style.overflowX !== "visible" || style.overflowY !== "visible") {
         const r = p.getBoundingClientRect();
@@ -799,7 +818,10 @@ async function auditPage(
               ...w.__media,
               ...document.querySelectorAll("audio, video"),
             ] as HTMLMediaElement[];
-            return all.some((m) => !m.paused && m.currentTime > 0);
+            return (
+              all.some((m) => !m.paused && m.currentTime > 0) ||
+              (window as unknown as { __webaudio: number }).__webaudio > 0
+            );
           },
           undefined,
           { timeout: EFFECT_MS + 2000 },
@@ -919,9 +941,11 @@ test("self-test of the detectors", async ({ page }) => {
     <main>
       <button style="position:absolute;left:0;top:0;width:120px;height:30px">Uno</button>
       <span style="position:absolute;left:60px;top:8px">testo sopra</span>
+      <label style="position:absolute;left:4px;top:4px;width:1px;height:1px;overflow:hidden;white-space:nowrap">etichetta nascosta</label>
       <article aria-label="Senza"><div style="width:84px;height:84px"></div></article>
       <article aria-label="Con"><div style="width:84px;height:84px;background:linear-gradient(red,blue)"></div></article>
       <a href="#">vuoto</a>
+      <button role="radio" aria-checked="true" style="position:absolute;left:0;top:200px">Scelto</button>
     </main>`);
   await page.evaluate(INIT);
   expect(await page.evaluate(OVERLAPS, [])).toEqual([
@@ -1045,7 +1069,8 @@ test.describe("F1 requests", () => {
         .select("id")
         .single(),
     );
-    const audio = wav(12);
+    // A part is 10-30 s and at most half the song: the song must be long enough to edit.
+    const audio = wav(60);
     let first: string | null = null;
     for (let n = 1; n <= song.takes; n++) {
       const path = `previews/${owner}/${project.id}/it/take-${n}.wav`;
