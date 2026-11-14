@@ -806,10 +806,11 @@ it("close reconciles extensions across recorded windows and preserves other rese
   await fixture(async (tx) => {
     const j = await job(tx, "import_audio");
     const r = await reserve(tx, j.id);
-    // Move this reservation's charges to yesterday, then extend in today's window.
-    await tx`update public.spend_counters set window_start=window_start-1 where (scope,key,provider,unit,period,window_start) in (
+    // Move only this fixture's private user window. Shared global/provider
+    // counters may already have yesterday's row on a persistent native lab.
+    await tx`update public.spend_counters set window_start=window_start-1 where scope='user' and key=${j.user} and (scope,key,provider,unit,period,window_start) in (
       select scope,key,provider,unit,period,window_start from public.reservations r,jsonb_to_recordset(r.charges) c(scope text,key text,provider text,unit text,period text,window_start date) where r.id=${r})`;
-    await tx`update public.reservations set charges=(select jsonb_agg(c || jsonb_build_object('window_start',(c->>'window_start')::date-1)) from jsonb_array_elements(charges) c) where id=${r}`;
+    await tx`update public.reservations set charges=(select jsonb_agg(case when c->>'scope'='user' and c->>'key'=${j.user} then c || jsonb_build_object('window_start',(c->>'window_start')::date-1) else c end) from jsonb_array_elements(charges) c) where id=${r}`;
     await tx`select ops.extend_reservation(${r},'groq','','{"audio_hour":0.1}')`;
     const e = await entry(tx, r);
     await tx`select ops.settle_spend(${e},'{"audio_hour":0.15}')`;
