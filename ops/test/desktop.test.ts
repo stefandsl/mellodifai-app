@@ -17,6 +17,7 @@ import {
   desktopEnvValues,
   desktopPaths,
   formatEnvFile,
+  isAppWindowProcess,
   isBackupFolder,
   isDesktopProcess,
   parseEnvFile,
@@ -129,6 +130,38 @@ describe("desktop stack", () => {
 });
 
 describe("app window", () => {
+  it("closes only Edge processes of this install's own profile", () => {
+    const profile = "E:/MellodifAI/data/browser";
+    const windows = "E:\\MellodifAI\\data\\browser";
+    const edge = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
+    const line = (args: string) => `"${edge}" ${args}`;
+    expect(
+      isAppWindowProcess(
+        line(`--app=http://127.0.0.1:46300 --user-data-dir=${windows} --x`),
+        profile,
+      ),
+    ).toBe(true);
+    expect(
+      isAppWindowProcess(
+        line(`--type=renderer --user-data-dir="${windows}"`),
+        profile,
+      ),
+    ).toBe(true);
+    // The owner's own Edge, another install's window, a longer folder name.
+    expect(
+      isAppWindowProcess(line("--profile-directory=Default"), profile),
+    ).toBe(false);
+    expect(
+      isAppWindowProcess(
+        line("--user-data-dir=E:\\Other\\data\\browser"),
+        profile,
+      ),
+    ).toBe(false);
+    expect(
+      isAppWindowProcess(line(`--user-data-dir=${windows}2 --x`), profile),
+    ).toBe(false);
+  });
+
   it("opens the link as an app window with its own profile", () => {
     const args = appWindowArgs(
       "http://127.0.0.1:46321/auth/v1/verify?token=t&type=magiclink",

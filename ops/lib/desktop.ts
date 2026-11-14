@@ -164,6 +164,21 @@ export function appWindowArgs(url: string, profile: string): string[] {
   ];
 }
 
+/** True only for an Edge process of this install's app window (its own profile folder). */
+export function isAppWindowProcess(
+  commandLine: string,
+  profile: string,
+): boolean {
+  const line = commandLine.replaceAll("/", "\\").toLowerCase();
+  const dir = resolve(profile).replaceAll("/", "\\").toLowerCase();
+  return (
+    line.includes("msedge.exe") &&
+    (line.includes(`--user-data-dir=${dir} `) ||
+      line.endsWith(`--user-data-dir=${dir}`) ||
+      line.includes(`--user-data-dir="${dir}"`))
+  );
+}
+
 export const MSG = {
   rootOnC:
     "MellodifAI non puo' tenere i dati sul disco C:. Reinstallalo su un altro disco (per esempio E:).",

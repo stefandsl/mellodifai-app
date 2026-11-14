@@ -27,6 +27,7 @@ import {
   DESKTOP,
   type DesktopProcess,
   desktopPaths,
+  isAppWindowProcess,
   isBackupFolder,
   isDesktopProcess,
   MSG,
@@ -152,6 +153,19 @@ async function desktopProcesses(kind: DesktopProcess): Promise<number[]> {
       ({ pid, command }) => pid > 0 && isDesktopProcess(kind, command, app),
     )
     .map(({ pid }) => pid);
+}
+
+/** Closes this install's app window, which holds files in data\browser. */
+async function closeAppWindow() {
+  const listed = await powershell(
+    "Get-CimInstance Win32_Process -Filter \"name='msedge.exe'\" | ForEach-Object { '{0}|{1}' -f $_.ProcessId, $_.CommandLine }",
+  );
+  for (const line of listed.stdout.split(/\r?\n/)) {
+    const at = line.indexOf("|");
+    const pid = Number(line.slice(0, at));
+    if (pid > 0 && isAppWindowProcess(line.slice(at + 1), P.browser))
+      await run("taskkill", ["/PID", String(pid), "/T", "/F"]);
+  }
 }
 
 async function killDesktop(kind: DesktopProcess) {
@@ -475,6 +489,7 @@ async function stopStack() {
 
 async function stop() {
   say(MSG.stopping);
+  await closeAppWindow();
   await killDesktop("worker");
   await killDesktop("web");
   if (existsSync(P.stack)) await stopStack();
