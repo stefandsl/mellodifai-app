@@ -1,8 +1,12 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CutPlanSchema, ShotListSchema } from "@mellodifai/shared";
+import {
+  CutPlanSchema,
+  parseSceneCuts,
+  ShotListSchema,
+} from "@mellodifai/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import type { StageContext } from "../src/loop.js";
 import {
@@ -10,12 +14,15 @@ import {
   blackVideoArgs,
   concatList,
   cutInputFromTiming,
+  fitClipArgs,
   genreOf,
   musicVideoPlan,
   musicVideoPlanStage,
   previzProps,
   type SongTiming,
+  sceneCutArgs,
   syncCheck,
+  withReplacements,
   writeMusicVideoPlan,
 } from "../src/stages/music-video.js";
 
@@ -172,11 +179,28 @@ describe("music video plan", () => {
     expect(saved).toEqual(result.cutPlan);
   }, 60_000);
 
+  it("cuts the wrapper on the segment's frames, not its time in seconds", () => {
+    // Rung 1's segment 7: 74.94-84.29 s, frames 2248-2529 (74.9333-84.3 s, 281 frames). The
+    // wrapper made from the seconds was 280 frames long.
+    const args = blackVideoArgs(
+      "m.wav",
+      { start: 74.94, end: 84.29, startFrame: 2248, endFrame: 2529 },
+      "o.mp4",
+    );
+    expect(args[args.indexOf("-ss") + 1]).toBe("74.933333");
+    expect(args[args.indexOf("-t") + 1]).toBe("9.366667");
+    expect(args[args.indexOf("-frames:v") + 1]).toBe("281");
+  });
+
   it("builds ffmpeg arguments for the wrapper and the assembly", () => {
-    const args = blackVideoArgs("m.wav", { start: 12.5, end: 24.25 }, "o.mp4");
+    const args = blackVideoArgs(
+      "m.wav",
+      { start: 12.5, end: 24.25, startFrame: 375, endFrame: 728 },
+      "o.mp4",
+    );
     expect(args[args.indexOf("-ss") + 1]).toBe("12.500000");
     expect(args.filter((a) => a === "-t")).toHaveLength(2);
-    expect(args[args.indexOf("-t") + 1]).toBe("11.750000");
+    expect(args[args.indexOf("-t") + 1]).toBe("11.766667");
     expect(args).toContain("color=c=black:s=1280x720:r=30");
     expect(args.at(-1)).toBe("o.mp4");
     const assemble = assembleArgs("list.txt", "m.wav", "out.mp4");
@@ -288,5 +312,102 @@ describe("music video plan stage", () => {
     expect(calls.every((c) => c.command === "ffmpeg")).toBe(true);
     expect(calls[0]?.args).toContain(join(ws.publicDir, "audio", "it.wav"));
     expect(logs[0]).toMatch(/0 words cut/u);
+  });
+});
+
+describe("generated shots in the edit", () => {
+  function make(file: string, filter: string, seconds: number, size: string) {
+    execFileSync(
+      "ffmpeg",
+      [
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        `${filter}${filter.includes("=") ? ":" : "="}s=${size}:r=24:d=${seconds}`,
+        "-f",
+        "lavfi",
+        "-i",
+        `sine=frequency=330:duration=${seconds}`,
+        "-shortest",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        file,
+      ],
+      { windowsHide: true },
+    );
+  }
+
+  it("fits a 24 fps 480p draft to the segment's frames at 1280x720, 30 fps, silent", async () => {
+    const root = await scratch();
+    const draft = join(root, "draft.mp4");
+    make(draft, "testsrc2", 12, "854x480");
+    const out = join(root, "fit.mp4");
+    execFileSync("ffmpeg", fitClipArgs(draft, 351, out), { windowsHide: true });
+    expect(ffprobe(out, "stream=nb_read_packets", "v:0")).toBe("351");
+    expect(ffprobe(out, "stream=width,height", "v:0")).toBe("1280\n720");
+    expect(ffprobe(out, "stream=r_frame_rate", "v:0")).toBe("30/1");
+    expect(ffprobe(out, "stream=index")).toBe("0");
+  }, 60_000);
+
+  it("counts no scene change in one shot and each cut in a cut clip", async () => {
+    const root = await scratch();
+    const one = join(root, "one.mp4");
+    make(one, "testsrc2", 4, "640x360");
+    const parts = ["red", "blue", "green"].map((c, i) => {
+      const f = join(root, `${c}.mp4`);
+      make(f, i % 2 ? "testsrc" : `color=c=${c}`, 1.5, "640x360");
+      return f;
+    });
+    const list = join(root, "list.txt");
+    await writeFile(list, concatList(parts));
+    const cut = join(root, "cut.mp4");
+    execFileSync(
+      "ffmpeg",
+      [
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        list,
+        "-c",
+        "copy",
+        cut,
+      ],
+      { windowsHide: true },
+    );
+    const cuts = (file: string) =>
+      parseSceneCuts(
+        String(
+          spawnSync("ffmpeg", sceneCutArgs(file), {
+            encoding: "utf8",
+            windowsHide: true,
+          }).stderr,
+        ),
+      );
+    expect(cuts(one)).toEqual([]);
+    expect(cuts(cut)).toHaveLength(2);
+  }, 60_000);
+
+  it("replaces only the chosen segments and re-encodes the join on request", () => {
+    expect(withReplacements(["a", "b", "c"], new Map([[1, "B"]]))).toEqual([
+      "a",
+      "B",
+      "c",
+    ]);
+    expect(() => withReplacements(["a"], new Map([[3, "x"]]))).toThrow(
+      /no segment 3/u,
+    );
+    const args = assembleArgs("l.txt", "m.wav", "o.mp4", { reencode: true });
+    expect(args).toContain("libx264");
+    expect(args).not.toContain("copy");
   });
 });

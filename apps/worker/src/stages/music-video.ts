@@ -102,14 +102,16 @@ export function previzProps(shot: Shot, timing: SongTiming) {
 export const WRAP_SIZE = "1280x720";
 
 // ffmpeg arguments that turn a segment of the master into an mp4 with a black picture of
-// exactly the segment's length: the lip-sync model reads a video better than an mp3.
+// exactly the segment's frames: the lip-sync model reads a video better than an mp3. The cut
+// is on the frame grid (the picture changes there), not on the segment's label in seconds.
 export function blackVideoArgs(
   master: string,
-  segment: Pick<Segment, "start" | "end">,
+  segment: Pick<Segment, "start" | "end" | "startFrame" | "endFrame">,
   out: string,
   fps = 30,
 ): string[] {
-  const seconds = (segment.end - segment.start).toFixed(6);
+  const frames = segment.endFrame - segment.startFrame;
+  const seconds = (frames / fps).toFixed(6);
   return [
     "-hide_banner",
     "-loglevel",
@@ -120,7 +122,7 @@ export function blackVideoArgs(
     "-i",
     `color=c=black:s=${WRAP_SIZE}:r=${fps}`,
     "-ss",
-    segment.start.toFixed(6),
+    (segment.startFrame / fps).toFixed(6),
     "-t",
     seconds,
     "-i",
@@ -131,6 +133,8 @@ export function blackVideoArgs(
     "1:a",
     "-t",
     seconds,
+    "-frames:v",
+    String(frames),
     "-c:v",
     "libx264",
     "-tune",
@@ -156,12 +160,84 @@ export function concatList(files: string[]): string {
   return `${files.map((f) => `file '${f.replace(/\\/gu, "/").replace(/'/gu, "'\\''")}'`).join("\n")}\n`;
 }
 
-// The previz clips joined without re-encoding, with the full song master as the sound.
+// A generated clip made to fit its segment exactly: the segment's frame count from its first
+// frame, at the previz's size and rate (letterboxed if the aspect differs), no sound (the master
+// is the sound), encoded like the previz clips so the assembly can join them.
+export function fitClipArgs(
+  input: string,
+  frames: number,
+  out: string,
+  fps = 30,
+): string[] {
+  const [w, h] = WRAP_SIZE.split("x");
+  return [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-y",
+    "-i",
+    input,
+    "-an",
+    "-vf",
+    `fps=${fps},scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
+    "-frames:v",
+    String(frames),
+    "-c:v",
+    "libx264",
+    "-profile:v",
+    "high",
+    "-crf",
+    "16",
+    "-pix_fmt",
+    "yuvj420p",
+    "-video_track_timescale",
+    "90000",
+    "-movflags",
+    "+faststart",
+    out,
+  ];
+}
+
+// Scene changes of a clip: ffmpeg logs one showinfo line per frame whose scene score passes the
+// threshold (read the times with parseSceneCuts from shared).
+export const SCENE_THRESHOLD = 0.3;
+export function sceneCutArgs(input: string, threshold = SCENE_THRESHOLD) {
+  return [
+    "-hide_banner",
+    "-nostats",
+    "-i",
+    input,
+    "-an",
+    "-vf",
+    `select='gt(scene,${threshold})',showinfo`,
+    "-f",
+    "null",
+    "-",
+  ];
+}
+
+// The clips listed in order, each replaced by its generated clip where there is one.
+export function withReplacements(
+  clips: string[],
+  replacements: ReadonlyMap<number, string>,
+): string[] {
+  for (const index of replacements.keys())
+    if (!Number.isInteger(index) || index < 0 || index >= clips.length)
+      throw new Error(`no segment ${index} to replace`);
+  return clips.map((clip, i) => replacements.get(i) ?? clip);
+}
+
+// The previz clips joined with the full song master as the sound. Re-encoding joins clips that
+// were encoded apart (generated shots next to previz clips) into one clean stream.
 export function assembleArgs(
   list: string,
   master: string,
   out: string,
+  options: { reencode?: boolean } = {},
 ): string[] {
+  const video = options.reencode
+    ? ["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p"]
+    : ["-c:v", "copy"];
   return [
     "-hide_banner",
     "-loglevel",
@@ -179,8 +255,7 @@ export function assembleArgs(
     "0:v",
     "-map",
     "1:a",
-    "-c:v",
-    "copy",
+    ...video,
     "-c:a",
     "aac",
     "-b:a",
