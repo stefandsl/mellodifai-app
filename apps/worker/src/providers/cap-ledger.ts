@@ -281,5 +281,16 @@ export class TsvCapLedger implements Ledger {
     throw new CapRefused("cap_exceeded: the TSV ledger has a fixed cap");
   }
   async extendStage(): Promise<void> {}
-  async markAmbiguous(): Promise<void> {}
+  // A paid call with an unknown outcome: the entry stays open, so it keeps holding its estimate
+  // (also when the file is read again) until the owner settles it by hand.
+  async markAmbiguous(entryId?: string): Promise<void> {
+    if (!entryId) return;
+    this.requireLock();
+    return this.exclusive(async () => {
+      await this.load();
+      const row = this.rows.get(entryId);
+      if (!row) throw new Error(`unknown ledger entry ${entryId}`);
+      await this.write(row, "ambiguous: held at the estimate");
+    });
+  }
 }

@@ -7,7 +7,7 @@ import {
   TsvCapLedger,
   validCap,
 } from "../src/providers/cap-ledger.js";
-import { KieClient } from "../src/providers/kie-client.js";
+import { KieClient, KieRefused } from "../src/providers/kie-client.js";
 import {
   KIE_PRICES,
   resultUrls,
@@ -25,6 +25,7 @@ import {
 } from "../src/providers/kie-media.js";
 import { isCapRefusal } from "../src/providers/ledger.js";
 import { paidCall } from "../src/providers/paid.js";
+import { generatePaid, RunStopped } from "../src/providers/paid-generate.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -325,6 +326,127 @@ describe("TSV cap ledger", () => {
     );
     await expect(new TsvCapLedger(headless, 1000).total()).rejects.toThrow(
       /cap_mismatch/u,
+    );
+  });
+});
+
+describe("paid generation", () => {
+  const ok = (data: unknown) =>
+    new Response(JSON.stringify({ code: 200, data }));
+  const success = (credits?: number) =>
+    ok({
+      state: "success",
+      resultJson: JSON.stringify({
+        resultUrls: ["https://tempfile.aiquickdraw.com/v.mp4"],
+      }),
+      ...(credits === undefined ? {} : { creditsConsumed: credits }),
+    });
+  const refused = () =>
+    new Response(JSON.stringify({ code: 422, msg: "bad input" }), {
+      status: 422,
+    });
+
+  // A kie stand-in: createTask and recordInfo answer per submission number n. The balance never
+  // moves (the production worker spends from the same account, so it says nothing).
+  function fakeKie(
+    create: (n: number) => Response,
+    record: (n: number) => Response,
+  ) {
+    const calls = { create: 0 };
+    const fetchImpl = (async (url: string | URL) => {
+      const target = new URL(String(url));
+      if (target.pathname.endsWith("/chat/credit")) return ok(10_000);
+      if (target.pathname.endsWith("/createTask"))
+        return create(++calls.create);
+      if (target.pathname.endsWith("/recordInfo")) return record(calls.create);
+      if (target.hostname === "tempfile.aiquickdraw.com")
+        return new Response("mp4");
+      throw new Error(`unexpected call ${target.href}`);
+    }) as typeof fetch;
+    return { client: new KieClient("k", fetchImpl, async () => {}), calls };
+  }
+
+  async function run(
+    kie: ReturnType<typeof fakeKie>,
+    taskOptions: { timeoutMs?: number } = {},
+  ) {
+    const root = await scratch();
+    const file = join(root, "ledger.tsv");
+    const ledger = new TsvCapLedger(file, 1000);
+    await ledger.lock();
+    const job = {
+      label: "draft 5",
+      model: SEEDANCE,
+      units: "12 s draft",
+      estimate: 408,
+      body: seedanceDraftBody({
+        prompt: "p",
+        imageUrls: [],
+        videoUrls: [],
+        seconds: 12,
+      }),
+      file: join(root, "draft.mp4"),
+    };
+    const result = generatePaid(ledger, kie.client, job, {
+      pollMs: 1,
+      ...taskOptions,
+    }).finally(() => ledger.unlock());
+    // Read again from the file, as a later run would.
+    const held = async () => new TsvCapLedger(file, 1000).total();
+    return { file, job, result, held };
+  }
+
+  it("retries once a task that failed on kie's side", async () => {
+    const kie = fakeKie(
+      (n) => ok({ taskId: `t${n}` }),
+      (n) => (n === 1 ? ok({ state: "fail" }) : success(400)),
+    );
+    const { job, result, held } = await run(kie);
+    await expect(result).resolves.toMatchObject({ taskId: "t2", credits: 400 });
+    expect(kie.calls.create).toBe(2);
+    expect(await held()).toBe(400);
+    expect(await readFile(job.file, "utf8")).toBe("mp4");
+  });
+
+  it("retries once a refused submission, and stops after a second refusal", async () => {
+    const once = fakeKie(
+      (n) => (n === 1 ? refused() : ok({ taskId: "t2" })),
+      () => success(400),
+    );
+    await expect((await run(once)).result).resolves.toMatchObject({
+      taskId: "t2",
+    });
+    expect(once.calls.create).toBe(2);
+
+    const twice = fakeKie(refused, () => success(400));
+    const second = await run(twice);
+    await expect(second.result).rejects.toBeInstanceOf(KieRefused);
+    expect(twice.calls.create).toBe(2);
+    expect(await second.held()).toBe(0);
+  });
+
+  it("never submits again a task still pending: the reservation stays held and the run stops", async () => {
+    const kie = fakeKie(
+      () => ok({ taskId: "t1" }),
+      () => ok({ state: "generating" }),
+    );
+    const { result, held } = await run(kie, { timeoutMs: 0 });
+    await expect(result).rejects.toBeInstanceOf(RunStopped);
+    expect(kie.calls.create).toBe(1);
+    expect(await held()).toBe(408);
+  });
+
+  it("never submits again after a submission with no answer", async () => {
+    const kie = fakeKie(
+      () => new Response(JSON.stringify({ code: 500 }), { status: 500 }),
+      () => success(400),
+    );
+    const { file, result, held } = await run(kie);
+    await expect(result).rejects.toThrow(/outcome unknown/u);
+    expect(kie.calls.create).toBe(1);
+    expect(await held()).toBe(408);
+    expect(await readFile(file, "utf8")).toMatch(
+      /\te001\t[^\n]*\t408\t\t408\tambiguous/u,
     );
   });
 });

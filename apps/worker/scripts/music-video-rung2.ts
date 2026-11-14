@@ -45,7 +45,6 @@ import { TsvCapLedger, validCap } from "../src/providers/cap-ledger.js";
 import { KieClient } from "../src/providers/kie-client.js";
 import {
   KIE_PRICES,
-  runMediaTask,
   SEEDANCE,
   SEEDANCE_UPGRADE,
   SEEDREAM_I2I,
@@ -57,7 +56,7 @@ import {
   seedreamBody,
   seedreamCredits,
 } from "../src/providers/kie-media.js";
-import { openPaidEntry } from "../src/providers/paid.js";
+import { generatePaid, RunStopped } from "../src/providers/paid-generate.js";
 import {
   assembleArgs,
   blackVideoArgs,
@@ -544,51 +543,17 @@ const kie = client;
 await ledger.lock();
 process.on("exit", () => ledger.unlockSync());
 
-// One paid generation: reservation, submit, wait, download, settle with kie's own count (or the
-// balance difference). A failed task is retried once, logged; a cap refusal stops the step.
-async function generate(
+// One paid generation (generatePaid): a failed task or a refused submission is retried once; an
+// outcome kie did not tell (no answer to the submission, a task still pending) keeps its
+// reservation at the estimate, marked ambiguous, and stops the run with RunStopped.
+const generate = (
   label: string,
   model: string,
   units: string,
   estimate: number,
   body: { model: string; input: Record<string, unknown> },
   file: string,
-) {
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    // Throws a cap refusal (nothing reserved, nothing spent) when the cap cannot hold it.
-    const entry = await openPaidEntry(ledger, `${model}|${units}`, {
-      credits: estimate,
-    });
-    const before = await kie.credits();
-    if (before < estimate) {
-      await ledger.settle(entry, { credits: 0 });
-      throw new Error(
-        `${label}: balance ${before} below the ${estimate} credits it needs (short by ${Math.round((estimate - before) * 100) / 100})`,
-      );
-    }
-    try {
-      const task = await runMediaTask(kie, body, {
-        onSubmitted: (id) =>
-          ledger.note(`${label}: submitted task ${id} (attempt ${attempt})`),
-      });
-      await kie.download(task.urls[0] as string, file);
-      const after = await kie.credits();
-      await ledger.settle(entry, {
-        credits: task.credits ?? Math.max(0, before - after),
-      });
-      return task;
-    } catch (error) {
-      // Settle what the failure cost (kie charges 0 for a failed task), then retry once.
-      const after = await kie.credits().catch(() => before - estimate);
-      await ledger.settle(entry, { credits: Math.max(0, before - after) });
-      await ledger.note(
-        `${label}: attempt ${attempt} failed: ${(error as Error).message}`,
-      );
-      if (attempt === 2) throw error;
-    }
-  }
-  throw new Error("unreachable");
-}
+) => generatePaid(ledger, kie, { label, model, units, estimate, body, file });
 
 const urls = new Map<string, string>();
 const upload = async (file: string, type: string) => {
@@ -649,9 +614,10 @@ for (const s of shots) {
     }),
     draft,
   ).catch(async (error: Error) => {
+    // An ambiguous call stays running: kie may still deliver it, and it must not be paid again.
     await store.patchTake(draftTake.id, {
-      status: "failed",
-      gates: { error: error.message },
+      ...(error instanceof RunStopped ? {} : { status: "failed" as const }),
+      gates: { error: error.message, ambiguous: error instanceof RunStopped },
     });
     throw error;
   });
@@ -684,11 +650,14 @@ for (const s of shots) {
       row.final = gateClip(s, final, "final");
       await store.patchTake(finalTake.id, { status: "done", gates: row.final });
     } catch (error) {
-      row.final = { error: (error as Error).message };
+      const stopped = error instanceof RunStopped;
+      row.final = { error: (error as Error).message, ambiguous: stopped };
       await store.patchTake(finalTake.id, {
-        status: "failed",
+        ...(stopped ? {} : { status: "failed" as const }),
         gates: row.final,
       });
+      // An outcome kie did not tell stops the run; a failure or a refusal leaves the draft.
+      if (stopped) throw error;
     }
   }
   results.push(row);
