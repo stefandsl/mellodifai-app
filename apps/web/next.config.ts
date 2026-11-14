@@ -34,6 +34,16 @@ const nextConfig: NextConfig = {
       "./publication-defaults.js":
         "../../packages/shared/src/publication-defaults.ts",
       "./lyrics-assist.js": "../../packages/shared/src/lyrics-assist.ts",
+      "./music-video/index.js":
+        "../../packages/shared/src/music-video/index.ts",
+      "./cut-plan.js": "../../packages/shared/src/music-video/cut-plan.ts",
+      "./shot-list.js": "../../packages/shared/src/music-video/shot-list.ts",
+      "./bible.js": "../../packages/shared/src/music-video/bible.ts",
+      "./gates.js": "../../packages/shared/src/music-video/gates.ts",
+      "./composer.js": "../../packages/shared/src/music-video/composer.ts",
+      "./mv-ops.js": "../../packages/shared/src/music-video/mv-ops.ts",
+      "./prices.js": "../../packages/shared/src/music-video/prices.ts",
+      "./storyboard.js": "../../packages/shared/src/music-video/storyboard.ts",
       "./remake/index.js": "../../packages/shared/src/remake/index.ts",
       "./analysis.js": "../../packages/shared/src/remake/analysis.ts",
       "./blueprint.js": "../../packages/shared/src/remake/blueprint.ts",
