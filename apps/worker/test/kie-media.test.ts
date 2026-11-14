@@ -214,9 +214,9 @@ describe("TSV cap ledger", () => {
     await expect(
       ledger.open(`${SEEDANCE}|12 s draft`, { credits: 408 }),
     ).rejects.toBeInstanceOf(CapRefused);
-    await ledger
-      .open("x|y", { credits: 500 })
-      .catch((error) => expect(isCapRefusal(error)).toBe(true));
+    await expect(ledger.open("x|y", { credits: 500 })).rejects.toSatisfy(
+      isCapRefusal,
+    );
     await ledger.settle(open, { credits: 0 });
     expect(await ledger.total()).toBe(400);
 
