@@ -81,6 +81,30 @@ describe("planCuts", () => {
     expect(checkCutPlan(plan, input).wordsCut).toBe(0);
   });
 
+  it("puts every cut on a frame that is outside every word", () => {
+    // Words back to back and off the frame grid, each bar line 0.013 s into a word: a cut on
+    // that word's edge in seconds lands inside it once rounded to a frame (2.0 s is frame 60).
+    const lines: CutPlanLine[] = [];
+    for (let k = 0; k < 20; k++) {
+      const s = 0.487 + 2 * k;
+      lines.push({
+        words: [0, 1, 2, 3].map((i) => ({
+          w: `w${4 * k + i}`,
+          start: s + 0.5 * i,
+          end: s + 0.5 * i + (i === 3 ? 0.45 : 0.5),
+        })),
+      });
+    }
+    const downbeats = Array.from({ length: 21 }, (_, i) => 2 * i);
+    const input: CutPlanInput = { duration: 42, lines, downbeats };
+    const plan = planCuts(input);
+    for (const s of plan.segments.slice(1)) {
+      expect(s.start * 30).toBeCloseTo(s.startFrame, 9);
+      expect(insideWord(s.startFrame / 30, allWords(input))).toBe(false);
+    }
+    expect(checkCutPlan(plan, input).ok).toBe(true);
+  });
+
   it("cuts on downbeats at phrase ends when the song allows it", () => {
     const input = song();
     const plan = planCuts(input);
