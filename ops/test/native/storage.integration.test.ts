@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import postgres from "postgres";
@@ -16,31 +15,19 @@ import {
 } from "../../lib/native/storage-metadata.js";
 import { removeAttributeSync } from "../../native/storage/fs-xattr/index.js";
 import { runStack } from "../../stack.js";
+import { assertNativeIntegrationEnvironment } from "./integration-env.js";
 
-// Explicitly opt in on the one authorized lab root. No production fallback.
-const enabled =
-  process.env.MDF_NATIVE_INTEGRATION === "1" &&
-  resolve(process.env.MELLODIFAI_ROOT ?? ".") ===
-    resolve("E:/mellodifai/native-lab") &&
-  process.env.SUPABASE_URL === "http://127.0.0.1:45621" &&
-  Boolean(
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-      process.env.SUPABASE_ANON_KEY &&
-      process.env.TEST_DB_URL,
-  );
+const enabled = process.env.MDF_NATIVE_INTEGRATION === "1";
 
 it.skipIf(!enabled)(
   "Storage preserves bytes, headers, RLS and metadata through the gateway and a native restart",
-  async (context) => {
+  async () => {
+    assertNativeIntegrationEnvironment();
+    await runStack("start", "e2e", { runtime: "native" });
     const url = process.env.SUPABASE_URL as string;
-    try {
-      const response = await fetch(`${url}/health`, {
-        signal: AbortSignal.timeout(2000),
-      });
-      if (!response.ok) return context.skip();
-    } catch {
-      return context.skip();
-    }
+    expect(
+      (await fetch(`${url}/health`, { signal: AbortSignal.timeout(2000) })).ok,
+    ).toBe(true);
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
     const anon = process.env.SUPABASE_ANON_KEY as string;
     const options = {

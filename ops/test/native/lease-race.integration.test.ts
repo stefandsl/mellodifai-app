@@ -8,12 +8,15 @@ import { nativeLayout } from "../../lib/native/layout.js";
 import { typescriptArgs } from "../../lib/native/plan.js";
 import { nativeStatus } from "../../lib/native/stack.js";
 import { runStack } from "../../stack.js";
+import { assertNativeTestRoot } from "./integration-env.js";
 
-it.skipIf(process.env.MDF_NATIVE_LEASE_TESTS !== "1")(
+it.skipIf(
+  process.env.MDF_NATIVE_LEASE_TESTS !== "1" &&
+    process.env.MDF_NATIVE_INTEGRATION !== "1",
+)(
   "start cannot stop a live backup postmaster",
   async () => {
-    if (process.env.MELLODIFAI_ROOT !== "E:/mellodifai/native-lab")
-      throw new Error("Lease test requires e2e lab");
+    assertNativeTestRoot();
     const layout = nativeLayout("e2e");
     const entry = fileURLToPath(
       new URL("./fixtures/maintenance-child.ts", import.meta.url),
@@ -64,11 +67,13 @@ it.skipIf(process.env.MDF_NATIVE_LEASE_TESTS !== "1")(
   300_000,
 );
 
-it.skipIf(process.env.MDF_NATIVE_LEASE_TESTS !== "1")(
+it.skipIf(
+  process.env.MDF_NATIVE_LEASE_TESTS !== "1" &&
+    process.env.MDF_NATIVE_INTEGRATION !== "1",
+)(
   "two actual starts from stale state cannot both own the stack",
   async () => {
-    if (process.env.MELLODIFAI_ROOT !== "E:/mellodifai/native-lab")
-      throw new Error("Lease test requires e2e lab");
+    assertNativeTestRoot();
     const path = join(nativeLayout("e2e").root, "stack.lock");
     if (existsSync(path))
       throw new Error("Preserve pre-existing legacy lock fixture");

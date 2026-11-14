@@ -12,6 +12,7 @@ import {
 } from "../../lib/native/postgres.js";
 import { runStack } from "../../stack.js";
 import { fixture } from "./fixtures.js";
+import { assertNativeTestRoot } from "./integration-env.js";
 
 it.skipIf(
   process.env.MDF_NATIVE_MIGRATION_TESTS !== "1" &&
@@ -19,8 +20,7 @@ it.skipIf(
 )(
   "rolls back failed real migrations and proves lockdown cannot be replayed",
   async () => {
-    if (process.env.MELLODIFAI_ROOT !== "E:/mellodifai/native-lab")
-      throw new Error("Migration test requires isolated e2e lab");
+    assertNativeTestRoot();
     await runStack("start", "e2e", { runtime: "native" });
     try {
       await withStackLease("e2e", "migrate", async () => {

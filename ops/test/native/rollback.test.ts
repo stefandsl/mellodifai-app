@@ -61,7 +61,9 @@ it("accepts only the exact recorded schema and exact older release", async () =>
   expect(() =>
     planMigrations(
       [old],
-      applied.map((row, index) => index === 0 ? { ...row, sha256: "edited" } : row),
+      applied.map((row, index) =>
+        index === 0 ? { ...row, sha256: "edited" } : row,
+      ),
       marker,
     ),
   ).toThrow("exact ledger and release");

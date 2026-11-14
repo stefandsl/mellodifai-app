@@ -42,7 +42,11 @@ try {
   assert.equal(process.env.MELLODIFAI_ROOT, root);
   assert.equal(process.env.MDF_NATIVE_REHEARSAL_PORT_BASE, "46300");
   assert.equal(resolve(realpathSync(root)), resolve(root));
-  if (source !== workspace && !resolve(source).startsWith(resolve("E:/mellodifai/tmp/native-run8") + "\\")) throw new Error("Baseline source must be a retained Run 8 snapshot");
+  if (
+    source !== workspace &&
+    !resolve(source).startsWith(`${resolve("E:/mellodifai/tmp/native-run8")}\\`)
+  )
+    throw new Error("Baseline source must be a retained Run 8 snapshot");
   mkdirSync(scratch, { recursive: true });
   await runStack("stop", "prod", { runtime: "native" });
   // Preserve all pre-existing lab data. Only these literal validated lab paths move.
@@ -116,8 +120,17 @@ try {
     origin,
     deploy,
   );
-  cpSync(join(source, "ops"), operator, { recursive: true, filter: (path) => !["node_modules", "dist", ".git"].includes(basename(path)) && !path.endsWith(".tsbuildinfo") });
-  symlinkSync(join(workspace, "ops/node_modules"), join(operator, "node_modules"), "junction");
+  cpSync(join(source, "ops"), operator, {
+    recursive: true,
+    filter: (path) =>
+      !["node_modules", "dist", ".git"].includes(basename(path)) &&
+      !path.endsWith(".tsbuildinfo"),
+  });
+  symlinkSync(
+    join(workspace, "ops/node_modules"),
+    join(operator, "node_modules"),
+    "junction",
+  );
   symlinkSync(
     join(workspace, "node_modules"),
     join(deploy, "node_modules"),
@@ -128,9 +141,7 @@ try {
     join(deploy, "ops/node_modules"),
     "junction",
   );
-  deployedStack = await import(
-    pathToFileURL(join(operator, "stack.ts")).href
-  );
+  deployedStack = await import(pathToFileURL(join(operator, "stack.ts")).href);
   const deployment = await import(
     pathToFileURL(join(operator, "deploy.ts")).href
   );

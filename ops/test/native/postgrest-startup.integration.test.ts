@@ -12,23 +12,24 @@ import { nativeTools } from "../../lib/native/build.js";
 import { nativeLayout } from "../../lib/native/layout.js";
 import { nativePlan } from "../../lib/native/plan.js";
 import { renderConfig } from "../../lib/render.js";
+import { runStack } from "../../stack.js";
+import { assertNativeTestRoot } from "./integration-env.js";
 
 const enabled =
-  process.platform === "win32" &&
-  process.env.MDF_NATIVE_STARTUP_INTEGRATION === "1" &&
-  resolve(process.env.MELLODIFAI_ROOT ?? ".") ===
-    resolve("E:/mellodifai/native-lab-prod") &&
-  process.env.MDF_NATIVE_REHEARSAL_PORT_BASE === "46300";
+  process.env.MDF_NATIVE_STARTUP_INTEGRATION === "1" ||
+  process.env.MDF_NATIVE_INTEGRATION === "1";
 
 it.skipIf(!enabled)(
   "PostgREST survives concurrent libpq initialization with the operator's UTF-8 locale",
   async () => {
+    assertNativeTestRoot();
+    await runStack("stop", "e2e", { runtime: "native" });
     vi.stubEnv("LANG", "C.UTF-8");
-    const layout = nativeLayout("prod");
+    const layout = nativeLayout("e2e");
     const tools = nativeTools();
     const value = "synthetic-credential-".repeat(3);
     const spec = nativePlan({
-      env: "prod",
+      env: "e2e",
       layout,
       tools,
       toml: renderConfig(
@@ -36,7 +37,7 @@ it.skipIf(!enabled)(
           new URL("../../../supabase/config.toml", import.meta.url),
           "utf8",
         ),
-        "prod",
+        "e2e",
         layout.root,
       ),
       secrets: {
@@ -61,8 +62,8 @@ it.skipIf(!enabled)(
     if (!spec) throw new Error("Missing PostgREST plan");
     // Refused connections exercise libpq's gettext path without any real DB data.
     spec.env.PGRST_DB_URI =
-      "postgres://fixture@127.0.0.1:46399/postgres?connect_timeout=1";
-    spec.env.PGRST_SERVER_PORT = "46390";
+      "postgres://fixture@127.0.0.1:45622/postgres?connect_timeout=1";
+    spec.env.PGRST_SERVER_PORT = "45628";
     const directory = join(
       process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp",
       `postgrest-regression-${Date.now()}`,

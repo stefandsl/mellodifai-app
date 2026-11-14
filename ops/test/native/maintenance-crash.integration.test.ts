@@ -11,15 +11,15 @@ import { typescriptArgs } from "../../lib/native/plan.js";
 import { setAttributeSync } from "../../native/storage/fs-xattr/index.js";
 import { nativeBackup } from "../../native-backup.js";
 import { runStack } from "../../stack.js";
+import { assertNativeTestRoot } from "./integration-env.js";
 
-it.skipIf(process.env.MDF_NATIVE_CRASH_TESTS !== "1")(
+it.skipIf(
+  process.env.MDF_NATIVE_CRASH_TESTS !== "1" &&
+    process.env.MDF_NATIVE_INTEGRATION !== "1",
+)(
   "refuses startup after real process death at each restore boundary",
   async () => {
-    if (
-      process.env.MELLODIFAI_ROOT?.replaceAll("\\", "/") !==
-      "E:/mellodifai/native-lab"
-    )
-      throw new Error("Crash tests require the isolated e2e lab");
+    assertNativeTestRoot();
     const layout = nativeLayout("e2e");
     const backup = join(layout.root, `run8-source-${randomUUID()}`);
     await runStack("start", "e2e", { runtime: "native" });

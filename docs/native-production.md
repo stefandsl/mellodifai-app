@@ -115,9 +115,9 @@ Native deploy starts the current stack if needed, stops writers, takes a native 
 
 For a reviewed schema-compatible rollback, --skip-migrations records stacks/prod/native/schema-rollback.json durably after selecting the target. It binds the complete current version/checksum ledger and the older release's migration checksums, and records the accepted latest version for health checks. Cold start may accept the forward schema only while both fingerprints match exactly. A new ledger row, changed checksum, different release or unrecorded forward schema still refuses startup. The marker never applies pending migrations from an older release. A normal deploy clears this exception before migrating. Do not hand-edit or copy the marker to authorize a different schema.
 
-## Rotation
-
 Migration planning follows the Docker include-all ordering: unapplied versions below 20261103080001 are applied in version order before lockdown has run. Versions above that final lockdown are forbidden. The existing lockdown is not idempotent (plain CREATE FUNCTION), so inserting a migration into a database that already applied it is refused before executing the insertion. Such upgrades require a reviewed replay-safe lockdown policy; changing an applied file is not a workaround. Edited applied migrations and ledger versions without local files remain errors, except for the exact deploy-recorded rollback marker described above.
+
+## Rotation
 
 ```powershell
 pnpm ops rotate-db-passwords.ts --env prod
@@ -128,6 +128,10 @@ pnpm ops services.ts start
 ```
 
 Database rotation preserves distinct native passwords, stops writers, restarts with the new stores, rejects old credentials and verifies current/default/empty logins. The private native-db-rotation.json journal must be resolved if interruption leaves it pending; do not print it. Supabase rotation changes API/JWT signing material, restarts native services, updates canonical web/worker env files and rebuilds web. It invalidates old Supabase credentials and signed URLs. Auth issuer rotation intentionally keeps old signing and cookie keys for overlap; it does not revoke existing OAuth sessions. All three are separate maintenance operations, never part of import or routine logon.
+
+## Native integration gate
+
+After installing and booting the isolated e2e stack, export its private stacks/e2e/test.env into the shell without printing values, then run `pnpm test:native`. This opts into Storage round trips/restart, process-kill recovery, concurrent stack leases, real migration transactions and 100 PostgREST locale launches. Missing Windows, artifacts, credentials, endpoints or a healthy stack fails the opted-in run. Tests are serial and the runner stops the e2e stack in finally. Local runs require E:/mellodifai/native-lab; CI accepts MELLODIFAI_ROOT within RUNNER_TEMP on a non-C volume, with the same 45620-45629 block. The Windows workflow runs this gate as a required step, restarts the e2e stack and then runs the database suite. Production recovery tests remain separately opted in because they need the read-only recovery bundle and the production-shaped lab.
 
 ## A service will not start
 

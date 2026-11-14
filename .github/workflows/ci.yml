@@ -91,6 +91,9 @@ jobs:
             printf '::add-mask::%s\n' "$mask"
             printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
           done < "$MELLODIFAI_ROOT/stacks/e2e/test.env"
+      - name: Required native integration and crash tests
+        run: pnpm test:native
+      - run: pnpm ops stack.ts start --env e2e --runtime native
       - run: pnpm test:db
       - run: pnpm ops rotate-auth-keys.ts --env e2e
       - run: pnpm e2e
