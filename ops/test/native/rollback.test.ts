@@ -1,7 +1,12 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { nativeLayout } from "../../lib/native/layout.js";
 import { migrationChecksum, planMigrations } from "../../lib/native/migrate.js";
-import { readRollback, recordRollback } from "../../lib/native/rollback.js";
+import {
+  readRollback,
+  recordRollback,
+  rollbackHash,
+  validateRollback,
+} from "../../lib/native/rollback.js";
 import { fixture } from "./fixtures.js";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -23,6 +28,36 @@ it("continues to reject an unrecorded forward schema", () => {
       ],
     ),
   ).toThrow("has no file");
+});
+
+it("refuses a release whose migration file differs from its applied ledger row", async () => {
+  vi.stubEnv("MELLODIFAI_ROOT", fixture());
+  const edited = {
+    version: "001",
+    name: "old",
+    sql: "select 10",
+    sha256: migrationChecksum("select 10"),
+  };
+  const applied = [
+    { version: "001", sha256: migrationChecksum("select 1") },
+    { version: "002", sha256: migrationChecksum("select 2") },
+  ];
+  await expect(
+    recordRollback(nativeLayout("e2e"), "edited-release", [edited], applied),
+  ).rejects.toThrow("exact ledger and release");
+  expect(() =>
+    validateRollback(
+      {
+        format: 1,
+        release: "edited-release",
+        releaseHead: rollbackHash([edited]),
+        ledgerHead: rollbackHash(applied),
+        latestVersion: "002",
+      },
+      [edited],
+      applied,
+    ),
+  ).toThrow("exact ledger and release");
 });
 
 it("accepts only the exact recorded schema and exact older release", async () => {

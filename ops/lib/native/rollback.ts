@@ -15,7 +15,9 @@ export interface SchemaRollback {
 }
 export const rollbackPath = (layout: NativeLayout) =>
   join(layout.root, "schema-rollback.json");
-const hash = (rows: { version: string; sha256: string | null }[]) =>
+export const rollbackHash = (
+  rows: { version: string; sha256: string | null }[],
+) =>
   createHash("sha256")
     .update(
       JSON.stringify(
@@ -38,14 +40,20 @@ export function validateRollback(
 ): void {
   if (
     marker.format !== 1 ||
-    marker.ledgerHead !== hash(applied) ||
-    marker.releaseHead !== hash(files) ||
+    marker.ledgerHead !== rollbackHash(applied) ||
+    marker.releaseHead !== rollbackHash(files) ||
     marker.latestVersion !==
       applied
         .map((row) => row.version)
         .sort()
         .at(-1) ||
-    files.some((file) => !applied.some((row) => row.version === file.version))
+    // Every file of the older release must be the exact text its ledger row ran.
+    files.some(
+      (file) =>
+        !applied.some(
+          (row) => row.version === file.version && row.sha256 === file.sha256,
+        ),
+    )
   )
     throw new NativeDiagnosticError(
       "Recorded schema rollback does not match this exact ledger and release; startup refused",
@@ -67,8 +75,8 @@ export async function recordRollback(
   const marker: SchemaRollback = {
     format: 1,
     release,
-    releaseHead: hash(files),
-    ledgerHead: hash(applied),
+    releaseHead: rollbackHash(files),
+    ledgerHead: rollbackHash(applied),
     latestVersion: applied
       .map((row) => row.version)
       .sort()
