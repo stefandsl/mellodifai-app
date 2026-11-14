@@ -55,10 +55,10 @@ F2 parte appena F0 e chiusa, in parallelo a F3 e F4: lavora di notte su superfic
 | Log senza limite | In corso | Rotazione per dimensione e riserva di spazio sul volume dati | Test: i log non superano il tetto; avvio rifiutato sotto la riserva |
 | Spegnimento di Windows | In corso | Arresto pulito di PostgreSQL o prova del recupero | 10 uccisioni sotto carico, dati intatti e avvio pulito ogni volta |
 | Dipendenza pg-boss senza checksum | In corso | Archivio fissato con SHA-256 nel manifest | Installazione offline da cache verificata; manomissione rifiutata |
-| Revisione finale del ramo | Da fare | Un critico cieco su `8d52288..HEAD` e open-code-review | Zero bloccanti aperti |
+| Revisione finale del ramo | Fatta 14/11 (nessun bloccante; 11 rilievi corretti) | Un critico cieco su `8d52288..HEAD` e open-code-review | Zero bloccanti aperti |
 | Build Windows invariata | Da fare | Gate completi su Windows dopo ogni cambio per Debian | lint, typecheck, test, test:db, e2e verdi su Windows |
-| Merge e push | Da fare | Merge `feat/native-runtime` in `build/studio-ui` e `main` dopo tutti i gate | Gli stessi gate da una copia su E: |
-| Cutover produzione | Da fare | 1) copia con hash SHA-256 di `E:/mellodifai/recovery/20261113` e del disco Docker; 2) `native-import --check`; 3) `--apply`; 4) avvio; 5) verifica | Hash della copia uguali all'originale; 15 utenti, 18 progetti, 28 versioni, 24 lavori, 101 oggetti; accesso dal collegamento sul Desktop |
+| Merge e push | Fatto 14/11 (`main` e `build/studio-ui` a `491e6b8`) | Merge `feat/native-runtime` in `build/studio-ui` e `main` dopo tutti i gate | Gli stessi gate da una copia su E: |
+| Cutover produzione | Fatto 14/11 (tag `native-20261114-r1`, conteggi verificati) | 1) copia con hash SHA-256 di `E:/mellodifai/recovery/20261113` e del disco Docker; 2) `native-import --check`; 3) `--apply`; 4) avvio; 5) verifica | Hash della copia uguali all'originale; 15 utenti, 18 progetti, 28 versioni, 24 lavori, 101 oggetti; accesso dal collegamento sul Desktop |
 | Logon automatico nativo | Pronto il comando | Il proprietario esegue una volta il comando del runbook `docs/native-production.md` | Dopo un riavvio la produzione risponde da sola |
 
 ## F1. Audit funzionale (R05-R14, R16-R19, R31, R32, R34)
