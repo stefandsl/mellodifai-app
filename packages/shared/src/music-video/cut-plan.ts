@@ -48,6 +48,8 @@ const DOWNBEAT_FULL_S = 0.05;
 const DOWNBEAT_ZERO_S = 0.25;
 const DOWNBEAT_COST = 25;
 const PHRASE_COST = 25;
+// The score is a share of good cuts, so a good cut is worth adding, not only a bad one avoiding.
+const CUT_BONUS = 10;
 // A pause this long inside a line also ends a phrase.
 const PHRASE_PAUSE_S = 1.2;
 
@@ -201,7 +203,10 @@ function candidates(
     const phraseEnd = endsPhrase(words, at);
     // The cut is judged on where it lands, whatever made it a candidate: how far from the
     // nearest bar line, and whether it ends a phrase.
-    let cost = base + DOWNBEAT_COST * (1 - downbeatCredit(at, input.downbeats));
+    let cost =
+      base -
+      CUT_BONUS +
+      DOWNBEAT_COST * (1 - downbeatCredit(at, input.downbeats));
     if (!phraseEnd) cost += PHRASE_COST;
     if (nearSection(at)) cost -= 6;
     out.push({ at, kind, phraseEnd, snap, cost });
