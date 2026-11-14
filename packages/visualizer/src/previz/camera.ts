@@ -183,7 +183,7 @@ export const MARKS = {
 export function presetMove(camera: Camera, side: 1 | -1): CameraMove {
   switch (camera) {
     case "close-up":
-      return cam.push(MARKS.head, [0.3 * side, 0.06, 1], 3.1, 2.3, 32);
+      return cam.push(MARKS.head, [0.3 * side, 0.04, 1], 2.5, 1.85, 30);
     case "medium":
       return cam.dolly(
         [-1.7 * side, 1.95, 5.4],

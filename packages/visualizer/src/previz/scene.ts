@@ -117,32 +117,37 @@ function person(
   return out;
 }
 
+// `a` moved `k` of the way toward `b` (hex colours).
+export function mix(a: string, b: string, k: number): string {
+  const pa = Number.parseInt(a.slice(1), 16);
+  const pb = Number.parseInt(b.slice(1), 16);
+  const ch = (shift: number) =>
+    Math.round(((pa >> shift) & 255) * (1 - k) + ((pb >> shift) & 255) * k);
+  return `#${[16, 8, 0].map((s) => ch(s).toString(16).padStart(2, "0")).join("")}`;
+}
+
 function setPieces(set: string): Box[] {
   const color = SET_COLORS[set] ?? (SET_COLORS["set-establishing"] as string);
-  const wall = box([0, 4, -6], [22, 8, 0.4], color, "set");
+  // A dark back wall so the set pieces and the people read in front of it.
+  const wall = box([0, 4, -6], [22, 8, 0.4], mix(color, "#14151b", 0.6), "set");
   switch (set) {
     case "set-verse":
       // A row of buildings: the street of the verses.
       return [
         wall,
-        ...[-8, -5, -2, 2, 5, 8].map((x, i) =>
-          box(
-            [x, 1.5 + (i % 3), -5.2],
-            [2.2, 3 + (i % 3) * 2, 1],
-            color,
-            "set",
-          ),
+        ...[-5.8, -3.5, -1.2, 1.2, 3.5, 5.8].map((x, i) =>
+          box([x, 1.5 + (i % 3), -5], [2.2, 3 + (i % 3) * 2, 1], color, "set"),
         ),
       ];
     case "set-chorus":
       // A big screen in a frame and a lighting truss over the stage.
       return [
         wall,
-        box([0, 4.6, -5.6], [9, 0.3, 0.3], "#b9a6c6", "set"),
-        box([0, 1.4, -5.6], [9, 0.3, 0.3], "#b9a6c6", "set"),
-        box([-4.5, 3, -5.6], [0.3, 3.5, 0.3], "#b9a6c6", "set"),
-        box([4.5, 3, -5.6], [0.3, 3.5, 0.3], "#b9a6c6", "set"),
-        box([0, 3, -5.7], [8.7, 2.9, 0.1], "#3c3346", "set"),
+        box([0, 4.6, -5.7], [9, 0.3, 0.3], "#b9a6c6", "set"),
+        box([0, 1.4, -5.7], [9, 0.3, 0.3], "#b9a6c6", "set"),
+        box([-4.5, 3, -5.7], [0.3, 3.5, 0.3], "#b9a6c6", "set"),
+        box([4.5, 3, -5.7], [0.3, 3.5, 0.3], "#b9a6c6", "set"),
+        box([0, 3, -5.78], [8.7, 2.9, 0.06], "#3c3346", "set"),
         box([0, 6.2, -1], [12, 0.35, 0.35], "#8d8d94", "set"),
         box([-6, 3.1, -1], [0.3, 6.2, 0.3], "#8d8d94", "set"),
         box([6, 3.1, -1], [0.3, 6.2, 0.3], "#8d8d94", "set"),
@@ -161,10 +166,10 @@ function setPieces(set: string): Box[] {
       // Two light towers either side of a plain back wall.
       return [
         wall,
-        box([-7.5, 3, -2.5], [0.7, 6, 0.7], "#8d8d94", "set"),
-        box([7.5, 3, -2.5], [0.7, 6, 0.7], "#8d8d94", "set"),
-        box([-7.5, 6.2, -2.5], [1.6, 0.5, 0.6], "#c9c9cf", "set"),
-        box([7.5, 6.2, -2.5], [1.6, 0.5, 0.6], "#c9c9cf", "set"),
+        box([-6.2, 3.6, -4], [0.7, 6, 0.7], "#8d8d94", "set"),
+        box([6.2, 3.6, -4], [0.7, 6, 0.7], "#8d8d94", "set"),
+        box([-6.2, 6.8, -4], [1.6, 0.5, 0.6], "#c9c9cf", "set"),
+        box([6.2, 6.8, -4], [1.6, 0.5, 0.6], "#c9c9cf", "set"),
       ];
   }
 }
@@ -239,14 +244,14 @@ export function sceneAt(input: SceneInput): Box[] {
         : 0,
     }),
     box(
-      [0, STAGE_TOP + 0.78, 1.5],
+      [0, STAGE_TOP + 0.83, 1.5],
       [0.04, 1.56, 0.04],
       COLORS.gear,
       "performer",
     ),
     box([0, STAGE_TOP + 0.02, 1.5], [0.4, 0.04, 0.4], COLORS.gear, "performer"),
     box(
-      [0, STAGE_TOP + 1.6, 1.36],
+      [0, STAGE_TOP + 1.7, 1.36],
       [0.07, 0.07, 0.22],
       COLORS.gear,
       "performer",

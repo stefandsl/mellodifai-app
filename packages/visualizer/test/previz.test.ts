@@ -193,6 +193,32 @@ describe("previz scene", () => {
     expect(new Set(SETS.map(setBoxes)).size).toBe(SETS.length);
   });
 
+  it("stands everything drawn after the stage on it or behind it (painter's order)", () => {
+    for (const set of SETS) {
+      const boxes = sceneAt({ set, time: 0, beats: [], singing: false });
+      const stage = boxes.find((b) => b.tag === "stage" && b.layer === 1);
+      if (!stage) throw new Error("no stage");
+      const [minX, maxX] = [
+        stage.center[0] - stage.size[0] / 2,
+        stage.center[0] + stage.size[0] / 2,
+      ];
+      const [minZ, maxZ] = [
+        stage.center[2] - stage.size[2] / 2,
+        stage.center[2] + stage.size[2] / 2,
+      ];
+      for (const b of boxes.filter((x) => x.layer === 3)) {
+        const behind = b.center[2] + b.size[2] / 2 <= minZ;
+        const onStage =
+          Math.abs(b.center[0]) + b.size[0] / 2 <= Math.max(-minX, maxX) &&
+          b.center[2] - b.size[2] / 2 >= minZ &&
+          b.center[2] + b.size[2] / 2 <= maxZ;
+        expect(behind || onStage, `${set} ${JSON.stringify(b.center)}`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
   it("opens the mouth only while singing and moves on the beat", () => {
     const at = (time: number, singing: boolean) =>
       sceneAt({ set: "set-verse", time, beats: [0, 0.5, 1, 1.5], singing });
