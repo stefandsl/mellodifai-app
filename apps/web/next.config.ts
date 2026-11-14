@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
         "../../packages/shared/src/music-video/index.ts",
       "./cut-plan.js": "../../packages/shared/src/music-video/cut-plan.ts",
       "./shot-list.js": "../../packages/shared/src/music-video/shot-list.ts",
+      "./bible.js": "../../packages/shared/src/music-video/bible.ts",
+      "./gates.js": "../../packages/shared/src/music-video/gates.ts",
       "./remake/index.js": "../../packages/shared/src/remake/index.ts",
       "./analysis.js": "../../packages/shared/src/remake/analysis.ts",
       "./blueprint.js": "../../packages/shared/src/remake/blueprint.ts",
