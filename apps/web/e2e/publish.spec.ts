@@ -1,6 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { join } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import {
   type APIRequestContext,
   expect,
@@ -16,6 +17,18 @@ import {
   stopWorker,
 } from "./support";
 import { oauthSql } from "./support/oauth-client";
+
+// A 1x1 PNG: the master's base thumbnail, as the render stage leaves it in Storage and next to
+// the video on the worker PC (thumbnail text needs it).
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64",
+);
+const MASTER = join(
+  process.env.MELLODIFAI_ROOT ?? "E:/mellodifai/native-lab",
+  "e2e-publish",
+  "master.mp4",
+);
 
 // "Pubblica" end to end on the e2e stack: the owner schedules and vetoes, an agent asks and the
 // owner approves in the app, the fake worker flips the private upload public at the slot, and a
@@ -55,15 +68,31 @@ async function approvedVideo(title: string) {
     .select("id,render_attempt")
     .single();
   if (version.error) throw version.error;
-  const render = await db.from("renders").insert({
-    owner_id: owner,
-    version_id: version.data.id,
-    kind: "master",
-    render_attempt: version.data.render_attempt,
-    path: "E:/mellodifai/native-lab/e2e-publish/master.mp4",
-    approved_at: new Date().toISOString(),
-  });
+  const render = await db
+    .from("renders")
+    .insert({
+      owner_id: owner,
+      version_id: version.data.id,
+      kind: "master",
+      render_attempt: version.data.render_attempt,
+      path: MASTER,
+      approved_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
   if (render.error) throw render.error;
+  const folder = `${owner}/${render.data.id}`;
+  const base = await db.storage
+    .from("previews")
+    .upload(`${folder}/thumbnail.png`, PNG, { contentType: "image/png" });
+  if (base.error) throw base.error;
+  const preview = await db
+    .from("renders")
+    .update({ preview_path: `${folder}/master.mp4` })
+    .eq("id", render.data.id);
+  if (preview.error) throw preview.error;
+  await mkdir(dirname(MASTER), { recursive: true });
+  await writeFile(join(dirname(MASTER), "thumbnail.png"), PNG);
   return {
     project: project.data.id as string,
     version: version.data.id as string,
