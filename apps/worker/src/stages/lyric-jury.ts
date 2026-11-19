@@ -260,7 +260,7 @@ const JUDGE_INSTRUCTIONS = [
   REDACTION_NOTE,
   'You are a strict judge of song lyrics. Rate the draft on each criterion with "yes" (fully met), "partly" or "no":',
   ...CRITERION_KEYS.map((key) => `"${key}": ${CRITERIA[key]}`),
-  'Reply with one JSON object: {"scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
+  'Reply with one JSON object: {"lyrics_language": the English name of the language most lines are written in, "scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
   'Use "strong" when the draft needs deep rewriting, "fast" when small fixes are enough.',
 ].join("\n");
 
@@ -294,6 +294,16 @@ function parseJson(content: string): Record<string, unknown> {
   }
 }
 
+// The English name of a language code ("ko" -> "Korean"), or undefined when unknown.
+function languageName(code: string): string | undefined {
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(code);
+    return name && name !== code ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function chatVerdict(
   model: string,
   draft: Draft,
@@ -309,7 +319,7 @@ async function chatVerdict(
         { role: "system", content: JUDGE_INSTRUCTIONS },
         {
           role: "user",
-          content: `Requested topic: ${context.topic}\nLanguage: ${context.lang}\nReference song title (must not be reused): ${context.referenceTitle}\nTitle: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}`,
+          content: `Requested topic: ${context.topic}\nLanguage: ${languageName(context.lang) ?? context.lang}\nReference song title (must not be reused): ${context.referenceTitle}\nTitle: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}`,
         },
       ],
     },
@@ -319,11 +329,20 @@ async function chatVerdict(
   const reply = parseJson(json.choices?.[0]?.message?.content ?? "");
   const scores = complete(ratings(reply.scores));
   if (!scores) throw new Error("incomplete verdict");
+  const issues = Array.isArray(reply.issues)
+    ? reply.issues.filter((i): i is string => typeof i === "string")
+    : [];
+  // The judge names the language it reads; a mismatch fails the language criterion outright.
+  const wanted = languageName(context.lang);
+  const seen =
+    typeof reply.lyrics_language === "string" ? reply.lyrics_language : "";
+  if (wanted && seen && !seen.toLowerCase().includes(wanted.toLowerCase())) {
+    scores.language = 0;
+    issues.unshift(`The lyrics are in ${seen}, not ${wanted}.`);
+  }
   return {
     scores,
-    issues: Array.isArray(reply.issues)
-      ? reply.issues.filter((i): i is string => typeof i === "string")
-      : [],
+    issues,
     improver: reply.improver === "fast" ? "fast" : "strong",
   };
 }
