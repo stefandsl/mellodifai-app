@@ -195,6 +195,70 @@ describe("judge", () => {
     expect(report).toMatchObject({ available: false, passed: true });
     expect(report.verdicts[0]?.error).toContain("incomplete");
   });
+
+  const reply = (content: Record<string, unknown>) =>
+    vi.fn(async () =>
+      json({ choices: [{ message: { content: JSON.stringify(content) } }] }),
+    );
+  const yes = Object.fromEntries(keys.map((key) => [key, "yes"]));
+
+  it("reads yes, partly and no ratings as 1, 0.5 and 0", async () => {
+    const fetchFn = reply({
+      lyrics_language: "Italian",
+      scores: { ...yes, singable: "partly", chorus: "no", topic: 0.8 },
+    });
+    const report = await judge(draft, context, ["m"], { key: "k", fetchFn });
+    expect(report.scores).toEqual({
+      ...all(1),
+      singable: 0.5,
+      chorus: 0,
+      topic: 0.8,
+    });
+    expect(report.failing).toEqual(["singable", "chorus"]);
+  });
+
+  it("fails the language when the judge reads another language", async () => {
+    const fetchFn = reply({ lyrics_language: "English", scores: yes });
+    const report = await judge(draft, context, ["m"], { key: "k", fetchFn });
+    expect(report.failing).toEqual(["language"]);
+    expect(report.issues[0]).toContain("English, not Italian");
+  });
+
+  it("fails the language when the lyrics use another script", async () => {
+    const fetchFn = reply({ lyrics_language: "Korean", scores: yes });
+    const report = await judge(
+      { ...draft, lyrics: "[Chorus]\nハ・ン・コ！\n見ないで ポン！" },
+      { ...context, lang: "ko" },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(report.failing).toEqual(["language"]);
+    const ok = await judge(
+      { ...draft, lyrics: "[Chorus]\n대충 해도 괜찮아! OK" },
+      { ...context, lang: "ko" },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(ok.passed).toBe(true);
+  });
+
+  it("fails originality when the draft reuses the reference title", async () => {
+    const fetchFn = reply({ lyrics_language: "Italian", scores: yes });
+    const reused = await judge(
+      { ...draft, lyrics: "[Chorus]\nVa bene... passa! la macchinetta" },
+      context,
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(reused.failing).toEqual(["original"]);
+    const fine = await judge(
+      { ...draft, lyrics: "[Chorus]\nva bene il caffè, passa il tram" },
+      context,
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(fine.passed).toBe(true);
+  });
 });
 
 describe("privacy filter", () => {

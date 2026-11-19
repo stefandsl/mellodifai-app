@@ -322,7 +322,7 @@ const SCRIPTS: Record<string, RegExp> = {
 // there are no letters.
 function scriptShare(lyrics: string, lang: string): number {
   const script =
-    SCRIPTS[lang.toLowerCase().split("-")[0]] ?? /\p{Script=Latin}/u;
+    SCRIPTS[lang.toLowerCase().split("-")[0] ?? ""] ?? /\p{Script=Latin}/u;
   const letters = lyrics.replace(/\[[^\]]*\]/gu, "").match(/\p{L}/gu) ?? [];
   if (letters.length === 0) return 1;
   return letters.filter((c) => script.test(c)).length / letters.length;
