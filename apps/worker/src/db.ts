@@ -249,6 +249,7 @@ export interface Db {
   createPublication(publication: Omit<Publication, "id">): Promise<Publication>;
   getPublicationForVersion(versionId: string): Promise<Publication | null>;
   getPublicationForRender(renderId: string): Promise<Publication | null>;
+  getPublicationById(id: string): Promise<Publication | null>;
   patchPublication(id: string, patch: Partial<Publication>): Promise<void>;
   getWorker(id: string): Promise<WorkerUpdate | null>;
   // profiles.role of a song's owner: local engines are for the admin only (design 5.5).
@@ -585,6 +586,15 @@ export class SupabaseDb implements Db {
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Publication | null;
+  }
+  async getPublicationById(id: string): Promise<Publication | null> {
+    const { data, error } = await this.client
+      .from("publications")
+      .select("*")
+      .eq("id", id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data as Publication | null;
@@ -973,6 +983,9 @@ export class InMemoryDb implements Db {
             b.id.localeCompare(a.id),
         )[0] ?? null
     );
+  }
+  async getPublicationById(id: string) {
+    return this.publications.find((item) => item.id === id) ?? null;
   }
   async getPublicationForRender(renderId: string) {
     return (

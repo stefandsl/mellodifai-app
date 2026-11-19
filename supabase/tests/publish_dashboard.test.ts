@@ -1241,6 +1241,36 @@ it("the owner sends a held plan back to draft; an agent cannot, nor after a hand
   });
 });
 
+it("the owner vetoes an old-flow scheduled upload: private again, publishAt removed", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create"]);
+    const old = await video(tx, owner.user_id);
+    const [pub] =
+      await tx`insert into public.publications(owner_id,render_id,privacy,publish_at,upload_state,youtube_video_id,privacy_applied,confirmed_by,confirmed_at)
+      values(${owner.user_id},${old.render},'scheduled',now()+interval '2 days','uploaded','old-1','scheduled',${owner.user_id},now()) returning id`;
+    expect(
+      await op(tx, "publish_legacy_veto", pat, pub.id),
+    ).toMatchObject({ ok: false, code: "forbidden_scope" });
+    const vetoed = await op(tx, "publish_legacy_veto", owner, pub.id);
+    expect(vetoed).toMatchObject({ ok: true });
+    expect(
+      await tx`select privacy,publish_at from public.publications where id=${pub.id}`,
+    ).toEqual([{ privacy: "private", publish_at: null }]);
+    const jobs =
+      await tx`select payload from public.jobs where stage='set_privacy' and version_id=${old.version}`;
+    expect(jobs.map((j) => j.payload.publication_id)).toEqual([pub.id]);
+    expect(
+      (await op(tx, "publish_status", owner, old.version)).data.legacy,
+    ).toEqual([]);
+    // Only an old-flow schedule can be vetoed this way.
+    expect(await op(tx, "publish_legacy_veto", owner, pub.id)).toMatchObject({
+      ok: false,
+      code: "conflict",
+    });
+  });
+});
+
 it("an old render attempt's YouTube upload does not block a plan for the current video", async () => {
   await fixture(async (tx) => {
     const owner = await actor(tx);

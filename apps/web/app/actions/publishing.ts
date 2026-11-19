@@ -2,6 +2,7 @@
 import {
   publishApprovalDecide,
   publishCancel,
+  publishLegacyVeto,
   publishDraftEdit,
   publishPlan,
   publishReopen,
@@ -43,6 +44,11 @@ export async function cancelPublication(input: unknown) {
 // Owner only: a held plan goes back to draft and needs a new yes.
 export async function reopenPublication(input: unknown) {
   return runAction(publishReopen, input);
+}
+
+// Owner only: an old-flow scheduled upload back to private, publishAt removed.
+export async function vetoLegacyPublication(input: unknown) {
+  return runAction(publishLegacyVeto, input);
 }
 
 export async function decidePublication(input: unknown) {

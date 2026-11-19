@@ -29,8 +29,9 @@ dashboard; they plug in later behind the same `PublishingProvider` interface
 - Old flow: a video that the earlier publish flow already scheduled with a YouTube `publishAt`
   (publication privacy `scheduled`) or made public cannot get a plan (`publish_plan` answers
   `conflict`). YouTube's own clock publishes it. `publish_status` lists those uploads read-only in
-  `legacy` (`video_id`, `privacy`, `publish_at`) and the dashboard shows them; change them in
-  YouTube Studio. The worker reads a private video with a `publishAt` as scheduled by YouTube,
+  `legacy` (`video_id`, `privacy`, `publish_at`) and the dashboard shows them. Only the owner,
+  in the app, can veto one: the video goes back to private and its `publishAt` is removed (the
+  set_privacy job of that publication). The old privacy control is hidden while a plan is open. The worker reads a private video with a `publishAt` as scheduled by YouTube,
   never as "not accepted", so it never retries or flips it.
 
 ## Workflow

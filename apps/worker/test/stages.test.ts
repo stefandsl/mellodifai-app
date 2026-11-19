@@ -944,6 +944,39 @@ describe("round 2 hardening", () => {
     await expect(stages.publish?.(ctx)).rejects.toThrow("workspace");
     expect(calls).toHaveLength(0);
   });
+  it("a vetoed old-flow schedule goes private on the publication its job names, publishAt removed", async () => {
+    const { ctx, db, calls } = await setup();
+    const render = db.renders[0];
+    if (!render) throw new Error("missing fixture");
+    const old = await db.createPublication({
+      render_id: render.id,
+      privacy: "private",
+      upload_state: "uploaded",
+      youtube_video_id: "old123",
+      confirmed_at: "2026-01-01",
+      confirmed_by: "owner",
+      created_at: "2026-01-01T00:00:00Z",
+    });
+    await db.createPublication({
+      render_id: render.id,
+      privacy: "private",
+      upload_state: "uploaded",
+      youtube_video_id: "new456",
+      created_at: "2026-02-01T00:00:00Z",
+    });
+    ctx.job = { ...ctx.job, payload: { publication_id: old.id } };
+    await stages.set_privacy?.(ctx);
+    expect(calls.at(-1)?.args.slice(-4)).toEqual([
+      "privacy",
+      "old123",
+      "private",
+      "--confirm",
+    ]);
+    ctx.job = { ...ctx.job, payload: { publication_id: crypto.randomUUID() } };
+    await expect(stages.set_privacy?.(ctx)).rejects.toThrow(
+      "publication of this version required",
+    );
+  });
   it("schedules from private and requires a future publish_at", async () => {
     const { ctx, db, calls } = await setup();
     const pub = await db.createPublication({

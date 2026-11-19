@@ -7,6 +7,7 @@ vi.mock("next/navigation", () => ({
 const actions = vi.hoisted(() => ({
   reopenPublication: vi.fn(async () => ({ ok: true })),
   cancelPublication: vi.fn(async () => ({ ok: true })),
+  vetoLegacyPublication: vi.fn(async () => ({ ok: true })),
 }));
 vi.mock("@/app/actions/publishing", () => actions);
 
@@ -61,6 +62,45 @@ it("lets the owner send a held plan back to draft", async () => {
   await waitFor(() =>
     expect(actions.reopenPublication).toHaveBeenCalledWith({
       schedule_id: scheduleView.schedule_id,
+    }),
+  );
+});
+
+it("offers the owner a veto on an old-flow YouTube schedule", async () => {
+  const id = crypto.randomUUID();
+  render(
+    <LocaleProvider value="it">
+      <PublishDashboard
+        versionId={scheduleView.version_id}
+        songTitle="API test"
+        canPublish
+        thumbnailUrl={null}
+        defaults={defaults}
+        current={null}
+        past={[]}
+        legacy={[
+          {
+            publication_id: id,
+            video_id: "old-1",
+            privacy: "scheduled",
+            publish_at: "2026-12-01T10:00:00Z",
+            upload_state: "uploaded",
+          },
+        ]}
+      />
+    </LocaleProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Veto: rendilo privato" }));
+  const dialog = await screen.findByRole("alertdialog").catch(() =>
+    screen.findByRole("dialog"),
+  );
+  const buttons = Array.from(dialog.querySelectorAll("button"));
+  const confirm = buttons.find((b) => /Veto|Conferma/u.test(b.textContent ?? ""));
+  if (!confirm) throw new Error("confirm button missing");
+  fireEvent.click(confirm);
+  await waitFor(() =>
+    expect(actions.vetoLegacyPublication).toHaveBeenCalledWith({
+      publication_id: id,
     }),
   );
 });

@@ -257,6 +257,26 @@ export const publishReopen: OpDef<
   mutating: true,
   revalidate: revalidateView,
 };
+// Owner only: an old-flow YouTube schedule goes back to private, its publishAt removed.
+export const PublishLegacyVetoInput = z.object({ publication_id: Id });
+export const publishLegacyVeto: OpDef<
+  z.infer<typeof PublishLegacyVetoInput>,
+  { publication_id: string; privacy: string; job_id: string }
+> = {
+  name: "publish_legacy_veto",
+  fn: "publish_legacy_veto",
+  input: PublishLegacyVetoInput,
+  args: (v) => [v.publication_id],
+  output: z.object({
+    publication_id: Id,
+    privacy: z.string(),
+    job_id: Id,
+  }),
+  scope: "admin",
+  key: true,
+  mutating: true,
+  revalidate: () => [],
+};
 export const PublishRule = z.object({
   rule_id: Id,
   platform: z.enum(PLATFORMS),

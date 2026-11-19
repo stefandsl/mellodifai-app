@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import {
   cancelPublication,
   reopenPublication,
+  vetoLegacyPublication,
   decidePublication,
   editPublicationDraft,
   planPublication,
@@ -658,11 +659,29 @@ export function PublishDashboard({
           </h2>
           <ul className="grid gap-1">
             {legacy.map((row) => (
-              <li key={row.publication_id}>
-                {pt(lang, "legacyRow", {
-                  video: row.video_id ?? "-",
-                  at: row.publish_at ? romeTime(row.publish_at, lang) : "-",
-                })}
+              <li
+                key={row.publication_id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1"
+              >
+                <span>
+                  {pt(lang, "legacyRow", {
+                    video: row.video_id ?? "-",
+                    at: row.publish_at ? romeTime(row.publish_at, lang) : "-",
+                  })}
+                </span>
+                <ConfirmDialog
+                  trigger={pt(lang, "legacyVeto")}
+                  title={pt(lang, "legacyVeto")}
+                  onConfirm={async () => {
+                    const result = await vetoLegacyPublication({
+                      publication_id: row.publication_id,
+                    });
+                    if (result.ok) refresh(pt(lang, "legacyVetoDone"))();
+                    return result;
+                  }}
+                >
+                  {pt(lang, "legacyVetoConfirm")}
+                </ConfirmDialog>
               </li>
             ))}
           </ul>

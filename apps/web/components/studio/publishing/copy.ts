@@ -35,6 +35,10 @@ const it = {
   newPlan: "Nuovo piano",
   status: "Stato",
   history: "Cronologia",
+  legacyVeto: "Veto: rendilo privato",
+  legacyVetoConfirm:
+    "Il video torna privato e YouTube non lo pubblica più all'ora programmata.",
+  legacyVetoDone: "Video di nuovo privato: YouTube non lo pubblicherà.",
   reopen: "Rimetti in bozza",
   reopened: "Il piano è tornato in bozza: serve una nuova approvazione.",
   "event.reopened": "Rimesso in bozza",
@@ -50,7 +54,7 @@ const it = {
   legacyTitle: "Già programmato su YouTube (vecchio flusso)",
   legacyRow: "Video {video} programmato da YouTube per il {at}.",
   legacyHint:
-    "YouTube lo pubblica da solo all'ora indicata: qui non si pianifica di nuovo. Per cambiarlo usa YouTube Studio.",
+    "YouTube lo pubblica da solo all'ora indicata: qui non si pianifica di nuovo. Il veto lo rende privato e toglie l'ora.",
   approvalTitle: "Richiesta di approvazione",
   approvalHint:
     "Un agente ha preparato questa pubblicazione. Nulla diventa pubblico senza il tuo sì.",
@@ -189,6 +193,10 @@ const en: Record<PublishKey, string> = {
   newPlan: "New plan",
   status: "Status",
   history: "History",
+  legacyVeto: "Veto: make it private",
+  legacyVetoConfirm:
+    "The video goes back to private and YouTube no longer publishes it at the scheduled time.",
+  legacyVetoDone: "Video private again: YouTube will not publish it.",
   reopen: "Back to draft",
   reopened: "The plan is a draft again: it needs a new approval.",
   "event.reopened": "Back to draft",
@@ -204,7 +212,7 @@ const en: Record<PublishKey, string> = {
   legacyTitle: "Already scheduled on YouTube (old flow)",
   legacyRow: "Video {video} scheduled by YouTube for {at}.",
   legacyHint:
-    "YouTube publishes it on its own at that time: it cannot be planned again here. Use YouTube Studio to change it.",
+    "YouTube publishes it on its own at that time: it cannot be planned again here. The veto makes it private and removes the time.",
   approvalTitle: "Approval request",
   approvalHint:
     "An agent prepared this publication. Nothing becomes public without your yes.",

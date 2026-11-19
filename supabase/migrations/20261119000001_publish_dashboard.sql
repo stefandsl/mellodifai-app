@@ -345,7 +345,7 @@ declare
   v_kind text := p_actor->>'kind';
   test boolean := coalesce((p_actor->>'test_mode')::boolean,false);
   s public.publish_schedules; d public.publish_destinations; v public.versions; r public.renders;
-  ap public.approval_requests; rl public.publish_rules;
+  ap public.approval_requests; rl public.publish_rules; pub public.publications;
   v_platform text; v_slot timestamptz; v_draft jsonb; v_sid uuid; v_hash text; v_missing integer;
   v_blocked_at timestamptz; v_price numeric; v_chapters text;
 begin
@@ -438,6 +438,16 @@ begin
       values(s.id,uid,'youtube','native',v_draft);
     perform ops._publish_event(s.id,null,'planned',v_kind,jsonb_build_object('platforms',p_args->'platforms'));
     return ops._publish_view(s.id);
+  elsif p_op = 'publish_legacy_veto' then
+    -- An upload the old flow scheduled with a YouTube publishAt: back to private, publishAt
+    -- removed (the set_privacy job of that publication runs yt.py privacy <id> private).
+    select p.* into pub from public.publications p join public.renders pr on pr.id=p.render_id
+      join public.versions vv on vv.id=pr.version_id
+      where p.id=(p_args->>'publication_id')::uuid and p.owner_id=uid and vv.test_run=test for update of p;
+    if not found then raise exception 'owned publication required'; end if;
+    if pub.privacy <> 'scheduled' and pub.publish_at is null then raise exception 'publication already not scheduled'; end if;
+    return jsonb_build_object('publication_id',pub.id,'privacy','private',
+      'job_id',public.confirm_publication(pub.id,'private',null));
   end if;
 
   if p_op = 'publish_approval_decide' then
@@ -748,6 +758,12 @@ begin
   return ops._publish_run(p_ctx,'publish_reopen',jsonb_build_object('schedule_id',p_schedule),'owner',true);
 end;
 $$;
+create function ops.publish_legacy_veto(p_ctx jsonb, p_publication uuid) returns jsonb
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+begin
+  return ops._publish_run(p_ctx,'publish_legacy_veto',jsonb_build_object('publication_id',p_publication),'owner',true);
+end;
+$$;
 create function ops.publish_status(p_ctx jsonb, p_version uuid) returns jsonb
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
 begin
@@ -1027,5 +1043,6 @@ grant execute on function ops._publish_event(uuid, uuid, text, text, jsonb), ops
 grant execute on function ops.publish_plan(jsonb, uuid, jsonb, jsonb), ops.publish_draft_edit(jsonb, uuid, text, jsonb),
   ops.publish_schedule(jsonb, uuid, timestamptz), ops.publish_preview(jsonb, uuid), ops.publish_request_approval(jsonb, uuid),
   ops.publish_veto(jsonb, uuid), ops.publish_cancel(jsonb, uuid), ops.publish_status(jsonb, uuid),
-  ops.publish_approval_decide(jsonb, uuid, text), ops.publish_reopen(jsonb, uuid), ops.publish_rules_list(jsonb), ops.publish_rule_save(jsonb, jsonb),
+  ops.publish_approval_decide(jsonb, uuid, text), ops.publish_reopen(jsonb, uuid), ops.publish_legacy_veto(jsonb, uuid),
+  ops.publish_rules_list(jsonb), ops.publish_rule_save(jsonb, jsonb),
   ops.publish_rule_delete(jsonb, uuid) to mdf_web;

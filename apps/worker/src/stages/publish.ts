@@ -160,10 +160,24 @@ export const publish: StageHandler = async (context) => {
   });
   return { versionStatus: "approved" };
 };
+// The publication the set_privacy job names (confirm_publication puts its id in the payload),
+// checked to belong to this version; older jobs without one use the newest upload.
+export async function jobPublication(context: StageContext) {
+  const id = (context.job.payload as { publication_id?: unknown } | null)
+    ?.publication_id;
+  if (typeof id !== "string" || !id)
+    return context.db.getPublicationForVersion(context.version.id);
+  const publication = await context.db.getPublicationById(id);
+  const render = publication
+    ? await context.db.getRenderById(publication.render_id)
+    : null;
+  if (!publication || render?.version_id !== context.version.id)
+    throw new Error("publication of this version required");
+  return publication;
+}
+
 export const setPrivacy: StageHandler = async (context) => {
-  const publication = await context.db.getPublicationForVersion(
-    context.version.id,
-  );
+  const publication = await jobPublication(context);
   if (!publication?.youtube_video_id)
     throw new Error("publication video is required");
   if (!publication.confirmed_at || !publication.confirmed_by)

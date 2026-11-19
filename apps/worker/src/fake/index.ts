@@ -27,7 +27,7 @@ import {
   type SongTiming,
   storyboardPlan,
 } from "../stages/music-video.js";
-import { assertPublishRender } from "../stages/publish.js";
+import { assertPublishRender, jobPublication } from "../stages/publish.js";
 import { resolveStoryboardPath, songStoryboard } from "../stages/storyboard.js";
 import { key, renderAssetPath, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
@@ -586,9 +586,7 @@ export function createFakeStages(
           break;
         }
         case "set_privacy": {
-          const publication = await ctx.db.getPublicationForVersion(
-            ctx.version.id,
-          );
+          const publication = await jobPublication(ctx);
           if (!publication?.confirmed_at || !publication.confirmed_by)
             throw new Error(
               "publication must be confirmed before changing privacy",
