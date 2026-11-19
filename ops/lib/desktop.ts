@@ -1,10 +1,17 @@
 // Pure pieces of the Windows desktop app (docs/windows-app.md): paths, the env files the
 // web app and worker read, process recognition, backups and the owner's messages.
-// No processes or network here, so all of it is unit tested.
+// No processes here (only a loopback port probe), so all of it is unit tested.
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, rmSync, statfsSync, statSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statfsSync,
+  statSync,
+} from "node:fs";
 import { connect } from "node:net";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ENV_TABLE, runtimePath, stackDir } from "./envs.js";
 import { databaseUrl } from "./pg.js";
@@ -45,11 +52,25 @@ export const PRODUCTION_ENGINE_ROOTS = [
   "C:\\Users\\Asus\\Documents\\suno-remake",
 ];
 
-const samePath = (a: string, b: string) =>
-  resolve(a)
-    .replace(/[\\/]+$/u, "")
-    .toLowerCase() ===
-  resolve(b)
+/** The folder with every junction and link resolved, also when it does not exist yet (its
+ * deepest existing parent is resolved and the rest appended). */
+export function realFolder(dir: string): string {
+  let head = resolve(dir);
+  const rest: string[] = [];
+  for (;;) {
+    try {
+      return join(realpathSync.native(head), ...rest.reverse());
+    } catch {
+      const up = dirname(head);
+      if (up === head) return resolve(dir);
+      rest.push(head.slice(up.length).replace(/^[\\/]/u, ""));
+      head = up;
+    }
+  }
+}
+
+const folderKey = (path: string) =>
+  realFolder(path)
     .replace(/[\\/]+$/u, "")
     .toLowerCase();
 
@@ -58,17 +79,24 @@ const samePath = (a: string, b: string) =>
  * `<data>\engine` (empty: engine stages fail with a clear error, nothing paid) and
  * publishing is off. The owner turns both on in his keys file with
  * MELLODIFAI_ENGINE_ROOT=<his own engine copy, with his own YouTube credentials> and
- * MELLODIFAI_PUBLISHING=on; production's engine folder is refused.
+ * MELLODIFAI_PUBLISHING=on. Refused, after resolving junctions and in any letter case: any
+ * folder on C: and production's engine folder or a folder inside it.
  */
 export function engineSettings(
   keys: Record<string, string>,
   dataRoot: string,
+  productionRoots: readonly string[] = PRODUCTION_ENGINE_ROOTS,
 ): { MELLODIFAI_ENGINE_ROOT: string; WORKER_PUBLISHING: "on" | "off" } {
   const chosen = keys.MELLODIFAI_ENGINE_ROOT?.trim();
-  const own =
-    chosen && !PRODUCTION_ENGINE_ROOTS.some((root) => samePath(root, chosen))
-      ? resolve(chosen)
-      : null;
+  let own: string | null = null;
+  if (chosen) {
+    const real = folderKey(chosen);
+    const production = productionRoots.some((root) => {
+      const prod = folderKey(root);
+      return real === prod || real.startsWith(`${prod}\\`);
+    });
+    if (!production && !real.startsWith("c:")) own = resolve(chosen);
+  }
   return {
     MELLODIFAI_ENGINE_ROOT: own ?? join(dataRoot, "engine"),
     WORKER_PUBLISHING:

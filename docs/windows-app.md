@@ -163,8 +163,10 @@ is off (`WORKER_PUBLISHING=off` for the worker: the upload and privacy stages fa
 the publishing clock does not run; `MDF_PUBLISHING=off` for the web app: the Pubblica pages say
 so and the publishing ops are refused) until the owner writes `MELLODIFAI_ENGINE_ROOT=<his own
 engine copy with his own YouTube credentials>` and `MELLODIFAI_PUBLISHING=on` in "Le tue
-chiavi" and restarts the app. `C:\Users\Asus\Documents\suno-remake` is refused in any
-letter case (`engineSettings` in `ops/lib/desktop.ts`).
+chiavi" and restarts the app. After resolving junctions and in any letter case, any folder on
+C: and `C:\Users\Asus\Documents\suno-remake` or a folder inside it are refused (`engineSettings`
+in `ops/lib/desktop.ts`). The desktop worker also runs no ComfyUI (`MELLODIFAI_LOCAL_ENGINES=off`):
+port 8188 is production's server.
 
 Limits: Windows x64 only; the worker's real engines still use the owner's fixed paths on this
 PC (M8 task 6), so on another PC the app runs but those engines need their paths configured

@@ -5,6 +5,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -558,4 +559,55 @@ describe("desktop engine and publishing", () => {
     expect(outside).toEqual([]);
     expect(result.publishing).toBe(false);
   });
+});
+
+describe("desktop engine folder choice", () => {
+  const data = "I:\\MellodifAI\\data";
+  const own = {
+    MELLODIFAI_ENGINE_ROOT: join(data, "engine"),
+    WORKER_PUBLISHING: "off",
+  };
+
+  it("refuses any engine folder on C:", () => {
+    expect(
+      engineSettings(
+        {
+          MELLODIFAI_ENGINE_ROOT: "c:\\Engines\\mine",
+          MELLODIFAI_PUBLISHING: "on",
+        },
+        data,
+      ),
+    ).toEqual(own);
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "refuses production's engine folder reached through a junction, or a folder inside it",
+    () => {
+      const base = mkdtempSync(join(tmpdir(), "mdf-engine-"));
+      try {
+        const production = join(base, "suno-remake");
+        mkdirSync(join(production, "publish"), { recursive: true });
+        const link = join(base, "my-engine");
+        symlinkSync(production, link, "junction");
+        const keys = (root: string) => ({
+          MELLODIFAI_ENGINE_ROOT: root,
+          MELLODIFAI_PUBLISHING: "on",
+        });
+        for (const root of [
+          link,
+          join(link, "publish"),
+          production.toUpperCase(),
+        ])
+          expect(engineSettings(keys(root), data, [production])).toEqual(own);
+        const mine = join(base, "mine");
+        mkdirSync(mine);
+        expect(engineSettings(keys(mine), data, [production])).toEqual({
+          MELLODIFAI_ENGINE_ROOT: mine,
+          WORKER_PUBLISHING: "on",
+        });
+      } finally {
+        rmSync(base, { recursive: true, force: true });
+      }
+    },
+  );
 });
