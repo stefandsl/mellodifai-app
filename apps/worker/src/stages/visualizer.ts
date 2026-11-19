@@ -21,6 +21,7 @@ import {
 } from "@mellodifai/shared";
 import type { Render, Take } from "../db.js";
 import type { StageContext, StageHandler } from "../loop.js";
+import { workerPaths } from "../paths.js";
 import { takeAudio } from "./take-audio.js";
 import { posterOf, upload } from "./utils.js";
 
@@ -431,7 +432,7 @@ export const visualizer: StageHandler = async (context) => {
       {
         cwd: VISUALIZER_PACKAGE,
         outputs: [rendered],
-        env: { RENDER_TMP: "E:/mellodifai/render-tmp" },
+        env: { RENDER_TMP: workerPaths().renderTmp },
       },
     );
     await pending;

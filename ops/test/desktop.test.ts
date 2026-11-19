@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -240,7 +240,11 @@ describe("desktop env files", () => {
   });
 
   it("gives the worker the fonts the installer ships, never the data folder's", () => {
-    const paths = { workerKeys: "D:/keys.env", workerEnv: "D:/stack.env" };
+    const paths = {
+      root: "D:/data",
+      workerKeys: "D:/keys.env",
+      workerEnv: "D:/stack.env",
+    };
     const settings = workerSettings(
       "I:/MellodifAI/app",
       paths,
@@ -459,7 +463,11 @@ describe("desktop update backups", () => {
 
 describe("desktop engine and publishing", () => {
   const data = "I:\\MellodifAI\\data";
-  const paths = { workerKeys: "D:/keys.env", workerEnv: "D:/stack.env" };
+  const paths = {
+    root: "D:/data",
+    workerKeys: "D:/keys.env",
+    workerEnv: "D:/stack.env",
+  };
 
   it("keeps the engine in the app's own data folder and publishing off until the owner sets his own", () => {
     const own = {
@@ -496,31 +504,53 @@ describe("desktop engine and publishing", () => {
     ).toBe("on");
   });
 
-  it("starts the real worker code on the app's engine folder, never production's", () => {
+  it("starts the real worker and remake code with every path under the app's data folder", () => {
     const settings = workerSettings(
       "I:/MellodifAI/app",
-      paths,
+      { ...paths, root: data },
       "owner-1",
       engineSettings({}, data),
       "PC1",
     );
-    const env: NodeJS.ProcessEnv = { ...process.env, ...settings };
-    const utils = pathToFileURL(
-      join(repo, "apps", "worker", "src", "stages", "utils.ts"),
-    ).href;
-    const gate = pathToFileURL(
-      join(repo, "apps", "worker", "src", "publishing", "gate.ts"),
-    ).href;
+    // What baseEnv in desktop.ts adds for every process of the app.
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      MELLODIFAI_ROOT: data,
+      ...settings,
+    };
+    const module = (...parts: string[]) =>
+      JSON.stringify(pathToFileURL(join(repo, ...parts)).href);
+    const script = `Promise.all([
+      import(${module("apps", "worker", "src", "stages", "utils.ts")}),
+      import(${module("apps", "worker", "src", "paths.ts")}),
+      import(${module("apps", "worker", "src", "comfy", "config.ts")}),
+      import(${module("packages", "remake", "src", "paths.ts")}),
+      import(${module("apps", "worker", "src", "publishing", "gate.ts")}),
+    ]).then(([u, p, c, r, g]) => console.log(JSON.stringify({
+      paths: [u.ENGINE_ROOT, ...Object.values(p.workerPaths()).filter((v) => typeof v === "string"),
+        c.COMFY_CONFIG.root, c.COMFY_CONFIG.dataDir, c.COMFY_CONFIG.pidFile, c.COMFY_CONFIG.logFile,
+        r.ENGINE_ROOT, r.STEMS_PYTHON, r.runtimeRoot()],
+      publishing: g.publishingOn(),
+    })))`;
     const out = execFileSync(
       process.execPath,
-      [
-        "--import",
-        "tsx",
-        "-e",
-        `Promise.all([import(${JSON.stringify(utils)}), import(${JSON.stringify(gate)})]).then(([u, g]) => console.log(JSON.stringify([u.ENGINE_ROOT, g.publishingOn()])))`,
-      ],
-      { cwd: join(repo, "apps", "worker"), env, encoding: "utf8" },
+      ["--import", "tsx", "-e", script],
+      {
+        cwd: join(repo, "apps", "worker"),
+        env,
+        encoding: "utf8",
+      },
     );
-    expect(JSON.parse(out.trim())).toEqual([join(data, "engine"), false]);
+    const result = JSON.parse(out.trim()) as {
+      paths: string[];
+      publishing: boolean;
+    };
+    expect(result.paths[0]).toBe(join(data, "engine"));
+    const outside = result.paths.filter((path) => {
+      const rel = relative(data, resolve(path));
+      return rel.startsWith("..") || isAbsolute(rel);
+    });
+    expect(outside).toEqual([]);
+    expect(result.publishing).toBe(false);
   });
 });

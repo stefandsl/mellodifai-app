@@ -2,6 +2,7 @@ import { access, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { LANGS, type Lang } from "@mellodifai/shared";
 import { Engine } from "./engine.js";
+import { workerPaths } from "./paths.js";
 import { transcodePreview } from "./preview.js";
 import { workerTempDir } from "./runtime.js";
 
@@ -169,8 +170,8 @@ async function readJson(path: string): Promise<Record<string, unknown>> {
 }
 
 export function createLegacyFiles(
-  versionsRoot = "C:\\Users\\Asus\\Documents\\suno-remake\\versions",
-  finalRoot = "E:\\suno-remake-render\\out\\final",
+  versionsRoot = workerPaths().legacyVersions,
+  finalRoot = workerPaths().legacyFinal,
   encode: (source: string, output: string) => Promise<void> = async (
     source,
     output,

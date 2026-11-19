@@ -3,7 +3,7 @@ import type { LocalSongEngine } from "@mellodifai/shared";
 import { LOCAL_ENGINES } from "./config.js";
 
 // API-format graphs as ComfyUI 0.43.0 accepted them in the bake-off
-// (E:\mellodifai\research\bakeoff\graphs\TEMPLATE_*.api.json), committed in engines/comfy.
+// (research/bakeoff/graphs/TEMPLATE_*.api.json under production's root), committed in engines/comfy.
 export type ComfyGraph = Record<
   string,
   { class_type: string; inputs: Record<string, unknown> }

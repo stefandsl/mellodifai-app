@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type TimedWord, timingFromWords } from "@mellodifai/shared";
 import type { StageHandler } from "../loop.js";
+import { workerPaths } from "../paths.js";
 import { takeAudio } from "./take-audio.js";
 
 export const alignLyrics: StageHandler = async (context) => {
@@ -34,7 +35,7 @@ export const alignLyrics: StageHandler = async (context) => {
     }
     const output = join(dir, "words.json");
     await context.engine.run(
-      "E:/mellodifai/venvs/karaoke-whisper/Scripts/python",
+      workerPaths().whisperPython,
       [
         fileURLToPath(
           new URL("../../scripts/local-whisper.py", import.meta.url),

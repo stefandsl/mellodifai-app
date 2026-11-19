@@ -2,6 +2,8 @@
 // models scores each draft. Every call is best effort: a router or judge that fails is
 // left out, so a provider outage slows nothing down and never blocks a song.
 
+import { join } from "node:path";
+import { workerPaths } from "../paths.js";
 import { isCapRefusal } from "../providers/ledger.js";
 import {
   type OpenRouterCall as Call,
@@ -31,7 +33,7 @@ export async function lyricsBudget(
   const { dirname } = await import("node:path");
   const cap = Number(secrets.LYRICS_DAILY_CAP ?? "50");
   const stateFile =
-    secrets.LYRICS_STATE_FILE ?? "E:\\mellodifai\\state\\lyrics.json";
+    secrets.LYRICS_STATE_FILE ?? join(workerPaths().stateDir, "lyrics.json");
   const today = new Date().toISOString().slice(0, 10);
   let state: { day?: string; count?: number } = {};
   try {

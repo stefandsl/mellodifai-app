@@ -86,7 +86,10 @@ export function engineSettings(
  */
 export function workerSettings(
   app: string,
-  paths: Pick<ReturnType<typeof desktopPaths>, "workerKeys" | "workerEnv">,
+  paths: Pick<
+    ReturnType<typeof desktopPaths>,
+    "root" | "workerKeys" | "workerEnv"
+  >,
   ownerId: string | undefined,
   engine: ReturnType<typeof engineSettings>,
   computer = process.env.COMPUTERNAME,
@@ -99,6 +102,15 @@ export function workerSettings(
     WORKER_ENV_FILES: [paths.workerKeys, paths.workerEnv].join(";"),
     MELLODIFAI_FONTS: join(app, "fonts"),
     ...engine,
+    // The remake package reads its own variables; their defaults are production's folders.
+    REMAKE_ENGINE_ROOT: engine.MELLODIFAI_ENGINE_ROOT,
+    REMAKE_STEMS_PYTHON: join(
+      paths.root,
+      "venvs",
+      "stems",
+      "Scripts",
+      "python.exe",
+    ),
   };
 }
 

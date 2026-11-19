@@ -2,14 +2,14 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import { join, parse } from "node:path";
 import type { Take } from "../db.js";
 import type { StageContext, StageHandler } from "../loop.js";
+import { workerPaths } from "../paths.js";
 import { takeAudio } from "./take-audio.js";
 import { ENGINE_ROOT, upload } from "./utils.js";
 
 // The Demucs install and model the timing stage uses (suno-remake tools/workspace_pipeline.sh):
 // htdemucs, --shifts=0, on whatever device that venv's torch has (a CPU build on this PC, so the
 // separation never competes with ComfyUI for the GPU). Without --two-stems it writes four stems.
-export const DEMUCS_PYTHON =
-  "E:/suno-remake-archive/.venv-stems/Scripts/python";
+export const DEMUCS_PYTHON = workerPaths().stemsPython;
 export const DEMUCS_MODEL = "htdemucs";
 export const STEM_NAMES = ["vocals", "drums", "bass", "other"] as const;
 export type StemName = (typeof STEM_NAMES)[number];

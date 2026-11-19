@@ -2,10 +2,9 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { Lang, LyricPack } from "@mellodifai/shared";
 import type { StageContext } from "../loop.js";
+import { workerPaths } from "../paths.js";
 
-export const ENGINE_ROOT =
-  process.env.MELLODIFAI_ENGINE_ROOT ??
-  "C:\\Users\\Asus\\Documents\\suno-remake";
+export const ENGINE_ROOT = workerPaths().engineRoot;
 export const PREVIEW_ROOT = "previews";
 export function attempt(context: StageContext): number {
   return context.version.render_attempt ?? context.job.attempts ?? 1;

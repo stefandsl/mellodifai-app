@@ -90,7 +90,7 @@ export const packageEngine: RemakeEngine = {
   embedder() {
     if (!LabseEmbedder.available())
       throw new Error(
-        "LaBSE is not installed (E:/mellodifai/venvs/labse): the originality gate cannot run",
+        "LaBSE is not installed (venvs/labse under the runtime root): the originality gate cannot run",
       );
     const labse = new LabseEmbedder();
     return { name: labse.name, embed: labse.embed, close: () => labse.close() };

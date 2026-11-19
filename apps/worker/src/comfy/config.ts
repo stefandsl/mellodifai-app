@@ -1,9 +1,12 @@
 import { join } from "node:path";
 import type { Lang, LocalSongEngine } from "@mellodifai/shared";
+import { workerPaths } from "../paths.js";
 
-// The ComfyUI install the bake-off ran on (E:\mellodifai\research\bakeoff\bakeoff.md section 2).
+// The ComfyUI install the bake-off ran on (research/bakeoff/bakeoff.md section 2, under production's root).
 // Everything it writes (outputs, temp, caches, log) stays on E: because C: is nearly full.
 export type ComfyConfig = {
+  // The worker runtime root (MELLODIFAI_ROOT) this server belongs to: its PID file is inside.
+  home: string;
   root: string;
   dataDir: string;
   logFile: string;
@@ -15,16 +18,23 @@ export type ComfyConfig = {
   startTimeoutMs: number;
 };
 
-export const COMFY_CONFIG: ComfyConfig = {
-  root: "E:\\mellodifai\\ComfyUI_windows_portable",
-  dataDir: "E:\\mellodifai\\comfy-data",
-  logFile: "E:\\mellodifai\\comfy-data\\comfy.log",
-  pidFile: "E:\\mellodifai\\state\\comfy.pid",
-  host: "127.0.0.1",
-  port: 8188,
-  version: "0.43.0",
-  startTimeoutMs: 180_000,
-};
+// Everything under the worker's runtime root: on production's root these are the paths of the
+// bake-off install; another root (the desktop app) never reaches production's server.
+export function comfyConfig(home: string): ComfyConfig {
+  return {
+    home,
+    root: join(home, "ComfyUI_windows_portable"),
+    dataDir: join(home, "comfy-data"),
+    logFile: join(home, "comfy-data", "comfy.log"),
+    pidFile: join(home, "state", "comfy.pid"),
+    host: "127.0.0.1",
+    port: 8188,
+    version: "0.43.0",
+    startTimeoutMs: 180_000,
+  };
+}
+
+export const COMFY_CONFIG: ComfyConfig = comfyConfig(workerPaths().root);
 
 export function comfyUrl(config: ComfyConfig): string {
   return `http://${config.host}:${config.port}`;
