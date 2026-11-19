@@ -811,3 +811,25 @@ it("a plan approved by a rule goes out only while that rule still exists and is 
     expect(await intent(tx, next)).toBe(false);
   });
 });
+
+it("a rule covers only a plan whose real price is within its cap", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    await rule(tx, owner);
+    const { version, render } = await video(tx, owner.user_id);
+    const id = await plan(tx, pat, version, inHours(30));
+    // A destination without a known price (a paid provider): no rule can cover it.
+    await tx`insert into public.publish_destinations(schedule_id,owner_id,platform,provider,account_id,draft)
+      select schedule_id,owner_id,platform,'blotato','second',draft from public.publish_destinations where schedule_id=${id}`;
+    await op(tx, "publish_request_approval", pat, id);
+    expect(await state(tx, id)).not.toBe("scheduled");
+    expect(await publishJobs(tx, render)).toBe(0);
+    // The free native plan: price 0 within a 0 cap.
+    const free = await video(tx, owner.user_id);
+    const ok = await plan(tx, pat, free.version, inHours(30));
+    expect(await op(tx, "publish_request_approval", pat, ok)).toMatchObject({
+      data: { state: "scheduled", price_eur: 0 },
+    });
+  });
+});

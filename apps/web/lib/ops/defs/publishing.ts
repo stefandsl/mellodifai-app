@@ -43,7 +43,8 @@ export const ScheduleView = z.object({
   veto_deadline_at: When.nullable(),
   veto_open: z.boolean(),
   held_reason: z.string().nullable(),
-  price_eur: z.number(),
+  // null: a destination without a known price; no card or rule covers it.
+  price_eur: z.number().nullable(),
   created_via: z.string(),
   vetoed_at: When.nullable(),
   media: z

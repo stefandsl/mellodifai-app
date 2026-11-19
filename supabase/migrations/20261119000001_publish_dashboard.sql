@@ -169,6 +169,16 @@ begin
 end;
 $$;
 
+-- The plan's real price in EUR: the native YouTube route is free; a provider without a known
+-- per-post price (Postiz, Blotato) makes it unknown (null), and no card or rule can cover it.
+create function ops._publish_price(p_schedule uuid) returns numeric
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+begin
+  return (select case when count(*) > 0 and bool_and(d.provider='native') then 0::numeric end
+    from public.publish_destinations d where d.schedule_id=p_schedule);
+end;
+$$;
+
 -- Only the four fields the dashboard edits, with their types; unknown keys are dropped.
 create function ops._publish_draft_clean(p_draft jsonb) returns jsonb
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
@@ -213,7 +223,7 @@ begin
     'veto_open',s.state in ('draft','awaiting_approval','scheduled','publishing','held')
       and not exists (select 1 from public.publish_destinations d where d.schedule_id=s.id
         and d.state in ('handoff_started','published','unknown','failed')),
-    'held_reason',s.held_reason,'price_eur',0,
+    'held_reason',s.held_reason,'price_eur',ops._publish_price(s.id),
     'created_via',s.created_via,'vetoed_at',s.vetoed_at,
     'media',case when pub.id is null then null else jsonb_build_object('state',pub.upload_state,
       'video_id',pub.youtube_video_id,'privacy',coalesce(pub.privacy_applied,pub.privacy)) end,
@@ -266,7 +276,7 @@ declare
   s public.publish_schedules; d public.publish_destinations; v public.versions; r public.renders;
   ap public.approval_requests; rl public.publish_rules;
   v_platform text; v_slot timestamptz; v_draft jsonb; v_sid uuid; v_hash text; v_missing integer;
-  v_blocked_at timestamptz;
+  v_blocked_at timestamptz; v_price numeric;
 begin
   -- Owner settings: standing rules and the pending approval cards.
   if p_op = 'publish_rules_list' then
@@ -398,10 +408,12 @@ begin
       raise exception 'invalid draft';
     end if;
     v_hash := ops._publish_hash(s.id);
+    v_price := ops._publish_price(s.id);
+    if v_price is null then raise exception 'price unknown' using errcode='MDF05'; end if;
     if v_kind = 'session' then
       -- The owner himself in the app (local admin session): his request is his yes.
-      insert into public.approval_requests(owner_id,schedule_id,op,payload_hash,summary,platforms,requested_via,expires_at,state,decided_at,decided_via)
-        values(uid,s.id,'publish_schedule',v_hash,ops._publish_summary(s.id),
+      insert into public.approval_requests(owner_id,schedule_id,op,payload_hash,summary,price_eur,platforms,requested_via,expires_at,state,decided_at,decided_via)
+        values(uid,s.id,'publish_schedule',v_hash,ops._publish_summary(s.id),v_price,
           array(select platform from public.publish_destinations where schedule_id=s.id order by platform),
           v_kind,s.slot_at,'approved',now(),'owner');
       perform ops._publish_event(s.id,null,'approved','owner','{}'::jsonb);
@@ -411,11 +423,11 @@ begin
       -- yes again (an 'approved' event by the owner after the last veto or rejection).
       select max(e.at) into v_blocked_at from public.publish_events e join public.publish_schedules x on x.id=e.schedule_id
         where x.version_id=s.version_id and e.kind in ('vetoed','rejected');
-      -- A standing rule must cover every destination: platform, price 0 within the cap and a slot
-      -- that leaves at least the rule's veto window.
+      -- A standing rule must cover every destination: platform, the plan's price within the cap and
+      -- a slot that leaves at least the rule's veto window.
       select count(*) into v_missing from public.publish_destinations x where x.schedule_id=s.id
         and not exists (select 1 from public.publish_rules y where y.owner_id=uid and y.active and y.platform=x.platform
-          and y.max_price_eur >= 0 and s.slot_at >= now() + make_interval(hours => y.require_veto_hours));
+          and y.max_price_eur >= v_price and s.slot_at >= now() + make_interval(hours => y.require_veto_hours));
       if v_blocked_at is not null and not exists (select 1 from public.publish_events e join public.publish_schedules x on x.id=e.schedule_id
         where x.version_id=s.version_id and e.kind='approved' and e.actor='owner' and e.at > v_blocked_at) then
         v_missing := v_missing + 1;
@@ -424,18 +436,18 @@ begin
       end if;
       if v_missing = 0 then
         select y.* into rl from public.publish_rules y join public.publish_destinations x on x.platform=y.platform
-          where x.schedule_id=s.id and y.owner_id=uid and y.active
+          where x.schedule_id=s.id and y.owner_id=uid and y.active and y.max_price_eur >= v_price
             and s.slot_at >= now() + make_interval(hours => y.require_veto_hours)
           order by y.require_veto_hours desc,y.id limit 1;
-        insert into public.approval_requests(owner_id,schedule_id,op,payload_hash,summary,platforms,requested_via,token_id,expires_at,state,decided_at,decided_via,rule_id)
-          values(uid,s.id,'publish_schedule',v_hash,ops._publish_summary(s.id),
+        insert into public.approval_requests(owner_id,schedule_id,op,payload_hash,summary,price_eur,platforms,requested_via,token_id,expires_at,state,decided_at,decided_via,rule_id)
+          values(uid,s.id,'publish_schedule',v_hash,ops._publish_summary(s.id),v_price,
             array(select platform from public.publish_destinations where schedule_id=s.id order by platform),
             v_kind,(p_actor->>'token_id')::uuid,s.slot_at,'approved',now(),'rule',rl.id);
         perform ops._publish_event(s.id,null,'approved_by_rule','rule',jsonb_build_object('rule_id',rl.id));
         perform ops._publish_activate(s.id,'rule');
       else
-        insert into public.approval_requests(owner_id,schedule_id,op,payload_hash,summary,platforms,requested_via,token_id,expires_at)
-          values(uid,s.id,'publish_schedule',v_hash,ops._publish_summary(s.id),
+        insert into public.approval_requests(owner_id,schedule_id,op,payload_hash,summary,price_eur,platforms,requested_via,token_id,expires_at)
+          values(uid,s.id,'publish_schedule',v_hash,ops._publish_summary(s.id),v_price,
             array(select platform from public.publish_destinations where schedule_id=s.id order by platform),
             v_kind,(p_actor->>'token_id')::uuid,s.slot_at);
         update public.publish_schedules set state='awaiting_approval',updated_at=now() where id=s.id;
@@ -841,7 +853,7 @@ begin
 end
 $grants$;
 grant execute on function ops._publish_event(uuid, uuid, text, text, jsonb), ops._publish_problems(text, jsonb),
-  ops._publish_hash(uuid), ops._publish_draft_clean(jsonb), ops._publish_view(uuid), ops._publish_activate(uuid, text),
+  ops._publish_hash(uuid), ops._publish_price(uuid), ops._publish_draft_clean(jsonb), ops._publish_view(uuid), ops._publish_activate(uuid, text),
   ops._publish_do(jsonb, text, jsonb), ops._publish_summary(uuid), ops._publish_run(jsonb, text, jsonb, text, boolean),
   ops.publish_dispatch_recover(text), ops.publish_dispatch_claim(text, integer), ops.publish_dispatch_intent(uuid, uuid),
   ops.publish_dispatch_handoff(uuid, uuid), ops.publish_dispatch_finish(uuid, uuid, text, text, text) to service_role;
