@@ -115,6 +115,20 @@ function issueText(
   });
 }
 
+// The worker stores a short code; the owner reads a sentence, never raw provider text.
+const ERROR_CODES = [
+  "provider_error",
+  "set_public_failed",
+  "metadata_update_failed",
+];
+const errorText = (lang: "it" | "en", code: string) =>
+  pt(
+    lang,
+    code.startsWith("lost_handoff")
+      ? "error.lost_handoff"
+      : `error.${ERROR_CODES.includes(code) ? code : "provider_error"}`,
+  );
+
 const toDraft = (
   view: ScheduleView | null,
   fallback: DraftFields,
@@ -393,7 +407,12 @@ export function PublishDashboard({
                 </a>
               ) : null}
               {destination?.error ? (
-                <p className="text-sm text-destructive">{destination.error}</p>
+                <p
+                  className="text-sm text-destructive"
+                  data-testid="destination-error"
+                >
+                  {errorText(lang, destination.error)}
+                </p>
               ) : null}
               <div className="flex flex-wrap gap-2">
                 {VETO.includes(current.state) && current.veto_open ? (

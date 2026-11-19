@@ -26,6 +26,20 @@ export type Claim = {
     thumbnail_text: string;
   };
 };
+// A failure the worker stores and the dashboard shows: a short code, never raw provider text.
+export class PublishError extends Error {
+  constructor(
+    readonly code: string,
+    message = code,
+  ) {
+    super(message);
+  }
+}
+export const errorCode = (error: unknown) =>
+  error instanceof PublishError && /^[a-z][a-z0-9_]{0,63}$/u.test(error.code)
+    ? error.code
+    : "provider_error";
+
 export type Outcome =
   | "published"
   | "definitely_not_accepted"
@@ -148,7 +162,7 @@ export async function dispatchTick(input: {
       outcome === "published" && check.external_id
         ? `https://youtu.be/${encodeURIComponent(check.external_id)}`
         : null,
-      outcome === "published" ? null : `status after a lost handoff: ${status}`,
+      outcome === "published" ? null : `lost_handoff_${status}`,
     );
     report(`Publish ${check.destination_id}: recovered as ${outcome}`);
   }
@@ -203,7 +217,7 @@ export async function dispatchTick(input: {
         outcome === "published" && claim.external_id
           ? `https://youtu.be/${encodeURIComponent(claim.external_id)}`
           : null,
-        outcome === "published" ? null : message(error),
+        outcome === "published" ? null : errorCode(error),
       );
       if (outcome === "published") published++;
       report(`Publish ${claim.destination_id}: ${outcome}`);

@@ -35,6 +35,11 @@ const it = {
   newPlan: "Nuovo piano",
   status: "Stato",
   history: "Cronologia",
+  "error.provider_error": "YouTube ha dato un errore. Controlla il video in YouTube Studio.",
+  "error.set_public_failed": "YouTube non ha reso pubblico il video.",
+  "error.metadata_update_failed":
+    "YouTube non ha accettato titolo, descrizione, tag o miniatura approvati: il video resta privato.",
+  "error.lost_handoff": "La risposta di YouTube si è persa: lo stato è stato controllato su YouTube.",
   legacyTitle: "Già programmato su YouTube (vecchio flusso)",
   legacyRow: "Video {video} programmato da YouTube per il {at}.",
   legacyHint:
@@ -172,6 +177,11 @@ const en: Record<PublishKey, string> = {
   newPlan: "New plan",
   status: "Status",
   history: "History",
+  "error.provider_error": "YouTube returned an error. Check the video in YouTube Studio.",
+  "error.set_public_failed": "YouTube did not make the video public.",
+  "error.metadata_update_failed":
+    "YouTube did not accept the approved title, description, tags or thumbnail: the video stays private.",
+  "error.lost_handoff": "YouTube's answer was lost: the status was checked on YouTube.",
   legacyTitle: "Already scheduled on YouTube (old flow)",
   legacyRow: "Video {video} scheduled by YouTube for {at}.",
   legacyHint:

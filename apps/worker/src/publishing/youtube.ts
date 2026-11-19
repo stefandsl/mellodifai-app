@@ -6,6 +6,7 @@ import {
   type ProviderStatus,
   type PublishingProvider,
 } from "@mellodifai/shared";
+import { PublishError } from "./dispatcher.js";
 
 // The YouTube Data API through the engine's publish/yt.py, or a fake in WORKER_FAKE mode.
 // The private upload is the existing `publish` stage (stages/publish.ts, privacyStatus private);
@@ -119,7 +120,11 @@ export class YouTubeProvider implements PublishingProvider {
     media: { mediaRef: string },
     _attemptId: string,
   ) {
-    await this.client.setPublic(media.mediaRef);
+    try {
+      await this.client.setPublic(media.mediaRef);
+    } catch (error) {
+      throw new PublishError("set_public_failed", String(error));
+    }
     return {
       externalId: media.mediaRef,
       url: `https://youtu.be/${encodeURIComponent(media.mediaRef)}`,

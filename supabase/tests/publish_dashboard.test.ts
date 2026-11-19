@@ -921,3 +921,35 @@ it("a video the old flow scheduled or made public cannot get a plan; the status 
     ).toMatchObject({ ok: false, code: "conflict" });
   });
 });
+
+it("the worker's error is stored and shown as a code, never as raw provider text", async () => {
+  await fixture(async (tx) => {
+    const a = await scheduled(tx);
+    const [first] = await claim(tx);
+    await intent(tx, first);
+    await handoff(tx, first);
+    await worker(
+      tx,
+      "select ops.publish_dispatch_finish($1,$2,'definitely_not_accepted',null,$3) as result",
+      [
+        first.destination_id,
+        first.claim_token,
+        "Traceback: HttpError 403 at E:/engine/publish/yt.py line 9",
+      ],
+    );
+    const [second] = await claim(tx);
+    await intent(tx, second);
+    await handoff(tx, second);
+    await worker(
+      tx,
+      "select ops.publish_dispatch_finish($1,$2,'unknown',null,'metadata_update_failed') as result",
+      [second.destination_id, second.claim_token],
+    );
+    const view = await op(tx, "publish_preview", a.owner, a.id);
+    expect(view.data.destinations[0].error).toBe("metadata_update_failed");
+    const errors = view.data.events
+      .map((e: { detail: { error?: string } }) => e.detail.error)
+      .filter(Boolean);
+    expect(errors).toEqual(["provider_error", "metadata_update_failed"]);
+  });
+});

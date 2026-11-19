@@ -815,9 +815,12 @@ end;
 $$;
 
 -- The provider's answer. definitely_not_accepted is the only outcome that allows a new attempt.
+-- p_error is a short code (apps/worker/src/publishing/dispatcher.ts); anything else, such as raw
+-- engine or provider text, is stored as 'provider_error' and never shown.
 create function ops.publish_dispatch_finish(p_destination uuid, p_token uuid, p_outcome text, p_external_url text, p_error text) returns void
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
 declare s public.publish_schedules; d public.publish_destinations; r public.renders;
+  v_error text := case when p_error is null then null when p_error ~ '^[a-z][a-z0-9_]{0,63}$' then p_error else 'provider_error' end;
 begin
   select * into s from public.publish_schedules where id=(select schedule_id from public.publish_destinations where id=p_destination) for update;
   if not found then raise exception 'owned destination required'; end if;
@@ -834,18 +837,18 @@ begin
     update public.versions set status='published' where id=s.version_id and status in ('approved','publishing');
   elsif p_outcome = 'definitely_not_accepted' and d.attempts >= 3 then
     -- Refused three times (expired login, removed video...): stop and show the owner.
-    update public.publish_destinations set state='failed',error=left(p_error,500),claim_token=null,claim_expires_at=null,updated_at=now() where id=d.id;
+    update public.publish_destinations set state='failed',error=v_error,claim_token=null,claim_expires_at=null,updated_at=now() where id=d.id;
   elsif p_outcome = 'definitely_not_accepted' then
-    update public.publish_destinations set state='scheduled',error=left(p_error,500),claim_token=null,claimed_by=null,
+    update public.publish_destinations set state='scheduled',error=v_error,claim_token=null,claimed_by=null,
       claim_expires_at=null,updated_at=now() where id=d.id;
   elsif p_outcome = 'failed' then
-    update public.publish_destinations set state='failed',error=left(p_error,500),claim_token=null,claim_expires_at=null,updated_at=now() where id=d.id;
+    update public.publish_destinations set state='failed',error=v_error,claim_token=null,claim_expires_at=null,updated_at=now() where id=d.id;
   elsif p_outcome = 'unknown' then
-    update public.publish_destinations set state='unknown',error=left(p_error,500),claim_token=null,claim_expires_at=null,updated_at=now() where id=d.id;
+    update public.publish_destinations set state='unknown',error=v_error,claim_token=null,claim_expires_at=null,updated_at=now() where id=d.id;
   else
     raise exception 'invalid outcome';
   end if;
-  perform ops._publish_event(s.id,d.id,p_outcome,'system',jsonb_strip_nulls(jsonb_build_object('url',p_external_url,'error',left(p_error,500))));
+  perform ops._publish_event(s.id,d.id,p_outcome,'system',jsonb_strip_nulls(jsonb_build_object('url',p_external_url,'error',v_error)));
   -- Roll the destinations up into the schedule.
   if not exists (select 1 from public.publish_destinations where schedule_id=s.id and state not in ('published','cancelled')) then
     update public.publish_schedules set state='published',updated_at=now() where id=s.id;

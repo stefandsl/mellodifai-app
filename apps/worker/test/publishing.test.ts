@@ -157,6 +157,38 @@ describe("publish dispatcher", () => {
     },
   );
 
+  it("stores a short error code, never the provider's raw text", async () => {
+    const run = setup({ claims: [claim()] });
+    run.youtube.failNext = "dark";
+    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w" });
+    expect(run.finished[0]).toMatchObject({
+      outcome: "unknown",
+      error: "set_public_failed",
+    });
+    const raw = fakeDb({ claims: [claim()] });
+    const provider = new YouTubeProvider(new FakeYouTubeClient());
+    provider.postNow = async () => {
+      throw new Error("Traceback: HttpError 500 at E:/engine/publish/yt.py");
+    };
+    await dispatchTick({
+      db: raw.db,
+      providers: new Map([["native:youtube", provider]]),
+      workerId: "w",
+    });
+    expect(raw.finished[0]?.error).toBe("provider_error");
+    const lost = fakeDb({ checks: [claim()] });
+    await dispatchTick({
+      db: lost.db,
+      providers: new Map([
+        ["native:youtube", new YouTubeProvider(new FakeYouTubeClient())],
+      ]),
+      workerId: "w",
+    });
+    expect(lost.finished[0]?.error).toBe(
+      "lost_handoff_definitely_not_accepted",
+    );
+  });
+
   it("a lost handoff found by recovery is settled by the status, never flipped again", async () => {
     const youtube = new FakeYouTubeClient();
     youtube.videos.set("vid-1", "public");
