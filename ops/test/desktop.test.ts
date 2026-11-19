@@ -41,6 +41,7 @@ import {
   pruneUpdateBackups,
   SITE_URL,
   StopFailed,
+  signInBeacon,
   signInLaunch,
   stopEverything,
   validOwnerEmail,
@@ -610,4 +611,43 @@ describe("desktop engine folder choice", () => {
       }
     },
   );
+});
+
+describe("desktop sign-in page lifetime", () => {
+  it("knows when the app window has loaded the page, and gives up after its deadline", async () => {
+    const link =
+      "http://127.0.0.1:46321/auth/v1/verify?token=t-1&type=magiclink";
+    const beacon = await signInBeacon(10_000);
+    const { html } = signInLaunch(
+      link,
+      "E:\\x\\sign-in.html",
+      "E:\\x\\b",
+      beacon.url,
+    );
+    const script = /<script>([\s\S]*)<\/script>/.exec(html)?.[1] ?? "";
+    const went: string[] = [];
+    const sent: Promise<Response>[] = [];
+    // The window's own script: it reports itself loaded, then goes to the link.
+    runInNewContext(script, {
+      location: { replace: (url: string) => went.push(url) },
+      navigator: {
+        sendBeacon: (url: string) => {
+          sent.push(fetch(url, { method: "POST" }));
+          return true;
+        },
+      },
+    });
+    await Promise.all(sent);
+    expect(await beacon.loaded).toBe(true);
+    expect(went).toEqual([new URL(link).href]);
+    // A page nobody loads: the wait ends at the deadline with false.
+    const late = await signInBeacon(300);
+    expect(await late.loaded).toBe(false);
+    // A wrong path never counts as loaded.
+    const other = await signInBeacon(500);
+    await fetch(`${new URL(other.url).origin}/wrong`, { method: "POST" }).catch(
+      () => null,
+    );
+    expect(await other.loaded).toBe(false);
+  });
 });

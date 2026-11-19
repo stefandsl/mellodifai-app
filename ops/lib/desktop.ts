@@ -1,7 +1,7 @@
 // Pure pieces of the Windows desktop app (docs/windows-app.md): paths, the env files the
 // web app and worker read, process recognition, backups and the owner's messages.
 // No processes here (only a loopback port probe), so all of it is unit tested.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   readdirSync,
@@ -10,6 +10,7 @@ import {
   statfsSync,
   statSync,
 } from "node:fs";
+import { createServer } from "node:http";
 import { connect } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -384,22 +385,61 @@ export function appWindowArgs(url: string, profile: string): string[] {
  * Edge's command line, which every program on the PC can read. The page sends the window on
  * with location.replace, so the link is not kept in its history either.
  */
-export function signInPage(link: string): string {
+export function signInPage(link: string, beacon?: string): string {
   const url = new URL(link);
   if (url.protocol !== "http:" && url.protocol !== "https:")
     throw new Error("Sign-in link must be http(s)");
-  // JSON is valid JavaScript; "<" escaped so the link cannot close the script element.
-  const target = JSON.stringify(url.href).replaceAll("<", "\\u003c");
-  return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>MellodifAI</title></head><body><script>location.replace(${target});</script></body></html>\n`;
+  // JSON is valid JavaScript; "<" escaped so a value cannot close the script element.
+  const js = (value: string) =>
+    JSON.stringify(value).replaceAll("<", "\\u003c");
+  // The beacon tells the controller the window has read the page, which it then deletes.
+  const loaded = beacon
+    ? `try{navigator.sendBeacon(${js(new URL(beacon).href)})}catch(e){}`
+    : "";
+  return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>MellodifAI</title></head><body><script>${loaded}location.replace(${js(url.href)});</script></body></html>\n`;
 }
 
 /** What openBrowser writes and runs: the page with the link, and Edge's arguments naming
  * only the page's file. */
-export function signInLaunch(link: string, page: string, profile: string) {
+export function signInLaunch(
+  link: string,
+  page: string,
+  profile: string,
+  beacon?: string,
+) {
   return {
-    html: signInPage(link),
+    html: signInPage(link, beacon),
     args: appWindowArgs(pathToFileURL(page).href, profile),
   };
+}
+
+/**
+ * A one-shot loopback listener the sign-in page reports to when the app window has loaded
+ * it: `loaded` is true at that report, false at the deadline. Only a POST to its own random
+ * path counts.
+ */
+export async function signInBeacon(
+  timeoutMs: number,
+): Promise<{ url: string; loaded: Promise<boolean> }> {
+  const path = `/${randomUUID()}`;
+  let settle: (value: boolean) => void = () => {};
+  const loaded = new Promise<boolean>((done) => {
+    settle = done;
+  });
+  const server = createServer((request, response) => {
+    response.setHeader("Access-Control-Allow-Origin", "*");
+    response.end();
+    if (request.method === "POST" && request.url === path) settle(true);
+  });
+  await new Promise<void>((done) => server.listen(0, WEB_HOST, done));
+  const timer = setTimeout(() => settle(false), timeoutMs);
+  void loaded.then(() => {
+    clearTimeout(timer);
+    server.close();
+    server.closeAllConnections();
+  });
+  const { port } = server.address() as { port: number };
+  return { url: `http://${WEB_HOST}:${port}${path}`, loaded };
 }
 
 /** True only for an Edge process of this install's app window (its own profile folder). */

@@ -40,6 +40,7 @@ import {
   parseEnvFile,
   pruneUpdateBackups,
   SITE_URL,
+  signInBeacon,
   signInLaunch,
   stopEverything,
   validOwnerEmail,
@@ -473,16 +474,22 @@ async function openBrowser() {
   }
   mkdirSync(P.browser, { recursive: true });
   let args = appWindowArgs(SITE_URL, P.browser);
-  if (link) {
+  // The page reports when the window has read it; it is deleted then, or after 5 minutes.
+  const beacon = link ? await signInBeacon(5 * 60_000) : null;
+  if (link && beacon) {
     // The link travels in a private page, never on Edge's command line (any program reads it).
-    const launch = signInLaunch(link, SIGN_IN_PAGE, P.browser);
+    const launch = signInLaunch(link, SIGN_IN_PAGE, P.browser, beacon.url);
     await writePrivate(SIGN_IN_PAGE, launch.html);
     args = launch.args;
   }
   spawn(edge, args, { detached: true, stdio: "ignore" }).unref();
-  if (link) {
-    // Long enough for the window to read the page; the link is one-time either way.
-    await sleep(15_000);
+  if (beacon) {
+    const loaded = await beacon.loaded;
+    log(
+      loaded
+        ? "sign-in page loaded"
+        : "sign-in page not loaded within 5 minutes",
+    );
     rmSync(SIGN_IN_PAGE, { force: true });
   }
 }
