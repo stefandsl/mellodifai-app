@@ -127,7 +127,7 @@ export function desktopBaseEnv(
     NEXT_TELEMETRY_DISABLED: "1",
   };
   const names = new Set(Object.keys(own).map((name) => name.toUpperCase()));
-  const env: NodeJS.ProcessEnv = {};
+  const env: Record<string, string | undefined> = {};
   for (const [name, value] of Object.entries(parent))
     if (
       !/^(SUPABASE_|NEXT_PUBLIC_|MDF_|TEST_|SITE_URL$|E2E_|RUNNER_TEMP$|WORKER_FAKE$)/i.test(
@@ -136,7 +136,7 @@ export function desktopBaseEnv(
       !names.has(name.toUpperCase())
     )
       env[name] = value;
-  return { ...env, ...own };
+  return { ...env, ...own } as NodeJS.ProcessEnv;
 }
 
 /**
