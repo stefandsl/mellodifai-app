@@ -67,6 +67,13 @@ export function isLook(preset: VisualizerPreset): preset is LookPreset {
 type At = { cx: number; cy: number; r: number };
 const TAU = Math.PI * 2;
 
+// The lower band (captions, a lyric line, the platform's own subtitles) stays free of the look's
+// title: a title asked for lower is drawn at its top edge.
+const CAPTION_BAND = 0.8;
+function titleAt(ctx: Canvas2D, scene: VisualizerScene, y: number): void {
+  drawTitle(ctx, scene, Math.min(y, scene.height * CAPTION_BAND));
+}
+
 // Where each look puts its centre image (for square pictures, the centre and half the side).
 export function lookCenter(
   params: VisualizerParams,
@@ -469,7 +476,7 @@ function dotline(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const at = lookCenter(scene.params, w, h);
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(P, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.85));
+  titleAt(ctx, scene, h * (tall ? 0.8 : 0.85));
 }
 
 // ---- P2 Burst: a glowing sine spindle, loudest in the middle, with echoes ---------------------
@@ -559,7 +566,7 @@ function burst(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   const at = lookCenter(scene.params, w, h);
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(S, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.85));
+  titleAt(ctx, scene, h * (tall ? 0.8 : 0.85));
 }
 
 // ---- P3 Corona: a radial ring of teeth round the cover ----------------------------------------
@@ -641,7 +648,7 @@ function crown(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.stroke();
   ctx.restore();
   roundImageAt(ctx, scene, { cx, cy, r: at.r - 2 * u }, level, false);
-  drawTitle(ctx, scene, Math.min(h * 0.93, cy + at.r + maxT + 0.09 * s));
+  titleAt(ctx, scene, Math.min(h * 0.93, cy + at.r + maxT + 0.09 * s));
 }
 
 // ---- P4 Anello a Filo: a thin spiky ring with a timer -----------------------------------------
@@ -748,7 +755,7 @@ function wirering(ctx: Canvas2D, scene: VisualizerScene, level: number) {
     scene,
     scene.title.trim().toUpperCase(),
     cx,
-    Math.min(h * 0.9, cy + r + depth + s * 0.12),
+    Math.min(h * CAPTION_BAND, cy + r + depth + s * 0.12),
     typeScale(scene).title,
     { weight: 500, align: "center", tracking: 0.06, maxWidth: w * 0.86 },
   );
@@ -1621,7 +1628,7 @@ function contours(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.restore();
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(P, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.8 : 0.92));
+  titleAt(ctx, scene, h * (tall ? 0.8 : 0.92));
 }
 
 function ridges(ctx: Canvas2D, scene: VisualizerScene, level: number, at: At) {
@@ -1681,7 +1688,7 @@ function ridges(ctx: Canvas2D, scene: VisualizerScene, level: number, at: At) {
   ctx.restore();
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(P, 0.9), 3 * u);
-  drawTitle(ctx, scene, h * (tall ? 0.86 : 0.92));
+  titleAt(ctx, scene, h * (tall ? 0.86 : 0.92));
 }
 
 // ---- P11 Synthwave: a neon grid floor, a striped sun and the wave on the horizon --------------
@@ -2279,7 +2286,7 @@ function shaped(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   ctx.restore();
   roundImageAt(ctx, scene, at, level, false);
   thinRing(ctx, at, rgba(P, 0.9), 3 * u);
-  drawTitle(
+  titleAt(
     ctx,
     scene,
     radial
