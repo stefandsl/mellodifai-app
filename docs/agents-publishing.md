@@ -18,6 +18,9 @@ dashboard; they plug in later behind the same `PublishingProvider` interface
   own clock (never YouTube `publishAt`). Right before that, the worker pushes the approved title,
   description, tags and thumbnail text to the video (`publish/yt.py update`); if YouTube refuses,
   the video stays private and the plan shows `metadata_update_failed`.
+- When the song has a valid chapter list (first at 0:00, at least 3 chapters of 10 s or more),
+  `publish_request_approval` appends it to the description once, before the card freezes the
+  payload: the public description is exactly the approved one.
 - The veto stays open until the provider handoff starts, also after a delayed slot. Any token with
   scope `create` may veto; after the handoff a veto answers `conflict`.
 - Any edit of the title, description, tags, thumbnail text or slot cancels a pending approval card.

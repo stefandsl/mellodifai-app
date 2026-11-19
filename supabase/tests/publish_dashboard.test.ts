@@ -372,6 +372,7 @@ it("an edit after the card invalidates it; the owner's yes schedules a private u
       title: "Titolo cambiato",
       description: "Descrizione",
       tags: "musica,ai",
+      chapters: "",
     });
     // Scheduled: no more edits without a veto, and no cancel either.
     expect(
@@ -1162,6 +1163,49 @@ const SECTIONS = [
   { title: "Ritornello", start: 42 },
 ];
 const CHAPTERS = "0:00 Intro\n0:15 Strofa\n0:42 Ritornello";
+
+it("the chapter list joins the description before the card freezes it, once", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const { version, render } = await video(tx, owner.user_id);
+    await tx`update public.versions set storyboard_sections=${tx.json(SECTIONS)} where id=${version}`;
+    const id = await plan(tx, pat, version, inHours(3));
+    const asked = await op(tx, "publish_request_approval", pat, id);
+    expect(asked.data.destinations[0].draft.description).toBe(
+      `Descrizione\n\n${CHAPTERS}`,
+    );
+    // An edit invalidates the card; asking again does not add it twice.
+    await op(tx, "publish_draft_edit", pat, id, "youtube", { title: "Altro" });
+    const again = await op(tx, "publish_request_approval", pat, id);
+    expect(again.data.destinations[0].draft.description).toBe(
+      `Descrizione\n\n${CHAPTERS}`,
+    );
+    const [card] =
+      await tx`select payload_hash = ops._publish_hash(schedule_id) as fresh from public.approval_requests where id=${again.data.approval.approval_id}`;
+    expect(card.fresh).toBe(true);
+    await op(
+      tx,
+      "publish_approval_decide",
+      owner,
+      again.data.approval.approval_id,
+      "approve",
+    );
+    // The private upload sends the approved description; the stage adds no second list.
+    const [job] =
+      await tx`select payload from public.jobs where stage='publish' and payload->>'render_id'=${render}`;
+    expect(job.payload.metadata).toMatchObject({
+      description: `Descrizione\n\n${CHAPTERS}`,
+      chapters: "",
+    });
+    // Fewer than three chapters: YouTube would ignore them, nothing is added.
+    const short = await video(tx, owner.user_id);
+    await tx`update public.versions set storyboard_sections=${tx.json(SECTIONS.slice(0, 2))} where id=${short.version}`;
+    const s2 = await plan(tx, owner, short.version, inHours(3));
+    const done = await op(tx, "publish_request_approval", owner, s2);
+    expect(done.data.destinations[0].draft.description).toBe("Descrizione");
+  });
+});
 
 it("an old render attempt's YouTube upload does not block a plan for the current video", async () => {
   await fixture(async (tx) => {

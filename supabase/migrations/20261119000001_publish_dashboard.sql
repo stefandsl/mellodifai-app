@@ -176,6 +176,58 @@ begin
 end;
 $$;
 
+-- The chapter list the private upload adds (publicationDefaults in
+-- packages/shared/src/publication-defaults.ts: the render's or the version's storyboard sections,
+-- the first at 0:00, a section less than 10 s after the previous one skipped), or null when
+-- YouTube would not accept it (fewer than 3 chapters).
+create function ops._publish_chapters(p_schedule uuid) returns text
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+declare v_sections jsonb; sec record; v_last integer := -10; v_start integer; v_first boolean := true; v_lines text[] := '{}';
+begin
+  select coalesce(r.qa_results#>'{assets,storyboard_sections}', v.storyboard_sections) into v_sections
+    from public.publish_schedules s join public.renders r on r.id=s.render_id join public.versions v on v.id=s.version_id
+    where s.id=p_schedule;
+  if jsonb_typeof(v_sections) is distinct from 'array' then return null; end if;
+  for sec in select x->>'title' title, (x->>'start')::numeric start_at from jsonb_array_elements(v_sections) with ordinality e(x,n)
+    where jsonb_typeof(x->'title')='string' and jsonb_typeof(x->'start')='number' and (x->>'start')::numeric >= 0
+    order by (x->>'start')::numeric, n loop
+    v_start := case when v_first then 0 else floor(sec.start_at)::integer end;
+    v_first := false;
+    if v_start - v_last < 10 then continue; end if;
+    v_lines := v_lines || ((v_start / 60)::text || ':' || lpad((v_start % 60)::text, 2, '0') || ' ' || sec.title);
+    v_last := v_start;
+  end loop;
+  if cardinality(v_lines) < 3 then return null; end if;
+  return array_to_string(v_lines, E'\n');
+end;
+$$;
+
+-- The description with the chapter list appended once, as publish/yt.py update does: unchanged
+-- when it already holds that list or its own valid chapters (first at 0:00, at least 3, each at
+-- least 10 s), or when the result would pass YouTube's 5000 characters.
+create function ops._publish_with_chapters(p_description text, p_chapters text) returns text
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+declare v_line text; v_hit text[]; v_starts integer[] := '{}'; v_out text;
+begin
+  if p_chapters is null or position(p_chapters in p_description) > 0 then return p_description; end if;
+  foreach v_line in array regexp_split_to_array(p_description || E'\n', E'\r?\n') loop
+    v_hit := regexp_match(btrim(v_line), '^(?:(\d+):)?(\d+):([0-5]\d)\s+\S');
+    if v_hit is not null then
+      v_starts := v_starts || (coalesce(v_hit[1]::integer,0) * 3600 + v_hit[2]::integer * 60 + v_hit[3]::integer);
+    else
+      if cardinality(v_starts) >= 3 and v_starts[1] = 0 and not exists (select 1 from generate_subscripts(v_starts,1) i
+        where i > 1 and v_starts[i] - v_starts[i-1] < 10) then
+        return p_description;
+      end if;
+      v_starts := '{}';
+    end if;
+  end loop;
+  v_out := case when btrim(p_description, E' \t\r\n') = '' then p_chapters
+    else rtrim(p_description, E' \t\r\n') || E'\n\n' || p_chapters end;
+  return case when length(v_out) > 5000 then p_description else v_out end;
+end;
+$$;
+
 -- The frozen payload of an approval: render, slot and every destination draft.
 create function ops._publish_hash(p_schedule uuid) returns text
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
@@ -275,8 +327,9 @@ begin
     select 1 from public.publications p join public.renders pr on pr.id=p.render_id
     where pr.version_id=s.version_id and pr.render_attempt=r.render_attempt and p.upload_state in ('uploading','uploaded')
   ) then
+    -- The approved description already holds the chapter list: the stage adds none.
     perform public.enqueue_publish(s.render_id,jsonb_build_object('title',d.draft->>'title',
-      'description',d.draft->>'description',
+      'description',d.draft->>'description','chapters','',
       'tags',coalesce((select string_agg(t,',') from jsonb_array_elements_text(d.draft->'tags') t),'')));
     perform ops._publish_event(s.id,d.id,'private_upload_queued',p_actor,'{}'::jsonb);
   end if;
@@ -294,7 +347,7 @@ declare
   s public.publish_schedules; d public.publish_destinations; v public.versions; r public.renders;
   ap public.approval_requests; rl public.publish_rules;
   v_platform text; v_slot timestamptz; v_draft jsonb; v_sid uuid; v_hash text; v_missing integer;
-  v_blocked_at timestamptz; v_price numeric;
+  v_blocked_at timestamptz; v_price numeric; v_chapters text;
 begin
   -- Owner settings: standing rules and the pending approval cards.
   if p_op = 'publish_rules_list' then
@@ -439,6 +492,16 @@ begin
     if s.state in ('awaiting_approval','scheduled','publishing') then return ops._publish_view(s.id); end if;
     if s.state <> 'draft' then raise exception 'a draft is required'; end if;
     if s.slot_at is null or s.slot_at <= now() then raise exception 'invalid slot'; end if;
+    -- The chapter list joins the description before the card freezes the payload, so the public
+    -- description is the one the owner approves.
+    v_chapters := ops._publish_chapters(s.id);
+    if v_chapters is not null then
+      update public.publish_destinations x set draft=jsonb_set(x.draft,'{description}',
+          to_jsonb(ops._publish_with_chapters(coalesce(x.draft->>'description',''),v_chapters))),updated_at=now()
+        where x.schedule_id=s.id and x.platform='youtube'
+          and ops._publish_with_chapters(coalesce(x.draft->>'description',''),v_chapters) is distinct from coalesce(x.draft->>'description','');
+      if found then perform ops._publish_event(s.id,null,'chapters_added','system','{}'::jsonb); end if;
+    end if;
     if exists (select 1 from public.publish_destinations x where x.schedule_id=s.id
       and jsonb_array_length(ops._publish_problems(x.platform,x.draft) || ops._publish_thumbnail_problems(s.id,x.draft)) > 0) then
       raise exception 'invalid draft';
@@ -939,6 +1002,7 @@ grant execute on function ops._publish_event(uuid, uuid, text, text, jsonb), ops
   ops._publish_hash(uuid), ops._publish_price(uuid), ops._publish_guard_publication(), ops._publish_draft_clean(jsonb), ops._publish_view(uuid), ops._publish_activate(uuid, text),
   ops._publish_do(jsonb, text, jsonb), ops._publish_summary(uuid), ops._publish_run(jsonb, text, jsonb, text, boolean),
   ops._publish_thumbnail_problems(uuid, jsonb), ops.publish_dispatch_hold(uuid, uuid, text),
+  ops._publish_chapters(uuid), ops._publish_with_chapters(text, text),
   ops.publish_dispatch_recover(text), ops.publish_dispatch_claim(text, integer), ops.publish_dispatch_intent(uuid, uuid),
   ops.publish_dispatch_handoff(uuid, uuid), ops.publish_dispatch_finish(uuid, uuid, text, text, text) to service_role;
 grant execute on function ops.publish_plan(jsonb, uuid, jsonb, jsonb), ops.publish_draft_edit(jsonb, uuid, text, jsonb),
