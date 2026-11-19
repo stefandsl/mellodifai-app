@@ -1977,7 +1977,7 @@ function titleLines(
 }
 
 function editorial(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
-  const { w, h, s, u, tall, P, S } = sizes(scene);
+  const { w, h, s, u, tall, P } = sizes(scene);
   const t = scene.time;
   const enter = easeOut(t / 0.8);
   const photo = editorialPhoto(w, h).map(([x, y]) => [
@@ -2045,16 +2045,9 @@ function editorial(ctx: Canvas2D, scene: VisualizerScene, _level: number) {
     : artistY - typeScale(scene).artist / 2 + title.px * 0.5;
   for (const line of title.lines) {
     const tx = x + (1 - enter) * -18 * u;
-    // A faint filled echo behind the outline.
-    textLine(ctx, scene, line, tx + 10 * u, ty + 10 * u, title.px, {
-      weight: 500,
-      color: rgba(S, 0.22),
-      shadow: false,
-    });
     textLine(ctx, scene, line, tx, ty, title.px, {
       weight: 500,
       color: "#ffffff",
-      outline: 2 * u,
     });
     ty += title.px * 1.04;
   }
