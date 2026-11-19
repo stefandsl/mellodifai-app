@@ -304,6 +304,30 @@ function languageName(code: string): string | undefined {
   }
 }
 
+// The letters a language is written in; every other language uses the Latin alphabet.
+const SCRIPTS: Record<string, RegExp> = {
+  ja: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+  zh: /\p{Script=Han}/u,
+  ko: /[\p{Script=Hangul}\p{Script=Han}]/u,
+  ru: /\p{Script=Cyrillic}/u,
+  uk: /\p{Script=Cyrillic}/u,
+  bg: /\p{Script=Cyrillic}/u,
+  el: /\p{Script=Greek}/u,
+  ar: /\p{Script=Arabic}/u,
+  he: /\p{Script=Hebrew}/u,
+  hi: /\p{Script=Devanagari}/u,
+};
+
+// Share of the sung letters (section tags left out) written in the language's script; 1 when
+// there are no letters.
+function scriptShare(lyrics: string, lang: string): number {
+  const script =
+    SCRIPTS[lang.toLowerCase().split("-")[0]] ?? /\p{Script=Latin}/u;
+  const letters = lyrics.replace(/\[[^\]]*\]/gu, "").match(/\p{L}/gu) ?? [];
+  if (letters.length === 0) return 1;
+  return letters.filter((c) => script.test(c)).length / letters.length;
+}
+
 // Lower case letters and digits only, one space between words.
 function words(text: string): string {
   return text
@@ -347,6 +371,13 @@ async function chatVerdict(
   if (wanted && seen && !seen.toLowerCase().includes(wanted.toLowerCase())) {
     scores.language = 0;
     issues.unshift(`The lyrics are in ${seen}, not ${wanted}.`);
+  }
+  // Judges echo the requested language; the writing system cannot lie.
+  if (scriptShare(draft.lyrics, context.lang) < 0.5) {
+    scores.language = 0;
+    issues.unshift(
+      `The lyrics are not written in the script of ${wanted ?? context.lang}.`,
+    );
   }
   // Judges miss a reused reference title; a plain text match does not.
   const reference = words(context.referenceTitle);
