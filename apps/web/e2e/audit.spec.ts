@@ -501,6 +501,7 @@ const SCAN = ({
         .split(/\s+/u)
         .map((id) => document.getElementById(id)?.textContent ?? "")
         .join(" ");
+    // biome-ignore lint/performance/useDomNodeTextContent: the audit reads the rendered text, which skips hidden nodes
     const text = (el as HTMLElement).innerText?.trim();
     if (text) return text;
     return el.getAttribute("title") ?? el.getAttribute("href") ?? "";
@@ -600,6 +601,7 @@ const OVERLAPS = (titles: string[]): string[] => {
   const label = (el: Element) => {
     let text = (
       el.getAttribute("aria-label") ??
+      // biome-ignore lint/performance/useDomNodeTextContent: the audit reads the rendered text, which skips hidden nodes
       (el as HTMLElement).innerText ??
       el.tagName
     )
