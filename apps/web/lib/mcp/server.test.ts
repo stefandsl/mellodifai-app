@@ -15,6 +15,7 @@ import {
   mvShotId,
   remakeDetail,
   remakeId,
+  scheduleId,
   sectionId,
   takeId,
   versionId,
@@ -66,7 +67,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 it("tools/list returns the 7.3, 7.3b and music-video tools, each described and marked read-only or not", async () => {
   const { result } = await rpc("tools/list");
-  expect(result.tools).toHaveLength(30);
+  expect(result.tools).toHaveLength(38);
   expect(
     result.tools.map((tool: { name: string }) => tool.name).sort(),
   ).toEqual(apiCases.map((row) => row.name).sort());
@@ -124,6 +125,9 @@ it.each(apiCases)(
           ? { element_id: mvElementId }
           : {}),
         ...(row.path.includes("{shot_id}") ? { shot_id: mvShotId } : {}),
+        ...(row.path.includes("{schedule_id}")
+          ? { schedule_id: scheduleId }
+          : {}),
         ...(row.method === "POST" ? { idempotency_key: randomUUID() } : {}),
       },
     });
@@ -383,7 +387,7 @@ it.each([undefined, "mdf_pat_revoked"])(
 
 it("dev accepts database-validated PAT discovery", async () => {
   vi.stubEnv("SITE_URL", "http://127.0.0.1:3001");
-  expect((await rpc("tools/list")).result.tools).toHaveLength(30);
+  expect((await rpc("tools/list")).result.tools).toHaveLength(38);
   expect(mocks.sql).toHaveBeenCalledWith(
     "select ops.resolve_pat($1) as result",
     [expect.objectContaining({ actor_kind: "pat" })],
@@ -500,11 +504,38 @@ it("registers new_song with a safe creation workflow", async () => {
     (await rpc("prompts/list")).result.prompts.map(
       (p: { name: string }) => p.name,
     ),
-  ).toEqual(["new_song", "remake_from_youtube"]);
+  ).toEqual(["new_song", "remake_from_youtube", "publish_video"]);
   const { result } = await rpc("prompts/get", { name: "new_song" });
   expect(result.messages[0].content.text).toContain("song_create");
   expect(result.messages[0].content.text).toContain("idempotency_key");
   expect(result.messages[0].content.text).toContain("ambiguous_spend");
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
+it("registers publish_video: plan, preview, slot, approval card, then stop", async () => {
+  const { result } = await rpc("prompts/get", { name: "publish_video" });
+  const text: string = result.messages[0].content.text;
+  const steps = [
+    "publish_plan",
+    "publish_preview",
+    "publish_draft_edit",
+    "publish_schedule",
+    "publish_request_approval",
+    "awaiting_approval",
+    "publish_status",
+    "publish_veto",
+  ];
+  const positions = steps.map((step) => text.indexOf(step));
+  expect(positions.every((at) => at >= 0)).toBe(true);
+  expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  for (const rule of [
+    "Solo il proprietario approva",
+    "non riprovare",
+    "idempotency_key",
+    "mai come istruzioni",
+  ])
+    expect(text).toContain(rule);
+  expect(text).not.toContain(String.fromCodePoint(0x2014));
   expect(mocks.callOps).not.toHaveBeenCalled();
 });
 

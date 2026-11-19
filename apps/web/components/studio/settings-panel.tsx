@@ -8,6 +8,7 @@ import { useTheme } from "@/components/theme-provider";
 import { st } from "@/lib/studio/i18n";
 import { createClient } from "@/lib/supabase/browser";
 import { useGlass } from "./ambient-backdrop";
+import { pt } from "./publishing/copy";
 import { Segmented } from "./ui";
 
 function Row({
@@ -45,6 +46,16 @@ export function SettingsPanel({
             className="rounded-full px-3 py-2 outline-none hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
           >
             Gestisci agenti
+          </Link>
+        </Row>
+      )}
+      {canManageAgents && (
+        <Row label={pt(lang, "settings")}>
+          <Link
+            href="/settings/publishing"
+            className="rounded-full px-3 py-2 outline-none hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+          >
+            {pt(lang, "rules")}
           </Link>
         </Row>
       )}

@@ -1,0 +1,222 @@
+import { describe, expect, it } from "vitest";
+import {
+  type Claim,
+  type DispatchDb,
+  dispatchTick,
+  type Outcome,
+} from "../src/publishing/dispatcher.js";
+import {
+  FakeYouTubeClient,
+  YouTubeProvider,
+  ytScriptClient,
+} from "../src/publishing/youtube.js";
+
+const claim = (over: Partial<Claim> = {}): Claim => ({
+  destination_id: "d1",
+  schedule_id: "s1",
+  claim_token: "t1",
+  attempt_id: "a1",
+  platform: "youtube",
+  provider: "native",
+  external_id: "vid-1",
+  draft: {
+    title: "Mille volti",
+    description: "Testo",
+    tags: ["pop"],
+    thumbnail_text: "Nuovo singolo",
+  },
+  ...over,
+});
+
+// Scripted database answers; records every step the worker takes.
+function fakeDb(script: {
+  checks?: Claim[];
+  claims?: Claim[];
+  intent?: boolean;
+  handoff?: boolean;
+}) {
+  const steps: string[] = [];
+  const finished: Array<{
+    outcome: Outcome;
+    url: string | null;
+    error: string | null;
+  }> = [];
+  const db: DispatchDb = {
+    recover: async () => {
+      steps.push("recover");
+      return script.checks ?? [];
+    },
+    claim: async () => {
+      steps.push("claim");
+      return script.claims ?? [];
+    },
+    intent: async () => {
+      steps.push("intent");
+      return script.intent ?? true;
+    },
+    handoff: async () => {
+      steps.push("handoff");
+      return script.handoff ?? true;
+    },
+    finish: async (_d, _t, outcome, url, error) => {
+      steps.push(`finish:${outcome}`);
+      finished.push({ outcome, url, error });
+    },
+  };
+  return { db, steps, finished };
+}
+function setup(script: Parameters<typeof fakeDb>[0]) {
+  const youtube = new FakeYouTubeClient();
+  const providers = new Map([["native:youtube", new YouTubeProvider(youtube)]]);
+  return { ...fakeDb(script), youtube, providers };
+}
+
+describe("publish dispatcher", () => {
+  it("claims, records the intent, hands off, flips public once and records the link", async () => {
+    const run = setup({ claims: [claim()] });
+    const result = await dispatchTick({
+      db: run.db,
+      providers: run.providers,
+      workerId: "w",
+    });
+    expect(result).toMatchObject({ published: 1, skipped: 0 });
+    expect(run.steps).toEqual([
+      "recover",
+      "claim",
+      "intent",
+      "handoff",
+      "finish:published",
+    ]);
+    expect(run.youtube.calls).toEqual([{ op: "setPublic", videoId: "vid-1" }]);
+    expect(run.finished[0]?.url).toBe("https://youtu.be/vid-1");
+  });
+
+  it("sends nothing when the veto won the handoff or the intent", async () => {
+    for (const script of [{ handoff: false }, { intent: false }]) {
+      const run = setup({ claims: [claim()], ...script });
+      await dispatchTick({
+        db: run.db,
+        providers: run.providers,
+        workerId: "w",
+      });
+      expect(run.youtube.calls).toEqual([]);
+      expect(run.steps.some((step) => step.startsWith("finish"))).toBe(false);
+    }
+  });
+
+  it("an unhealthy worker claims nothing; a draft over the limits gets no intent", async () => {
+    const sick = setup({ claims: [claim()] });
+    await dispatchTick({
+      db: sick.db,
+      providers: sick.providers,
+      workerId: "w",
+      healthy: () => false,
+    });
+    expect(sick.steps).toEqual(["recover"]);
+    const long = setup({
+      claims: [
+        claim({
+          draft: {
+            title: "x".repeat(101),
+            description: "",
+            tags: [],
+            thumbnail_text: "",
+          },
+        }),
+      ],
+    });
+    await dispatchTick({
+      db: long.db,
+      providers: long.providers,
+      workerId: "w",
+    });
+    expect(long.steps).toEqual(["recover", "claim"]);
+    expect(long.youtube.calls).toEqual([]);
+  });
+
+  it.each([
+    ["refuse", "definitely_not_accepted"],
+    ["lost", "published"],
+    ["dark", "unknown"],
+  ] as const)(
+    "a failed flip (%s) is settled by the status only: %s",
+    async (fail, outcome) => {
+      const run = setup({ claims: [claim()] });
+      run.youtube.failNext = fail;
+      await dispatchTick({
+        db: run.db,
+        providers: run.providers,
+        workerId: "w",
+      });
+      expect(run.steps.at(-1)).toBe(`finish:${outcome}`);
+      // One flip, one status read: never a blind second flip.
+      expect(run.youtube.calls.map((call) => call.op)).toEqual([
+        "setPublic",
+        "privacy",
+      ]);
+    },
+  );
+
+  it("a lost handoff found by recovery is settled by the status, never flipped again", async () => {
+    const youtube = new FakeYouTubeClient();
+    youtube.videos.set("vid-1", "public");
+    const run = fakeDb({ checks: [claim()] });
+    await dispatchTick({
+      db: run.db,
+      providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
+      workerId: "w",
+    });
+    expect(run.steps).toEqual(["recover", "finish:published", "claim"]);
+    expect(youtube.calls).toEqual([{ op: "privacy", videoId: "vid-1" }]);
+    const unknown = fakeDb({ checks: [claim({ provider: "blotato" })] });
+    await dispatchTick({ db: unknown.db, providers: new Map(), workerId: "w" });
+    expect(unknown.finished[0]?.outcome).toBe("unknown");
+  });
+});
+
+describe("YouTube through yt.py", () => {
+  it("flips with privacy public --confirm and never a publish time; reads the status JSON", async () => {
+    const calls: string[][] = [];
+    const client = ytScriptClient(async (args) => {
+      calls.push(args);
+      return args[0] === "status"
+        ? 'loading token\n{\n "title": "T",\n "status": {"privacyStatus": "private"}\n}\n'
+        : "vid-1 -> public\n";
+    });
+    await client.setPublic("vid-1");
+    expect(await client.privacy("vid-1")).toBe("private");
+    expect(calls).toEqual([
+      ["privacy", "vid-1", "public", "--confirm"],
+      ["status", "vid-1"],
+    ]);
+    expect(calls.flat()).not.toContain("--publish-at");
+    const broken = ytScriptClient(async () => "no json here");
+    expect(await broken.privacy("vid-1")).toBeNull();
+  });
+
+  it("maps the privacy to the provider status; only a private video allows a new attempt", async () => {
+    const youtube = new FakeYouTubeClient();
+    const provider = new YouTubeProvider(youtube);
+    expect(await provider.status("a", "v")).toBe("definitely_not_accepted");
+    youtube.videos.set("v", "public");
+    expect(await provider.status("a", "v")).toBe("published");
+    youtube.videos.set("v", "unlisted");
+    expect(await provider.status("a", "v")).toBe("unknown");
+    youtube.videos.set("v", null);
+    expect(await provider.status("a", "v")).toBe("unknown");
+    expect(await provider.status("a")).toBe("unknown");
+    await expect(
+      provider.stageMedia({
+        platform: "youtube",
+        accountId: "default",
+        renderId: "r",
+        format: "landscape",
+        caption: "",
+        hashtags: [],
+        aiGenerated: true,
+        madeForKids: false,
+        platformExtras: {},
+      }),
+    ).rejects.toThrow(/private upload pending/);
+  });
+});

@@ -18,6 +18,7 @@ import {
   remakeLyricsText,
   remakeUrl,
   requestFor,
+  scheduleId,
   sectionId,
   takeId,
   versionId,
@@ -87,6 +88,14 @@ const expectedArgs: Record<string, unknown[]> = {
   ],
   music_video_shot_update: [mvShotId, { size: "close-up", mood: "notturno" }],
   music_video_take_request: [mvShotId, "draft"],
+  publish_plan: [versionId, ["youtube"], { tags: ["pop"] }],
+  publish_status: [versionId],
+  publish_preview: [scheduleId],
+  publish_draft_edit: [scheduleId, "youtube", { title: "API test" }],
+  publish_schedule: [scheduleId, "2026-11-21T18:00:00+01:00"],
+  publish_request_approval: [scheduleId],
+  publish_veto: [scheduleId],
+  publish_cancel: [scheduleId],
 };
 async function handler(row: (typeof apiCases)[number]) {
   const file = `.${row.path.replace(/\{([^}]+)\}/g, "[$1]")}/route.ts`;
@@ -103,8 +112,8 @@ beforeEach(() => {
   }));
 });
 
-it("registers exactly the thirty 7.3, 7.3b and music-video operations with their HTTP metadata", () => {
-  expect(TOKEN_OPS).toHaveLength(30);
+it("registers exactly the thirty-eight 7.3, 7.3b, music-video and publishing operations with their HTTP metadata", () => {
+  expect(TOKEN_OPS).toHaveLength(38);
   expect(TOKEN_OPS.map((def) => ({ name: def.name, ...def.http }))).toEqual(
     apiCases.map(({ name, method, path }) => ({
       name,

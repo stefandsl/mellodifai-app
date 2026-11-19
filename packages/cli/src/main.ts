@@ -32,7 +32,7 @@ async function main() {
       data: {
         commands,
         usage:
-          "login --url <origine> (PAT da stdin); songs|costs|remakes [--input filtri.json]; create --input canzone.json; status <job> [--watch]; approve <versione> --input testo.json; regenerate <versione> --input generazione.json; video <versione>; pick <versione> <take>; approve-video <versione>; remake <link> [--lang it] [--country IT]; remake-status <rifacimento> [--watch]; remake-edit <rifacimento> --input modifiche.json; remake-accept <rifacimento> --input accetta.json; remake-cancel <rifacimento>; remake-retry <rifacimento>; tools; call <strumento> [--input argomenti.json]; mcp. --json su tutti; --idempotency-key <chiave> sulle scritture. --input - legge JSON da stdin.",
+          "login --url <origine> (PAT da stdin); songs|costs|remakes [--input filtri.json]; create --input canzone.json; status <job> [--watch]; approve <versione> --input testo.json; regenerate <versione> --input generazione.json; video <versione>; pick <versione> <take>; approve-video <versione>; remake <link> [--lang it] [--country IT]; remake-status <rifacimento> [--watch]; remake-edit <rifacimento> --input modifiche.json; remake-accept <rifacimento> --input accetta.json; remake-cancel <rifacimento>; remake-retry <rifacimento>; publish-plan <versione> [--input bozza.json]; publish-status <versione>; publish-preview <piano>; publish-edit <piano> --input bozza.json; publish-schedule <piano> <data ISO con fuso>; publish-request <piano>; publish-veto <piano>; publish-cancel <piano>; tools; call <strumento> [--input argomenti.json]; mcp. --json su tutti; --idempotency-key <chiave> sulle scritture. --input - legge JSON da stdin.",
       },
     });
     return;

@@ -56,6 +56,18 @@ describe("remake and take commands", () => {
     [["remake-retry", "r1"], "/api/v1/remakes/r1/retry", "POST"],
     [["pick", "v1", "t/2"], "/api/v1/songs/v1/takes/t%2F2/pick", "POST"],
     [["approve-video", "v1"], "/api/v1/songs/v1/video/approve", "POST"],
+    [["publish-plan", "v1"], "/api/v1/publish/plans", "POST"],
+    [["publish-status", "v1"], "/api/v1/songs/v1/publish", "GET"],
+    [["publish-preview", "s1"], "/api/v1/publish/s1", "GET"],
+    [["publish-edit", "s1"], "/api/v1/publish/s1/draft", "POST"],
+    [
+      ["publish-schedule", "s1", "2026-11-21T18:00:00+01:00"],
+      "/api/v1/publish/s1/schedule",
+      "POST",
+    ],
+    [["publish-request", "s1"], "/api/v1/publish/s1/request-approval", "POST"],
+    [["publish-veto", "s1"], "/api/v1/publish/s1/veto", "POST"],
+    [["publish-cancel", "s1"], "/api/v1/publish/s1/cancel", "POST"],
   ])("routes %j to %s with %s", async (args, path, method) => {
     const sent = stub();
     await cli(args, { revision: 3 });
@@ -78,6 +90,25 @@ describe("remake and take commands", () => {
     await cli(["remake-cancel", "r1"]);
     await cli(["pick", "v1", "t1"]);
     expect(sent.map((entry) => entry.body)).toEqual([accept, {}, {}]);
+  });
+
+  it("sends the publishing bodies: plan with the version, edit as the draft, the slot", async () => {
+    const sent = stub();
+    await cli(["publish-plan", "v1", "--input", "plan.json"], {
+      draft: { title: "Titolo" },
+      version_id: "other",
+    });
+    await cli(["publish-edit", "s1", "--input", "draft.json"], {
+      tags: ["pop"],
+    });
+    await cli(["publish-schedule", "s1", "2026-11-21T18:00:00+01:00"]);
+    await cli(["publish-veto", "s1"]);
+    expect(sent.map((entry) => entry.body)).toEqual([
+      { draft: { title: "Titolo" }, version_id: "v1" },
+      { draft: { tags: ["pop"] } },
+      { slot_at: "2026-11-21T18:00:00+01:00" },
+      {},
+    ]);
   });
 
   it("starts a remake with lang it by default and passes lang and country", async () => {

@@ -21,6 +21,14 @@ export const commands = [
   "remake-accept",
   "remake-cancel",
   "remake-retry",
+  "publish-plan",
+  "publish-status",
+  "publish-preview",
+  "publish-edit",
+  "publish-schedule",
+  "publish-request",
+  "publish-veto",
+  "publish-cancel",
   "tools",
   "call",
   "mcp",
@@ -66,6 +74,14 @@ const arity: Record<string, number> = {
   "remake-retry": 1,
   call: 1,
   pick: 2,
+  "publish-plan": 1,
+  "publish-status": 1,
+  "publish-preview": 1,
+  "publish-edit": 1,
+  "publish-schedule": 2,
+  "publish-request": 1,
+  "publish-veto": 1,
+  "publish-cancel": 1,
 };
 const watchable = ["status", "remake-status"];
 
@@ -201,6 +217,40 @@ export async function run(args: string[], io: CommandIO): Promise<void> {
       break;
     case "remake-retry":
       path = `/remakes/${first}/retry`;
+      body = {};
+      break;
+    // "Pubblica": plan, check, slot, ask; only the owner approves, in the app.
+    case "publish-plan":
+      path = "/publish/plans";
+      body = {
+        ...((values.input ? await io.input(values.input) : {}) as object),
+        version_id: ids[0],
+      };
+      break;
+    case "publish-status":
+      path = `/songs/${first}/publish`;
+      break;
+    case "publish-preview":
+      path = `/publish/${first}`;
+      break;
+    case "publish-edit":
+      path = `/publish/${first}/draft`;
+      body = { draft: await io.input(values.input) };
+      break;
+    case "publish-schedule":
+      path = `/publish/${first}/schedule`;
+      body = { slot_at: ids[1] };
+      break;
+    case "publish-request":
+      path = `/publish/${first}/request-approval`;
+      body = {};
+      break;
+    case "publish-veto":
+      path = `/publish/${first}/veto`;
+      body = {};
+      break;
+    case "publish-cancel":
+      path = `/publish/${first}/cancel`;
       body = {};
       break;
     default:
