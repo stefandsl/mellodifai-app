@@ -729,7 +729,7 @@ $$;
 create function ops.publish_dispatch_claim(p_worker text, p_limit integer) returns jsonb
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
 declare s public.publish_schedules; d public.publish_destinations; r public.renders; pub public.publications; out jsonb := '[]'::jsonb; v_token uuid;
-  v_owner uuid := (select w.owner_id from public.workers w where w.id=p_worker);
+  v_owner uuid := (select w.owner_id from public.workers w where w.id=p_worker); v_path text;
 begin
   if v_owner is null then raise exception 'invalid worker'; end if;
   for s in select * from public.publish_schedules where owner_id=v_owner and state in ('scheduled','publishing') and slot_at<=now()
@@ -746,6 +746,8 @@ begin
       where pr.version_id=s.version_id and pr.render_attempt=r.render_attempt and p.upload_state='uploaded'
         and p.youtube_video_id is not null
       order by p.created_at desc,p.id desc limit 1;
+    -- The uploaded render's file: the worker finds the base thumbnail next to it (stages/publish.ts).
+    v_path := (select pr.path from public.renders pr where pr.id=pub.render_id);
     for d in select * from public.publish_destinations where schedule_id=s.id and state='scheduled' order by id loop
       if d.platform='youtube' and d.provider='native' and pub.id is null then continue; end if;
       v_token := gen_random_uuid();
@@ -756,7 +758,7 @@ begin
         where id=d.id returning * into d;
       perform ops._publish_event(s.id,d.id,'claimed','system',jsonb_build_object('attempt_id',d.attempt_id));
       out := out || jsonb_build_object('destination_id',d.id,'schedule_id',s.id,'claim_token',v_token,'attempt_id',d.attempt_id,
-        'platform',d.platform,'provider',d.provider,'draft',d.draft,'external_id',d.external_id);
+        'platform',d.platform,'provider',d.provider,'draft',d.draft,'external_id',d.external_id,'render_path',v_path);
     end loop;
   end loop;
   return out;

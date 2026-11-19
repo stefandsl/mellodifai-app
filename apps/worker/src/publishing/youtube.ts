@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   lintYouTubeDraft,
   type Platform,
@@ -6,15 +9,28 @@ import {
   type ProviderStatus,
   type PublishingProvider,
 } from "@mellodifai/shared";
+import { workerTempDir } from "../runtime.js";
 import { PublishError } from "./dispatcher.js";
 
 // The YouTube Data API through the engine's publish/yt.py, or a fake in WORKER_FAKE mode.
 // The private upload is the existing `publish` stage (stages/publish.ts, privacyStatus private);
-// this client only flips an uploaded private video to public at the app's slot and reads it back.
+// this client pushes the approved metadata, flips the private video to public at the app's slot
+// and reads it back.
 // The video's privacyStatus and its YouTube publishAt (set by the old flow), or null when YouTube
 // did not answer.
 export type VideoState = { privacy: string; publishAt: string | null };
+// What the owner approved; the private upload may carry an older draft (veto, then a new plan).
+export type ApprovedMeta = {
+  title: string;
+  description: string;
+  tags: string[];
+  thumbnailText: string;
+  // The base thumbnail the approved text goes on; null when it is not known.
+  thumbnail: string | null;
+};
 export interface YouTubeClient {
+  // videos.update of the snippet, then the thumbnail with the approved text; throws on refusal.
+  update(videoId: string, meta: ApprovedMeta): Promise<void>;
   // Public now. Never sends publishAt: the app owns the clock.
   setPublic(videoId: string): Promise<void>;
   state(videoId: string): Promise<VideoState | null>;
@@ -22,8 +38,30 @@ export interface YouTubeClient {
 
 export type ScriptRunner = (args: string[]) => Promise<string>;
 
-export function ytScriptClient(run: ScriptRunner): YouTubeClient {
+export function ytScriptClient(
+  run: ScriptRunner,
+  tempDir: string = workerTempDir(),
+): YouTubeClient {
   return {
+    async update(videoId, meta) {
+      await mkdir(tempDir, { recursive: true });
+      const file = join(tempDir, `yt-approved-${randomUUID()}.json`);
+      await writeFile(
+        file,
+        JSON.stringify({
+          title: meta.title,
+          description: meta.description,
+          tags: meta.tags,
+          thumbnail_text: meta.thumbnailText,
+          thumbnail: meta.thumbnail,
+        }),
+      );
+      try {
+        await run(["update", videoId, file, "--confirm"]);
+      } finally {
+        await rm(file, { force: true });
+      }
+    },
     async setPublic(videoId) {
       await run(["privacy", videoId, "public", "--confirm"]);
     },
@@ -54,13 +92,26 @@ export function ytScriptClient(run: ScriptRunner): YouTubeClient {
 
 // Fake YouTube for tests and the e2e stack: no network, every video starts private.
 // failNext: "refuse" = error, still private; "lost" = public but the answer is lost;
-// "dark" = error and YouTube no longer answers about this video.
+// "dark" = error and YouTube no longer answers about this video; "update" = the metadata update
+// is refused. meta holds each video's current title, description, tags and thumbnail text.
 export class FakeYouTubeClient implements YouTubeClient {
-  readonly calls: Array<{ op: "setPublic" | "state"; videoId: string }> = [];
+  readonly calls: Array<{
+    op: "update" | "setPublic" | "state";
+    videoId: string;
+  }> = [];
+  readonly meta = new Map<string, ApprovedMeta>();
   readonly videos = new Map<string, string | null>();
   // A YouTube publishAt left by the old flow.
   readonly publishAt = new Map<string, string>();
-  failNext: "refuse" | "lost" | "dark" | null = null;
+  failNext: "refuse" | "lost" | "dark" | "update" | null = null;
+  async update(videoId: string, meta: ApprovedMeta) {
+    this.calls.push({ op: "update", videoId });
+    if (this.failNext === "update") {
+      this.failNext = null;
+      throw new Error("fake YouTube refused the update");
+    }
+    this.meta.set(videoId, { ...meta, tags: [...meta.tags] });
+  }
   async setPublic(videoId: string) {
     this.calls.push({ op: "setPublic", videoId });
     const fail = this.failNext;
@@ -115,11 +166,24 @@ export class YouTubeProvider implements PublishingProvider {
       throw new Error("private upload pending");
     return { mediaRef: videoId };
   }
+  // The approved metadata first: if YouTube refuses it, the video never goes public.
   async postNow(
-    _draft: PostDraft,
+    draft: PostDraft,
     media: { mediaRef: string },
     _attemptId: string,
   ) {
+    const thumbnail = draft.platformExtras.thumbnail;
+    try {
+      await this.client.update(media.mediaRef, {
+        title: draft.title ?? "",
+        description: draft.caption,
+        tags: draft.hashtags,
+        thumbnailText: draft.thumbnailText ?? "",
+        thumbnail: typeof thumbnail === "string" && thumbnail ? thumbnail : null,
+      });
+    } catch (error) {
+      throw new PublishError("metadata_update_failed", String(error));
+    }
     try {
       await this.client.setPublic(media.mediaRef);
     } catch (error) {

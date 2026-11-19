@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Sql, TransactionSql } from "postgres";
 import { afterAll, expect, it } from "vitest";
+import {
+  type DispatchDb,
+  dispatchTick,
+} from "../../apps/worker/src/publishing/dispatcher";
+import {
+  FakeYouTubeClient,
+  YouTubeProvider,
+} from "../../apps/worker/src/publishing/youtube";
 import { ownerSql } from "./helpers/pg";
 import { actor, call, fixture, hash } from "./helpers/token-fixture";
 
@@ -951,5 +959,95 @@ it("the worker's error is stored and shown as a code, never as raw provider text
       .map((e: { detail: { error?: string } }) => e.detail.error)
       .filter(Boolean);
     expect(errors).toEqual(["provider_error", "metadata_update_failed"]);
+  });
+});
+
+// The real worker dispatcher over this transaction, as the owner's worker.
+function txDispatchDb(tx: Tx): DispatchDb {
+  return {
+    recover: (w) =>
+      worker(tx, "select ops.publish_dispatch_recover($1) as result", [w]),
+    claim: (w, limit) =>
+      worker(tx, "select ops.publish_dispatch_claim($1,$2) as result", [
+        w,
+        limit,
+      ]),
+    intent: (d, t) =>
+      worker(tx, "select ops.publish_dispatch_intent($1,$2) as result", [d, t]),
+    handoff: (d, t) =>
+      worker(tx, "select ops.publish_dispatch_handoff($1,$2) as result", [
+        d,
+        t,
+      ]),
+    finish: async (d, t, outcome, url, error) => {
+      await worker(
+        tx,
+        "select ops.publish_dispatch_finish($1,$2,$3,$4,$5) as result",
+        [d, t, outcome, url, error],
+      );
+    },
+  };
+}
+
+it("veto, a new plan with a new title, approval: the public video carries the new title", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const { version, render } = await video(tx, owner.user_id);
+    const approve = async (id: string) => {
+      const card = await op(tx, "publish_request_approval", pat, id);
+      expect(
+        await op(
+          tx,
+          "publish_approval_decide",
+          owner,
+          card.data.approval.approval_id,
+          "approve",
+        ),
+      ).toMatchObject({ data: { state: "scheduled" } });
+    };
+    const first = await plan(tx, pat, version, inHours(3));
+    await approve(first);
+    // The private upload went up with the first draft's title.
+    await tx`update public.jobs set status='done' where stage='publish' and payload->>'render_id'=${render}`;
+    await tx`insert into public.publications(owner_id,render_id,privacy,upload_state,youtube_video_id,privacy_applied)
+      values(${owner.user_id},${render},'private','uploaded','vid-1','private')`;
+    const youtube = new FakeYouTubeClient();
+    youtube.meta.set("vid-1", {
+      title: "Canzone di prova",
+      description: "Descrizione",
+      tags: ["musica", "ai"],
+      thumbnailText: "",
+      thumbnail: null,
+    });
+    expect(await op(tx, "publish_veto", owner, first)).toMatchObject({
+      data: { state: "vetoed" },
+    });
+    const second = await plan(tx, pat, version, inHours(3));
+    expect(
+      await op(tx, "publish_draft_edit", pat, second, "youtube", {
+        title: "Titolo nuovo",
+      }),
+    ).toMatchObject({ ok: true });
+    await approve(second);
+    // No second upload: the private video still carries the first title.
+    expect(await publishJobs(tx, render)).toBe(1);
+    await tx`update public.publish_schedules set slot_at=now()-interval '1 minute' where id=${second}`;
+    await tx`update public.approval_requests set payload_hash=ops._publish_hash(schedule_id) where schedule_id=${second} and state='approved'`;
+    const result = await dispatchTick({
+      db: txDispatchDb(tx),
+      providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
+      workerId: `wpub-${owner.user_id}`,
+    });
+    expect(result.published).toBe(1);
+    expect(youtube.calls.map((c) => c.op)).toEqual(["update", "setPublic"]);
+    expect(youtube.meta.get("vid-1")).toMatchObject({
+      title: "Titolo nuovo",
+      description: "Descrizione",
+      tags: ["musica", "ai"],
+      thumbnailText: "Nuovo singolo",
+    });
+    expect(await youtube.state("vid-1")).toMatchObject({ privacy: "public" });
+    expect(await state(tx, second)).toBe("published");
   });
 });

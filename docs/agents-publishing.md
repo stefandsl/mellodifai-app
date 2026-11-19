@@ -9,9 +9,15 @@ dashboard; they plug in later behind the same `PublishingProvider` interface
 - An agent prepares and asks. Only the owner approves, in the app (dashboard "Pubblica" or
   Settings > Pubblicazione). There is no approval tool, route or CLI command for tokens.
 - A standing rule the owner wrote (Settings > Pubblicazione) can approve by itself: same platform,
-  price within the rule's cap, and a slot that leaves at least the rule's veto window.
+  the plan's real price within the rule's cap (the native YouTube route costs 0; a provider
+  without a known price is never covered), and a slot that leaves at least the rule's veto window.
+  After a veto or a rejection of a plan for a video, no rule approves that video again: the owner's
+  card decides until the owner approves one. A rule's yes holds only while the rule still exists
+  and is active when the slot comes.
 - The video goes up **private** after the yes and becomes public only at the slot, by the app's
-  own clock (never YouTube `publishAt`).
+  own clock (never YouTube `publishAt`). Right before that, the worker pushes the approved title,
+  description, tags and thumbnail text to the video (`publish/yt.py update`); if YouTube refuses,
+  the video stays private and the plan shows `metadata_update_failed`.
 - The veto stays open until the provider handoff starts, also after a delayed slot. Any token with
   scope `create` may veto; after the handoff a veto answers `conflict`.
 - Any edit of the title, description, tags, thumbnail text or slot cancels a pending approval card.

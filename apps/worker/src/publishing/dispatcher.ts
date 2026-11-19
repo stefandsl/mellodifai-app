@@ -4,6 +4,7 @@ import {
   type PublishingProvider,
   YOUTUBE_RULES,
 } from "@mellodifai/shared";
+import { dirname, join } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // The app's publishing clock (design 2026-11-19 section 6). Every tick: settle handoffs whose
@@ -19,6 +20,8 @@ export type Claim = {
   platform: string;
   provider: string;
   external_id: string | null;
+  // The uploaded render's file; its folder holds the base thumbnail.
+  render_path?: string | null;
   draft?: {
     title: string;
     description: string;
@@ -108,7 +111,12 @@ export function postDraft(claim: Claim): PostDraft {
     thumbnailText: claim.draft?.thumbnail_text ?? "",
     aiGenerated: true,
     madeForKids: false,
-    platformExtras: { videoId: claim.external_id },
+    platformExtras: {
+      videoId: claim.external_id,
+      thumbnail: claim.render_path
+        ? join(dirname(claim.render_path), "thumbnail.png")
+        : null,
+    },
   };
 }
 

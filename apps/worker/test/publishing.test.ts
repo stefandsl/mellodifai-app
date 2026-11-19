@@ -1,3 +1,5 @@
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb } from "../src/db.js";
 import { WorkerLoop } from "../src/loop.js";
@@ -90,8 +92,49 @@ describe("publish dispatcher", () => {
       "handoff",
       "finish:published",
     ]);
-    expect(run.youtube.calls).toEqual([{ op: "setPublic", videoId: "vid-1" }]);
+    expect(run.youtube.calls).toEqual([
+      { op: "update", videoId: "vid-1" },
+      { op: "setPublic", videoId: "vid-1" },
+    ]);
+    expect(run.youtube.meta.get("vid-1")).toEqual({
+      title: "Mille volti",
+      description: "Testo",
+      tags: ["pop"],
+      thumbnailText: "Nuovo singolo",
+      thumbnail: null,
+    });
     expect(run.finished[0]?.url).toBe("https://youtu.be/vid-1");
+  });
+
+  it("a refused metadata update keeps the video private and stores the code", async () => {
+    const run = setup({
+      claims: [claim({ render_path: "E:/ws/renders/master.mp4" })],
+    });
+    run.youtube.failNext = "update";
+    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w" });
+    expect(run.youtube.calls.map((call) => call.op)).toEqual([
+      "update",
+      "state",
+    ]);
+    expect(await run.youtube.state("vid-1")).toMatchObject({
+      privacy: "private",
+    });
+    expect(run.finished[0]).toMatchObject({
+      outcome: "definitely_not_accepted",
+      error: "metadata_update_failed",
+    });
+    // The next attempt pushes the base thumbnail path found next to the render.
+    const again = setup({
+      claims: [claim({ render_path: "E:/ws/renders/master.mp4" })],
+    });
+    await dispatchTick({
+      db: again.db,
+      providers: again.providers,
+      workerId: "w",
+    });
+    expect(again.youtube.meta.get("vid-1")?.thumbnail?.replace(/\\/gu, "/")).toBe(
+      "E:/ws/renders/thumbnail.png",
+    );
   });
 
   it("sends nothing when the veto won the handoff or the intent", async () => {
@@ -154,6 +197,7 @@ describe("publish dispatcher", () => {
       expect(run.steps.at(-1)).toBe(`finish:${outcome}`);
       // One flip, one status read: never a blind second flip.
       expect(run.youtube.calls.map((call) => call.op)).toEqual([
+        "update",
         "setPublic",
         "state",
       ]);
@@ -258,6 +302,52 @@ describe("publishing wired in main", () => {
 });
 
 describe("YouTube through yt.py", () => {
+  it("pushes the approved metadata through yt.py update --confirm with a file it removes", async () => {
+    const tmp = await mkdtemp(join(process.env.TEMP ?? ".", "yt-update-"));
+    try {
+      const seen: { args: string[]; body: unknown }[] = [];
+      const client = ytScriptClient(async (args) => {
+        seen.push({
+          args,
+          body: JSON.parse(await readFile(args[2] as string, "utf8")),
+        });
+        return "vid-1 metadata updated\n";
+      }, tmp);
+      await client.update("vid-1", {
+        title: "Nuovo",
+        description: "D",
+        tags: ["a"],
+        thumbnailText: "Ciao",
+        thumbnail: "E:/ws/thumbnail.png",
+      });
+      expect(seen[0]?.args.slice(0, 2)).toEqual(["update", "vid-1"]);
+      expect(seen[0]?.args.at(-1)).toBe("--confirm");
+      expect(seen[0]?.body).toEqual({
+        title: "Nuovo",
+        description: "D",
+        tags: ["a"],
+        thumbnail_text: "Ciao",
+        thumbnail: "E:/ws/thumbnail.png",
+      });
+      expect(await readdir(tmp)).toEqual([]);
+      const refused = ytScriptClient(async () => {
+        throw new Error("yt: refused");
+      }, tmp);
+      await expect(
+        refused.update("vid-1", {
+          title: "T",
+          description: "",
+          tags: [],
+          thumbnailText: "",
+          thumbnail: null,
+        }),
+      ).rejects.toThrow(/refused/);
+      expect(await readdir(tmp)).toEqual([]);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
   it("flips with privacy public --confirm and never a publish time; reads the status JSON", async () => {
     const calls: string[][] = [];
     const client = ytScriptClient(async (args) => {
