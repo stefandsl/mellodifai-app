@@ -22,17 +22,22 @@ import { addUser } from "./add-user.js";
 import {
   API_URL,
   appWindowArgs,
+  type BackupKind,
+  backupBytesNeeded,
   backupFolder,
   buildStamp,
   DESKTOP,
   type DesktopProcess,
   desktopPaths,
+  folderBytes,
+  freeBytes,
   isAppWindowProcess,
   isBackupFolder,
   isDesktopProcess,
   listeningPorts,
   MSG,
   parseEnvFile,
+  pruneUpdateBackups,
   SITE_URL,
   stopEverything,
   validOwnerEmail,
@@ -535,10 +540,21 @@ async function status(json: boolean) {
 
 /** A verified native bundle (database dump, every stored file, checksums, manifest last).
  * Writers stop for the dump; the stack starts again afterwards, the app if it was on. */
-async function backup(): Promise<string> {
+async function backup(kind: BackupKind = "desktop"): Promise<string> {
   if (!databaseExists()) fail(MSG.backupFailed);
   say(MSG.backupStart);
-  const dir = backupFolder(P.backups);
+  mkdirSync(P.backups, { recursive: true });
+  // A backup that fills the disk would stop the database and the PC: check first.
+  const layout = nativeLayout("desktop");
+  const need = backupBytesNeeded(
+    folderBytes(layout.pgdata) + folderBytes(layout.objects),
+  );
+  const free = freeBytes(P.backups);
+  if (free < need) {
+    const gb = (bytes: number) => Math.ceil(bytes / 1024 ** 3);
+    fail(MSG.backupNoSpace(gb(need), Math.floor(free / 1024 ** 3)));
+  }
+  const dir = backupFolder(P.backups, new Date(), kind);
   const wasOn = await webUp();
   await killDesktop("worker");
   await killDesktop("web");
@@ -624,7 +640,8 @@ async function update() {
       log(`stack stop: ${(error as Error).message}`);
       fail(MSG.stopFailed);
     }
-    await backup();
+    await backup("update");
+    pruneUpdateBackups(P.backups);
   }
   await start();
 }

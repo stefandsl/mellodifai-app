@@ -2,6 +2,7 @@
 // web app and worker read, process recognition, backups and the owner's messages.
 // No processes or network here, so all of it is unit tested.
 import { createHash } from "node:crypto";
+import { existsSync, readdirSync, rmSync, statfsSync, statSync } from "node:fs";
 import { connect } from "node:net";
 import { join, resolve } from "node:path";
 import { ENV_TABLE, runtimePath, stackDir } from "./envs.js";
@@ -212,12 +213,63 @@ export function backupStamp(date = new Date()): string {
   return date.toISOString().replaceAll(/[:.]/g, "-");
 }
 
-export function backupFolder(backups: string, date = new Date()): string {
-  return join(backups, `${backupStamp(date)}-desktop`);
+/** "desktop" is the owner's own backup (kept until he deletes it); "update" is the one every
+ * update takes before its migrations (only the newest UPDATE_BACKUPS are kept). */
+export type BackupKind = "desktop" | "update";
+export const UPDATE_BACKUPS = 3;
+
+export function backupFolder(
+  backups: string,
+  date = new Date(),
+  kind: BackupKind = "desktop",
+): string {
+  return join(backups, `${backupStamp(date)}-${kind}`);
 }
 
 export function isBackupFolder(name: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-desktop$/.test(name);
+  return /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-(desktop|update)$/.test(
+    name,
+  );
+}
+
+/** Deletes the update backups beyond the newest `keep`; the owner's own backups stay. */
+export function pruneUpdateBackups(
+  backups: string,
+  keep = UPDATE_BACKUPS,
+): string[] {
+  if (!existsSync(backups)) return [];
+  const old = readdirSync(backups)
+    .filter((name) => isBackupFolder(name) && name.endsWith("-update"))
+    .sort()
+    .reverse()
+    .slice(keep);
+  for (const name of old)
+    rmSync(join(backups, name), { recursive: true, force: true });
+  return old;
+}
+
+/** Bytes under `dir` (files only; links are not followed). */
+export function folderBytes(dir: string): number {
+  if (!existsSync(dir)) return 0;
+  let total = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) total += folderBytes(path);
+    else if (entry.isFile()) total += statSync(path).size;
+  }
+  return total;
+}
+
+const GIB = 1024 ** 3;
+/** A backup copies the database and every stored file: it needs their size, a fifth more for
+ * the dump's own overhead, and 1 GiB left over so the PC keeps working. */
+export function backupBytesNeeded(dataBytes: number): number {
+  return Math.ceil(dataBytes * 1.2) + GIB;
+}
+
+export function freeBytes(dir: string): number {
+  const stats = statfsSync(dir);
+  return Number(stats.bavail) * Number(stats.bsize);
 }
 
 export function validOwnerEmail(email: string): boolean {
@@ -288,6 +340,8 @@ export const MSG = {
   backupStart: "Salvo un backup...",
   backupDone: (dir: string) => `Backup salvato in ${dir}`,
   backupFailed: "Backup non riuscito. I tuoi dati non sono stati toccati.",
+  backupNoSpace: (needGb: number, freeGb: number) =>
+    `Spazio insufficiente per il backup: servono ${needGb} GB, ne restano ${freeGb}. Libera spazio sul disco e riprova: i tuoi dati non sono stati toccati.`,
   restoreNone: (dir: string) => `Non ci sono backup in ${dir}`,
   restoreDone: "Ripristino completato.",
   log: (file: string) => `Dettagli: ${file}`,

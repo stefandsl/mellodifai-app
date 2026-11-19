@@ -1,4 +1,11 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,17 +19,21 @@ import {
 import {
   API_URL,
   appWindowArgs,
+  backupBytesNeeded,
   backupFolder,
   buildStamp,
   DESKTOP,
   desktopEnvValues,
   desktopPaths,
+  folderBytes,
   formatEnvFile,
+  freeBytes,
   isAppWindowProcess,
   isBackupFolder,
   isDesktopProcess,
   listeningPorts,
   parseEnvFile,
+  pruneUpdateBackups,
   SITE_URL,
   StopFailed,
   stopEverything,
@@ -365,5 +376,53 @@ describe("desktop stop", () => {
     const run = steps({ listening: () => listeningPorts([port]) });
     await stopEverything(run.steps);
     expect(run.calls).toEqual(["window", "worker", "web", "stack", "state"]);
+  });
+});
+
+describe("desktop update backups", () => {
+  it("keeps the newest three update backups and every backup of the owner's", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mdf-backups-"));
+    const names = [1, 2, 3, 4, 5].map(
+      (day) => `2026-11-0${day}T01-02-03-004Z-update`,
+    );
+    const own = [
+      "2026-11-01T00-00-00-000Z-desktop",
+      "2026-11-02T00-00-00-000Z-desktop",
+    ];
+    for (const name of [...names, ...own, "notes"]) {
+      mkdirSync(join(dir, name));
+      writeFileSync(join(dir, name, "manifest.json"), "{}");
+    }
+    try {
+      expect(pruneUpdateBackups(dir).sort()).toEqual(names.slice(0, 2));
+      expect(readdirSync(dir).sort()).toEqual(
+        [...names.slice(2), ...own, "notes"].sort(),
+      );
+      expect(pruneUpdateBackups(dir)).toEqual([]);
+      expect(backupFolder(dir, new Date(0), "update")).toBe(
+        join(dir, "1970-01-01T00-00-00-000Z-update"),
+      );
+      expect(isBackupFolder("1970-01-01T00-00-00-000Z-update")).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("measures the data and asks for its size, a fifth more and 1 GiB before a backup", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mdf-size-"));
+    try {
+      mkdirSync(join(dir, "a", "b"), { recursive: true });
+      writeFileSync(join(dir, "a", "one"), Buffer.alloc(1000));
+      writeFileSync(join(dir, "a", "b", "two"), Buffer.alloc(24));
+      expect(folderBytes(dir)).toBe(1024);
+      expect(folderBytes(join(dir, "missing"))).toBe(0);
+      expect(backupBytesNeeded(10 * 1024 ** 3)).toBe(13 * 1024 ** 3);
+      const free = freeBytes(dir);
+      expect(free).toBeGreaterThan(0);
+      // The real disk: a backup of more data than it can hold is refused up front.
+      expect(backupBytesNeeded(free)).toBeGreaterThan(free);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
