@@ -2,6 +2,7 @@
 // web app and worker read, process recognition, backups and the owner's messages.
 // No processes or network here, so all of it is unit tested.
 import { createHash } from "node:crypto";
+import { connect } from "node:net";
 import { join, resolve } from "node:path";
 import { ENV_TABLE, runtimePath, stackDir } from "./envs.js";
 import { databaseUrl } from "./pg.js";
@@ -157,6 +158,56 @@ export function isDesktopProcess(
   return line.includes("\\apps\\worker\\src\\main.ts");
 }
 
+/** The ports of `ports` that accept a connection on 127.0.0.1 right now. */
+export async function listeningPorts(ports: number[]): Promise<number[]> {
+  const open = await Promise.all(
+    ports.map(
+      (port) =>
+        new Promise<boolean>((done) => {
+          const socket = connect({ host: WEB_HOST, port });
+          socket.setTimeout(2000, () => {
+            socket.destroy();
+            done(false);
+          });
+          socket.once("connect", () => {
+            socket.destroy();
+            done(true);
+          });
+          socket.once("error", () => done(false));
+        }),
+    ),
+  );
+  return ports.filter((_, index) => open[index]);
+}
+
+export class StopFailed extends Error {}
+
+/**
+ * Stops the app window, worker and web, then the stack, and succeeds only when nothing of
+ * the install listens any more: an uninstall deletes the data folder after this, which must
+ * never happen under a running database.
+ */
+export async function stopEverything(steps: {
+  closeWindow: () => Promise<void>;
+  killWorker: () => Promise<void>;
+  killWeb: () => Promise<void>;
+  stopStack: () => Promise<void>;
+  listening: () => Promise<number[]>;
+  clearState: () => void;
+}): Promise<void> {
+  await steps.closeWindow();
+  await steps.killWorker();
+  await steps.killWeb();
+  try {
+    await steps.stopStack();
+  } catch (error) {
+    throw new StopFailed(`stack stop: ${(error as Error).message}`);
+  }
+  const left = await steps.listening();
+  if (left.length) throw new StopFailed(`still listening: ${left.join(", ")}`);
+  steps.clearState();
+}
+
 export function backupStamp(date = new Date()): string {
   return date.toISOString().replaceAll(/[:.]/g, "-");
 }
@@ -232,6 +283,8 @@ export const MSG = {
   ready: "MellodifAI e' pronto.",
   stopping: "Spengo MellodifAI...",
   stopped: "MellodifAI e' spento. I tuoi dati sono al sicuro.",
+  stopFailed:
+    "MellodifAI non si e' spento del tutto. Riavvia il PC e riprova: i tuoi dati non sono stati toccati.",
   backupStart: "Salvo un backup...",
   backupDone: (dir: string) => `Backup salvato in ${dir}`,
   backupFailed: "Backup non riuscito. I tuoi dati non sono stati toccati.",

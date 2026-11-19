@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -20,8 +21,11 @@ import {
   isAppWindowProcess,
   isBackupFolder,
   isDesktopProcess,
+  listeningPorts,
   parseEnvFile,
   SITE_URL,
+  StopFailed,
+  stopEverything,
   validOwnerEmail,
   WEB_PORT,
   WORKER_KEYS_TEMPLATE,
@@ -308,5 +312,58 @@ describe("desktop backups and checks", () => {
   it("starts the owner's keys file with no active entry", () => {
     expect(parseEnvFile(WORKER_KEYS_TEMPLATE)).toEqual({});
     expect(WORKER_KEYS_TEMPLATE).toContain("# KIE_API_KEY=\n");
+  });
+});
+
+describe("desktop stop", () => {
+  const steps = (overrides: Partial<Parameters<typeof stopEverything>[0]>) => {
+    const calls: string[] = [];
+    const step = (name: string) => async () => {
+      calls.push(name);
+    };
+    return {
+      calls,
+      steps: {
+        closeWindow: step("window"),
+        killWorker: step("worker"),
+        killWeb: step("web"),
+        stopStack: step("stack"),
+        listening: async () => [] as number[],
+        clearState: () => {
+          calls.push("state");
+        },
+        ...overrides,
+      },
+    };
+  };
+
+  it("fails, keeping its state, when the stack does not stop", async () => {
+    const run = steps({
+      stopStack: async () => {
+        throw new Error("postgres did not stop");
+      },
+    });
+    await expect(stopEverything(run.steps)).rejects.toThrow(StopFailed);
+    expect(run.calls).toEqual(["window", "worker", "web"]);
+  });
+
+  it("fails while a port of the install still listens", async () => {
+    const server = createServer();
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const port = (server.address() as { port: number }).port;
+    try {
+      expect(await listeningPorts([port])).toEqual([port]);
+      const run = steps({ listening: () => listeningPorts([port]) });
+      await expect(stopEverything(run.steps)).rejects.toThrow(
+        `still listening: ${port}`,
+      );
+      expect(run.calls).not.toContain("state");
+    } finally {
+      await new Promise((done) => server.close(done));
+    }
+    expect(await listeningPorts([port])).toEqual([]);
+    const run = steps({ listening: () => listeningPorts([port]) });
+    await stopEverything(run.steps);
+    expect(run.calls).toEqual(["window", "worker", "web", "stack", "state"]);
   });
 });

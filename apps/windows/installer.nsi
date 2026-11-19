@@ -282,9 +282,13 @@ Section "Uninstall"
   ${If} $2 == "1"
   ${AndIf} ${FileExists} "$INSTDIR\app\apps\windows\src\run.mjs"
     DetailPrint "Spengo tutto prima di eliminare i dati..."
+    ; run.mjs deletes the data only after everything of the install stopped and exits 0
+    ; only when the folder is gone; any other result keeps the data where it is.
     nsExec::ExecToLog /TIMEOUT=900000 '${NODE} ${RUN} remove-data --yes'
     Pop $0
-    RMDir /r "$INSTDIR\data"
+    ${If} $0 != "0"
+      MessageBox MB_ICONEXCLAMATION|MB_OK "Non ho eliminato i dati di ${APP} (codice $0): qualcosa e' ancora acceso. Restano in $INSTDIR\data. Riavvia il PC e cancella la cartella a mano se vuoi." /SD IDOK
+    ${EndIf}
   ${EndIf}
   ; Only the links this installer recorded; never a same-named link of the owner's.
   ReadRegStr $3 HKCU "${APP_KEY}" "DesktopLink"

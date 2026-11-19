@@ -76,6 +76,25 @@ export function removableData(paths) {
   );
 }
 
+/** The last step of an uninstall that deletes the data: only after the controller stopped
+ * everything (`stopped` is its exit code), and 0 only when the folder is really gone. The
+ * uninstaller keeps the data on any other result. */
+export function removeData(stopped, paths, remove = rmSync) {
+  if (stopped !== 0) return stopped;
+  if (!removableData(paths)) return 1;
+  try {
+    remove(paths.data, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 500,
+    });
+  } catch (error) {
+    console.error(`Non riesco a eliminare tutti i dati: ${error.message}`);
+  }
+  return existsSync(paths.data) ? 1 : 0;
+}
+
 /** What the controller runs: the installer's "install" is setup (new) or update. */
 export function desktopCommand(command, args, ownerExists) {
   const own = args.filter((a) => a !== "--unattended");
@@ -137,19 +156,7 @@ async function main() {
   // After the controller stopped everything that holds files in data\: Node removes
   // read-only files (Go's module cache) and paths longer than 260 characters, which the
   // uninstaller's own RMDir leaves behind.
-  if (command === "remove-data" && code === 0 && removableData(paths)) {
-    try {
-      rmSync(paths.data, {
-        recursive: true,
-        force: true,
-        maxRetries: 10,
-        retryDelay: 500,
-      });
-    } catch (error) {
-      console.error(`Non riesco a eliminare tutti i dati: ${error.message}`);
-      code = 1;
-    }
-  }
+  if (command === "remove-data") code = removeData(code, paths);
   if (shouldPause(command, code, Boolean(process.stdin.isTTY), args)) {
     const rl = createInterface({
       input: process.stdin,

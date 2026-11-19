@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
@@ -11,6 +18,7 @@ import {
   installArgs,
   layout,
   removableData,
+  removeData,
   shouldPause,
 } from "../src/run.mjs";
 
@@ -127,6 +135,32 @@ describe("icon", () => {
 describe("shortcut shim", () => {
   const here = "E:\\MellodifAI\\app\\apps\\windows\\src";
   const paths = layout(here);
+
+  it("deletes the data only after a clean stop and says so only when it is gone", () => {
+    const install = mkdtempSync(join(tmpdir(), "mdf-win-"));
+    const real = layout(join(install, "app", "apps", "windows", "src"));
+    mkdirSync(join(install, "app", "apps", "windows", "src"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(install, "app", "apps", "windows", "src", "run.mjs"),
+      "",
+    );
+    const seed = () => {
+      mkdirSync(join(real.data, "pgdata"), { recursive: true });
+      writeFileSync(join(real.data, "pgdata", "PG_VERSION"), "17");
+    };
+    seed();
+    // The controller could not stop the database: the data stays.
+    expect(removeData(1, real)).toBe(1);
+    expect(existsSync(join(real.data, "pgdata", "PG_VERSION"))).toBe(true);
+    // A delete that leaves files behind is a failure, not a success.
+    expect(removeData(0, real, () => {})).toBe(1);
+    expect(existsSync(real.data)).toBe(true);
+    expect(removeData(0, real)).toBe(0);
+    expect(existsSync(real.data)).toBe(false);
+    rmSync(install, { recursive: true, force: true });
+  });
 
   it("deletes data only inside a real install, never elsewhere", () => {
     const install = mkdtempSync(join(tmpdir(), "mdf-win-"));

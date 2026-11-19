@@ -30,9 +30,11 @@ import {
   isAppWindowProcess,
   isBackupFolder,
   isDesktopProcess,
+  listeningPorts,
   MSG,
   parseEnvFile,
   SITE_URL,
+  stopEverything,
   validOwnerEmail,
   WEB_HOST,
   WEB_PORT,
@@ -40,7 +42,7 @@ import {
   workerSettings,
 } from "./lib/desktop.js";
 import { nativeTools } from "./lib/native/build.js";
-import { nativeLayout } from "./lib/native/layout.js";
+import { nativeLayout, nativePorts } from "./lib/native/layout.js";
 import { witness } from "./lib/native/postgres.js";
 import { databaseUrl, ownerConnection } from "./lib/pg.js";
 import { writePrivate } from "./lib/private-file.js";
@@ -473,21 +475,34 @@ async function setup(args: string[]) {
   if (!args.includes("--no-browser")) await openBrowser();
 }
 
-async function stopStack() {
-  try {
-    await runStack("stop", "desktop", { runtime: "native" });
-  } catch (error) {
-    log(`stack stop: ${(error as Error).message}`);
-  }
-}
+const stopStack = () => runStack("stop", "desktop", { runtime: "native" });
 
+/** Every port of this install: the web app and each native service. */
+const DESKTOP_PORTS = [
+  WEB_PORT,
+  ...Object.values(nativePorts("desktop")).filter(
+    (port): port is number => port !== null,
+  ),
+];
+
+/** Fails when something of the install keeps running: the uninstaller then keeps the data. */
 async function stop() {
   say(MSG.stopping);
-  await closeAppWindow();
-  await killDesktop("worker");
-  await killDesktop("web");
-  if (existsSync(P.stack)) await stopStack();
-  rmSync(P.state, { force: true });
+  try {
+    await stopEverything({
+      closeWindow: closeAppWindow,
+      killWorker: () => killDesktop("worker"),
+      killWeb: () => killDesktop("web"),
+      stopStack: async () => {
+        if (existsSync(P.stack)) await stopStack();
+      },
+      listening: () => listeningPorts(DESKTOP_PORTS),
+      clearState: () => rmSync(P.state, { force: true }),
+    });
+  } catch (error) {
+    log((error as Error).message);
+    fail(MSG.stopFailed);
+  }
   say(MSG.stopped);
 }
 
@@ -598,7 +613,12 @@ async function update() {
   await killDesktop("worker");
   await killDesktop("web");
   if (databaseExists()) {
-    await stopStack();
+    try {
+      await stopStack();
+    } catch (error) {
+      log(`stack stop: ${(error as Error).message}`);
+      fail(MSG.stopFailed);
+    }
     await backup();
   }
   await start();
