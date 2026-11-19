@@ -706,3 +706,71 @@ it("a veto and a handoff started together: exactly one wins", async () => {
     }
   }
 });
+
+// Blind-review fixes (fix-brief 2026-11-19).
+
+const rule = (tx: TransactionSql, owner: Ctx, over: Ctx = {}) =>
+  op(tx, "publish_rule_save", owner, {
+    platform: "youtube",
+    max_price_eur: 0,
+    require_veto_hours: 24,
+    active: true,
+    ...over,
+  });
+
+it("after a veto or a rejection a standing rule never approves that video again: the owner's card decides", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    expect(await rule(tx, owner)).toMatchObject({ ok: true });
+    // Veto, then a new plan for the same video.
+    const { version } = await video(tx, owner.user_id);
+    const first = await plan(tx, pat, version, inHours(30));
+    expect(await op(tx, "publish_request_approval", pat, first)).toMatchObject({
+      data: { state: "scheduled", approval: { decided_via: "rule" } },
+    });
+    expect(await op(tx, "publish_veto", pat, first)).toMatchObject({
+      data: { state: "vetoed" },
+    });
+    const second = await plan(tx, pat, version, inHours(30));
+    const asked = await op(tx, "publish_request_approval", pat, second);
+    expect(asked).toMatchObject({
+      ok: true,
+      data: { state: "awaiting_approval", approval: { state: "pending" } },
+    });
+    // The owner's yes clears it.
+    expect(
+      await op(
+        tx,
+        "publish_approval_decide",
+        owner,
+        asked.data.approval.approval_id,
+        "approve",
+      ),
+    ).toMatchObject({
+      data: { state: "scheduled", approval: { decided_via: "owner" } },
+    });
+    // Rejection, then the same plan edited and asked again.
+    const other = await video(tx, owner.user_id);
+    const third = await plan(tx, pat, other.version, inHours(3));
+    const card = await op(tx, "publish_request_approval", pat, third);
+    expect(card).toMatchObject({ data: { state: "awaiting_approval" } });
+    expect(
+      await op(
+        tx,
+        "publish_approval_decide",
+        owner,
+        card.data.approval.approval_id,
+        "reject",
+      ),
+    ).toMatchObject({ data: { state: "rejected" } });
+    expect(
+      await op(tx, "publish_schedule", pat, third, inHours(30)),
+    ).toMatchObject({ ok: true, data: { state: "draft" } });
+    expect(await op(tx, "publish_request_approval", pat, third)).toMatchObject({
+      ok: true,
+      data: { state: "awaiting_approval", approval: { state: "pending" } },
+    });
+    expect(await publishJobs(tx, other.render)).toBe(0);
+  });
+});

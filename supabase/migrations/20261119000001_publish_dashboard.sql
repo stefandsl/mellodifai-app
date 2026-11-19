@@ -266,6 +266,7 @@ declare
   s public.publish_schedules; d public.publish_destinations; v public.versions; r public.renders;
   ap public.approval_requests; rl public.publish_rules;
   v_platform text; v_slot timestamptz; v_draft jsonb; v_sid uuid; v_hash text; v_missing integer;
+  v_blocked_at timestamptz;
 begin
   -- Owner settings: standing rules and the pending approval cards.
   if p_op = 'publish_rules_list' then
@@ -403,13 +404,24 @@ begin
         values(uid,s.id,'publish_schedule',v_hash,ops._publish_summary(s.id),
           array(select platform from public.publish_destinations where schedule_id=s.id order by platform),
           v_kind,s.slot_at,'approved',now(),'owner');
+      perform ops._publish_event(s.id,null,'approved','owner','{}'::jsonb);
       perform ops._publish_activate(s.id,'owner');
     else
+      -- A video with a vetoed or rejected plan always needs the owner's card until the owner says
+      -- yes again (an 'approved' event by the owner after the last veto or rejection).
+      select max(e.at) into v_blocked_at from public.publish_events e join public.publish_schedules x on x.id=e.schedule_id
+        where x.version_id=s.version_id and e.kind in ('vetoed','rejected');
       -- A standing rule must cover every destination: platform, price 0 within the cap and a slot
       -- that leaves at least the rule's veto window.
       select count(*) into v_missing from public.publish_destinations x where x.schedule_id=s.id
         and not exists (select 1 from public.publish_rules y where y.owner_id=uid and y.active and y.platform=x.platform
           and y.max_price_eur >= 0 and s.slot_at >= now() + make_interval(hours => y.require_veto_hours));
+      if v_blocked_at is not null and not exists (select 1 from public.publish_events e join public.publish_schedules x on x.id=e.schedule_id
+        where x.version_id=s.version_id and e.kind='approved' and e.actor='owner' and e.at > v_blocked_at) then
+        v_missing := v_missing + 1;
+      else
+        v_blocked_at := null;
+      end if;
       if v_missing = 0 then
         select y.* into rl from public.publish_rules y join public.publish_destinations x on x.platform=y.platform
           where x.schedule_id=s.id and y.owner_id=uid and y.active
@@ -427,7 +439,8 @@ begin
             array(select platform from public.publish_destinations where schedule_id=s.id order by platform),
             v_kind,(p_actor->>'token_id')::uuid,s.slot_at);
         update public.publish_schedules set state='awaiting_approval',updated_at=now() where id=s.id;
-        perform ops._publish_event(s.id,null,'approval_requested',v_kind,'{}'::jsonb);
+        perform ops._publish_event(s.id,null,'approval_requested',v_kind,
+          case when v_blocked_at is not null then jsonb_build_object('reason','after_veto_or_rejection') else '{}'::jsonb end);
       end if;
     end if;
   elsif p_op = 'publish_approval_decide' then
