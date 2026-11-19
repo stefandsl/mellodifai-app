@@ -208,6 +208,9 @@ test("timed lyrics follow playback, seek by line, and fit two desktop sizes", as
         path: `${shots}/karaoke-${width}x${height}.png`,
       });
     }
+    // The rest is a desktop flow. At phone width the Next dev overlay's bottom-left toast
+    // (an "Insight", e.g. the security notice of an outdated Next) covers the play button.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await dialog.getByRole("button", { name: "Chiudi il testo" }).click();
     await expect(dialog).not.toBeVisible();
     // Fake only the local worker output; the browser uses the real action, RPC and polling.
