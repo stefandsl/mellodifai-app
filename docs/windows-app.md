@@ -9,7 +9,8 @@ is not touched by anything here.
 
 **Install.** Double-click `MellodifAI-Setup-<version>.exe` as your normal user (no administrator,
 no Docker, no WSL). Keep the suggested folder (a disk other than C:, for example
-`E:\MellodifAI`; the installer refuses C:), write your email, keep the boxes you want (desktop
+`E:\MellodifAI-App`; the installer refuses C:, the production root `E:\mellodifai` in any
+letter case or through a junction, and a folder that holds other files), write your email, keep the boxes you want (desktop
 icon, start at Windows logon) and press Installa. If a MellodifAI icon is already on the
 desktop (for example the one that opens production) it stays, and the new one is called
 "MellodifAI app". A black window called MellodifAI prepares the app: the first time it
