@@ -627,7 +627,7 @@ async function main() {
             0.2 * lyricOk +
             0.25 * mood);
         if (bad.length) hard++;
-        (per[preset] ??= []).push(score);
+        per[preset] = [...(per[preset] ?? []), score];
         totals.contrast += contrast;
         totals.layout += layout;
         totals.legible += legible;
