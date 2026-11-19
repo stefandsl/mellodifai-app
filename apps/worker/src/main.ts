@@ -1,7 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { publishEngines } from "./comfy/availability.js";
+import {
+  type EngineAvailability,
+  publishEngines,
+} from "./comfy/availability.js";
 import { COMFY_CONFIG, comfyInputDir, comfyOutputDir } from "./comfy/config.js";
 import type { LocalRuntime } from "./comfy/runtime.js";
 import {
@@ -81,6 +84,50 @@ export async function startLocalEngines(options: {
     // Never leave the GPU held by a server nobody will stop.
     await options.supervisor.stop().catch(() => {});
   };
+}
+
+// MELLODIFAI_LOCAL_ENGINES=off (the desktop app): this worker has no ComfyUI. It never looks
+// at the shared port, adopts or stops a server, and lists no local engine, so a local
+// generate_song fails at once with the "not available" message.
+export function localEnginesOn(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.MELLODIFAI_LOCAL_ENGINES !== "off";
+}
+
+export async function localEngines(options: {
+  on: boolean;
+  fake: boolean;
+  makeSupervisor: () => ComfySupervisor;
+  publish: (
+    check?: () => Promise<Record<string, EngineAvailability>>,
+  ) => Promise<void>;
+  report: (line: string) => void;
+}): Promise<{ comfy?: LocalRuntime; stop: () => Promise<void> }> {
+  if (!options.on) {
+    options.report(
+      "local engines off (MELLODIFAI_LOCAL_ENGINES=off): ComfyUI is never used",
+    );
+    await options
+      .publish(async () => ({}))
+      .catch((error: unknown) => {
+        options.report(`Engine availability refresh failed: ${String(error)}`);
+      });
+    return { stop: async () => {} };
+  }
+  const supervisor = options.makeSupervisor();
+  const comfy: LocalRuntime = {
+    supervisor,
+    outputDir: comfyOutputDir(COMFY_CONFIG),
+    inputDir: comfyInputDir(COMFY_CONFIG),
+    freeVramMb: nvidiaFreeVramMb,
+  };
+  const stop = options.fake
+    ? async () => {}
+    : await startLocalEngines({
+        supervisor,
+        publish: () => options.publish(),
+        report: options.report,
+      });
+  return { comfy, stop };
 }
 
 export function installSignals(
@@ -194,21 +241,13 @@ async function main() {
             log: async (line) => report(line),
           }),
         );
-  const supervisor = createComfySupervisor({ secrets, report });
-  const comfy: LocalRuntime = {
-    supervisor,
-    outputDir: comfyOutputDir(COMFY_CONFIG),
-    inputDir: comfyInputDir(COMFY_CONFIG),
-    freeVramMb: nvidiaFreeVramMb,
-  };
-  const stopLocal =
-    process.env.WORKER_FAKE === "1"
-      ? async () => {}
-      : await startLocalEngines({
-          supervisor,
-          publish: () => publishEngines(db, workerId),
-          report,
-        });
+  const { comfy, stop: stopLocal } = await localEngines({
+    on: localEnginesOn(),
+    fake: process.env.WORKER_FAKE === "1",
+    makeSupervisor: () => createComfySupervisor({ secrets, report }),
+    publish: (check) => publishEngines(db, workerId, check),
+    report,
+  });
   const publishing = publishingOn();
   const loop = new WorkerLoop({
     db,
@@ -224,7 +263,7 @@ async function main() {
     groqLedger: () => serviceLedger(client, null, "groq", ""),
     kieLedger: () => serviceLedger(client, null, "kie", ""),
     report,
-    comfy,
+    ...(comfy ? { comfy } : {}),
   });
   const stopScheduler = startScheduler(client, workerId);
   // The e2e stack (WORKER_FAKE=1) uses the fake YouTube client: no network, no real upload.

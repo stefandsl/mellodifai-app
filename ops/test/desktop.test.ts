@@ -526,7 +526,9 @@ describe("desktop engine and publishing", () => {
       import(${module("apps", "worker", "src", "comfy", "config.ts")}),
       import(${module("packages", "remake", "src", "paths.ts")}),
       import(${module("apps", "worker", "src", "publishing", "gate.ts")}),
-    ]).then(([u, p, c, r, g]) => console.log(JSON.stringify({
+      import(${module("apps", "worker", "src", "main.ts")}),
+    ]).then(([u, p, c, r, g, m]) => console.log(JSON.stringify({
+      local: m.localEnginesOn(),
       paths: [u.ENGINE_ROOT, ...Object.values(p.workerPaths()).filter((v) => typeof v === "string"),
         c.COMFY_CONFIG.root, c.COMFY_CONFIG.dataDir, c.COMFY_CONFIG.pidFile, c.COMFY_CONFIG.logFile,
         r.ENGINE_ROOT, r.STEMS_PYTHON, r.runtimeRoot()],
@@ -541,10 +543,13 @@ describe("desktop engine and publishing", () => {
         encoding: "utf8",
       },
     );
-    const result = JSON.parse(out.trim()) as {
+    const result = JSON.parse(out.trim().split(/\r?\n/u).at(-1) ?? "") as {
       paths: string[];
       publishing: boolean;
+      local: boolean;
     };
+    // No ComfyUI: the shared port 8188 is production's server.
+    expect(result.local).toBe(false);
     expect(result.paths[0]).toBe(join(data, "engine"));
     const outside = result.paths.filter((path) => {
       const rel = relative(data, resolve(path));

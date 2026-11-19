@@ -102,6 +102,8 @@ export function workerSettings(
     WORKER_ENV_FILES: [paths.workerKeys, paths.workerEnv].join(";"),
     MELLODIFAI_FONTS: join(app, "fonts"),
     ...engine,
+    // ComfyUI listens on one shared port and is production's: the desktop app has none.
+    MELLODIFAI_LOCAL_ENGINES: "off",
     // The remake package reads its own variables; their defaults are production's folders.
     REMAKE_ENGINE_ROOT: engine.MELLODIFAI_ENGINE_ROOT,
     REMAKE_STEMS_PYTHON: join(

@@ -1,8 +1,9 @@
 import { execFile, spawn as nodeSpawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { workerPaths } from "../paths.js";
 import { childEnvironment, type Secrets } from "../secrets.js";
 import {
   COMFY_CONFIG,
@@ -48,7 +49,20 @@ export class ComfySupervisor {
   constructor(
     private readonly deps: SupervisorDeps,
     private readonly config: ComfyConfig = COMFY_CONFIG,
+    // The worker's own runtime root (MELLODIFAI_ROOT): a PID file elsewhere belongs to another
+    // installation (production's server for the desktop app), which this worker never touches.
+    private readonly ownRoot: string = workerPaths().root,
   ) {}
+  private ownsPidFile(): boolean {
+    const rel = relative(resolve(this.ownRoot), resolve(this.config.pidFile));
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  }
+  private refuseForeign() {
+    if (!this.ownsPidFile())
+      throw new ComfyError(
+        `Il file PID di ComfyUI (${this.config.pidFile}) e' fuori dalla cartella di questo worker (${this.ownRoot}): non lo uso.`,
+      );
+  }
   get baseUrl(): string {
     return comfyUrl(this.config);
   }
@@ -90,6 +104,13 @@ export class ComfySupervisor {
   }
   // On worker start: take over a server found on the port instead of starting a second one.
   async adopt(): Promise<boolean> {
+    if (!this.ownsPidFile()) {
+      this.server = undefined;
+      this.report(
+        "ComfyUI belongs to another installation (PID file outside this worker's root): not adopted",
+      );
+      return false;
+    }
     if (!(await this.isUp())) {
       this.server = undefined;
       await rm(this.config.pidFile, { force: true });
@@ -119,6 +140,7 @@ export class ComfySupervisor {
       );
   }
   private async start(): Promise<void> {
+    this.refuseForeign();
     const running = await this.stats();
     if (running) {
       if (!this.server) await this.adopt();

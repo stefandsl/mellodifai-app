@@ -133,7 +133,9 @@ describe("engine availability from files", () => {
 });
 
 describe("ComfySupervisor", () => {
-  async function setup(options: { up?: boolean; pid?: number } = {}) {
+  async function setup(
+    options: { up?: boolean; pid?: number; ownRoot?: string } = {},
+  ) {
     const root = await temp();
     const comfy = await fakeComfy();
     servers.push(comfy);
@@ -178,7 +180,11 @@ describe("ComfySupervisor", () => {
         new Promise<void>((resolve) => setTimeout(resolve, Math.min(ms, 10))),
       report: vi.fn(),
     } satisfies SupervisorDeps;
-    const supervisor = new ComfySupervisor(deps, config);
+    const supervisor = new ComfySupervisor(
+      deps,
+      config,
+      options.ownRoot ?? root,
+    );
     return {
       supervisor,
       deps,
@@ -188,6 +194,23 @@ describe("ComfySupervisor", () => {
       exit: (code: number) => exit(code),
     };
   }
+
+  it("never adopts, stops or starts a ComfyUI whose PID file is outside its own root", async () => {
+    const elsewhere = await temp();
+    const { supervisor, deps, killed } = await setup({
+      up: true,
+      pid: 9999,
+      ownRoot: elsewhere,
+    });
+    // Production's server answers on the shared port with production's PID file: a worker on
+    // another root (the desktop app) must not take it over or stop it.
+    await supervisor.adopt();
+    await supervisor.stop();
+    expect(killed).toEqual([]);
+    expect(deps.isComfyProcess).not.toHaveBeenCalled();
+    await expect(supervisor.restart()).rejects.toThrow(/fuori/u);
+    expect(deps.spawn).not.toHaveBeenCalled();
+  });
 
   it("starts the server on demand with the bake-off command and waits for /system_stats", async () => {
     const { supervisor, deps, config } = await setup();
