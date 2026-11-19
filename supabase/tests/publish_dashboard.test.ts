@@ -45,7 +45,12 @@ async function agent(tx: TransactionSql, owner: Ctx, scopes: string[]) {
 }
 
 // An approved video with an approved master render.
-async function video(tx: Tx, owner: string, status = "approved") {
+async function video(
+  tx: Tx,
+  owner: string,
+  status = "approved",
+  thumbnail = true,
+) {
   const [project] =
     await tx`insert into public.projects(owner_id,topic) values(${owner},'Publish fixture') returning id`;
   const [version] =
@@ -56,6 +61,11 @@ async function video(tx: Tx, owner: string, status = "approved") {
   const [render] =
     await tx`insert into public.renders(owner_id,version_id,kind,render_attempt,path,approved_at)
     values(${owner},${version.id},'master',(select render_attempt from public.versions where id=${version.id}),'E:/mellodifai/native-lab/fixture/master.mp4',now()) returning id`;
+  // The master's base thumbnail in Storage, next to its preview (as the render stage leaves it).
+  const folder = `${owner}/${render.id}`;
+  await tx`update public.renders set preview_path=${`${folder}/master.mp4`} where id=${render.id}`;
+  if (thumbnail)
+    await tx`insert into storage.objects(bucket_id,name,metadata) values('previews',${`${folder}/thumbnail.png`},'{"mimetype":"image/png"}')`;
   return { version: version.id as string, render: render.id as string };
 }
 
@@ -1051,5 +1061,22 @@ it("veto, a new plan with a new title, approval: the public video carries the ne
     });
     expect(await youtube.state("vid-1")).toMatchObject({ privacy: "public" });
     expect(await state(tx, second)).toBe("published");
+  });
+});
+
+// Round-2 review fixes.
+
+it("an old render attempt's YouTube upload does not block a plan for the current video", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const { version, render } = await video(tx, owner.user_id);
+    await tx`insert into public.publications(owner_id,render_id,privacy,upload_state,youtube_video_id,privacy_applied)
+      values(${owner.user_id},${render},'public','uploaded','old-1','public')`;
+    await tx`update public.versions set render_attempt=render_attempt+1 where id=${version}`;
+    await tx`insert into public.renders(owner_id,version_id,kind,render_attempt,path,approved_at)
+      values(${owner.user_id},${version},'master',(select render_attempt from public.versions where id=${version}),'E:/mellodifai/native-lab/fixture/master2.mp4',now())`;
+    expect(
+      await op(tx, "publish_plan", owner, version, ["youtube"], {}),
+    ).toMatchObject({ ok: true, data: { state: "draft" } });
   });
 });

@@ -350,8 +350,9 @@ begin
     end if;
     -- The old flow (admin_confirm_publication) may have scheduled the video with a YouTube
     -- publishAt or made it public: YouTube's own clock owns it, the app never plans it again.
+    -- Only the current render attempt counts: an older video is another upload.
     if exists (select 1 from public.publications p join public.renders pr on pr.id=p.render_id
-      where pr.version_id=v.id and (p.privacy in ('scheduled','public') or p.privacy_applied in ('scheduled','public')
+      where pr.version_id=v.id and pr.render_attempt=v.render_attempt and (p.privacy in ('scheduled','public') or p.privacy_applied in ('scheduled','public')
         or p.publish_at is not null)) then
       raise exception 'video already scheduled or public on YouTube';
     end if;
