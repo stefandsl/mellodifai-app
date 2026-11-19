@@ -55,6 +55,66 @@ const jobs = {
 };
 export const remakeId = randomUUID();
 export const sectionId = "verse-1";
+export const scheduleId = randomUUID();
+// The answer of every publishing write ("Pubblica", migration 20261119000001).
+export const scheduleView = {
+  schedule_id: scheduleId,
+  version_id: versionId,
+  project_id: projectId,
+  render_id: takeId,
+  lang: "it",
+  state: "awaiting_approval",
+  revision: 2,
+  slot_at: "2026-11-21T17:00:00+00:00",
+  veto_deadline_at: "2026-11-21T17:00:00+00:00",
+  veto_open: true,
+  held_reason: null,
+  price_eur: 0,
+  created_via: "pat",
+  vetoed_at: null,
+  media: null,
+  approval: {
+    approval_id: jobId,
+    state: "pending",
+    summary:
+      'YouTube: "API test" diventa pubblico il 21/11/2026 18:00 (ora di Roma).',
+    price_eur: 0,
+    platforms: ["youtube"],
+    requested_via: "pat",
+    expires_at: "2026-11-21T17:00:00+00:00",
+    decided_at: null,
+    decided_via: null,
+  },
+  destinations: [
+    {
+      destination_id: jobId,
+      platform: "youtube",
+      provider: "native",
+      account_id: "default",
+      state: "draft",
+      draft: {
+        title: "API test",
+        description: "",
+        tags: ["pop"],
+        thumbnail_text: "",
+      },
+      problems: [],
+      external_url: null,
+      published_at: null,
+      error: null,
+    },
+  ],
+  events: [
+    {
+      at: "2026-11-19T10:00:00+00:00",
+      kind: "planned",
+      actor: "pat",
+      detail: {},
+    },
+  ],
+  created_at: "2026-11-19T10:00:00+00:00",
+  updated_at: "2026-11-19T10:00:00+00:00",
+};
 export const remakeUrl = "https://youtu.be/49rDdMbXd_w";
 const remakeJobs = {
   jobs: [{ job_id: jobId, version_id: versionId, stage: "remake_rewrite" }],
@@ -295,6 +355,61 @@ export const apiCases = [
     path: "/remakes/{remake_id}/dismiss",
     output: { jobs: [] },
   },
+  {
+    name: "publish_plan",
+    method: "POST",
+    path: "/publish/plans",
+    body: {
+      version_id: versionId,
+      platforms: ["youtube"],
+      draft: { tags: ["pop"] },
+    },
+    output: scheduleView,
+  },
+  {
+    name: "publish_status",
+    method: "GET",
+    path: "/songs/{version_id}/publish",
+    output: { version_id: versionId, schedules: [scheduleView] },
+  },
+  {
+    name: "publish_preview",
+    method: "GET",
+    path: "/publish/{schedule_id}",
+    output: scheduleView,
+  },
+  {
+    name: "publish_draft_edit",
+    method: "POST",
+    path: "/publish/{schedule_id}/draft",
+    body: { draft: { title: "API test" } },
+    output: scheduleView,
+  },
+  {
+    name: "publish_schedule",
+    method: "POST",
+    path: "/publish/{schedule_id}/schedule",
+    body: { slot_at: "2026-11-21T18:00:00+01:00" },
+    output: scheduleView,
+  },
+  {
+    name: "publish_request_approval",
+    method: "POST",
+    path: "/publish/{schedule_id}/request-approval",
+    output: scheduleView,
+  },
+  {
+    name: "publish_veto",
+    method: "POST",
+    path: "/publish/{schedule_id}/veto",
+    output: scheduleView,
+  },
+  {
+    name: "publish_cancel",
+    method: "POST",
+    path: "/publish/{schedule_id}/cancel",
+    output: scheduleView,
+  },
 ] as const;
 
 export type ApiCase = (typeof apiCases)[number];
@@ -303,9 +418,15 @@ export type Handler = (
   context: { params: Promise<Record<string, string>> },
 ) => Promise<Response>;
 export const pathParams: Record<
-  "version_id" | "job_id" | "take_id" | "remake_id" | "section_id",
+  | "version_id"
+  | "job_id"
+  | "take_id"
+  | "remake_id"
+  | "section_id"
+  | "schedule_id",
   string
 > = {
+  schedule_id: scheduleId,
   version_id: versionId,
   job_id: jobId,
   take_id: takeId,

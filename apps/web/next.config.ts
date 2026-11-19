@@ -34,6 +34,10 @@ const nextConfig: NextConfig = {
       "./publication-defaults.js":
         "../../packages/shared/src/publication-defaults.ts",
       "./lyrics-assist.js": "../../packages/shared/src/lyrics-assist.ts",
+      "./publishing/index.js": "../../packages/shared/src/publishing/index.ts",
+      "./lint.js": "../../packages/shared/src/publishing/lint.ts",
+      "./provider.js": "../../packages/shared/src/publishing/provider.ts",
+      "./rules.js": "../../packages/shared/src/publishing/rules.ts",
       "./remake/index.js": "../../packages/shared/src/remake/index.ts",
       "./analysis.js": "../../packages/shared/src/remake/analysis.ts",
       "./blueprint.js": "../../packages/shared/src/remake/blueprint.ts",

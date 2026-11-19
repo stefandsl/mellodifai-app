@@ -43,9 +43,13 @@ it("plans a new migration after the applied lockdown and checks the lockdown aft
   const { pending } = planMigrations([...files, later], applied);
   expect(pending).toEqual([later]);
   expect(pending.every(checksLockdown)).toBe(true);
-  expect(files.filter(checksLockdown).map((file) => file.version)).toEqual([
-    "20261103080001",
-  ]);
+  // The lockdown and every later migration (none older) are checked.
+  const checked = files.filter(checksLockdown).map((file) => file.version);
+  expect(checked[0]).toBe("20261103080001");
+  expect(checked.every((version) => version >= "20261103080001")).toBe(true);
+  expect(
+    files.filter((file) => !checksLockdown(file)).map((file) => file.version),
+  ).not.toContain("20261103080001");
 });
 it("refuses a file older than a migration applied after the lockdown", () => {
   const make = (version: string) => ({

@@ -9,6 +9,7 @@ import {
   type RenderPreview,
   type WorkspaceVersion,
 } from "@/components/project-workspace";
+import { pt } from "@/components/studio/publishing/copy";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
@@ -238,6 +239,17 @@ export default async function ProjectPage({
                 <Badge variant="secondary">
                   {t(lang, `status.${current.status}`)}
                 </Badge>
+                {profile?.role === "admin" &&
+                ["approved", "publishing", "published"].includes(
+                  current.status,
+                ) ? (
+                  <Link
+                    href={`/projects/${id}/publish?lang=${current.lang}`}
+                    className="ml-auto rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {pt(lang, "open")}
+                  </Link>
+                ) : null}
               </CardTitle>
             </CardHeader>
             <CardContent>

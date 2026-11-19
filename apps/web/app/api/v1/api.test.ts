@@ -16,6 +16,7 @@ import {
   remakeLyricsText,
   remakeUrl,
   requestFor,
+  scheduleId,
   sectionId,
   takeId,
   versionId,
@@ -77,6 +78,14 @@ const expectedArgs: Record<string, unknown[]> = {
   remake_retry: [remakeId],
   remake_cancel: [remakeId],
   remake_dismiss: [remakeId],
+  publish_plan: [versionId, ["youtube"], { tags: ["pop"] }],
+  publish_status: [versionId],
+  publish_preview: [scheduleId],
+  publish_draft_edit: [scheduleId, "youtube", { title: "API test" }],
+  publish_schedule: [scheduleId, "2026-11-21T18:00:00+01:00"],
+  publish_request_approval: [scheduleId],
+  publish_veto: [scheduleId],
+  publish_cancel: [scheduleId],
 };
 async function handler(row: (typeof apiCases)[number]) {
   const file = `.${row.path.replace(/\{([^}]+)\}/g, "[$1]")}/route.ts`;
@@ -93,8 +102,8 @@ beforeEach(() => {
   }));
 });
 
-it("registers exactly the twenty-five 7.3 and 7.3b operations with their HTTP metadata", () => {
-  expect(TOKEN_OPS).toHaveLength(25);
+it("registers exactly the thirty-three 7.3, 7.3b and publishing operations with their HTTP metadata", () => {
+  expect(TOKEN_OPS).toHaveLength(33);
   expect(TOKEN_OPS.map((def) => ({ name: def.name, ...def.http }))).toEqual(
     apiCases.map(({ name, method, path }) => ({
       name,

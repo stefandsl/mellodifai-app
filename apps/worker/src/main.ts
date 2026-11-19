@@ -15,11 +15,22 @@ import { fakeStages } from "./fake/index.js";
 import { fakeSongless } from "./fake/lyrics-assist.js";
 import { WorkerLoop } from "./loop.js";
 import { serviceLedger, validateEngineEntries } from "./providers/ledger.js";
+import {
+  dispatchTick,
+  startPublishDispatcher,
+  supabaseDispatchDb,
+} from "./publishing/dispatcher.js";
+import {
+  FakeYouTubeClient,
+  YouTubeProvider,
+  ytScriptClient,
+} from "./publishing/youtube.js";
 import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
 import { startScheduler } from "./scheduler.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { refreshBalance } from "./stages/generate-song.js";
 import { songlessStages, stages } from "./stages/index.js";
+import { ENGINE_ROOT } from "./stages/utils.js";
 import { SupabaseStorage } from "./storage.js";
 import { WorkspaceFactory } from "./workspace.js";
 
@@ -178,16 +189,55 @@ async function main() {
     comfy,
   });
   const stopScheduler = startScheduler(client, workerId);
+  // "Pubblica": the app's clock flips private YouTube uploads public at their slot. The e2e
+  // stack (WORKER_FAKE=1) uses the fake YouTube client: no network, no real upload.
+  const youtube =
+    process.env.WORKER_FAKE === "1"
+      ? new FakeYouTubeClient()
+      : ytScriptClient(async (args) => {
+          let output = "";
+          await engine
+            .withWorkspace(
+              workerRuntimeRoot(),
+              async (line) => {
+                output += `${line}\n`;
+              },
+              balanceAbort.signal,
+            )
+            .run("python", ["-I", "-X", "utf8", "publish/yt.py", ...args], {
+              cwd: ENGINE_ROOT,
+            });
+          return output;
+        });
+  const dispatchDb = supabaseDispatchDb(client);
+  const publishProviders = new Map([
+    ["native:youtube", new YouTubeProvider(youtube)],
+  ]);
+  const stopPublishing = startPublishDispatcher(
+    () =>
+      dispatchTick({
+        db: dispatchDb,
+        providers: publishProviders,
+        workerId,
+        report,
+      }),
+    {
+      intervalMs: Number(process.env.PUBLISH_DISPATCH_INTERVAL_MS) || 30_000,
+      report,
+    },
+  );
   const removeSignals = installSignals(
     {
       stop: async () => {
         stopScheduler();
+        stopPublishing();
         balanceAbort.abort();
         await Promise.all([loop.stop(), stopBalance()]);
         await stopLocal();
       },
       forceStop: async () => {
         stopScheduler();
+        stopPublishing();
         balanceAbort.abort();
         await Promise.all([loop.forceStop(), stopBalance()]);
         await stopLocal();
@@ -201,6 +251,7 @@ async function main() {
     await loop.runForever();
   } finally {
     stopScheduler();
+    stopPublishing();
     balanceAbort.abort();
     await stopBalance();
     await stopLocal();

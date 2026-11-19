@@ -28,6 +28,16 @@ import { jobCancel } from "./defs/job-cancel";
 import { jobStatus } from "./defs/job-status";
 import { lyricsApprove } from "./defs/lyrics-approve";
 import { lyricsBack } from "./defs/lyrics-back";
+import {
+  publishCancel,
+  publishDraftEdit,
+  publishPlan,
+  publishPreview,
+  publishRequestApproval,
+  publishSchedule,
+  publishStatus,
+  publishVeto,
+} from "./defs/publishing";
 import { remakeAccept } from "./defs/remake-accept";
 import { remakeCancel } from "./defs/remake-cancel";
 import { remakeDismiss } from "./defs/remake-dismiss";
@@ -332,6 +342,48 @@ export const tokenOps = {
     },
     "/remakes/{remake_id}/dismiss",
     "Hides an accepted or failed remake from remakes_list (scope create); a failed one also leaves the library, and a cancelled one is already hidden.",
+  ),
+  // "Pubblica" (design 2026-11-19 section 5): agents plan, preview, schedule and ask; only the
+  // owner approves, in the app. Approval and standing rules are not token operations.
+  publish_plan: http(
+    publishPlan,
+    "/publish/plans",
+    "Plans the publication of an approved song video on YouTube as a private draft with title, description, tags and thumbnail text (scope create, no external call); then check it with publish_preview, set the slot with publish_schedule and ask with publish_request_approval.",
+  ),
+  publish_status: http(
+    publishStatus,
+    "/songs/{version_id}/publish",
+    "Returns the publication plans of a song with state, slot, veto deadline, approval card, problems, links and history (scope read).",
+  ),
+  publish_preview: http(
+    publishPreview,
+    "/publish/{schedule_id}",
+    "Returns one publication plan with its drafts, the problems that block it, the price, the slot and the veto deadline (scope read); fix problems with publish_draft_edit.",
+  ),
+  publish_draft_edit: http(
+    publishDraftEdit,
+    "/publish/{schedule_id}/draft",
+    "Edits the title, description, tags or thumbnail text of a plan that is not scheduled yet (scope create); an edit cancels a pending approval card, so ask again with publish_request_approval.",
+  ),
+  publish_schedule: http(
+    publishSchedule,
+    "/publish/{schedule_id}/schedule",
+    "Sets the slot (ISO date with offset, in the future) when the video becomes public (scope create); the video stays private until then and the owner can veto until the handoff starts.",
+  ),
+  publish_request_approval: http(
+    publishRequestApproval,
+    "/publish/{schedule_id}/request-approval",
+    "Asks the owner to approve the public publication (scope spend). The answer is state awaiting_approval with an approval card, or scheduled when a standing rule of the owner covers it. Report the card to the person and stop: never retry, never create another token; only the owner approves, in the app.",
+  ),
+  publish_veto: http(
+    publishVeto,
+    "/publish/{schedule_id}/veto",
+    "Stops a planned or scheduled publication before the provider handoff starts (scope create); the video stays private. After the handoff it answers conflict.",
+  ),
+  publish_cancel: http(
+    publishCancel,
+    "/publish/{schedule_id}/cancel",
+    "Removes a draft, rejected, expired, held or vetoed plan (scope create); a scheduled plan needs publish_veto first.",
   ),
 };
 
