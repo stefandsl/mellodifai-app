@@ -587,6 +587,19 @@ begin
     update public.approval_requests set state='expired',decided_at=now(),decided_via='system' where schedule_id=s.id and state='pending';
     update public.publish_schedules set state='vetoed',vetoed_at=now(),vetoed_via=v_kind,updated_at=now() where id=s.id;
     perform ops._publish_event(s.id,null,'vetoed',v_kind,'{}'::jsonb);
+  elsif p_op = 'publish_reopen' then
+    -- The owner sends a held plan back to draft: the old card expires, a new yes is needed.
+    if s.state <> 'held' then raise exception 'a held plan is required'; end if;
+    if exists (select 1 from public.publish_destinations x where x.schedule_id=s.id
+      and x.state in ('handoff_started','published','unknown','failed')) then
+      raise exception 'publish already handed off';
+    end if;
+    update public.publish_destinations set state='draft',claim_token=null,claimed_by=null,claim_expires_at=null,error=null,updated_at=now()
+      where schedule_id=s.id and state in ('scheduled','claimed','intent_recorded');
+    update public.approval_requests set state='expired',decided_at=now(),decided_via='system'
+      where schedule_id=s.id and state in ('pending','approved');
+    update public.publish_schedules set state='draft',held_reason=null,revision=revision+1,updated_at=now() where id=s.id;
+    perform ops._publish_event(s.id,null,'reopened',v_kind,'{}'::jsonb);
   elsif p_op = 'publish_cancel' then
     if s.state = 'cancelled' then return ops._publish_view(s.id); end if;
     if s.state in ('scheduled','publishing') then raise exception 'a veto is required'; end if;
@@ -727,6 +740,12 @@ create function ops.publish_cancel(p_ctx jsonb, p_schedule uuid) returns jsonb
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
 begin
   return ops._publish_run(p_ctx,'publish_cancel',jsonb_build_object('schedule_id',p_schedule),'create',true);
+end;
+$$;
+create function ops.publish_reopen(p_ctx jsonb, p_schedule uuid) returns jsonb
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+begin
+  return ops._publish_run(p_ctx,'publish_reopen',jsonb_build_object('schedule_id',p_schedule),'owner',true);
 end;
 $$;
 create function ops.publish_status(p_ctx jsonb, p_version uuid) returns jsonb
@@ -1008,5 +1027,5 @@ grant execute on function ops._publish_event(uuid, uuid, text, text, jsonb), ops
 grant execute on function ops.publish_plan(jsonb, uuid, jsonb, jsonb), ops.publish_draft_edit(jsonb, uuid, text, jsonb),
   ops.publish_schedule(jsonb, uuid, timestamptz), ops.publish_preview(jsonb, uuid), ops.publish_request_approval(jsonb, uuid),
   ops.publish_veto(jsonb, uuid), ops.publish_cancel(jsonb, uuid), ops.publish_status(jsonb, uuid),
-  ops.publish_approval_decide(jsonb, uuid, text), ops.publish_rules_list(jsonb), ops.publish_rule_save(jsonb, jsonb),
+  ops.publish_approval_decide(jsonb, uuid, text), ops.publish_reopen(jsonb, uuid), ops.publish_rules_list(jsonb), ops.publish_rule_save(jsonb, jsonb),
   ops.publish_rule_delete(jsonb, uuid) to mdf_web;

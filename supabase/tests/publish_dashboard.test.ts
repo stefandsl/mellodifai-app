@@ -1207,6 +1207,40 @@ it("the chapter list joins the description before the card freezes it, once", as
   });
 });
 
+it("the owner sends a held plan back to draft; an agent cannot, nor after a handoff", async () => {
+  await fixture(async (tx) => {
+    const a = await scheduled(tx);
+    const pat = await agent(tx, a.owner, ["read", "create"]);
+    await tx`update public.publish_schedules set slot_at=now()-interval '7 hours' where id=${a.id}`;
+    expect(await claim(tx)).toEqual([]);
+    expect(await state(tx, a.id)).toBe("held");
+    expect(await op(tx, "publish_reopen", pat, a.id)).toMatchObject({
+      ok: false,
+      code: "forbidden_scope",
+    });
+    expect(await op(tx, "publish_reopen", a.owner, a.id)).toMatchObject({
+      ok: true,
+      data: {
+        state: "draft",
+        held_reason: null,
+        approval: { state: "expired" },
+        destinations: [{ state: "draft" }],
+      },
+    });
+    // A plan whose handoff may have reached YouTube stays with the owner's check.
+    const b = await scheduled(tx);
+    const [c] = (await claim(tx)).filter((x) => x.schedule_id === b.id);
+    await intent(tx, c);
+    await handoff(tx, c);
+    await finish(tx, c, "unknown");
+    expect(await state(tx, b.id)).toBe("held");
+    expect(await op(tx, "publish_reopen", b.owner, b.id)).toMatchObject({
+      ok: false,
+      code: "conflict",
+    });
+  });
+});
+
 it("an old render attempt's YouTube upload does not block a plan for the current video", async () => {
   await fixture(async (tx) => {
     const owner = await actor(tx);

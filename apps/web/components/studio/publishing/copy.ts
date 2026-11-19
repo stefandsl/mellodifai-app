@@ -35,6 +35,9 @@ const it = {
   newPlan: "Nuovo piano",
   status: "Stato",
   history: "Cronologia",
+  reopen: "Rimetti in bozza",
+  reopened: "Il piano è tornato in bozza: serve una nuova approvazione.",
+  "event.reopened": "Rimesso in bozza",
   oldFlowPlanOpen:
     "Un piano in Pubblica è aperto per questo video: visibilità e data si gestiscono da Pubblica.",
   "error.provider_error":
@@ -186,6 +189,9 @@ const en: Record<PublishKey, string> = {
   newPlan: "New plan",
   status: "Status",
   history: "History",
+  reopen: "Back to draft",
+  reopened: "The plan is a draft again: it needs a new approval.",
+  "event.reopened": "Back to draft",
   oldFlowPlanOpen:
     "A Pubblica plan is open for this video: its visibility and date are managed in Pubblica.",
   "error.provider_error":

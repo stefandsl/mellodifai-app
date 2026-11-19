@@ -4,6 +4,7 @@ import {
   publishCancel,
   publishDraftEdit,
   publishPlan,
+  publishReopen,
   publishRequestApproval,
   publishRuleDelete,
   publishRuleSave,
@@ -37,6 +38,11 @@ export async function vetoPublication(input: unknown) {
 
 export async function cancelPublication(input: unknown) {
   return runAction(publishCancel, input);
+}
+
+// Owner only: a held plan goes back to draft and needs a new yes.
+export async function reopenPublication(input: unknown) {
+  return runAction(publishReopen, input);
 }
 
 export async function decidePublication(input: unknown) {

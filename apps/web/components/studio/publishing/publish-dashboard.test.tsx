@@ -1,10 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
-vi.mock("@/app/actions/publishing", () => ({}));
+const actions = vi.hoisted(() => ({
+  reopenPublication: vi.fn(async () => ({ ok: true })),
+  cancelPublication: vi.fn(async () => ({ ok: true })),
+}));
+vi.mock("@/app/actions/publishing", () => actions);
 
 import { LocaleProvider } from "@/components/locale-provider";
 import type { ScheduleView } from "@/lib/ops/defs/publishing";
@@ -48,4 +52,15 @@ it("shows why a plan cannot be approved when the thumbnail text has no base imag
     "Testo della miniatura: manca l'immagine di base della miniatura",
   );
   expect(screen.getByRole("button", { name: "Programma" })).toBeDisabled();
+});
+
+it("lets the owner send a held plan back to draft", async () => {
+  show(view({ state: "held", held_reason: "thumbnail_missing" }));
+  expect(screen.getByText(/manca l'immagine di base/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Rimetti in bozza" }));
+  await waitFor(() =>
+    expect(actions.reopenPublication).toHaveBeenCalledWith({
+      schedule_id: scheduleView.schedule_id,
+    }),
+  );
 });

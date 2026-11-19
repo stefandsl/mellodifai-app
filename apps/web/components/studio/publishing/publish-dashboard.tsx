@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   cancelPublication,
+  reopenPublication,
   decidePublication,
   editPublicationDraft,
   planPublication,
@@ -433,6 +434,23 @@ export function PublishDashboard({
                   >
                     {pt(lang, "vetoConfirm")}
                   </ConfirmDialog>
+                ) : null}
+                {current.state === "held" ? (
+                  <Button
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() =>
+                      run(
+                        () =>
+                          reopenPublication({
+                            schedule_id: current.schedule_id,
+                          }),
+                        refresh(pt(lang, "reopened")),
+                      )
+                    }
+                  >
+                    {pt(lang, "reopen")}
+                  </Button>
                 ) : null}
                 {CANCEL.includes(current.state) ? (
                   <Button

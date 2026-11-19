@@ -243,6 +243,20 @@ export const publishApprovalDecide: OpDef<
   mutating: true,
   revalidate: (data) => [...revalidateView(data), "/settings/publishing"],
 };
+export const publishReopen: OpDef<
+  z.infer<typeof PublishScheduleRef>,
+  ScheduleView
+> = {
+  name: "publish_reopen",
+  fn: "publish_reopen",
+  input: PublishScheduleRef,
+  args: (v) => [v.schedule_id],
+  output: ScheduleView,
+  scope: "admin",
+  key: true,
+  mutating: true,
+  revalidate: revalidateView,
+};
 export const PublishRule = z.object({
   rule_id: Id,
   platform: z.enum(PLATFORMS),
