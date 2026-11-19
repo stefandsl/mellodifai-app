@@ -130,6 +130,8 @@ Dettaglio: `E:/mellodifai/research/2026-11-14/IMPROVED-research.md` e `GAUNTLET-
 
 ## F4. Pubblicazione e milestone pianificate (R13, R29)
 
+**Stato 19/11:** in produzione `native-20261119-r2`: dashboard Pubblica solo YouTube (decisione del proprietario: altre piattaforme dopo, via Blotato o Postiz dietro `PublishingProvider`), veto, scheda di approvazione, regole fisse, comandi agenti (HTTP/MCP/CLI, guida `docs/agents-publishing.md`), metadati approvati inviati prima del pubblico. Ricerca e progetto: `E:/mellodifai/research/2026-11-19/`. Flusso video musicale (Cinema, previz, R31) anche in produzione; il gradino 2 a pagamento aspetta la ricarica kie. App desktop nativa: installer in `E:/mellodifai/dist/windows/` (ramo `feat/desktop-native`, non ancora su main).
+
 | Voce | Stato | Prossimo passo | Giudice |
 |---|---|---|---|
 | YouTube | `publish.ts` programma (`scheduled`, `publish_at`) | Verificare in produzione | Video privato programmato e reso pubblico allo slot |
