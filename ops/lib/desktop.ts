@@ -470,6 +470,10 @@ export const MSG = {
     "Preparo i componenti del database (solo la prima volta, 10-30 minuti, serve Internet)...",
   componentsFailed:
     "Non riesco a preparare i componenti del database. Controlla la connessione a Internet e riprova.",
+  alreadyStarting:
+    "MellodifAI si sta gia' avviando (per esempio all'accesso a Windows): aspetto che finisca...",
+  startBusy:
+    "MellodifAI si sta gia' avviando da troppo tempo. Riavvia il PC e riprova: i tuoi dati non sono stati toccati.",
   dbStarting: "Avvio il database...",
   dbFailed:
     "Il database non parte. Riprova tra un minuto; se non basta riavvia il PC. I tuoi dati non sono stati toccati.",

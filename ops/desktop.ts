@@ -49,7 +49,7 @@ import {
   WORKER_KEYS_TEMPLATE,
   workerSettings,
 } from "./lib/desktop.js";
-import { oneAtATime } from "./lib/desktop-lock.js";
+import { oneAtATime, StartBusy } from "./lib/desktop-lock.js";
 import { nativeTools } from "./lib/native/build.js";
 import { nativeLayout, nativePorts } from "./lib/native/layout.js";
 import { witness } from "./lib/native/postgres.js";
@@ -418,16 +418,28 @@ async function start() {
   requireInstall();
   for (const dir of [P.logs, P.run, P.backups, P.config])
     mkdirSync(dir, { recursive: true });
-  await oneAtATime(join(P.run, "start.lease"), async () => {
-    await startStack();
-    const ownerId = await ensureOwner();
-    await ensureWeb();
-    await ensureWorker(ownerId);
-    writeFileSync(
-      P.state,
-      JSON.stringify({ startedAt: new Date().toISOString() }),
+  try {
+    await oneAtATime(
+      join(P.run, "start.lease"),
+      async () => {
+        await startStack();
+        const ownerId = await ensureOwner();
+        await ensureWeb();
+        await ensureWorker(ownerId);
+        writeFileSync(
+          P.state,
+          JSON.stringify({ startedAt: new Date().toISOString() }),
+        );
+      },
+      { onWait: () => say(MSG.alreadyStarting) },
     );
-  });
+  } catch (error) {
+    if (error instanceof StartBusy) {
+      log(error.message);
+      fail(MSG.startBusy);
+    }
+    throw error;
+  }
   say(MSG.ready);
 }
 
