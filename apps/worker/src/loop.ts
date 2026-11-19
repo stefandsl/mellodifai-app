@@ -97,8 +97,12 @@ type Active = {
   engine?: Engine;
 };
 
+// The worker counts as healthy while it runs and its last database check-in is this recent.
+export const HEALTHY_WITHIN_MS = 60_000;
+
 export class WorkerLoop {
   private stopping = false;
+  private checkedInAt: number | undefined;
   private readonly shutdown = new AbortController();
   private readonly active = new Set<Active>();
   private readonly tasks = new Set<Promise<unknown>>();
@@ -197,16 +201,24 @@ export class WorkerLoop {
       },
     };
   }
-  async runForever(): Promise<void> {
-    const worker = this.timer(
-      () =>
-        this.options.db.upsertWorker({
-          id: this.options.workerId,
-          busy_job_id: [...this.active][0]?.job.id ?? null,
-          engine_version: this.options.engineVersion ?? null,
-        }),
-      15_000,
+  // Running and checked in with the database within HEALTHY_WITHIN_MS: the publishing clock
+  // claims nothing otherwise (fail closed, everything stays private).
+  healthy(now = Date.now()): boolean {
+    return (
+      !this.stopping &&
+      this.checkedInAt !== undefined &&
+      now - this.checkedInAt <= HEALTHY_WITHIN_MS
     );
+  }
+  async runForever(): Promise<void> {
+    const worker = this.timer(async () => {
+      await this.options.db.upsertWorker({
+        id: this.options.workerId,
+        busy_job_id: [...this.active][0]?.job.id ?? null,
+        engine_version: this.options.engineVersion ?? null,
+      });
+      this.checkedInAt = Date.now();
+    }, 15_000);
     const stale = this.timer(() => this.requeueStale(), 60_000);
     worker.tick();
     stale.tick();

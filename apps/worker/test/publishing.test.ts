@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { InMemoryDb } from "../src/db.js";
+import { WorkerLoop } from "../src/loop.js";
+import { startPublishing } from "../src/main.js";
 import {
   type Claim,
   type DispatchDb,
@@ -216,6 +219,41 @@ describe("publish dispatcher", () => {
     });
     expect(run.finished[0]?.outcome).toBe("unknown");
     expect(youtube.calls.map((call) => call.op)).toEqual(["state"]);
+  });
+});
+
+describe("publishing wired in main", () => {
+  afterEach(() => vi.useRealTimers());
+  it("claims only while the worker loop's health check passes", async () => {
+    vi.useFakeTimers();
+    const db = new InMemoryDb([], []);
+    const loop = new WorkerLoop({ db, workerId: "w", stages: {} });
+    const run = fakeDb({ claims: [] });
+    const stop = startPublishing({
+      db: run.db,
+      youtube: new FakeYouTubeClient(),
+      workerId: "w",
+      loop,
+      report: () => {},
+      intervalMs: 1000,
+    });
+    // Never checked in: unhealthy, nothing is claimed.
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(run.steps).not.toContain("claim");
+    const running = loop.runForever();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(loop.healthy()).toBe(true);
+    expect(run.steps).toContain("claim");
+    // The database check-in fails for longer than the window: unhealthy again.
+    vi.spyOn(db, "upsertWorker").mockRejectedValue(new Error("offline"));
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(loop.healthy()).toBe(false);
+    run.steps.length = 0;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(run.steps).toEqual(["recover"]);
+    stop();
+    await loop.stop();
+    await running;
   });
 });
 

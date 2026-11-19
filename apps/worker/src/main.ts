@@ -16,6 +16,7 @@ import { fakeSongless } from "./fake/lyrics-assist.js";
 import { WorkerLoop } from "./loop.js";
 import { serviceLedger, validateEngineEntries } from "./providers/ledger.js";
 import {
+  type DispatchDb,
   dispatchTick,
   startPublishDispatcher,
   supabaseDispatchDb,
@@ -23,6 +24,7 @@ import {
 import {
   FakeYouTubeClient,
   YouTubeProvider,
+  type YouTubeClient,
   ytScriptClient,
 } from "./publishing/youtube.js";
 import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
@@ -108,6 +110,32 @@ export function installSignals(
   };
 }
 
+// "Pubblica": the app's clock flips private YouTube uploads public at their slot, only while the
+// worker loop is healthy (its health check is the dispatcher's gate). Returns the stop function.
+export function startPublishing(options: {
+  db: DispatchDb;
+  youtube: YouTubeClient;
+  workerId: string;
+  loop: Pick<WorkerLoop, "healthy">;
+  report: (line: string) => void;
+  intervalMs?: number;
+}) {
+  const providers = new Map([
+    ["native:youtube", new YouTubeProvider(options.youtube)],
+  ]);
+  return startPublishDispatcher(
+    () =>
+      dispatchTick({
+        db: options.db,
+        providers,
+        workerId: options.workerId,
+        healthy: () => options.loop.healthy(),
+        report: options.report,
+      }),
+    { intervalMs: options.intervalMs ?? 30_000, report: options.report },
+  );
+}
+
 let startupSecrets: Secrets | undefined;
 export async function reportStartupFailure(error: unknown, secrets?: Secrets) {
   const safe =
@@ -189,8 +217,7 @@ async function main() {
     comfy,
   });
   const stopScheduler = startScheduler(client, workerId);
-  // "Pubblica": the app's clock flips private YouTube uploads public at their slot. The e2e
-  // stack (WORKER_FAKE=1) uses the fake YouTube client: no network, no real upload.
+  // The e2e stack (WORKER_FAKE=1) uses the fake YouTube client: no network, no real upload.
   const youtube =
     process.env.WORKER_FAKE === "1"
       ? new FakeYouTubeClient()
@@ -209,23 +236,14 @@ async function main() {
             });
           return output;
         });
-  const dispatchDb = supabaseDispatchDb(client);
-  const publishProviders = new Map([
-    ["native:youtube", new YouTubeProvider(youtube)],
-  ]);
-  const stopPublishing = startPublishDispatcher(
-    () =>
-      dispatchTick({
-        db: dispatchDb,
-        providers: publishProviders,
-        workerId,
-        report,
-      }),
-    {
-      intervalMs: Number(process.env.PUBLISH_DISPATCH_INTERVAL_MS) || 30_000,
-      report,
-    },
-  );
+  const stopPublishing = startPublishing({
+    db: supabaseDispatchDb(client),
+    youtube,
+    workerId,
+    loop,
+    report,
+    intervalMs: Number(process.env.PUBLISH_DISPATCH_INTERVAL_MS) || 30_000,
+  });
   const removeSignals = installSignals(
     {
       stop: async () => {
