@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
+    // The desktop app builds unattended on the owner's PC: Next's upgrade nudge for coding
+    // agents stops `next build` with an error when the build runs under one, so turn it off there.
+    ...(process.env.MDF_UNATTENDED_BUILD === "1" && {
+      agentUpgrade: false as const,
+    }),
     serverActions: {
       allowedOrigins: [
         "app.mellodifai.com",

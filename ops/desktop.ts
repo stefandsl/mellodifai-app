@@ -316,7 +316,7 @@ async function ensureBuild() {
   const built = await new Promise<number>((done) => {
     const child = spawn(process.execPath, [next, "build"], {
       cwd: webDir,
-      env,
+      env: { ...env, MDF_UNATTENDED_BUILD: "1" },
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
