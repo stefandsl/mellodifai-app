@@ -25,8 +25,18 @@ const writes = [
   "remake_retry",
   "remake_cancel",
   "remake_dismiss",
+  "music_video_plan_request",
+  "music_video_element_update",
+  "music_video_shot_update",
+  "music_video_take_request",
 ];
-const reads = ["song_get", "songs_list", "job_status", "remake_get"];
+const reads = [
+  "song_get",
+  "songs_list",
+  "job_status",
+  "remake_get",
+  "music_video_storyboard",
+];
 const catalog = [
   ...writes.map((name) => ({ name, annotations: { readOnlyHint: false } })),
   ...reads.map((name) => ({ name, annotations: { readOnlyHint: true } })),

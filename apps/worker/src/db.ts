@@ -8,6 +8,11 @@ import type {
 } from "@mellodifai/shared";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { EngineAvailability } from "./comfy/availability.js";
+import {
+  MemoryMusicVideoStore,
+  type MusicVideoStore,
+  SupabaseMusicVideoStore,
+} from "./music-video-store.js";
 
 export type Job = {
   owner_id?: string;
@@ -184,6 +189,8 @@ export type Publication = {
 };
 
 export interface Db {
+  // The music-video storyboard (project, scenes, shots, elements, takes).
+  readonly musicVideo: MusicVideoStore;
   previewRows(versionId: string): Promise<{
     renders: Render[];
     takes: Take[];
@@ -299,12 +306,14 @@ export class SupabaseDb implements Db {
     };
   }
   private readonly client: SupabaseClient;
+  readonly musicVideo: MusicVideoStore;
   constructor(
     url: string,
     serviceRoleKey: string,
     private readonly ownerId?: string,
   ) {
     this.client = createClient(url, serviceRoleKey);
+    this.musicVideo = new SupabaseMusicVideoStore(this.client);
   }
   async claim(workerId: string): Promise<Job | null> {
     const { data, error } = await this.client.rpc("claim_job", {
@@ -728,6 +737,7 @@ export class InMemoryDb implements Db {
   public sectionEdits: SectionEdit[] = [];
   public remakes: Remake[] = [];
   public lyricRequests: LyricRequest[] = [];
+  readonly musicVideo: MusicVideoStore = new MemoryMusicVideoStore();
   constructor(
     public jobs: Job[] = [],
     public versions: Version[] = [],

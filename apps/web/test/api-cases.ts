@@ -70,6 +70,41 @@ const remakeSummary = {
   created_at: "2026-11-06T00:00:00Z",
   updated_at: "2026-11-06T00:00:00Z",
 };
+export const mvElementId = randomUUID();
+export const mvShotId = randomUUID();
+export const mvTakeId = randomUUID();
+const mvProjectId = randomUUID();
+const mvElement = {
+  id: mvElementId,
+  project_id: mvProjectId,
+  key: "singer",
+  kind: "character",
+  name: "Mara",
+  description: "La cantante",
+  ref_asset_ids: [],
+  updated_at: "2026-11-14T00:00:00Z",
+};
+const mvShot = {
+  id: mvShotId,
+  project_id: mvProjectId,
+  scene_id: randomUUID(),
+  position: 0,
+  segment: 0,
+  start_frame: 0,
+  end_frame: 90,
+  kind: "lipsync-single",
+  burst: [],
+  size: "close-up",
+  angle: "eye-level",
+  movement: "static",
+  lens: "50mm",
+  mood: "notturno",
+  lyrics: "Una riga di prova",
+  energy: 0.5,
+  cast_ids: [mvElementId],
+  location_id: null,
+  updated_at: "2026-11-14T00:00:00Z",
+};
 export const remakeLyricsText = "[Verse 1]\nUna riga di prova\nUn'altra riga";
 export const remakeDetail = {
   remake_id: remakeId,
@@ -295,6 +330,51 @@ export const apiCases = [
     path: "/remakes/{remake_id}/dismiss",
     output: { jobs: [] },
   },
+  // The music-video storyboard operations, in the order the registry lists them.
+  {
+    name: "music_video_plan_request",
+    method: "POST",
+    path: "/songs/{version_id}/music-video/plan",
+    output: {
+      jobs: [
+        { job_id: jobId, version_id: versionId, stage: "music_video_plan" },
+      ],
+    },
+  },
+  {
+    name: "music_video_storyboard",
+    method: "GET",
+    path: "/songs/{version_id}/music-video",
+    output: { storyboard: null },
+  },
+  {
+    name: "music_video_element_update",
+    method: "POST",
+    path: "/music-video/elements/{element_id}",
+    body: { patch: { name: "Mara", description: "La cantante" } },
+    output: { element: mvElement },
+  },
+  {
+    name: "music_video_shot_update",
+    method: "POST",
+    path: "/music-video/shots/{shot_id}",
+    body: { patch: { size: "close-up", mood: "notturno" } },
+    output: { shot: mvShot },
+  },
+  {
+    name: "music_video_take_request",
+    method: "POST",
+    path: "/music-video/shots/{shot_id}/takes",
+    body: { phase: "draft" },
+    output: {
+      take_id: mvTakeId,
+      shot_id: mvShotId,
+      phase: "draft",
+      model: "bytedance/seedance-2-5",
+      status: "quoted",
+      price: { credits: 136, seconds: 4 },
+    },
+  },
 ] as const;
 
 export type ApiCase = (typeof apiCases)[number];
@@ -303,7 +383,13 @@ export type Handler = (
   context: { params: Promise<Record<string, string>> },
 ) => Promise<Response>;
 export const pathParams: Record<
-  "version_id" | "job_id" | "take_id" | "remake_id" | "section_id",
+  | "version_id"
+  | "job_id"
+  | "take_id"
+  | "remake_id"
+  | "section_id"
+  | "element_id"
+  | "shot_id",
   string
 > = {
   version_id: versionId,
@@ -311,6 +397,8 @@ export const pathParams: Record<
   take_id: takeId,
   remake_id: remakeId,
   section_id: sectionId,
+  element_id: mvElementId,
+  shot_id: mvShotId,
 };
 export function requestFor(
   row: ApiCase,

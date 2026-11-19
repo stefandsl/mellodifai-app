@@ -119,6 +119,13 @@ exit code 1. A write tool gets an idempotency key like any other write command
 command, such as `remake_regenerate_section`, `remake_dismiss`, `song_get` or
 `job_cancel`.
 
+The music-video storyboard of a song with a rendered video works through `call`
+only: `music_video_plan_request` (free, follow the job with `job_status`),
+`music_video_storyboard` (read), `music_video_element_update` and
+`music_video_shot_update` (edit; shot lyrics are never editable) and
+`music_video_take_request`, which only quotes a take's price in credits. Paid
+takes are started by the owner in the app, never by an agent.
+
 Every mutation needs an 8-100 character idempotency key. Always supply
 `idempotency_key` on every MCP tool that `tools/list` marks with
 `readOnlyHint: false` (spend tools AND create-scoped mutations, remakes

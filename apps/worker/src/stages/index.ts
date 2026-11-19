@@ -6,6 +6,7 @@ import { draftLyrics } from "./draft-lyrics.js";
 import { generateSong } from "./generate-song.js";
 import { importAudio } from "./import-audio.js";
 import { lyricsAssist } from "./lyrics-assist.js";
+import { musicVideoPlanStage } from "./music-video.js";
 import { publish, setPrivacy } from "./publish.js";
 import { qa } from "./qa.js";
 import { remakeStages } from "./remake.js";
@@ -31,6 +32,7 @@ export const stages: StageRegistry = {
   replace_section: replaceSection,
   import_audio: importAudio,
   align_lyrics: alignLyrics,
+  music_video_plan: musicVideoPlanStage,
   ...remakeStages(),
 };
 // Jobs without a song (the create panel's AI lyric buttons).

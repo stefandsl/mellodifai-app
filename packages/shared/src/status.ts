@@ -75,7 +75,18 @@ export const REWRITE_STATUSES: readonly VersionStatus[] = [
   ...EDIT_STATUSES,
 ];
 
+// Statuses in which a song's lyric video was rendered, so its timing exists for the music-video
+// plan; the same list as request_music_video_plan (migration 20261114190001).
+export const MUSIC_VIDEO_PLAN_STATUSES: readonly VersionStatus[] = [
+  "video_review",
+  "approved",
+  "publishing",
+  "published",
+];
+
 export function stageAllowed(status: VersionStatus, stage: Stage): boolean {
+  if (stage === "music_video_plan")
+    return MUSIC_VIDEO_PLAN_STATUSES.includes(status);
   // A visualizer renders the same chosen take the stems separate (request_visualizer).
   if (stage === "align_lyrics")
     return status === "takes_review" || STEMS_STATUSES.includes(status);

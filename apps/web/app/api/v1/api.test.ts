@@ -9,6 +9,8 @@ import {
   createInput,
   type Handler,
   jobId,
+  mvElementId,
+  mvShotId,
   pack,
   pathParams,
   remakeAcceptBody,
@@ -77,6 +79,14 @@ const expectedArgs: Record<string, unknown[]> = {
   remake_retry: [remakeId],
   remake_cancel: [remakeId],
   remake_dismiss: [remakeId],
+  music_video_plan_request: [versionId],
+  music_video_storyboard: [versionId],
+  music_video_element_update: [
+    mvElementId,
+    { name: "Mara", description: "La cantante" },
+  ],
+  music_video_shot_update: [mvShotId, { size: "close-up", mood: "notturno" }],
+  music_video_take_request: [mvShotId, "draft"],
 };
 async function handler(row: (typeof apiCases)[number]) {
   const file = `.${row.path.replace(/\{([^}]+)\}/g, "[$1]")}/route.ts`;
@@ -93,8 +103,8 @@ beforeEach(() => {
   }));
 });
 
-it("registers exactly the twenty-five 7.3 and 7.3b operations with their HTTP metadata", () => {
-  expect(TOKEN_OPS).toHaveLength(25);
+it("registers exactly the thirty 7.3, 7.3b and music-video operations with their HTTP metadata", () => {
+  expect(TOKEN_OPS).toHaveLength(30);
   expect(TOKEN_OPS.map((def) => ({ name: def.name, ...def.http }))).toEqual(
     apiCases.map(({ name, method, path }) => ({
       name,
@@ -535,5 +545,91 @@ it("a lost answer is ambiguous_spend for the paid remake steps only", async () =
     expect(response.status, name).toBe(status);
     expect((await response.json()).error.code, name).toBe(code);
     expect(mocks.callOps).toHaveBeenCalledTimes(2);
+  }
+});
+
+it("the music-video tools ask the scopes the database asks", () => {
+  const scopes = Object.fromEntries(
+    TOKEN_OPS.filter((def) => def.name.startsWith("music_video")).map((def) => [
+      def.name,
+      def.scope,
+    ]),
+  );
+  expect(scopes).toEqual({
+    music_video_plan_request: "create",
+    music_video_storyboard: "read",
+    music_video_element_update: "create",
+    music_video_shot_update: "create",
+    music_video_take_request: "create",
+  });
+  for (const def of TOKEN_OPS.filter((d) => d.name.startsWith("music_video")))
+    expect(def.description, def.name).toContain(`(scope ${def.scope}`);
+});
+
+it.each([
+  ["music_video_element_update", { patch: {} }],
+  ["music_video_element_update", { patch: { kind: "prop" } }],
+  ["music_video_element_update", { patch: { name: " " } }],
+  ["music_video_element_update", {}],
+  ["music_video_shot_update", { patch: { lyrics: "Nuove parole" } }],
+  ["music_video_shot_update", { patch: { size: "huge" } }],
+  ["music_video_shot_update", { patch: { location_id: "nope" } }],
+  ["music_video_take_request", { phase: "4k" }],
+  ["music_video_take_request", {}],
+] as const)("%s refuses %j before any database call", async (name, body) => {
+  expect((await post(name, body)).status).toBe(422);
+  expect(mocks.callOps).not.toHaveBeenCalled();
+});
+
+it("the shot and element named by the path win over the body", async () => {
+  expect(
+    (
+      await post("music_video_take_request", {
+        phase: "final",
+        shot_id: randomUUID(),
+      })
+    ).args,
+  ).toEqual([mvShotId, "final"]);
+  expect(
+    (
+      await post("music_video_element_update", {
+        element_id: randomUUID(),
+        patch: { ref_asset_ids: ["owner/refs/a.png"] },
+      })
+    ).args,
+  ).toEqual([mvElementId, { ref_asset_ids: ["owner/refs/a.png"] }]);
+  const row = remakeRow("music_video_shot_update");
+  const response = await (await handler(row))(
+    new Request(requestFor(row, newPat().token, { shot_id: "not-an-id" }), {
+      body: JSON.stringify({ patch: { mood: "calmo" } }),
+    }),
+    { params: Promise.resolve({ ...params, shot_id: "not-an-id" }) },
+  );
+  expect(response.status).toBe(422);
+});
+
+it("a lost answer of a music-video write is internal, never ambiguous spend", async () => {
+  for (const name of [
+    "music_video_plan_request",
+    "music_video_element_update",
+    "music_video_shot_update",
+    "music_video_take_request",
+  ]) {
+    mocks.callOps.mockReset();
+    mocks.callOps
+      .mockResolvedValueOnce({ ok: true, data: { status: "new" } })
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "internal",
+        message: "Internal error",
+        details: { reason: "completion_unknown" },
+      });
+    const row = remakeRow(name);
+    const response = await (await handler(row))(
+      requestFor(row, newPat().token),
+      { params: Promise.resolve(params) },
+    );
+    expect(response.status, name).toBe(500);
+    expect((await response.json()).error.code, name).toBe("internal");
   }
 });

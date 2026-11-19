@@ -20,10 +20,52 @@ import {
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { workerTempDir } from "../runtime.js";
 import { makeThumbnail } from "../stages/art.js";
+import {
+  genreOf,
+  LANGUAGE_NAMES,
+  musicVideoPlan,
+  type SongTiming,
+  storyboardPlan,
+} from "../stages/music-video.js";
 import { assertPublishRender } from "../stages/publish.js";
 import { resolveStoryboardPath, songStoryboard } from "../stages/storyboard.js";
 import { key, renderAssetPath, upload, writePack } from "../stages/utils.js";
 import { createFakeRemakeStages } from "./remake.js";
+
+// 8 s of intro, one two-bar line of three words per sung line (at most eight), 8 s of outro.
+export function fakeMusicVideoTiming(lyrics: string): SongTiming {
+  const sung = lyrics
+    .split(/\r?\n/u)
+    .filter((line) => line.trim() && !line.trim().startsWith("["))
+    .slice(0, 8);
+  const duration = 16 + sung.length * 4;
+  const beats = Array.from({ length: duration * 2 }, (_, i) => i * 0.5);
+  const lines = sung.map((text, i) => {
+    const t = 8 + i * 4;
+    const [a = "la", b = "la", c = "la"] = text.trim().split(/\s+/u);
+    return {
+      section: "Verse 1",
+      text,
+      words: [
+        { w: a, start: t + 0.05, end: t + 0.9 },
+        { w: b, start: t + 1.0, end: t + 1.9 },
+        { w: c, start: t + 2.1, end: t + 3.3 },
+      ],
+    };
+  });
+  return {
+    duration,
+    fps: 10,
+    beats,
+    downbeats: beats.filter((_, i) => i % 4 === 0),
+    sections: [
+      { name: "Intro", start: 0, end: 8 },
+      { name: "Verse 1", start: 8, end: duration - 8 },
+      { name: "Outro", start: duration - 8, end: duration },
+    ],
+    lines,
+  };
+}
 
 export const fakePack: LyricPack = {
   title: "A little brighter",
@@ -150,6 +192,7 @@ export function createFakeStages(
     "replace_section",
     "import_audio",
     "align_lyrics",
+    "music_video_plan",
   ];
   for (const stage of names)
     registry[stage] = async (ctx) => {
@@ -197,6 +240,21 @@ export function createFakeStages(
           if (take) await ctx.db.patchTake(take.id, { lyric_timing });
           else await ctx.db.patchVersion(ctx.version.id, { lyric_timing });
           break;
+        }
+        case "music_video_plan": {
+          // The real planner on a synthetic 120 BPM timing of the first sung lines; no ffmpeg.
+          const pack = LyricPackSchema.parse(ctx.version.lyric_pack);
+          const plan = musicVideoPlan(fakeMusicVideoTiming(pack.lyrics), {
+            genre: genreOf(pack.style),
+          });
+          await ctx.db.musicVideo.savePlan(
+            ctx.version.id,
+            storyboardPlan(plan, {
+              title: pack.title.trim() || "Untitled",
+              language: LANGUAGE_NAMES[ctx.version.lang],
+            }),
+          );
+          return {};
         }
         case "draft_lyrics": {
           const title =
