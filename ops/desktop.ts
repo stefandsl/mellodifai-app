@@ -41,6 +41,7 @@ import {
   WORKER_KEYS_TEMPLATE,
   workerSettings,
 } from "./lib/desktop.js";
+import { oneAtATime } from "./lib/desktop-lock.js";
 import { nativeTools } from "./lib/native/build.js";
 import { nativeLayout, nativePorts } from "./lib/native/layout.js";
 import { witness } from "./lib/native/postgres.js";
@@ -387,18 +388,22 @@ function requireInstall() {
     fail(MSG.notInstalled);
 }
 
+/** One start at a time (logon and the icon can run together): the second waits, then finds
+ * the web app and worker the first one started. */
 async function start() {
   requireInstall();
   for (const dir of [P.logs, P.run, P.backups, P.config])
     mkdirSync(dir, { recursive: true });
-  await startStack();
-  const ownerId = await ensureOwner();
-  await ensureWeb();
-  await ensureWorker(ownerId);
-  writeFileSync(
-    P.state,
-    JSON.stringify({ startedAt: new Date().toISOString() }),
-  );
+  await oneAtATime(join(P.run, "start.lease"), async () => {
+    await startStack();
+    const ownerId = await ensureOwner();
+    await ensureWeb();
+    await ensureWorker(ownerId);
+    writeFileSync(
+      P.state,
+      JSON.stringify({ startedAt: new Date().toISOString() }),
+    );
+  });
   say(MSG.ready);
 }
 
