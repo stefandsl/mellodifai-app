@@ -1,0 +1,13 @@
+{
+  "name": "@mellodifai/windows",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:installer": "node src/build.mjs",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
+  }
+}
