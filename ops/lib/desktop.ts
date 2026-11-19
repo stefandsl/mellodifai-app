@@ -108,6 +108,38 @@ export function engineSettings(
 }
 
 /**
+ * What every process of the app starts from: the parent's variables without another stack's
+ * keys, without RUNNER_TEMP (it would replace the runtime root) or WORKER_FAKE (fake engines),
+ * and without any spelling of a
+ * name set here (Windows names ignore case), then the app's own root and temp folder.
+ */
+export function desktopBaseEnv(
+  parent: NodeJS.ProcessEnv,
+  root: string,
+): NodeJS.ProcessEnv {
+  const temp = join(root, "tmp");
+  const own: Record<string, string> = {
+    MELLODIFAI_ROOT: root,
+    MELLODIFAI_RUNTIME: "native",
+    TEMP: temp,
+    TMP: temp,
+    TMPDIR: temp,
+    NEXT_TELEMETRY_DISABLED: "1",
+  };
+  const names = new Set(Object.keys(own).map((name) => name.toUpperCase()));
+  const env: NodeJS.ProcessEnv = {};
+  for (const [name, value] of Object.entries(parent))
+    if (
+      !/^(SUPABASE_|NEXT_PUBLIC_|MDF_|TEST_|SITE_URL$|E2E_|RUNNER_TEMP$|WORKER_FAKE$)/i.test(
+        name,
+      ) &&
+      !names.has(name.toUpperCase())
+    )
+      env[name] = value;
+  return { ...env, ...own };
+}
+
+/**
  * The worker's own settings. Its workspaces copy fonts from MELLODIFAI_FONTS (default
  * `<data>\fonts`, which an install never has), so it gets the fonts the installer ships in
  * `<app>\fonts`; without them every song failed at its first stage with ENOENT. Its engine
@@ -135,6 +167,23 @@ export function workerSettings(
     MELLODIFAI_LOCAL_ENGINES: "off",
     // The remake package reads its own variables; their defaults are production's folders.
     REMAKE_ENGINE_ROOT: engine.MELLODIFAI_ENGINE_ROOT,
+    REMAKE_LABSE_PYTHON: join(
+      paths.root,
+      "venvs",
+      "labse",
+      "Scripts",
+      "python.exe",
+    ),
+    REMAKE_PYTHON: "python",
+    HF_HOME: join(paths.root, "cache", "hf"),
+    // Video renders: temp frames and the Chrome the app names (render.mjs refuses a missing one).
+    RENDER_TMP: join(paths.root, "render-tmp"),
+    REMOTION_BROWSER: join(
+      paths.root,
+      "browsers",
+      "chrome-headless-shell-win64",
+      "chrome-headless-shell.exe",
+    ),
     REMAKE_STEMS_PYTHON: join(
       paths.root,
       "venvs",

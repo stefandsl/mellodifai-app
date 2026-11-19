@@ -27,6 +27,7 @@ import {
   backupFolder,
   buildStamp,
   DESKTOP,
+  desktopBaseEnv,
   desktopEnvValues,
   desktopPaths,
   engineSettings,
@@ -649,5 +650,66 @@ describe("desktop sign-in page lifetime", () => {
       () => null,
     );
     expect(await other.loaded).toBe(false);
+  });
+});
+
+describe("desktop worker environment", () => {
+  it("sets every path variable the worker and its packages read, all inside the install", () => {
+    const install = "I:\\MellodifAI-App";
+    const app = join(install, "app");
+    const data = join(install, "data");
+    const sources = [
+      ["apps", "worker", "src", "paths.ts"],
+      ["apps", "worker", "src", "runtime.ts"],
+      ["apps", "worker", "src", "workspace.ts"],
+      ["packages", "remake", "src", "paths.ts"],
+      ["packages", "remake", "src", "embed.ts"],
+      ["packages", "visualizer", "scripts", "render.mjs"],
+    ];
+    const names = new Set<string>();
+    for (const parts of sources)
+      for (const match of readFileSync(join(repo, ...parts), "utf8").matchAll(
+        /\benv\.([A-Z][A-Z0-9_]+)/gu,
+      ))
+        names.add(match[1] as string);
+    expect(names.size).toBeGreaterThan(8);
+    // The owner's shell may carry any of them, pointing at production.
+    const parent: NodeJS.ProcessEnv = {
+      PATH: "C:\\Windows",
+      RUNNER_TEMP: "E:\\mellodifai",
+    };
+    for (const name of names) parent[name] = "E:\\mellodifai\\x";
+    const env = {
+      ...desktopBaseEnv(parent, data),
+      ...workerSettings(
+        app,
+        { root: data, workerKeys: "k", workerEnv: "w" },
+        "o",
+        engineSettings({}, data),
+        "PC",
+      ),
+    };
+    const outside: string[] = [];
+    for (const name of names) {
+      // RUNNER_TEMP would replace the runtime root: it must not reach the worker at all.
+      // So would WORKER_FAKE switch the real engines off.
+      if (name === "RUNNER_TEMP" || name === "WORKER_FAKE") {
+        if (name in env) outside.push(name);
+        continue;
+      }
+      const value = env[name];
+      if (value === undefined) {
+        outside.push(`${name} unset`);
+        continue;
+      }
+      // A bare command (python) is looked up on PATH, not a production folder.
+      if (!/[\\/]/u.test(value)) continue;
+      const inside = [data, app].some((root) => {
+        const rel = relative(root, resolve(value));
+        return !rel.startsWith("..") && !isAbsolute(rel);
+      });
+      if (!inside) outside.push(`${name}=${value}`);
+    }
+    expect(outside).toEqual([]);
   });
 });

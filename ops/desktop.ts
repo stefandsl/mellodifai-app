@@ -28,6 +28,7 @@ import {
   buildStamp,
   DESKTOP,
   type DesktopProcess,
+  desktopBaseEnv,
   desktopPaths,
   engineSettings,
   folderBytes,
@@ -250,22 +251,8 @@ function readEnv(path: string): Record<string, string> {
 }
 
 function baseEnv(): NodeJS.ProcessEnv {
-  // Never pass another stack's keys from the parent shell to our processes.
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  for (const name of Object.keys(env))
-    if (/^(SUPABASE_|NEXT_PUBLIC_|MDF_|TEST_|SITE_URL$|E2E_)/.test(name))
-      delete env[name];
-  const temp = join(P.root, "tmp");
-  mkdirSync(temp, { recursive: true });
-  return {
-    ...env,
-    MELLODIFAI_ROOT: P.root,
-    MELLODIFAI_RUNTIME: "native",
-    TEMP: temp,
-    TMP: temp,
-    TMPDIR: temp,
-    NEXT_TELEMETRY_DISABLED: "1",
-  };
+  mkdirSync(join(P.root, "tmp"), { recursive: true });
+  return desktopBaseEnv(process.env, P.root);
 }
 
 /** The engine folder and publishing switch, from the owner's keys file (engineSettings). */
