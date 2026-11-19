@@ -3,6 +3,7 @@ import {
   BASE,
   type Canvas2D,
   clock,
+  contrastRatio,
   drawFitted,
   drawTitle,
   ease,
@@ -70,6 +71,17 @@ const TAU = Math.PI * 2;
 // The lower band (captions, a lyric line, the platform's own subtitles) stays free of the look's
 // title: a title asked for lower is drawn at its top edge.
 const CAPTION_BAND = 0.8;
+
+// Text on a solid fill: `preferred` when it holds 4.5:1 there, else white or near-black, whichever
+// holds more.
+function inkOn(fill: string, preferred = "#ffffff"): string {
+  const bg = hexToRgb(fill);
+  if (contrastRatio(hexToRgb(preferred), bg) >= 4.5) return preferred;
+  const dark = "#0a0a10";
+  return contrastRatio(hexToRgb(dark), bg) > contrastRatio([255, 255, 255], bg)
+    ? dark
+    : "#ffffff";
+}
 function titleAt(ctx: Canvas2D, scene: VisualizerScene, y: number): void {
   drawTitle(ctx, scene, Math.min(y, scene.height * CAPTION_BAND));
 }
@@ -1418,6 +1430,7 @@ function playercard(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   textLine(ctx, scene, clock(t), tbx, tby, 28 * u, {
     weight: 600,
     align: "center",
+    color: inkOn(S),
     shadow: false,
   });
 
@@ -1519,7 +1532,7 @@ function playercard(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   textLine(ctx, scene, clock(t), colX + colW - pad, rowY, 24 * u, {
     weight: 600,
     align: "right",
-    color: P,
+    color: inkOn("#f4f4f4", P),
     shadow: false,
   });
   ctx.restore();
