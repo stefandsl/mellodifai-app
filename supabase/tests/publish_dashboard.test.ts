@@ -833,3 +833,32 @@ it("a rule covers only a plan whose real price is within its cap", async () => {
     });
   });
 });
+
+it("a worker's recovery touches only its own owner's cards and claims", async () => {
+  await fixture(async (tx) => {
+    const mine = await actor(tx);
+    await video(tx, mine.user_id);
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const theirs = await video(tx, owner.user_id);
+    const id = await plan(tx, pat, theirs.version, inHours(3));
+    const asked = await op(tx, "publish_request_approval", pat, id);
+    await tx`update public.approval_requests set expires_at=now()-interval '1 second' where id=${asked.data.approval.approval_id}`;
+    const b = await scheduled(tx);
+    const [claimed] = await worker<Record<string, string>[]>(
+      tx,
+      "select ops.publish_dispatch_claim($1,5) as result",
+      [`wpub-${b.owner.user_id}`],
+    );
+    await tx`update public.publish_destinations set claim_expires_at=now()-interval '1 second' where id=${claimed.destination_id}`;
+    expect(
+      await worker(tx, "select ops.publish_dispatch_recover($1) as result", [
+        `wpub-${mine.user_id}`,
+      ]),
+    ).toEqual([]);
+    expect(await state(tx, id)).toBe("awaiting_approval");
+    expect(
+      await tx`select state from public.publish_destinations where id=${claimed.destination_id}`,
+    ).toEqual([{ state: "claimed" }]);
+  });
+});

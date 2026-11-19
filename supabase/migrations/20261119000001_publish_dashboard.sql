@@ -675,16 +675,17 @@ declare v_sid uuid; d public.publish_destinations; out jsonb := '[]'::jsonb; v_t
 begin
   -- A worker publishes only for its own owner (public.workers.owner_id).
   if v_owner is null then raise exception 'invalid worker'; end if;
-  -- A pending card whose slot came: zero external calls, the plan expires.
-  for v_sid in select a.schedule_id from public.approval_requests a where a.state='pending' and a.expires_at<=now() order by a.schedule_id loop
+  -- A pending card whose slot came: zero external calls, the plan expires. Only this worker's owner.
+  for v_sid in select a.schedule_id from public.approval_requests a where a.owner_id=v_owner and a.state='pending'
+    and a.expires_at<=now() order by a.schedule_id loop
     perform 1 from public.publish_schedules where id=v_sid for update;
     perform 1 from public.publish_destinations where schedule_id=v_sid order by id for update;
     update public.approval_requests set state='expired',decided_at=now(),decided_via='system' where schedule_id=v_sid and state='pending';
     update public.publish_schedules set state='expired',updated_at=now() where id=v_sid and state='awaiting_approval';
     perform ops._publish_event(v_sid,null,'approval_expired','system','{}'::jsonb);
   end loop;
-  for v_sid in select distinct x.schedule_id from public.publish_destinations x
-    where x.state in ('claimed','intent_recorded','handoff_started') and x.claim_expires_at<=now() order by x.schedule_id loop
+  for v_sid in select distinct x.schedule_id from public.publish_destinations x where x.owner_id=v_owner
+    and x.state in ('claimed','intent_recorded','handoff_started') and x.claim_expires_at<=now() order by x.schedule_id loop
     perform 1 from public.publish_schedules where id=v_sid for update;
     for d in select * from public.publish_destinations where schedule_id=v_sid order by id for update loop
       if d.claim_expires_at is null or d.claim_expires_at > now() then continue; end if;
@@ -692,7 +693,7 @@ begin
         -- No provider call happened: back to scheduled; gate, veto and approval are checked again.
         update public.publish_destinations set state='scheduled',claim_token=null,claimed_by=null,claim_expires_at=null,updated_at=now() where id=d.id;
         perform ops._publish_event(v_sid,d.id,'claim_released','system',jsonb_build_object('from',d.state));
-      elsif d.state = 'handoff_started' and d.owner_id = v_owner then
+      elsif d.state = 'handoff_started' then
         -- The provider call may have happened: only its status decides, never a blind retry.
         v_token := gen_random_uuid();
         update public.publish_destinations set claim_token=v_token,claimed_by=p_worker,claim_expires_at=now()+interval '15 minutes',updated_at=now() where id=d.id;
