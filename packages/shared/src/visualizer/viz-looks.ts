@@ -275,7 +275,6 @@ function textLine(
     maxWidth?: number;
     tracking?: number;
     shadow?: boolean;
-    outline?: number;
   } = {},
 ): number {
   if (!text) return 0;
@@ -286,7 +285,6 @@ function textLine(
     maxWidth,
     tracking = 0,
     shadow = true,
-    outline = 0,
   } = opts;
   const u = unitOf(scene.width, scene.height);
   let size = px;
@@ -318,15 +316,8 @@ function textLine(
     ctx.shadowColor = "rgba(0,0,0,0.6)";
     ctx.shadowBlur = 12 * u;
   }
-  if (outline > 0) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = outline;
-    ctx.lineJoin = "round";
-    spacedText(ctx, line, x, y, tracking * size, align, true);
-  } else {
-    ctx.fillStyle = color;
-    spacedText(ctx, line, x, y, tracking * size, align);
-  }
+  ctx.fillStyle = color;
+  spacedText(ctx, line, x, y, tracking * size, align);
   ctx.restore();
   return size;
 }
@@ -1924,7 +1915,7 @@ function synthwave(ctx: Canvas2D, scene: VisualizerScene, level: number) {
   );
 }
 
-// ---- P12 Editoriale: an outlined title, a tick strip and a photo cut on the diagonal ----------
+// ---- P12 Editoriale: a bold title, a tick strip and a photo cut on the diagonal ----------
 
 function editorialPhoto(w: number, h: number): number[][] {
   const tall = h > w;
