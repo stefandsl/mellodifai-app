@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -8,7 +9,8 @@ import {
 } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -26,6 +28,7 @@ import {
   DESKTOP,
   desktopEnvValues,
   desktopPaths,
+  engineSettings,
   folderBytes,
   formatEnvFile,
   freeBytes,
@@ -52,6 +55,8 @@ const passwords = { mdf_web: "web pass/&", mdf_auth: "auth" };
 const secrets = { anon: "anon-key", service: "service-key" };
 
 afterEach(() => vi.unstubAllEnvs());
+
+const repo = fileURLToPath(new URL("../../", import.meta.url));
 
 describe("desktop stack", () => {
   const ports = (env: StackEnv) =>
@@ -240,6 +245,7 @@ describe("desktop env files", () => {
       "I:/MellodifAI/app",
       paths,
       "owner-1",
+      engineSettings({}, "I:/MellodifAI/data"),
       "PC1",
     );
     expect(settings.MELLODIFAI_FONTS).toBe(join("I:/MellodifAI/app", "fonts"));
@@ -247,9 +253,9 @@ describe("desktop env files", () => {
     expect(settings.WORKER_OWNER_ID).toBe("owner-1");
     // Later files win: the stack's own keys override the owner's file.
     expect(settings.WORKER_ENV_FILES).toBe("D:/keys.env;D:/stack.env");
-    expect(workerSettings("I:/app", paths, undefined)).not.toHaveProperty(
-      "WORKER_OWNER_ID",
-    );
+    expect(
+      workerSettings("I:/app", paths, undefined, engineSettings({}, "I:/d")),
+    ).not.toHaveProperty("WORKER_OWNER_ID");
   });
 
   it("round-trips through the env file format and refuses line breaks", () => {
@@ -448,5 +454,73 @@ describe("desktop update backups", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("desktop engine and publishing", () => {
+  const data = "I:\\MellodifAI\\data";
+  const paths = { workerKeys: "D:/keys.env", workerEnv: "D:/stack.env" };
+
+  it("keeps the engine in the app's own data folder and publishing off until the owner sets his own", () => {
+    const own = {
+      MELLODIFAI_ENGINE_ROOT: join(data, "engine"),
+      WORKER_PUBLISHING: "off",
+    };
+    expect(engineSettings({}, data)).toEqual(own);
+    // Publishing alone is not enough: it needs the owner's own engine and credentials.
+    expect(engineSettings({ MELLODIFAI_PUBLISHING: "on" }, data)).toEqual(own);
+    // Production's engine folder (its YouTube token) is refused in any letter case.
+    expect(
+      engineSettings(
+        {
+          MELLODIFAI_ENGINE_ROOT: "c:/users/asus/documents/SUNO-REMAKE/",
+          MELLODIFAI_PUBLISHING: "on",
+        },
+        data,
+      ),
+    ).toEqual(own);
+    expect(
+      engineSettings({ MELLODIFAI_ENGINE_ROOT: "F:/mine/engine" }, data),
+    ).toEqual({
+      MELLODIFAI_ENGINE_ROOT: resolve("F:/mine/engine"),
+      WORKER_PUBLISHING: "off",
+    });
+    expect(
+      engineSettings(
+        {
+          MELLODIFAI_ENGINE_ROOT: "F:/mine/engine",
+          MELLODIFAI_PUBLISHING: "on",
+        },
+        data,
+      ).WORKER_PUBLISHING,
+    ).toBe("on");
+  });
+
+  it("starts the real worker code on the app's engine folder, never production's", () => {
+    const settings = workerSettings(
+      "I:/MellodifAI/app",
+      paths,
+      "owner-1",
+      engineSettings({}, data),
+      "PC1",
+    );
+    const env: NodeJS.ProcessEnv = { ...process.env, ...settings };
+    const utils = pathToFileURL(
+      join(repo, "apps", "worker", "src", "stages", "utils.ts"),
+    ).href;
+    const gate = pathToFileURL(
+      join(repo, "apps", "worker", "src", "publishing", "gate.ts"),
+    ).href;
+    const out = execFileSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        "-e",
+        `Promise.all([import(${JSON.stringify(utils)}), import(${JSON.stringify(gate)})]).then(([u, g]) => console.log(JSON.stringify([u.ENGINE_ROOT, g.publishingOn()])))`,
+      ],
+      { cwd: join(repo, "apps", "worker"), env, encoding: "utf8" },
+    );
+    expect(JSON.parse(out.trim())).toEqual([join(data, "engine"), false]);
   });
 });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pt } from "@/components/studio/publishing/copy";
 import { PublishDashboard } from "@/components/studio/publishing/publish-dashboard";
+import { PublishingOffNotice } from "@/components/studio/publishing/publishing-off-notice";
 import { StudioPage } from "@/components/studio/studio-shell";
 import { requireProfile } from "@/lib/auth";
 import { getLocale } from "@/lib/locale";
@@ -11,6 +12,7 @@ import { mediaUrl } from "@/lib/media";
 import { sessionCtx } from "@/lib/ops/context";
 import { publishStatus } from "@/lib/ops/defs/publishing";
 import { runOp } from "@/lib/ops/run";
+import { publishingOff } from "@/lib/publishing-off";
 import { orderedVersions, selectedVersion } from "@/lib/versions";
 
 export const metadata: Metadata = { title: "Pubblica" };
@@ -64,6 +66,12 @@ export default async function PublishPage({
   const pack = LyricPackSchema.safeParse(current.lyric_pack);
   const songTitle =
     current.display_title || (pack.success ? pack.data.title : project.topic);
+  if (publishingOff())
+    return (
+      <StudioPage title={pt(lang, "title")} eyebrow={songTitle} actions={back}>
+        <PublishingOffNotice />
+      </StudioPage>
+    );
   const ctx = await sessionCtx().catch(() => null);
   const status =
     ctx && !ctx.remote && profile.role === "admin"

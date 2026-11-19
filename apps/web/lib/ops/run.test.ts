@@ -526,3 +526,38 @@ it("does not report ambiguous spend when key opening fails before dispatch", asy
   });
   expect(mocks.callOps).toHaveBeenCalledOnce();
 });
+
+it("refuses every op that moves a video toward YouTube while publishing is off", async () => {
+  const { runOp } = await import("./run");
+  const { publishPlan, publishVeto } = await import("./defs/publishing");
+  const { adminEnqueuePublish } = await import("./defs/admin-enqueue-publish");
+  const { PUBLISHING_OFF_MESSAGE } = await import("@/lib/publishing-off");
+  const plan = {
+    version_id: "00000000-0000-4000-8000-000000000001",
+    platforms: ["youtube"],
+  };
+  vi.stubEnv("MDF_PUBLISHING", "off");
+  try {
+    expect(await runOp(publishPlan, keyedCtx, plan)).toEqual({
+      ok: false,
+      code: "forbidden_scope",
+      message: PUBLISHING_OFF_MESSAGE,
+    });
+    expect(
+      await runOp(adminEnqueuePublish, keyedCtx, { renderId: "x" }),
+    ).toMatchObject({ ok: false, code: "forbidden_scope" });
+    expect(mocks.callOps).not.toHaveBeenCalled();
+    // A veto only takes publishing away: it still reaches the database.
+    mocks.callOps.mockResolvedValue({
+      ok: false,
+      code: "not_found",
+      message: "x",
+    });
+    await runOp(publishVeto, keyedCtx, {
+      schedule_id: "00000000-0000-4000-8000-000000000002",
+    });
+    expect(mocks.callOps).toHaveBeenCalled();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});

@@ -29,6 +29,7 @@ import {
   DESKTOP,
   type DesktopProcess,
   desktopPaths,
+  engineSettings,
   folderBytes,
   freeBytes,
   isAppWindowProcess,
@@ -266,8 +267,24 @@ function baseEnv(): NodeJS.ProcessEnv {
   };
 }
 
+/** The engine folder and publishing switch, from the owner's keys file (engineSettings). */
+function engine() {
+  const keys = existsSync(P.workerKeys)
+    ? parseEnvFile(readFileSync(P.workerKeys, "utf8"))
+    : {};
+  const settings = engineSettings(keys, P.root);
+  mkdirSync(settings.MELLODIFAI_ENGINE_ROOT, { recursive: true });
+  return settings;
+}
+
 function webEnv(): NodeJS.ProcessEnv {
-  return { ...baseEnv(), ...readEnv(P.webEnv), NODE_ENV: "production" };
+  return {
+    ...baseEnv(),
+    ...readEnv(P.webEnv),
+    NODE_ENV: "production",
+    // The Pubblica pages and ops say publishing is off (apps/web/lib/publishing-off.ts).
+    MDF_PUBLISHING: engine().WORKER_PUBLISHING,
+  };
 }
 
 async function startStack() {
@@ -377,7 +394,7 @@ async function ensureWorker(ownerId: string | undefined) {
     "worker",
     [tsx, join(workerDir, "src", "main.ts")],
     workerDir,
-    { ...baseEnv(), ...workerSettings(app, P, ownerId) },
+    { ...baseEnv(), ...workerSettings(app, P, ownerId, engine()) },
   );
   const until = Date.now() + 90_000;
   while (Date.now() < until) {

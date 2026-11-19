@@ -39,15 +39,56 @@ export function desktopPaths(root = runtimeRoot()) {
   };
 }
 
+/** The engine folder of the live site on the owner's PC (the worker's built-in default): its
+ * publish\ folder holds production's YouTube token. The desktop app never runs there. */
+export const PRODUCTION_ENGINE_ROOTS = [
+  "C:\\Users\\Asus\\Documents\\suno-remake",
+];
+
+const samePath = (a: string, b: string) =>
+  resolve(a)
+    .replace(/[\\/]+$/u, "")
+    .toLowerCase() ===
+  resolve(b)
+    .replace(/[\\/]+$/u, "")
+    .toLowerCase();
+
+/**
+ * Where the worker's engines run and whether it may publish. By default the engine folder is
+ * `<data>\engine` (empty: engine stages fail with a clear error, nothing paid) and
+ * publishing is off. The owner turns both on in his keys file with
+ * MELLODIFAI_ENGINE_ROOT=<his own engine copy, with his own YouTube credentials> and
+ * MELLODIFAI_PUBLISHING=on; production's engine folder is refused.
+ */
+export function engineSettings(
+  keys: Record<string, string>,
+  dataRoot: string,
+): { MELLODIFAI_ENGINE_ROOT: string; WORKER_PUBLISHING: "on" | "off" } {
+  const chosen = keys.MELLODIFAI_ENGINE_ROOT?.trim();
+  const own =
+    chosen && !PRODUCTION_ENGINE_ROOTS.some((root) => samePath(root, chosen))
+      ? resolve(chosen)
+      : null;
+  return {
+    MELLODIFAI_ENGINE_ROOT: own ?? join(dataRoot, "engine"),
+    WORKER_PUBLISHING:
+      own && keys.MELLODIFAI_PUBLISHING?.trim().toLowerCase() === "on"
+        ? "on"
+        : "off",
+  };
+}
+
 /**
  * The worker's own settings. Its workspaces copy fonts from MELLODIFAI_FONTS (default
  * `<data>\fonts`, which an install never has), so it gets the fonts the installer ships in
- * `<app>\fonts`; without them every song failed at its first stage with ENOENT.
+ * `<app>\fonts`; without them every song failed at its first stage with ENOENT. Its engine
+ * folder and publishing switch come from engineSettings.
  */
 export function workerSettings(
   app: string,
   paths: Pick<ReturnType<typeof desktopPaths>, "workerKeys" | "workerEnv">,
   ownerId: string | undefined,
+  engine: ReturnType<typeof engineSettings>,
   computer = process.env.COMPUTERNAME,
 ): Record<string, string> {
   return {
@@ -57,6 +98,7 @@ export function workerSettings(
     // Later files win: the stack's own keys override anything in the owner's file.
     WORKER_ENV_FILES: [paths.workerKeys, paths.workerEnv].join(";"),
     MELLODIFAI_FONTS: join(app, "fonts"),
+    ...engine,
   };
 }
 
@@ -123,6 +165,11 @@ export const WORKER_KEYS_TEMPLATE = `# MellodifAI: le tue chiavi per i servizi e
 #
 # KIE_API_KEY=
 # OPENROUTER_API_KEY=
+#
+# Motore e pubblicazione su YouTube: spenti finche' non indichi il TUO motore, con le TUE
+# credenziali YouTube (mai quello della produzione). Engine and publishing, off until set:
+# MELLODIFAI_ENGINE_ROOT=E:\\cartella\\del\\tuo\\motore
+# MELLODIFAI_PUBLISHING=on
 `;
 
 /** The public build inputs: a change means the web app must be rebuilt. */

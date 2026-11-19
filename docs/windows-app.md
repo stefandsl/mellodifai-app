@@ -155,6 +155,16 @@ Logon: the Startup shortcut runs `autostart`, as the owner, with no scheduled ta
 elevation. Windows ends the processes at logoff; PostgreSQL recovers at the next start (see
 "Windows logoff and shutdown" in `docs/native-production.md`).
 
+Engine and publishing: the worker runs its engines in `data\engine` (MELLODIFAI_ENGINE_ROOT),
+never in production's engine folder, whose `publish\` holds production's YouTube token. That
+folder starts empty, so engine stages fail with a clear error and nothing is paid. Publishing
+is off (`WORKER_PUBLISHING=off` for the worker: the upload and privacy stages fail at once and
+the publishing clock does not run; `MDF_PUBLISHING=off` for the web app: the Pubblica pages say
+so and the publishing ops are refused) until the owner writes `MELLODIFAI_ENGINE_ROOT=<his own
+engine copy with his own YouTube credentials>` and `MELLODIFAI_PUBLISHING=on` in "Le tue
+chiavi" and restarts the app. `C:\Users\Asus\Documents\suno-remake` is refused in any
+letter case (`engineSettings` in `ops/lib/desktop.ts`).
+
 Limits: Windows x64 only; the worker's real engines still use the owner's fixed paths on this
 PC (M8 task 6), so on another PC the app runs but those engines need their paths configured
 first.

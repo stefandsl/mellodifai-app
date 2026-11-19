@@ -2,6 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import type { OpsResult } from "@mellodifai/shared";
 import { revalidatePath } from "next/cache";
 import { callOps } from "@/lib/db/ops-client";
+import {
+  PUBLISHING_OFF_MESSAGE,
+  PUBLISHING_OPS,
+  publishingOff,
+} from "@/lib/publishing-off";
 import type { OpDef, OpRunResult, OpsCtx } from "./types";
 
 function canonical(value: unknown): unknown {
@@ -40,6 +45,12 @@ export async function runOp<I, O>(
       "Completion unknown. Do not automatically retry. Retain the original idempotency key.",
     ...(key ? { idempotency_key: key } : {}),
   });
+  if (publishingOff() && PUBLISHING_OPS.has(def.name))
+    return {
+      ok: false,
+      code: "forbidden_scope",
+      message: PUBLISHING_OFF_MESSAGE,
+    };
   try {
     const parsed = def.input.safeParse(input);
     if (!parsed.success)

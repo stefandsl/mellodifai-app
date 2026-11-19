@@ -21,6 +21,7 @@ import {
   startPublishDispatcher,
   supabaseDispatchDb,
 } from "./publishing/dispatcher.js";
+import { publishingOn, withPublishingGate } from "./publishing/gate.js";
 import {
   FakeYouTubeClient,
   type YouTubeClient,
@@ -119,7 +120,15 @@ export function startPublishing(options: {
   loop: Pick<WorkerLoop, "healthy">;
   report: (line: string) => void;
   intervalMs?: number;
+  // false (WORKER_PUBLISHING=off): the clock never runs and nothing reaches YouTube.
+  enabled?: boolean;
 }) {
+  if (options.enabled === false) {
+    options.report(
+      "publishing off (WORKER_PUBLISHING=off): the publishing clock is not started",
+    );
+    return () => {};
+  }
   const providers = new Map([
     ["native:youtube", new YouTubeProvider(options.youtube)],
   ]);
@@ -200,11 +209,12 @@ async function main() {
           publish: () => publishEngines(db, workerId),
           report,
         });
+  const publishing = publishingOn();
   const loop = new WorkerLoop({
     db,
     workerId,
-    stages,
-    fakeStages,
+    stages: withPublishingGate(stages, publishing),
+    fakeStages: withPublishingGate(fakeStages, publishing),
     songless: songlessStages,
     fakeSongless,
     workspace: new WorkspaceFactory(),
@@ -243,6 +253,7 @@ async function main() {
     loop,
     report,
     intervalMs: Number(process.env.PUBLISH_DISPATCH_INTERVAL_MS) || 30_000,
+    enabled: publishing,
   });
   const removeSignals = installSignals(
     {
