@@ -19,6 +19,14 @@ if (!props || !out || !publicDir) {
   );
   process.exit(1);
 }
+// A Chrome named by REMOTION_BROWSER (the desktop app names one in its own data folder) is the
+// only one used: when it is missing, refuse instead of downloading one or borrowing another.
+if (process.env.REMOTION_BROWSER && !existsSync(SHELL)) {
+  console.error(
+    `Video non creato: manca il Chrome per i video (${SHELL}). Installalo in quella cartella e riprova.`,
+  );
+  process.exit(2);
+}
 mkdirSync(TMP, { recursive: true });
 mkdirSync(dirname(out), { recursive: true });
 const args = [
