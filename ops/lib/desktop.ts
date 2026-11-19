@@ -145,7 +145,8 @@ export function isDesktopProcess(
   appDir: string,
 ): boolean {
   const line = commandLine.replaceAll("/", "\\").toLowerCase();
-  const app = resolve(appDir).replaceAll("/", "\\").toLowerCase();
+  // The trailing separator keeps a sibling such as "app2" from matching "app".
+  const app = `${resolve(appDir).replaceAll("/", "\\").toLowerCase()}\\`;
   if (!line.includes(app)) return false;
   if (kind === "web")
     return (

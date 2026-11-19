@@ -256,6 +256,13 @@ describe("desktop processes", () => {
     ).toBe(false);
     expect(isDesktopProcess("worker", web, app)).toBe(false);
   });
+  it("never takes a sibling install whose folder name starts with this one's", () => {
+    const worker = `"E:\\MellodifAI\\node\\node.exe" E:\\MellodifAI\\app2\\node_modules\\tsx\\dist\\cli.mjs E:\\MellodifAI\\app2\\apps\\worker\\src\\main.ts`;
+    expect(isDesktopProcess("worker", worker, app)).toBe(false);
+    expect(
+      isDesktopProcess("worker", worker.replaceAll("app2", "app"), app),
+    ).toBe(true);
+  });
   it("recognises the worker by its entry file, with either slash", () => {
     expect(
       isDesktopProcess(
