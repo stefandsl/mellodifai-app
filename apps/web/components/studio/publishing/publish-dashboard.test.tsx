@@ -90,12 +90,16 @@ it("offers the owner a veto on an old-flow YouTube schedule", async () => {
       />
     </LocaleProvider>,
   );
-  fireEvent.click(screen.getByRole("button", { name: "Veto: rendilo privato" }));
-  const dialog = await screen.findByRole("alertdialog").catch(() =>
-    screen.findByRole("dialog"),
+  fireEvent.click(
+    screen.getByRole("button", { name: "Veto: rendilo privato" }),
   );
+  const dialog = await screen
+    .findByRole("alertdialog")
+    .catch(() => screen.findByRole("dialog"));
   const buttons = Array.from(dialog.querySelectorAll("button"));
-  const confirm = buttons.find((b) => /Veto|Conferma/u.test(b.textContent ?? ""));
+  const confirm = buttons.find((b) =>
+    /Veto|Conferma/u.test(b.textContent ?? ""),
+  );
   if (!confirm) throw new Error("confirm button missing");
   fireEvent.click(confirm);
   await waitFor(() =>

@@ -553,39 +553,39 @@ export function PublishPanel({
           </p>
         ) : (
           <>
-        <label className="block" htmlFor="publish-at">
-          {t(lang, "publish.at")}
-          <Input
-            id="publish-at"
-            type="datetime-local"
-            value={publishAt}
-            onChange={(e) => setPublishAt(e.target.value)}
-          />
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {(["public", "unlisted", "scheduled", "private"] as const).map(
-            (privacy) => (
-              <PublishConfirmDialog
-                key={privacy}
-                videoName={publication.metadata?.title ?? defaults.title}
-                privacy={privacy}
-                disabled={
-                  privacy === "scheduled" &&
-                  (!publishAt || Date.parse(publishAt) <= Date.now())
-                }
-                onConfirm={() =>
-                  setPrivacy({
-                    publicationId: publication.id,
-                    privacy,
-                    ...(privacy === "scheduled"
-                      ? { publishAt: new Date(publishAt).toISOString() }
-                      : {}),
-                  })
-                }
+            <label className="block" htmlFor="publish-at">
+              {t(lang, "publish.at")}
+              <Input
+                id="publish-at"
+                type="datetime-local"
+                value={publishAt}
+                onChange={(e) => setPublishAt(e.target.value)}
               />
-            ),
-          )}
-        </div>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(["public", "unlisted", "scheduled", "private"] as const).map(
+                (privacy) => (
+                  <PublishConfirmDialog
+                    key={privacy}
+                    videoName={publication.metadata?.title ?? defaults.title}
+                    privacy={privacy}
+                    disabled={
+                      privacy === "scheduled" &&
+                      (!publishAt || Date.parse(publishAt) <= Date.now())
+                    }
+                    onConfirm={() =>
+                      setPrivacy({
+                        publicationId: publication.id,
+                        privacy,
+                        ...(privacy === "scheduled"
+                          ? { publishAt: new Date(publishAt).toISOString() }
+                          : {}),
+                      })
+                    }
+                  />
+                ),
+              )}
+            </div>
           </>
         )}
       </section>

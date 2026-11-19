@@ -212,7 +212,11 @@ export async function dispatchTick(input: {
       draft.thumbnailText?.trim() &&
       !(typeof base === "string" && base && (await exists(base)))
     ) {
-      await db.hold(claim.destination_id, claim.claim_token, "thumbnail_missing");
+      await db.hold(
+        claim.destination_id,
+        claim.claim_token,
+        "thumbnail_missing",
+      );
       skipped++;
       report(`Publish ${claim.destination_id}: held, base thumbnail missing`);
       continue;

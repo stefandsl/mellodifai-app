@@ -141,9 +141,13 @@ export default async function ProjectPage({
     !!plans?.ok &&
     !("committed" in plans) &&
     plans.data.schedules.some((plan) =>
-      ["draft", "awaiting_approval", "scheduled", "publishing", "held"].includes(
-        plan.state,
-      ),
+      [
+        "draft",
+        "awaiting_approval",
+        "scheduled",
+        "publishing",
+        "held",
+      ].includes(plan.state),
     );
   const ids = (jobs ?? []).map((j) => j.id);
   const { data: events } = ids.length

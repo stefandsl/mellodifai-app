@@ -1249,9 +1249,10 @@ it("the owner vetoes an old-flow scheduled upload: private again, publishAt remo
     const [pub] =
       await tx`insert into public.publications(owner_id,render_id,privacy,publish_at,upload_state,youtube_video_id,privacy_applied,confirmed_by,confirmed_at)
       values(${owner.user_id},${old.render},'scheduled',now()+interval '2 days','uploaded','old-1','scheduled',${owner.user_id},now()) returning id`;
-    expect(
-      await op(tx, "publish_legacy_veto", pat, pub.id),
-    ).toMatchObject({ ok: false, code: "forbidden_scope" });
+    expect(await op(tx, "publish_legacy_veto", pat, pub.id)).toMatchObject({
+      ok: false,
+      code: "forbidden_scope",
+    });
     const vetoed = await op(tx, "publish_legacy_veto", owner, pub.id);
     expect(vetoed).toMatchObject({ ok: true });
     expect(

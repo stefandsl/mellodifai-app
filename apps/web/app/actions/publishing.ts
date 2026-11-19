@@ -2,8 +2,8 @@
 import {
   publishApprovalDecide,
   publishCancel,
-  publishLegacyVeto,
   publishDraftEdit,
+  publishLegacyVeto,
   publishPlan,
   publishReopen,
   publishRequestApproval,

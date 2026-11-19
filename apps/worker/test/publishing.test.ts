@@ -158,7 +158,12 @@ describe("publish dispatcher", () => {
       claims: [claim({ render_path: "E:/ws/renders/master.mp4" })],
     });
     run.youtube.failNext = "update";
-    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w", exists: yes });
+    await dispatchTick({
+      db: run.db,
+      providers: run.providers,
+      workerId: "w",
+      exists: yes,
+    });
     expect(run.youtube.calls.map((call) => call.op)).toEqual([
       "update",
       "state",
@@ -192,7 +197,7 @@ describe("publish dispatcher", () => {
         db: run.db,
         providers: run.providers,
         workerId: "w",
-      exists: yes,
+        exists: yes,
       });
       expect(run.youtube.calls).toEqual([]);
       expect(run.steps.some((step) => step.startsWith("finish"))).toBe(false);
@@ -244,7 +249,7 @@ describe("publish dispatcher", () => {
         db: run.db,
         providers: run.providers,
         workerId: "w",
-      exists: yes,
+        exists: yes,
       });
       expect(run.steps.at(-1)).toBe(`finish:${outcome}`);
       // One flip, one status read: never a blind second flip.
@@ -259,7 +264,12 @@ describe("publish dispatcher", () => {
   it("stores a short error code, never the provider's raw text", async () => {
     const run = setup({ claims: [claim()] });
     run.youtube.failNext = "dark";
-    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w", exists: yes });
+    await dispatchTick({
+      db: run.db,
+      providers: run.providers,
+      workerId: "w",
+      exists: yes,
+    });
     expect(run.finished[0]).toMatchObject({
       outcome: "unknown",
       error: "set_public_failed",
@@ -303,7 +313,12 @@ describe("publish dispatcher", () => {
     expect(run.steps).toEqual(["recover", "finish:published", "claim"]);
     expect(youtube.calls).toEqual([{ op: "state", videoId: "vid-1" }]);
     const unknown = fakeDb({ checks: [claim({ provider: "blotato" })] });
-    await dispatchTick({ db: unknown.db, providers: new Map(), workerId: "w", exists: yes });
+    await dispatchTick({
+      db: unknown.db,
+      providers: new Map(),
+      workerId: "w",
+      exists: yes,
+    });
     expect(unknown.finished[0]?.outcome).toBe("unknown");
   });
 
