@@ -22,6 +22,11 @@ describe("install folder", () => {
     expect(folderProblem(join(base, "PROD"), options)).toMatch(/produzione/);
     // A folder that holds the production root is just as bad.
     expect(folderProblem(base, options)).toMatch(/produzione/);
+    // And so is any folder inside it, existing or new, in any letter case.
+    expect(folderProblem(join(prod, "stacks"), options)).toMatch(/produzione/);
+    expect(
+      folderProblem(join(prod.toLowerCase(), "new", "MellodifAI-App"), options),
+    ).toMatch(/produzione/);
   });
 
   it.skipIf(process.platform !== "win32")(

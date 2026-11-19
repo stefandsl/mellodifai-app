@@ -53,8 +53,13 @@ export function folderProblem(
   for (const root of productionRoots) {
     const prod = key(realFolder(root, realpath));
     const here = key(real);
-    if (here === prod || prod.startsWith(`${here}\\`))
-      return `${real} e' la cartella del MellodifAI in produzione: scegli un'altra cartella, per esempio E:\\MellodifAI-App.`;
+    // The production root itself, a folder that holds it, or any folder inside it.
+    if (
+      here === prod ||
+      prod.startsWith(`${here}\\`) ||
+      here.startsWith(`${prod}\\`)
+    )
+      return `${real} e' (o contiene, o sta dentro) la cartella del MellodifAI in produzione: scegli un'altra cartella, per esempio E:\\MellodifAI-App.`;
   }
   if (existsSync(real)) {
     const entries = readdirSync(real);
