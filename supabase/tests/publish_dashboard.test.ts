@@ -1066,6 +1066,40 @@ it("veto, a new plan with a new title, approval: the public video carries the ne
 
 // Round-2 review fixes.
 
+it("the old flow cannot change a video's privacy while a Pubblica plan is open", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const { version, render } = await video(tx, owner.user_id);
+    const id = await plan(tx, owner, version, inHours(3));
+    const [pub] =
+      await tx`insert into public.publications(owner_id,render_id,privacy,upload_state,youtube_video_id,privacy_applied)
+      values(${owner.user_id},${render},'private','uploaded','vid-1','private') returning id`;
+    for (const privacy of ["public", "unlisted", "private"])
+      expect(
+        await call(tx, "mdf_web", "admin_confirm_publication", [
+          owner,
+          pub.id,
+          privacy,
+          null,
+        ]),
+        privacy,
+      ).toMatchObject({
+        ok: false,
+        code: "conflict",
+        message: "a publish plan is already open",
+      });
+    await op(tx, "publish_cancel", owner, id);
+    expect(
+      await call(tx, "mdf_web", "admin_confirm_publication", [
+        owner,
+        pub.id,
+        "unlisted",
+        null,
+      ]),
+    ).toMatchObject({ ok: true });
+  });
+});
+
 it("an old render attempt's YouTube upload does not block a plan for the current video", async () => {
   await fixture(async (tx) => {
     const owner = await actor(tx);

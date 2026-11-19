@@ -35,6 +35,8 @@ const it = {
   newPlan: "Nuovo piano",
   status: "Stato",
   history: "Cronologia",
+  oldFlowPlanOpen:
+    "Un piano in Pubblica è aperto per questo video: visibilità e data si gestiscono da Pubblica.",
   "error.provider_error":
     "YouTube ha dato un errore. Controlla il video in YouTube Studio.",
   "error.set_public_failed": "YouTube non ha reso pubblico il video.",
@@ -179,6 +181,8 @@ const en: Record<PublishKey, string> = {
   newPlan: "New plan",
   status: "Status",
   history: "History",
+  oldFlowPlanOpen:
+    "A Pubblica plan is open for this video: its visibility and date are managed in Pubblica.",
   "error.provider_error":
     "YouTube returned an error. Check the video in YouTube Studio.",
   "error.set_public_failed": "YouTube did not make the video public.",

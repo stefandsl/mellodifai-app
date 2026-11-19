@@ -30,6 +30,7 @@ import { ErrorDetails } from "./error-details";
 import { useLocale } from "./locale-provider";
 import { LyricEditor } from "./lyric-editor";
 import { PublishConfirmDialog } from "./publish-confirm-dialog";
+import { pt } from "./studio/publishing/copy";
 import { useLocalCost } from "./studio/worker-state";
 import { SubmissionResolution } from "./submission-resolution";
 import { type Take, TakePicker } from "./take-picker";
@@ -138,6 +139,7 @@ export function ProjectWorkspace({
   isAdmin = false,
   quotaNotBefore,
   settings,
+  publishPlanOpen = false,
 }: {
   version: WorkspaceVersion;
   takes: Take[];
@@ -150,6 +152,8 @@ export function ProjectWorkspace({
   thumbnailUrl?: string | null;
   // The project's song_settings: tells which engine made (or will make) the song.
   settings?: Record<string, unknown>;
+  // A "Pubblica" plan of this video is open: it owns the privacy, the old control steps aside.
+  publishPlanOpen?: boolean;
 }) {
   const lang = useLocale();
   const local = useLocalCost(settings);
@@ -461,6 +465,7 @@ export function ProjectWorkspace({
           uploading={activeJob}
           quotaNotBefore={quotaNotBefore}
           isAdmin={isAdmin}
+          publishPlanOpen={publishPlanOpen}
         />
       </>
     );
@@ -475,6 +480,7 @@ export function PublishPanel({
   isAdmin = false,
   retry,
   quotaNotBefore,
+  publishPlanOpen = false,
 }: {
   renderId?: string;
   visualizerId?: string;
@@ -486,6 +492,7 @@ export function PublishPanel({
   retry?:
     | (() => Promise<import("@/lib/action-result").ActionResult>)
     | undefined;
+  publishPlanOpen?: boolean;
 }) {
   const lang = useLocale();
   const { pending, run } = useAction();
@@ -540,6 +547,12 @@ export function PublishPanel({
         >
           {t(lang, "media.youtube")}
         </a>
+        {publishPlanOpen ? (
+          <p className="text-sm" data-testid="old-flow-plan-open">
+            {pt(lang, "oldFlowPlanOpen")}
+          </p>
+        ) : (
+          <>
         <label className="block" htmlFor="publish-at">
           {t(lang, "publish.at")}
           <Input
@@ -573,6 +586,8 @@ export function PublishPanel({
             ),
           )}
         </div>
+          </>
+        )}
       </section>
     );
   return (

@@ -865,6 +865,25 @@ begin
 end;
 $$;
 
+-- The old flow (confirm_publication, admin_confirm_publication) cannot change a video's privacy
+-- while a Pubblica plan of that video is open: the two clocks would race. Making an older render
+-- attempt's upload private again stays possible (the plan publishes another upload).
+create function ops._publish_guard_publication() returns trigger
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+begin
+  if new.confirmed_at is distinct from old.confirmed_at and exists (
+    select 1 from public.renders pr join public.publish_schedules s on s.version_id=pr.version_id
+      join public.renders sr on sr.id=s.render_id
+    where pr.id=new.render_id and s.state in ('draft','awaiting_approval','scheduled','publishing','held')
+      and (sr.render_attempt=pr.render_attempt or new.privacy<>'private' or new.publish_at is not null)) then
+    raise exception 'a publish plan is already open';
+  end if;
+  return new;
+end;
+$$;
+create trigger publications_publish_plan_guard before update on public.publications
+  for each row execute function ops._publish_guard_publication();
+
 -- Owner postgres, empty search path, exactly one role grant each (ops_core test).
 do $grants$
 declare f regprocedure;
@@ -877,7 +896,7 @@ begin
 end
 $grants$;
 grant execute on function ops._publish_event(uuid, uuid, text, text, jsonb), ops._publish_problems(text, jsonb),
-  ops._publish_hash(uuid), ops._publish_price(uuid), ops._publish_draft_clean(jsonb), ops._publish_view(uuid), ops._publish_activate(uuid, text),
+  ops._publish_hash(uuid), ops._publish_price(uuid), ops._publish_guard_publication(), ops._publish_draft_clean(jsonb), ops._publish_view(uuid), ops._publish_activate(uuid, text),
   ops._publish_do(jsonb, text, jsonb), ops._publish_summary(uuid), ops._publish_run(jsonb, text, jsonb, text, boolean),
   ops.publish_dispatch_recover(text), ops.publish_dispatch_claim(text, integer), ops.publish_dispatch_intent(uuid, uuid),
   ops.publish_dispatch_handoff(uuid, uuid), ops.publish_dispatch_finish(uuid, uuid, text, text, text) to service_role;

@@ -15,6 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
 import { getLocale } from "@/lib/locale";
 import { mediaUrl } from "@/lib/media";
+import { sessionCtx } from "@/lib/ops/context";
+import { publishStatus } from "@/lib/ops/defs/publishing";
+import { runOp } from "@/lib/ops/run";
 import { songMetadata } from "@/lib/studio/song-metadata";
 import { orderedVersions, selectedVersion } from "@/lib/versions";
 
@@ -127,6 +130,21 @@ export default async function ProjectPage({
         .eq("render_attempt", current.render_attempt)
         .order("created_at", { ascending: false }),
     ]);
+  // An open "Pubblica" plan owns this video's privacy: the old schedule control steps aside.
+  const ctx =
+    profile?.role === "admin" ? await sessionCtx().catch(() => null) : null;
+  const plans =
+    ctx && !ctx.remote
+      ? await runOp(publishStatus, ctx, { version_id: current.id })
+      : null;
+  const publishPlanOpen =
+    !!plans?.ok &&
+    !("committed" in plans) &&
+    plans.data.schedules.some((plan) =>
+      ["draft", "awaiting_approval", "scheduled", "publishing", "held"].includes(
+        plan.state,
+      ),
+    );
   const ids = (jobs ?? []).map((j) => j.id);
   const { data: events } = ids.length
     ? await supabase
@@ -273,6 +291,7 @@ export default async function ProjectPage({
                   (j) => j.status === "queued" || j.status === "running",
                 )}
                 isAdmin={profile?.role === "admin"}
+                publishPlanOpen={publishPlanOpen}
                 settings={
                   (project.song_settings as Record<string, unknown> | null) ??
                   undefined

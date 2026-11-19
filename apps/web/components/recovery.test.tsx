@@ -36,6 +36,33 @@ it("localizes the current privacy in the Italian publication panel", () => {
     "https://www.youtube.com/watch?v=video",
   );
 });
+it("hides the old privacy and schedule control while a Pubblica plan is open", () => {
+  const props = {
+    defaults: { title: "Song", description: "", tags: "", chapters: "" },
+    publication: {
+      id: "p",
+      youtube_video_id: "video",
+      privacy: "private",
+      upload_state: "uploaded",
+    } as PublicationView,
+  };
+  const view = render(
+    <LocaleProvider value="it">
+      <PublishPanel {...props} publishPlanOpen />
+    </LocaleProvider>,
+  );
+  expect(screen.getByTestId("old-flow-plan-open")).toHaveTextContent(
+    "visibilità e data si gestiscono da Pubblica",
+  );
+  expect(screen.queryAllByRole("button")).toHaveLength(0);
+  view.rerender(
+    <LocaleProvider value="it">
+      <PublishPanel {...props} />
+    </LocaleProvider>,
+  );
+  expect(screen.queryByTestId("old-flow-plan-open")).toBeNull();
+  expect(screen.getAllByRole("button").length).toBeGreaterThan(0);
+});
 it.each(["it", "en"] as const)(
   "offers only the safe Kie action and localized copy in %s",
   (lang) => {
