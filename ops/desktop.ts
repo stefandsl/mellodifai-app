@@ -40,6 +40,7 @@ import {
   MSG,
   parseEnvFile,
   pruneUpdateBackups,
+  SIGN_IN_WAIT_MS,
   SITE_URL,
   signInBeacon,
   signInLaunch,
@@ -473,8 +474,13 @@ async function openBrowser() {
   }
   mkdirSync(P.browser, { recursive: true });
   let args = appWindowArgs(SITE_URL, P.browser);
-  // The page reports when the window has read it; it is deleted then, or after 5 minutes.
-  const beacon = link ? await signInBeacon(5 * 60_000) : null;
+  // The page reports when the window has read it; it is deleted then, or after 60 seconds.
+  const beacon = link
+    ? await signInBeacon(SIGN_IN_WAIT_MS).catch((error: unknown) => {
+        log(`sign-in check: ${String(error)}`);
+        return null;
+      })
+    : null;
   if (link && beacon) {
     // The link travels in a private page, never on Edge's command line (any program reads it).
     const launch = signInLaunch(link, SIGN_IN_PAGE, P.browser, beacon.url);
@@ -484,11 +490,7 @@ async function openBrowser() {
   spawn(edge, args, { detached: true, stdio: "ignore" }).unref();
   if (beacon) {
     const loaded = await beacon.loaded;
-    log(
-      loaded
-        ? "sign-in page loaded"
-        : "sign-in page not loaded within 5 minutes",
-    );
+    log(loaded ? "sign-in page loaded" : "sign-in page not loaded within 60 s");
     rmSync(SIGN_IN_PAGE, { force: true });
   }
 }

@@ -462,6 +462,11 @@ export function signInLaunch(
   };
 }
 
+/** Free ports of the app's own block 46300-46329 (web 46300, native services 46320-46329)
+ * for the sign-in check, tried in order; and how long the console waits for it. */
+export const SIGN_IN_PORTS = [46301, 46302, 46303, 46304, 46305] as const;
+export const SIGN_IN_WAIT_MS = 60_000;
+
 /**
  * A one-shot loopback listener the sign-in page reports to when the app window has loaded
  * it: `loaded` is true at that report, false at the deadline. Only a POST to its own random
@@ -480,7 +485,15 @@ export async function signInBeacon(
     response.end();
     if (request.method === "POST" && request.url === path) settle(true);
   });
-  await new Promise<void>((done) => server.listen(0, WEB_HOST, done));
+  let bound = false;
+  for (const port of SIGN_IN_PORTS) {
+    bound = await new Promise<boolean>((done) => {
+      server.once("error", () => done(false));
+      server.listen(port, WEB_HOST, () => done(true));
+    });
+    if (bound) break;
+  }
+  if (!bound) throw new Error("No free sign-in check port in 46301-46305");
   const timer = setTimeout(() => settle(false), timeoutMs);
   void loaded.then(() => {
     clearTimeout(timer);

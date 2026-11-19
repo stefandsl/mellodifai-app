@@ -127,7 +127,7 @@ the layout from its own path, keeps caches and temp files in `data\`, sets
 The stack is the native runtime (`docs/native-production.md`), environment `desktop` in
 `ops/lib/envs.ts`, with `MELLODIFAI_ROOT=<folder>\data`. Block 46300-46329: web 46300, gateway
 (API) 46321, PostgreSQL 46322, Mailpit web 46324 and SMTP 46327, mail templates 46325, Auth
-46320, PostgREST 46328, Storage 46329. All are below the Windows dynamic range 49152-65535
+46320, PostgREST 46328, Storage 46329, the sign-in check (the first free of 46301-46305, at most 60 s). All are below the Windows dynamic range 49152-65535
 (whose reserved blocks move at every boot) and away from production (3000, 3210-3212,
 44320-44329) and e2e (45620-45629); the native start checks Windows' excluded ranges and that
 each port is free. The rehearsal lab `native-lab-prod` borrows 46300-46309 only while its

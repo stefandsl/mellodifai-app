@@ -40,6 +40,8 @@ import {
   listeningPorts,
   parseEnvFile,
   pruneUpdateBackups,
+  SIGN_IN_PORTS,
+  SIGN_IN_WAIT_MS,
   SITE_URL,
   StopFailed,
   signInBeacon,
@@ -711,5 +713,35 @@ describe("desktop worker environment", () => {
       if (!inside) outside.push(`${name}=${value}`);
     }
     expect(outside).toEqual([]);
+  });
+});
+
+describe("desktop sign-in check port", () => {
+  it("listens inside the app's own block, on a port no service uses, and waits at most 60 s", async () => {
+    const services = [
+      WEB_PORT,
+      ...Object.values(nativePorts("desktop")).filter(
+        (port): port is number => port !== null,
+      ),
+    ];
+    for (const port of SIGN_IN_PORTS) {
+      expect(port).toBeGreaterThanOrEqual(46300);
+      expect(port).toBeLessThanOrEqual(46329);
+      expect(services).not.toContain(port);
+    }
+    expect(SIGN_IN_WAIT_MS).toBeLessThanOrEqual(60_000);
+    // The first free port of the list: here the first one is taken.
+    const blocker = createServer();
+    await new Promise<void>((done) =>
+      blocker.listen(SIGN_IN_PORTS[0], "127.0.0.1", done),
+    );
+    try {
+      const beacon = await signInBeacon(200);
+      const port = Number(new URL(beacon.url).port);
+      expect(SIGN_IN_PORTS.slice(1)).toContain(port);
+      expect(await beacon.loaded).toBe(false);
+    } finally {
+      await new Promise((done) => blocker.close(done));
+    }
   });
 });
