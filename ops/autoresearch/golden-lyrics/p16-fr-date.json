@@ -1,0 +1,12 @@
+{
+  "id": "p16-fr-date",
+  "expected": "pass",
+  "lang": "fr",
+  "topic": "Un premier rendez-vous raté dans un café",
+  "referenceTitle": "C'est bon, ça passe",
+  "title": "Rendez-vous raté",
+  "style": "French chanson pop, male vocal, 110 BPM",
+  "lyrics": "[Verse 1]\nJ'avais mis ma chemise bleue,\ncelle qui porte bonheur, je crois,\nj'arrive en avance, un peu nerveux,\net je renverse mon café sur moi.\nElle entre, elle sourit, elle voit la tache,\nje dis «c'est de l'art», elle rit, je me cache,\nelle commande un thé, je cherche mes mots,\nje parle de ma mère, beaucoup trop.\n\n[Chorus]\nRendez-vous raté, rendez-vous raté,\nj'ai tout fait de travers, tout est tombé,\nmais quand elle est partie, elle m'a crié:\n«Même heure, jeudi, même café!»\nRendez-vous raté... ou presque, ou presque!\n\n[Verse 2]\nJ'ai confondu son prénom deux fois,\nj'ai fait tomber la sucrière,\nle serveur riait derrière moi,\nma carte refusée: quelle misère!\n\n[Chorus]\nRendez-vous raté, rendez-vous raté,\nj'ai tout fait de travers, tout est tombé,\nmais quand elle est partie, elle m'a crié:\n«Même heure, jeudi, même café!»\nRendez-vous raté... ou presque, ou presque!\n\n[Bridge]\nJeudi j'apporte une chemise de rechange,\net je la laisse parler: c'est moins étrange.\n\n[Chorus]\nRendez-vous raté, rendez-vous raté,\nj'ai tout fait de travers, tout est tombé,\nmais quand elle est partie, elle m'a crié:\n«Même heure, jeudi, même café!»\nRendez-vous raté... ou presque, ou presque!",
+  "reason": "On topic, natural French, rhymed, repeated chorus.",
+  "source": "hand-written"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "f04-fr-as-es",
+  "expected": "fail",
+  "lang": "es",
+  "topic": "Un primer encuentro fallido en un café",
+  "referenceTitle": "Bueno, pues vale",
+  "title": "Rendez-vous raté",
+  "style": "Spanish pop",
+  "lyrics": "[Verse 1]\nJ'avais mis ma chemise bleue,\ncelle qui porte bonheur, je crois,\nj'arrive en avance, un peu nerveux,\net je renverse mon café sur moi.\nElle entre, elle sourit, elle voit la tache,\nje dis «c'est de l'art», elle rit, je me cache,\nelle commande un thé, je cherche mes mots,\nje parle de ma mère, beaucoup trop.\n\n[Chorus]\nRendez-vous raté, rendez-vous raté,\nj'ai tout fait de travers, tout est tombé,\nmais quand elle est partie, elle m'a crié:\n«Même heure, jeudi, même café!»\nRendez-vous raté... ou presque, ou presque!\n\n[Verse 2]\nJ'ai confondu son prénom deux fois,\nj'ai fait tomber la sucrière,\nle serveur riait derrière moi,\nma carte refusée: quelle misère!\n\n[Chorus]\nRendez-vous raté, rendez-vous raté,\nj'ai tout fait de travers, tout est tombé,\nmais quand elle est partie, elle m'a crié:\n«Même heure, jeudi, même café!»\nRendez-vous raté... ou presque, ou presque!\n\n[Bridge]\nJeudi j'apporte une chemise de rechange,\net je la laisse parler: c'est moins étrange.\n\n[Chorus]\nRendez-vous raté, rendez-vous raté,\nj'ai tout fait de travers, tout est tombé,\nmais quand elle est partie, elle m'a crié:\n«Même heure, jeudi, même café!»\nRendez-vous raté... ou presque, ou presque!",
+  "reason": "Wrong language: French lyrics for a Spanish version.",
+  "source": "hand-written, wrong language"
+}

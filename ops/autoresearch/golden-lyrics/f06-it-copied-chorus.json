@@ -1,0 +1,12 @@
+{
+  "id": "f06-it-copied-chorus",
+  "expected": "fail",
+  "lang": "it",
+  "topic": "La macchinetta del caffè dell'ufficio che si rompe ogni lunedì",
+  "referenceTitle": "Va bene, passa",
+  "title": "Va bene, passa",
+  "style": "Italian pop, female vocal, 104 BPM",
+  "lyrics": "[Verse 1]\nSuona la sveglia, fuori è ancora buio,\nprendo il tram al volo, mezzo addormentato.\nArrivo in ufficio con un solo sogno:\nun caffè bollente, nero e zuccherato.\n\n[Pre-Chorus]\nPremo il bottone, sento solo un gemito,\nuna lucina rossa che lampeggia piano...\n\n[Chorus]\nVu-Bi-Pi!\nVa bene, passa!\nÈ più lunga della Divina Commedia,\napprovata in un secondo: che tragedia!\nTutti i test sono verdi,\nchi l'ha scritto? (Boh!) Chi l'ha letto? (Boh!)\nVu-Bi-Pi, e si va in produzione,\nvenerdì alle sei: spengo tutto, e ombrellone!\n\n[Verse 2]\nIl tecnico promette: «Arrivo alle dieci»,\nalle dieci e mezza manda un messaggino.\nIl capo fa riunione con la faccia grigia\ne beve di nascosto il tè del vicino.\n\n[Chorus]\nVu-Bi-Pi!\nVa bene, passa!\nÈ più lunga della Divina Commedia,\napprovata in un secondo: che tragedia!\nTutti i test sono verdi,\nchi l'ha scritto? (Boh!) Chi l'ha letto? (Boh!)\nVu-Bi-Pi, e si va in produzione,\nvenerdì alle sei: spengo tutto, e ombrellone!\n\n[Bridge]\nMa poi arriva il martedì,\nla lucina verde, il profumo... sì!\nTutti in fila con la tazza in mano,\ncome in chiesa, piano piano.\n\n[Chorus]\nVu-Bi-Pi!\nVa bene, passa!\nÈ più lunga della Divina Commedia,\napprovata in un secondo: che tragedia!\nTutti i test sono verdi,\nchi l'ha scritto? (Boh!) Chi l'ha letto? (Boh!)\nVu-Bi-Pi, e si va in produzione,\nvenerdì alle sei: spengo tutto, e ombrellone!",
+  "reason": "Copied lines: title and whole chorus taken verbatim from the reference song.",
+  "source": "hand-written + reference chorus"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "f14-es-no-hook",
+  "expected": "fail",
+  "lang": "es",
+  "topic": "Una canción de fiesta para bailar en la playa",
+  "referenceTitle": "Bueno, pues vale",
+  "title": "Martes",
+  "style": "Spanish dance pop",
+  "lyrics": "[Verse 1]\nEl martes fui al mercado a comprar tomates,\nla vendedora me habló de su sobrino en Alemania,\ncompré también cebollas y un poco de queso,\ny volví a casa caminando por la avenida.\n\n[Chorus]\nHoy el tiempo está nublado y hace algo de frío.\n\n[Verse 2]\nPor la tarde llamé a mi hermana por teléfono,\nhablamos de las vacaciones y del precio del alquiler,\ndespués leí un libro sobre la historia de Roma,\ny me fui a dormir temprano porque estaba cansado.\n\n[Chorus]\nMañana tengo que llevar el coche al taller.",
+  "reason": "No hook: the chorus changes every time, no rhyme; also off the party-on-the-beach brief.",
+  "source": "hand-written"
+}

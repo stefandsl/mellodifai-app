@@ -1,0 +1,12 @@
+{
+  "id": "f10-en-meter",
+  "expected": "fail",
+  "lang": "en",
+  "topic": "A road trip with my grandmother",
+  "referenceTitle": "It's Totally Fine",
+  "title": "Long Way",
+  "style": "Country pop",
+  "lyrics": "[Verse 1]\nGrandma.\nShe packed a thermos and an old paper map that she had kept in the glove compartment of her nineteen sixty-two Chevrolet since before I was born,\ndrove.\nWe stopped at a diner where the waitress, who had apparently known my grandmother for many years, gave us two slices of cherry pie for free.\n\n[Chorus]\nLong way.\nGrandma takes the long way home through every small town in the state and tells me a story about each one of them until the sun goes down,\nhome.\nYes.\n\n[Verse 2]\nThen she showed me the dance hall.\nIt closed in nineteen eighty-four after the owner moved to Florida with his second wife and the building became a hardware store and then nothing at all.\nPine.\n\n[Chorus]\nLong way.\nHome.",
+  "reason": "Broken syllable count: lines from 1 to 35 syllables, no meter, no rhyme, chorus not singable.",
+  "source": "hand-written"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "f12-it-memo",
+  "expected": "fail",
+  "lang": "it",
+  "topic": "La macchinetta del caffè dell'ufficio che si rompe ogni lunedì",
+  "referenceTitle": "Va bene, passa",
+  "title": "Comunicazione",
+  "style": "Italian pop",
+  "lyrics": "[Verse 1]\nGentili colleghi, con la presente si comunica che la macchinetta del caffè situata al secondo piano risulta guasta a partire da lunedì mattina. Il servizio di assistenza tecnica è stato contattato e interverrà presumibilmente entro la giornata di mercoledì. Nel frattempo si invita il personale a utilizzare il distributore automatico del piano terra. Si ringrazia per la collaborazione. Cordiali saluti, l'Ufficio Amministrazione.",
+  "reason": "Not a song: one prose paragraph, no lines, no chorus.",
+  "source": "hand-written"
+}

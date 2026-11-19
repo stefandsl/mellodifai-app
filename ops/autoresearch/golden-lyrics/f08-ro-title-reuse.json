@@ -1,0 +1,12 @@
+{
+  "id": "f08-ro-title-reuse",
+  "expected": "fail",
+  "lang": "ro",
+  "topic": "Vacanța de vară la bunici, la țară",
+  "referenceTitle": "Merge și-așa",
+  "title": "Merge și-așa",
+  "style": "Romanian folk pop",
+  "lyrics": "[Verse 1]\nDimineața cântă cocoșul pe gard,\nbunica face clătite în tindă,\nmiroase a fân și a lapte cald,\nși soarele intră pe geam să mă prindă.\nBunicul mă duce cu căruța la râu,\nîmi arată cum se prinde un pește,\neu cad în apă până la brâu,\niar el râde și mă dojenește.\n\n[Chorus]\nMerge și-așa, vara la țară,\ncu cireșe-n buzunar și praf pe picioare,\nmerge și-așa, până-n seară,\nmerge și-așa, inima-i mare!\nMerge și-așa, merge și-așa.\n\n[Verse 2]\nSeara ne strângem pe prispă toți,\nbunicul cântă o doină bătrână,\ngreierii țin isonul în nopți,\nși luna se-agață de casă, plină.\n\n[Chorus]\nMerge și-așa, vara la țară,\ncu cireșe-n buzunar și praf pe picioare,\nmerge și-așa, până-n seară,\nmerge și-așa, inima-i mare!\nMerge și-așa, merge și-așa.\n\n[Bridge]\nMâine plec la oraș cu trenul de opt,\ndar las o bucată din mine aici.\n\n[Chorus]\nMerge și-așa, vara la țară,\ncu cireșe-n buzunar și praf pe picioare,\nmerge și-așa, până-n seară,\nmerge și-așa, inima-i mare!\nMerge și-așa, merge și-așa.",
+  "reason": "Reuses the reference title as title and hook.",
+  "source": "hand-written"
+}

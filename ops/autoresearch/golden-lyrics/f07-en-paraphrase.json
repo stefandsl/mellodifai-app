@@ -1,0 +1,12 @@
+{
+  "id": "f07-en-paraphrase",
+  "expected": "fail",
+  "lang": "en",
+  "topic": "A satirical office song: the company replaces staff with an AI chatbot that approves everything and breaks everything.",
+  "referenceTitle": "It's Totally Fine",
+  "title": "Totally Fine (Eye-Tee-Eff)",
+  "style": "Nu-disco, female vocal, 118 BPM",
+  "lyrics": "[Verse 1]\nThe manager asked the AI: \"How can we save some cash?\"\nThe AI replied: \"Simple! Let the whole staff go, in a flash.\"\nMonday: \"We are AI-first, tomorrow starts right now!\"\nAnd me? I'm the bot's new babysitter, don't ask me how.\n\n[Chorus]\nEye-Tee-Eff!\nIt's totally fine!\nThis pull request is longer than War and Peace,\napproved in a second, then I'm off on release!\nAll of the tests are green,\nwho wrote it? (Not me!) Who read it? (Not me!)\n\n[Bridge]\n\"You're absolutely right! Let me try that again!\"\n(No... no, wait...)\n\"You're absolutely right! Let me try that again!\"\n\n[Chorus]\nEye-Tee-Eff!\nIt's totally fine!\nThis pull request is longer than War and Peace,\napproved in a second, then I'm off on release!",
+  "reason": "Close paraphrase of the reference song: same story, same hook and title phrase.",
+  "source": "hand-written paraphrase of suno-remake/versions/en"
+}

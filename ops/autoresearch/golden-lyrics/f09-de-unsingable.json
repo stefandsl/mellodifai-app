@@ -1,0 +1,12 @@
+{
+  "id": "f09-de-unsingable",
+  "expected": "fail",
+  "lang": "de",
+  "topic": "Fahrradfahren im Regen in der Stadt",
+  "referenceTitle": "Passt schon, Daumen hoch!",
+  "title": "Regen",
+  "style": "German pop",
+  "lyrics": "[Verse 1]\nRegenwasserablaufrinnenverstopfungsbeseitigungsdienst,\nStraßenverkehrsordnungsübertretungsbußgeldbescheid,\nich.\nFahrradschlauchflickzeugaufbewahrungsschachtel, nass, Strumpf, Schrumpf, kämpfst, schimpfst.\n\n[Chorus]\nPfützenspritzschutzblechhalterungsschraubenschlüssel!\nNass.\nHerbststurmwindböenwarnstufenverkündigungsdurchsage im Radio, während ich mit dem Fahrrad durch den strömenden Regen der Innenstadt fahre und denke, dass ich besser die U-Bahn genommen hätte.\nRegen.\n\n[Verse 2]\nKopfsteinpflasterfugenschmutzwasserrückstandsanalyse,\npfft, krks, strpf.\nAmpelphasenumschaltungsverzögerungsbeschwerdeformular.\n\n[Chorus]\nPfützenspritzschutzblechhalterungsschraubenschlüssel!\nNass.",
+  "reason": "Unsingable: consonant clusters, giant compounds, line lengths from 1 to 40 syllables.",
+  "source": "hand-written"
+}

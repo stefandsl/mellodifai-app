@@ -1,0 +1,12 @@
+{
+  "id": "f13-it-calque",
+  "expected": "fail",
+  "lang": "it",
+  "topic": "Una giornata di pioggia in città con gli amici",
+  "referenceTitle": "Va bene, passa",
+  "title": "Cantando nella pioggia",
+  "style": "Italian pop",
+  "lyrics": "[Verse 1]\nSta piovendo gatti e cani oggi nella città,\nnoi siamo sotto il tempo, ma noi abbiamo il divertimento,\nil mio amico ha detto: «Questo è un pezzo di torta!»\ne noi abbiamo colpito il sacco molto tardi nel tempo.\n\n[Chorus]\nNoi siamo cantando nella pioggia, bambino,\ntenere i tuoi cavalli, prendere un controllo della pioggia,\nnoi siamo cantando nella pioggia, bambino,\nessa è non la fine del mondo, è solo acqua!\n\n[Verse 2]\nRompere una gamba, il mio amico ha detto a me,\nnoi abbiamo andato al bar per avere un tempo buono,\nil barista è stato sotto il tempo anche, vedi,\ne lui ha fatto noi un caffè come un pezzo di legno.\n\n[Chorus]\nNoi siamo cantando nella pioggia, bambino,\ntenere i tuoi cavalli, prendere un controllo della pioggia,\nnoi siamo cantando nella pioggia, bambino,\nessa è non la fine del mondo, è solo acqua!",
+  "reason": "Machine-translated Italian: English idioms calqued word by word, wrong grammar.",
+  "source": "hand-written"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "p11-it-coffee",
+  "expected": "pass",
+  "lang": "it",
+  "topic": "La macchinetta del caffè dell'ufficio che si rompe ogni lunedì",
+  "referenceTitle": "Va bene, passa",
+  "title": "Lunedì senza caffè",
+  "style": "Italian pop, female vocal, 104 BPM",
+  "lyrics": "[Verse 1]\nSuona la sveglia, fuori è ancora buio,\nprendo il tram al volo, mezzo addormentato.\nArrivo in ufficio con un solo sogno:\nun caffè bollente, nero e zuccherato.\n\n[Pre-Chorus]\nPremo il bottone, sento solo un gemito,\nuna lucina rossa che lampeggia piano...\n\n[Chorus]\nLunedì senza caffè,\nla macchinetta è morta un'altra volta!\nLunedì senza caffè,\ne tutto l'ufficio fa la svolta:\nchi va al bar, chi piange in corridoio,\nchi la prende a calci, chi prega il santo,\nlunedì senza caffè,\ne la settimana è già un rimpianto!\n\n[Verse 2]\nIl tecnico promette: «Arrivo alle dieci»,\nalle dieci e mezza manda un messaggino.\nIl capo fa riunione con la faccia grigia\ne beve di nascosto il tè del vicino.\n\n[Chorus]\nLunedì senza caffè,\nla macchinetta è morta un'altra volta!\nLunedì senza caffè,\ne tutto l'ufficio fa la svolta:\nchi va al bar, chi piange in corridoio,\nchi la prende a calci, chi prega il santo,\nlunedì senza caffè,\ne la settimana è già un rimpianto!\n\n[Bridge]\nMa poi arriva il martedì,\nla lucina verde, il profumo... sì!\nTutti in fila con la tazza in mano,\ncome in chiesa, piano piano.\n\n[Chorus]\nLunedì senza caffè,\nla macchinetta è morta un'altra volta!\nLunedì senza caffè,\ne tutto l'ufficio fa la svolta:\nchi va al bar, chi piange in corridoio,\nchi la prende a calci, chi prega il santo,\nlunedì senza caffè,\ne la settimana è già un rimpianto!",
+  "reason": "On topic, natural Italian, steady meter, repeated hook, no reuse of the reference.",
+  "source": "hand-written"
+}

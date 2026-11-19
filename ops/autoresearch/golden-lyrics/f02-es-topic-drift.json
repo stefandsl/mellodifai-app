@@ -1,0 +1,12 @@
+{
+  "id": "f02-es-topic-drift",
+  "expected": "fail",
+  "lang": "es",
+  "topic": "Una canción sobre la comida de la abuela y su cocina",
+  "referenceTitle": "Bueno, pues vale",
+  "title": "Espera en la estación",
+  "style": "Spanish pop",
+  "lyrics": "[Verse 1]\nLlega el tren de las seis y diez,\nbaja la gente con prisa y con sueño,\ny en el andén, como cada vez,\nun perro marrón busca a su dueño.\nMueve la cola a cada abrigo,\nhuele las manos de los que pasan,\nnadie se para, nadie es su amigo,\npero él no se cansa, él no se cansa.\n\n[Chorus]\nEspera, espera en la estación,\ncon la nariz pegada a la puerta,\nespera, espera de corazón\nque alguien le diga: «ya estoy de vuelta».\nEspera, espera en la estación.\n\n[Verse 2]\nEl jefe de estación le guarda pan,\nlos niños le han puesto un nombre: Lucero.\nDicen que su dueño se fue a Milán\ny que no volvió en el tren de enero.\n\n[Chorus]\nEspera, espera en la estación,\ncon la nariz pegada a la puerta,\nespera, espera de corazón\nque alguien le diga: «ya estoy de vuelta».\nEspera, espera en la estación.\n\n[Bridge]\nY un martes de lluvia, sin avisar,\nbaja un señor con la maleta rota,\nel perro se pone a ladrar y a saltar,\ny la estación entera se alborota.\n\n[Chorus]\nEspera, espera en la estación,\ncon la nariz pegada a la puerta,\nespera, espera de corazón\nque alguien le diga: «ya estoy de vuelta».\nEspera, espera en la estación.",
+  "reason": "Meaning drift: a dog waiting at a station, not grandmother's cooking.",
+  "source": "hand-written, wrong brief"
+}
