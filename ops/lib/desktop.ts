@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, rmSync, statfsSync, statSync } from "node:fs";
 import { connect } from "node:net";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { ENV_TABLE, runtimePath, stackDir } from "./envs.js";
 import { databaseUrl } from "./pg.js";
 import { writePrivate } from "./private-file.js";
@@ -287,6 +288,29 @@ export function appWindowArgs(url: string, profile: string): string[] {
     "--disable-sync",
     "--window-size=1440,900",
   ];
+}
+
+/**
+ * The one-time sign-in link goes into a local page that the app window opens, never onto
+ * Edge's command line, which every program on the PC can read. The page sends the window on
+ * with location.replace, so the link is not kept in its history either.
+ */
+export function signInPage(link: string): string {
+  const url = new URL(link);
+  if (url.protocol !== "http:" && url.protocol !== "https:")
+    throw new Error("Sign-in link must be http(s)");
+  // JSON is valid JavaScript; "<" escaped so the link cannot close the script element.
+  const target = JSON.stringify(url.href).replaceAll("<", "\\u003c");
+  return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>MellodifAI</title></head><body><script>location.replace(${target});</script></body></html>\n`;
+}
+
+/** What openBrowser writes and runs: the page with the link, and Edge's arguments naming
+ * only the page's file. */
+export function signInLaunch(link: string, page: string, profile: string) {
+  return {
+    html: signInPage(link),
+    args: appWindowArgs(pathToFileURL(page).href, profile),
+  };
 }
 
 /** True only for an Edge process of this install's app window (its own profile folder). */

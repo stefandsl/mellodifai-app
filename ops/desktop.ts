@@ -39,6 +39,7 @@ import {
   parseEnvFile,
   pruneUpdateBackups,
   SITE_URL,
+  signInLaunch,
   stopEverything,
   validOwnerEmail,
   WEB_HOST,
@@ -425,8 +426,10 @@ function edgeExe(): string | null {
   return null;
 }
 
+const SIGN_IN_PAGE = join(P.run, "sign-in.html");
+
 async function openBrowser() {
-  let target = SITE_URL;
+  let link: string | null = null;
   if (existsSync(P.owner)) {
     const { email } = JSON.parse(readFileSync(P.owner, "utf8")) as {
       email: string;
@@ -436,26 +439,35 @@ async function openBrowser() {
       auth: { persistSession: false, autoRefreshToken: false },
     }).auth.admin;
     try {
-      target = await signInLink(admin, email, SITE_URL);
+      link = await signInLink(admin, email, SITE_URL);
     } catch {
       log("sign-in link failed; opening the login page");
     }
   }
   say(MSG.opening);
-  // No shell anywhere: the link carries '&', which cmd would split.
   const edge = edgeExe();
-  if (edge) {
-    mkdirSync(P.browser, { recursive: true });
-    spawn(edge, appWindowArgs(target, P.browser), {
+  if (!edge) {
+    // No Edge: the owner's default browser gets the login page, never the one-time link.
+    spawn("rundll32.exe", ["url.dll,FileProtocolHandler", SITE_URL], {
       detached: true,
       stdio: "ignore",
     }).unref();
     return;
   }
-  spawn("rundll32.exe", ["url.dll,FileProtocolHandler", target], {
-    detached: true,
-    stdio: "ignore",
-  }).unref();
+  mkdirSync(P.browser, { recursive: true });
+  let args = appWindowArgs(SITE_URL, P.browser);
+  if (link) {
+    // The link travels in a private page, never on Edge's command line (any program reads it).
+    const launch = signInLaunch(link, SIGN_IN_PAGE, P.browser);
+    await writePrivate(SIGN_IN_PAGE, launch.html);
+    args = launch.args;
+  }
+  spawn(edge, args, { detached: true, stdio: "ignore" }).unref();
+  if (link) {
+    // Long enough for the window to read the page; the link is one-time either way.
+    await sleep(15_000);
+    rmSync(SIGN_IN_PAGE, { force: true });
+  }
 }
 
 // ---- commands ----
@@ -507,7 +519,10 @@ async function stop() {
         if (existsSync(P.stack)) await stopStack();
       },
       listening: () => listeningPorts(DESKTOP_PORTS),
-      clearState: () => rmSync(P.state, { force: true }),
+      clearState: () => {
+        rmSync(P.state, { force: true });
+        rmSync(SIGN_IN_PAGE, { force: true });
+      },
     });
   } catch (error) {
     log((error as Error).message);

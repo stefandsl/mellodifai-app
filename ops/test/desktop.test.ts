@@ -9,6 +9,7 @@ import {
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AUTH_ORIGINS,
@@ -36,6 +37,7 @@ import {
   pruneUpdateBackups,
   SITE_URL,
   StopFailed,
+  signInLaunch,
   stopEverything,
   validOwnerEmail,
   WEB_PORT,
@@ -190,6 +192,28 @@ describe("app window", () => {
     expect(args.some((arg) => arg.startsWith("--profile-directory"))).toBe(
       false,
     );
+  });
+
+  it("keeps the one-time sign-in link off Edge's command line and sends the window on", () => {
+    const link =
+      "http://127.0.0.1:46321/auth/v1/verify?token=secret-token-123&type=magiclink&redirect_to=http://127.0.0.1:46300/x</script>";
+    const page = "E:\\MellodifAI\\data\\run\\sign-in.html";
+    const { html, args } = signInLaunch(
+      link,
+      page,
+      "E:\\MellodifAI\\data\\browser",
+    );
+    expect(args[0]).toBe("--app=file:///E:/MellodifAI/data/run/sign-in.html");
+    expect(args.join(" ")).not.toContain("secret-token-123");
+    // Run the page's own script: it must go to exactly the link, whatever it contains.
+    const script = /<script>([\s\S]*)<\/script>/.exec(html)?.[1] ?? "";
+    expect(script).not.toContain("</");
+    const went: string[] = [];
+    runInNewContext(script, {
+      location: { replace: (url: string) => went.push(url) },
+    });
+    expect(went).toEqual([new URL(link).href]);
+    expect(() => signInLaunch("javascript:alert(1)", page, "x")).toThrow();
   });
 });
 
