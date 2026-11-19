@@ -179,7 +179,8 @@ export class YouTubeProvider implements PublishingProvider {
         description: draft.caption,
         tags: draft.hashtags,
         thumbnailText: draft.thumbnailText ?? "",
-        thumbnail: typeof thumbnail === "string" && thumbnail ? thumbnail : null,
+        thumbnail:
+          typeof thumbnail === "string" && thumbnail ? thumbnail : null,
       });
     } catch (error) {
       throw new PublishError("metadata_update_failed", String(error));

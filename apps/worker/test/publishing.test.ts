@@ -132,9 +132,9 @@ describe("publish dispatcher", () => {
       providers: again.providers,
       workerId: "w",
     });
-    expect(again.youtube.meta.get("vid-1")?.thumbnail?.replace(/\\/gu, "/")).toBe(
-      "E:/ws/renders/thumbnail.png",
-    );
+    expect(
+      again.youtube.meta.get("vid-1")?.thumbnail?.replace(/\\/gu, "/"),
+    ).toBe("E:/ws/renders/thumbnail.png");
   });
 
   it("sends nothing when the veto won the handoff or the intent", async () => {

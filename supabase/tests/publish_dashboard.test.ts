@@ -894,7 +894,9 @@ it("reopening a rejected plan while another plan is open answers a clear conflic
       message: "a publish plan is already open",
     });
     expect(
-      await op(tx, "publish_draft_edit", pat, id, "youtube", { title: "Ancora" }),
+      await op(tx, "publish_draft_edit", pat, id, "youtube", {
+        title: "Ancora",
+      }),
     ).toMatchObject({
       ok: false,
       code: "conflict",

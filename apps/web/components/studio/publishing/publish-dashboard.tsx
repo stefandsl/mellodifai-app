@@ -29,10 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/components/use-action";
 import type { ActionResult } from "@/lib/action-result";
-import type {
-  LegacySchedule,
-  ScheduleView,
-} from "@/lib/ops/defs/publishing";
+import type { LegacySchedule, ScheduleView } from "@/lib/ops/defs/publishing";
 import { pt } from "./copy";
 
 const OPEN = ["draft", "awaiting_approval", "scheduled", "publishing", "held"];

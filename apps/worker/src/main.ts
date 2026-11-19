@@ -23,8 +23,8 @@ import {
 } from "./publishing/dispatcher.js";
 import {
   FakeYouTubeClient,
-  YouTubeProvider,
   type YouTubeClient,
+  YouTubeProvider,
   ytScriptClient,
 } from "./publishing/youtube.js";
 import { workerRuntimeRoot, workerTempDir } from "./runtime.js";
