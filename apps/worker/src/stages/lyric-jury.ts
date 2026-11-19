@@ -304,6 +304,14 @@ function languageName(code: string): string | undefined {
   }
 }
 
+// Lower case letters and digits only, one space between words.
+function words(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
 async function chatVerdict(
   model: string,
   draft: Draft,
@@ -339,6 +347,17 @@ async function chatVerdict(
   if (wanted && seen && !seen.toLowerCase().includes(wanted.toLowerCase())) {
     scores.language = 0;
     issues.unshift(`The lyrics are in ${seen}, not ${wanted}.`);
+  }
+  // Judges miss a reused reference title; a plain text match does not.
+  const reference = words(context.referenceTitle);
+  if (
+    reference.length > 3 &&
+    ` ${words(draft.title)} ${words(draft.lyrics)} `.includes(` ${reference} `)
+  ) {
+    scores.original = 0;
+    issues.unshift(
+      `The draft reuses the reference title "${context.referenceTitle}".`,
+    );
   }
   return {
     scores,
