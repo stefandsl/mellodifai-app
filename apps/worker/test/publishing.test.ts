@@ -327,14 +327,12 @@ describe("publishing wired in main", () => {
   it("claims only while the worker loop's health check passes", async () => {
     vi.useFakeTimers();
     const db = new InMemoryDb([], []);
-    const loop = new WorkerLoop({ db, workerId: "w",
-      exists: yes, stages: {} });
+    const loop = new WorkerLoop({ db, workerId: "w", stages: {} });
     const run = fakeDb({ claims: [] });
     const stop = startPublishing({
       db: run.db,
       youtube: new FakeYouTubeClient(),
       workerId: "w",
-      exists: yes,
       loop,
       report: () => {},
       intervalMs: 1000,
