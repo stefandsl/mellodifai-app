@@ -258,11 +258,25 @@ async function jevVerdict(
 
 const JUDGE_INSTRUCTIONS = [
   REDACTION_NOTE,
-  "You are a strict judge of song lyrics. Score the draft on each criterion from 0 to 1:",
+  'You are a strict judge of song lyrics. Rate the draft on each criterion with "yes" (fully met), "partly" or "no":',
   ...CRITERION_KEYS.map((key) => `"${key}": ${CRITERIA[key]}`),
-  'Reply with one JSON object: {"scores": {criterion: number}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
+  'Reply with one JSON object: {"scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
   'Use "strong" when the draft needs deep rewriting, "fast" when small fixes are enough.',
 ].join("\n");
+
+// Small judges rate in words more reliably than in decimals; numbers still count as given.
+const RATING: Record<string, number> = { yes: 1, partly: 0.5, no: 0 };
+function ratings(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(raw).map(([key, value]) => [
+      key,
+      typeof value === "string" && value.trim().toLowerCase() in RATING
+        ? RATING[value.trim().toLowerCase()]
+        : value,
+    ]),
+  );
+}
 
 function parseJson(content: string): Record<string, unknown> {
   try {
@@ -303,11 +317,7 @@ async function chatVerdict(
     25_000,
   )) as { choices?: { message?: { content?: string } }[] };
   const reply = parseJson(json.choices?.[0]?.message?.content ?? "");
-  const scores = complete(
-    (reply.scores && typeof reply.scores === "object"
-      ? reply.scores
-      : {}) as Record<string, unknown>,
-  );
+  const scores = complete(ratings(reply.scores));
   if (!scores) throw new Error("incomplete verdict");
   return {
     scores,
