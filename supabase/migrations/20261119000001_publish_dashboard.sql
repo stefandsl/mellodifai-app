@@ -320,7 +320,12 @@ begin
     if not found then raise exception 'owned version required'; end if;
     return jsonb_build_object('version_id',v.id,'schedules',coalesce((select jsonb_agg(ops._publish_view(x.id) order by x.created_at desc,x.id)
       from (select id,created_at from public.publish_schedules where version_id=v.id and owner_id=uid
-        order by created_at desc,id desc limit 20) x),'[]'::jsonb));
+        order by created_at desc,id desc limit 20) x),'[]'::jsonb),
+      -- Read-only: uploads the old flow scheduled with a YouTube publishAt (docs/agents-publishing.md).
+      'legacy',coalesce((select jsonb_agg(jsonb_build_object('publication_id',p.id,'video_id',p.youtube_video_id,
+          'privacy',p.privacy,'publish_at',p.publish_at,'upload_state',p.upload_state) order by p.created_at desc,p.id)
+        from public.publications p join public.renders pr on pr.id=p.render_id
+        where pr.version_id=v.id and p.owner_id=uid and (p.privacy='scheduled' or p.publish_at is not null)),'[]'::jsonb));
   elsif p_op = 'publish_plan' then
     select * into v from public.versions where id=(p_args->>'version_id')::uuid and owner_id=uid and test_run=test for update;
     if not found then raise exception 'owned version required'; end if;
@@ -342,6 +347,13 @@ begin
     if exists (select 1 from public.publish_schedules where version_id=v.id
       and state in ('draft','awaiting_approval','scheduled','publishing','held')) then
       raise exception 'a publish plan is already open';
+    end if;
+    -- The old flow (admin_confirm_publication) may have scheduled the video with a YouTube
+    -- publishAt or made it public: YouTube's own clock owns it, the app never plans it again.
+    if exists (select 1 from public.publications p join public.renders pr on pr.id=p.render_id
+      where pr.version_id=v.id and (p.privacy in ('scheduled','public') or p.privacy_applied in ('scheduled','public')
+        or p.publish_at is not null)) then
+      raise exception 'video already scheduled or public on YouTube';
     end if;
     v_draft := ops._publish_draft_clean(coalesce(p_args->'draft','{}'::jsonb));
     if v_draft->>'title' = '' then

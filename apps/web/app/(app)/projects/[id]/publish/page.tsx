@@ -136,6 +136,7 @@ export default async function PublishPage({
         }}
         current={shown}
         past={past}
+        legacy={status.data.legacy}
       />
     </StudioPage>
   );

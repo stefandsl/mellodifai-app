@@ -50,9 +50,11 @@ export interface PostDraft {
 }
 
 // "definitely_not_accepted" is the only status that allows a new attempt after a handoff.
+// "scheduled": the provider's own clock will publish it (a YouTube publishAt); never retried.
 export type ProviderStatus =
   | "published"
   | "pending"
+  | "scheduled"
   | "failed"
   | "definitely_not_accepted"
   | "unknown";

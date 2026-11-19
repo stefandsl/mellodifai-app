@@ -152,7 +152,7 @@ describe("publish dispatcher", () => {
       // One flip, one status read: never a blind second flip.
       expect(run.youtube.calls.map((call) => call.op)).toEqual([
         "setPublic",
-        "privacy",
+        "state",
       ]);
     },
   );
@@ -167,10 +167,23 @@ describe("publish dispatcher", () => {
       workerId: "w",
     });
     expect(run.steps).toEqual(["recover", "finish:published", "claim"]);
-    expect(youtube.calls).toEqual([{ op: "privacy", videoId: "vid-1" }]);
+    expect(youtube.calls).toEqual([{ op: "state", videoId: "vid-1" }]);
     const unknown = fakeDb({ checks: [claim({ provider: "blotato" })] });
     await dispatchTick({ db: unknown.db, providers: new Map(), workerId: "w" });
     expect(unknown.finished[0]?.outcome).toBe("unknown");
+  });
+
+  it("a video YouTube itself scheduled (old flow publishAt) is held for the owner, never retried", async () => {
+    const youtube = new FakeYouTubeClient();
+    youtube.publishAt.set("vid-1", "2026-12-01T10:00:00Z");
+    const run = fakeDb({ checks: [claim()] });
+    await dispatchTick({
+      db: run.db,
+      providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
+      workerId: "w",
+    });
+    expect(run.finished[0]?.outcome).toBe("unknown");
+    expect(youtube.calls.map((call) => call.op)).toEqual(["state"]);
   });
 });
 
@@ -184,14 +197,25 @@ describe("YouTube through yt.py", () => {
         : "vid-1 -> public\n";
     });
     await client.setPublic("vid-1");
-    expect(await client.privacy("vid-1")).toBe("private");
+    expect(await client.state("vid-1")).toEqual({
+      privacy: "private",
+      publishAt: null,
+    });
     expect(calls).toEqual([
       ["privacy", "vid-1", "public", "--confirm"],
       ["status", "vid-1"],
     ]);
     expect(calls.flat()).not.toContain("--publish-at");
     const broken = ytScriptClient(async () => "no json here");
-    expect(await broken.privacy("vid-1")).toBeNull();
+    expect(await broken.state("vid-1")).toBeNull();
+    const old = ytScriptClient(
+      async () =>
+        '{"status": {"privacyStatus": "private", "publishAt": "2026-12-01T10:00:00Z"}}',
+    );
+    expect(await old.state("vid-1")).toEqual({
+      privacy: "private",
+      publishAt: "2026-12-01T10:00:00Z",
+    });
   });
 
   it("maps the privacy to the provider status; only a private video allows a new attempt", async () => {
@@ -202,6 +226,11 @@ describe("YouTube through yt.py", () => {
     expect(await provider.status("a", "v")).toBe("published");
     youtube.videos.set("v", "unlisted");
     expect(await provider.status("a", "v")).toBe("unknown");
+    // The old flow's YouTube publishAt: scheduled by YouTube, never a new attempt.
+    youtube.videos.set("v", "private");
+    youtube.publishAt.set("v", "2026-12-01T10:00:00Z");
+    expect(await provider.status("a", "v")).toBe("scheduled");
+    youtube.publishAt.delete("v");
     youtube.videos.set("v", null);
     expect(await provider.status("a", "v")).toBe("unknown");
     expect(await provider.status("a")).toBe("unknown");

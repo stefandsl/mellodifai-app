@@ -10,11 +10,13 @@ import {
 // The YouTube Data API through the engine's publish/yt.py, or a fake in WORKER_FAKE mode.
 // The private upload is the existing `publish` stage (stages/publish.ts, privacyStatus private);
 // this client only flips an uploaded private video to public at the app's slot and reads it back.
+// The video's privacyStatus and its YouTube publishAt (set by the old flow), or null when YouTube
+// did not answer.
+export type VideoState = { privacy: string; publishAt: string | null };
 export interface YouTubeClient {
   // Public now. Never sends publishAt: the app owns the clock.
   setPublic(videoId: string): Promise<void>;
-  // The video's privacyStatus, or null when YouTube did not answer.
-  privacy(videoId: string): Promise<string | null>;
+  state(videoId: string): Promise<VideoState | null>;
 }
 
 export type ScriptRunner = (args: string[]) => Promise<string>;
@@ -24,17 +26,23 @@ export function ytScriptClient(run: ScriptRunner): YouTubeClient {
     async setPublic(videoId) {
       await run(["privacy", videoId, "public", "--confirm"]);
     },
-    async privacy(videoId) {
+    async state(videoId) {
       const output = await run(["status", videoId]);
       const start = output.indexOf("{");
       const end = output.lastIndexOf("}");
       if (start < 0 || end < start) return null;
       try {
         const parsed = JSON.parse(output.slice(start, end + 1)) as {
-          status?: { privacyStatus?: unknown };
+          status?: { privacyStatus?: unknown; publishAt?: unknown };
         };
-        return typeof parsed.status?.privacyStatus === "string"
-          ? parsed.status.privacyStatus
+        const privacy = parsed.status?.privacyStatus;
+        const publishAt = parsed.status?.publishAt;
+        return typeof privacy === "string"
+          ? {
+              privacy,
+              publishAt:
+                typeof publishAt === "string" && publishAt ? publishAt : null,
+            }
           : null;
       } catch {
         return null;
@@ -47,8 +55,10 @@ export function ytScriptClient(run: ScriptRunner): YouTubeClient {
 // failNext: "refuse" = error, still private; "lost" = public but the answer is lost;
 // "dark" = error and YouTube no longer answers about this video.
 export class FakeYouTubeClient implements YouTubeClient {
-  readonly calls: Array<{ op: "setPublic" | "privacy"; videoId: string }> = [];
+  readonly calls: Array<{ op: "setPublic" | "state"; videoId: string }> = [];
   readonly videos = new Map<string, string | null>();
+  // A YouTube publishAt left by the old flow.
+  readonly publishAt = new Map<string, string>();
   failNext: "refuse" | "lost" | "dark" | null = null;
   async setPublic(videoId: string) {
     this.calls.push({ op: "setPublic", videoId });
@@ -62,10 +72,14 @@ export class FakeYouTubeClient implements YouTubeClient {
     this.videos.set(videoId, "public");
     if (fail === "lost") throw new Error("fake YouTube answer lost");
   }
-  async privacy(videoId: string) {
-    this.calls.push({ op: "privacy", videoId });
+  async state(videoId: string) {
+    this.calls.push({ op: "state", videoId });
     const value = this.videos.get(videoId);
-    return value === undefined ? "private" : value;
+    if (value === null) return null;
+    return {
+      privacy: value ?? "private",
+      publishAt: this.publishAt.get(videoId) ?? null,
+    };
   }
 }
 
@@ -111,15 +125,17 @@ export class YouTubeProvider implements PublishingProvider {
       url: `https://youtu.be/${encodeURIComponent(media.mediaRef)}`,
     };
   }
-  // Only a video that is still private allows a new attempt; anything else needs the owner.
+  // Only a video that is still private with no YouTube publishAt allows a new attempt; a private
+  // video with a publishAt is scheduled by YouTube's own clock; anything else needs the owner.
   async status(
     _attemptId: string,
     externalId?: string,
   ): Promise<ProviderStatus> {
     if (!externalId) return "unknown";
-    const privacy = await this.client.privacy(externalId);
-    if (privacy === "public") return "published";
-    if (privacy === "private") return "definitely_not_accepted";
+    const video = await this.client.state(externalId);
+    if (video?.privacy === "public") return "published";
+    if (video?.privacy === "private")
+      return video.publishAt ? "scheduled" : "definitely_not_accepted";
     return "unknown";
   }
 }

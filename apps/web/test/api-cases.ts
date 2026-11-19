@@ -450,7 +450,7 @@ export const apiCases = [
     name: "publish_status",
     method: "GET",
     path: "/songs/{version_id}/publish",
-    output: { version_id: versionId, schedules: [scheduleView] },
+    output: { version_id: versionId, schedules: [scheduleView], legacy: [] },
   },
   {
     name: "publish_preview",

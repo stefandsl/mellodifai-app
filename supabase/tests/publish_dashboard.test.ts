@@ -894,3 +894,30 @@ it("reopening a rejected plan while another plan is open answers a clear conflic
     });
   });
 });
+
+it("a video the old flow scheduled or made public cannot get a plan; the status lists the old schedule", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const old = await video(tx, owner.user_id);
+    await tx`insert into public.publications(owner_id,render_id,privacy,publish_at,upload_state,youtube_video_id,privacy_applied)
+      values(${owner.user_id},${old.render},'scheduled',now()+interval '2 days','uploaded','old-1','private')`;
+    expect(
+      await op(tx, "publish_plan", owner, old.version, ["youtube"], {}),
+    ).toMatchObject({ ok: false, code: "conflict" });
+    const status = await op(tx, "publish_status", owner, old.version);
+    expect(status).toMatchObject({
+      ok: true,
+      data: {
+        schedules: [],
+        legacy: [{ video_id: "old-1", privacy: "scheduled" }],
+      },
+    });
+    expect(status.data.legacy[0].publish_at).toBeTruthy();
+    const pub = await video(tx, owner.user_id);
+    await tx`insert into public.publications(owner_id,render_id,privacy,upload_state,youtube_video_id,privacy_applied)
+      values(${owner.user_id},${pub.render},'public','uploaded','old-2','public')`;
+    expect(
+      await op(tx, "publish_plan", owner, pub.version, ["youtube"], {}),
+    ).toMatchObject({ ok: false, code: "conflict" });
+  });
+});

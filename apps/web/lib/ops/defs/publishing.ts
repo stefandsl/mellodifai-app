@@ -195,9 +195,19 @@ export const publishPreview: OpDef<
   mutating: false,
   revalidate: () => [],
 };
+// Uploads the old flow scheduled with a YouTube publishAt: read-only, YouTube's clock owns them.
+export const LegacySchedule = z.object({
+  publication_id: Id,
+  video_id: z.string().nullable(),
+  privacy: z.string(),
+  publish_at: When.nullable(),
+  upload_state: z.string(),
+});
+export type LegacySchedule = z.infer<typeof LegacySchedule>;
 export const PublishStatus = z.object({
   version_id: Id,
   schedules: z.array(ScheduleView),
+  legacy: z.array(LegacySchedule),
 });
 export const publishStatus: OpDef<
   z.infer<typeof PublishStatusInput>,

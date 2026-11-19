@@ -29,7 +29,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/components/use-action";
 import type { ActionResult } from "@/lib/action-result";
-import type { ScheduleView } from "@/lib/ops/defs/publishing";
+import type {
+  LegacySchedule,
+  ScheduleView,
+} from "@/lib/ops/defs/publishing";
 import { pt } from "./copy";
 
 const OPEN = ["draft", "awaiting_approval", "scheduled", "publishing", "held"];
@@ -125,6 +128,7 @@ export function PublishDashboard({
   defaults,
   current,
   past,
+  legacy = [],
 }: {
   versionId: string;
   songTitle: string;
@@ -133,6 +137,7 @@ export function PublishDashboard({
   defaults: DraftFields;
   current: ScheduleView | null;
   past: ScheduleView[];
+  legacy?: LegacySchedule[];
 }) {
   const lang = useLocale();
   const router = useRouter();
@@ -599,6 +604,29 @@ export function PublishDashboard({
             </CardContent>
           </Card>
         </>
+      ) : null}
+
+      {legacy.length ? (
+        <section
+          aria-labelledby="pub-legacy"
+          data-testid="legacy-schedules"
+          className="grid gap-1 text-sm"
+        >
+          <h2 id="pub-legacy" className="text-lg font-medium">
+            {pt(lang, "legacyTitle")}
+          </h2>
+          <ul className="grid gap-1">
+            {legacy.map((row) => (
+              <li key={row.publication_id}>
+                {pt(lang, "legacyRow", {
+                  video: row.video_id ?? "-",
+                  at: row.publish_at ? romeTime(row.publish_at, lang) : "-",
+                })}
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground">{pt(lang, "legacyHint")}</p>
+        </section>
       ) : null}
 
       {current?.events.length ? (

@@ -17,6 +17,12 @@ dashboard; they plug in later behind the same `PublishingProvider` interface
 - Any edit of the title, description, tags, thumbnail text or slot cancels a pending approval card.
 - Fail closed: a missed slot (worker off for more than 6 hours), a changed payload, an unknown
   provider answer or a refused upload leaves the video private and tells the owner.
+- Old flow: a video that the earlier publish flow already scheduled with a YouTube `publishAt`
+  (publication privacy `scheduled`) or made public cannot get a plan (`publish_plan` answers
+  `conflict`). YouTube's own clock publishes it. `publish_status` lists those uploads read-only in
+  `legacy` (`video_id`, `privacy`, `publish_at`) and the dashboard shows them; change them in
+  YouTube Studio. The worker reads a private video with a `publishAt` as scheduled by YouTube,
+  never as "not accepted", so it never retries or flips it.
 
 ## Workflow
 

@@ -35,6 +35,10 @@ const it = {
   newPlan: "Nuovo piano",
   status: "Stato",
   history: "Cronologia",
+  legacyTitle: "Già programmato su YouTube (vecchio flusso)",
+  legacyRow: "Video {video} programmato da YouTube per il {at}.",
+  legacyHint:
+    "YouTube lo pubblica da solo all'ora indicata: qui non si pianifica di nuovo. Per cambiarlo usa YouTube Studio.",
   approvalTitle: "Richiesta di approvazione",
   approvalHint:
     "Un agente ha preparato questa pubblicazione. Nulla diventa pubblico senza il tuo sì.",
@@ -168,6 +172,10 @@ const en: Record<PublishKey, string> = {
   newPlan: "New plan",
   status: "Status",
   history: "History",
+  legacyTitle: "Already scheduled on YouTube (old flow)",
+  legacyRow: "Video {video} scheduled by YouTube for {at}.",
+  legacyHint:
+    "YouTube publishes it on its own at that time: it cannot be planned again here. Use YouTube Studio to change it.",
   approvalTitle: "Approval request",
   approvalHint:
     "An agent prepared this publication. Nothing becomes public without your yes.",
