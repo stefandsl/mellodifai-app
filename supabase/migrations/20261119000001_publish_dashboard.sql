@@ -747,8 +747,11 @@ begin
     return false;
   end if;
   select * into v from public.versions where id=s.version_id;
+  -- A rule's yes holds only while that rule still exists and is active.
   if v.trashed_at is not null or not exists (select 1 from public.approval_requests a where a.schedule_id=s.id
-    and a.state='approved' and a.payload_hash=ops._publish_hash(s.id)) then
+    and a.state='approved' and a.payload_hash=ops._publish_hash(s.id)
+    and (a.decided_via is distinct from 'rule' or exists (select 1 from public.publish_rules y
+      where y.id=a.rule_id and y.owner_id=s.owner_id and y.active))) then
     -- Fail closed: the gate no longer holds, nothing goes public.
     update public.publish_destinations set state='scheduled',claim_token=null,claimed_by=null,claim_expires_at=null,updated_at=now() where id=d.id;
     update public.publish_schedules set state='held',held_reason='gate_failed',updated_at=now() where id=s.id;

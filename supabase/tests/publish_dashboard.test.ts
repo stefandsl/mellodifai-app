@@ -774,3 +774,40 @@ it("after a veto or a rejection a standing rule never approves that video again:
     expect(await publishJobs(tx, other.render)).toBe(0);
   });
 });
+
+it("a plan approved by a rule goes out only while that rule still exists and is active", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const saved = await rule(tx, owner);
+    const ruleId = saved.data.rule_id as string;
+    const a = await video(tx, owner.user_id);
+    const id = await plan(tx, pat, a.version, inHours(30));
+    expect(await op(tx, "publish_request_approval", pat, id)).toMatchObject({
+      data: { state: "scheduled", approval: { decided_via: "rule" } },
+    });
+    await due(tx, id, a.render, owner.user_id);
+    expect(
+      await rule(tx, owner, { rule_id: ruleId, active: false }),
+    ).toMatchObject({ ok: true });
+    const [claimed] = await claim(tx);
+    expect(claimed.schedule_id).toBe(id);
+    expect(await intent(tx, claimed)).toBe(false);
+    expect(await op(tx, "publish_preview", owner, id)).toMatchObject({
+      data: { state: "held", held_reason: "gate_failed" },
+    });
+    // A deleted rule: the same.
+    const again = await rule(tx, owner);
+    const b = await video(tx, owner.user_id);
+    const id2 = await plan(tx, pat, b.version, inHours(30));
+    expect(await op(tx, "publish_request_approval", pat, id2)).toMatchObject({
+      data: { state: "scheduled", approval: { decided_via: "rule" } },
+    });
+    await due(tx, id2, b.render, owner.user_id);
+    expect(
+      await op(tx, "publish_rule_delete", owner, again.data.rule_id),
+    ).toMatchObject({ ok: true });
+    const [next] = (await claim(tx)).filter((c) => c.schedule_id === id2);
+    expect(await intent(tx, next)).toBe(false);
+  });
+});
