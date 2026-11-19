@@ -87,7 +87,8 @@ Function .onInit
     StrCpy $BestDrive ""
     ${GetDrives} "HDD" "PickDrive"
     ${If} $BestDrive != ""
-      StrCpy $INSTDIR "$BestDrive\MellodifAI"
+      ; Not "MellodifAI": on E: that is the production root E:\mellodifai (names ignore case).
+      StrCpy $INSTDIR "$BestDrive\MellodifAI-App"
     ${EndIf}
   ${EndIf}
   ${If} ${FileExists} "$INSTDIR\data\config\owner.json"
@@ -96,6 +97,26 @@ Function .onInit
   ${GetParameters} $0
   ClearErrors
   ${GetOptions} $0 "/EMAIL=" $Email
+FunctionEnd
+
+; Sets $R0 to why $INSTDIR must not be used, or "" when it may (apps/windows/src/folder.mjs:
+; junctions resolved, the production root refused in any letter case, and any folder with
+; other files refused unless an earlier install of this app left it). Runs before anything
+; is written there, with the bundled node from the installer's own temp folder.
+Function CheckFolder
+  InitPluginsDir
+  ${IfNot} ${FileExists} "$PLUGINSDIR\folder.mjs"
+    File "/oname=$PLUGINSDIR\node.exe" "${STAGE}\node\node.exe"
+    File "/oname=$PLUGINSDIR\folder.mjs" "${STAGE}\app\apps\windows\src\folder.mjs"
+  ${EndIf}
+  nsExec::ExecToStack '"$PLUGINSDIR\node.exe" "$PLUGINSDIR\folder.mjs" "$INSTDIR"'
+  Pop $R1
+  Pop $R0
+  ${If} $R1 == "0"
+    StrCpy $R0 ""
+  ${ElseIf} $R1 != "2"
+    StrCpy $R0 "Non riesco a controllare la cartella $INSTDIR (codice $R1). Scegline un'altra."
+  ${EndIf}
 FunctionEnd
 
 Function DirectoryLeave
@@ -107,7 +128,12 @@ Function DirectoryLeave
   ${EndIf}
   StrLen $2 $INSTDIR
   ${If} $2 <= 3
-    MessageBox MB_ICONEXCLAMATION|MB_OK "Scegli una cartella (per esempio $0\MellodifAI), non la radice del disco."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Scegli una cartella (per esempio $0\MellodifAI-App), non la radice del disco."
+    Abort
+  ${EndIf}
+  Call CheckFolder
+  ${If} $R0 != ""
+    MessageBox MB_ICONEXCLAMATION|MB_OK "$R0"
     Abort
   ${EndIf}
   ${DriveSpace} "$0\" "/D=F /S=G" $3
@@ -158,6 +184,12 @@ Section "MellodifAI" SecApp
   ${If} $0 == $1
   ${OrIf} $2 <= 3
     MessageBox MB_ICONSTOP|MB_OK "Cartella non valida per ${APP}: $INSTDIR" /SD IDOK
+    SetErrorLevel 3
+    Abort
+  ${EndIf}
+  Call CheckFolder
+  ${If} $R0 != ""
+    MessageBox MB_ICONSTOP|MB_OK "$R0" /SD IDOK
     SetErrorLevel 3
     Abort
   ${EndIf}
