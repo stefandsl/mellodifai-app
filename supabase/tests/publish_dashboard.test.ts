@@ -862,3 +862,35 @@ it("a worker's recovery touches only its own owner's cards and claims", async ()
     ).toEqual([{ state: "claimed" }]);
   });
 });
+
+it("reopening a rejected plan while another plan is open answers a clear conflict", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const { version } = await video(tx, owner.user_id);
+    const id = await plan(tx, pat, version, inHours(3));
+    const card = await op(tx, "publish_request_approval", pat, id);
+    await op(
+      tx,
+      "publish_approval_decide",
+      owner,
+      card.data.approval.approval_id,
+      "reject",
+    );
+    await plan(tx, pat, version, inHours(5));
+    expect(
+      await op(tx, "publish_schedule", pat, id, inHours(30)),
+    ).toMatchObject({
+      ok: false,
+      code: "conflict",
+      message: "a publish plan is already open",
+    });
+    expect(
+      await op(tx, "publish_draft_edit", pat, id, "youtube", { title: "Ancora" }),
+    ).toMatchObject({
+      ok: false,
+      code: "conflict",
+      message: "a publish plan is already open",
+    });
+  });
+});

@@ -378,6 +378,11 @@ begin
     if s.state not in ('draft','awaiting_approval','rejected','expired') then
       raise exception 'a draft state is required';
     end if;
+    -- A closed plan reopens as a draft only while no other plan of the video is open.
+    if s.state in ('rejected','expired') and exists (select 1 from public.publish_schedules x where x.version_id=s.version_id
+      and x.id<>s.id and x.state in ('draft','awaiting_approval','scheduled','publishing','held')) then
+      raise exception 'a publish plan is already open';
+    end if;
     if p_op = 'publish_draft_edit' then
       v_platform := coalesce(p_args->>'platform','youtube');
       select * into d from public.publish_destinations where schedule_id=s.id and platform=v_platform order by id limit 1;
