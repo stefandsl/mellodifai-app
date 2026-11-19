@@ -177,6 +177,38 @@ describe("shortcut shim", () => {
     expect(env.PATH.endsWith(";C:\\Windows")).toBe(true);
   });
 
+  it("moves Go, npm, pnpm and XDG caches off the owner's own settings (often on C:)", () => {
+    const parent = {
+      PATH: "C:\\Windows",
+      GOPATH: "C:\\Users\\o\\go",
+      GOCACHE: "C:\\Users\\o\\AppData\\Local\\go-build",
+      GOMODCACHE: "C:\\Users\\o\\go\\pkg\\mod",
+      NPM_CONFIG_CACHE: "C:\\Users\\o\\npm-cache",
+      Npm_Config_Store_Dir: "C:\\pnpm-store",
+      XDG_CACHE_HOME: "C:\\cache",
+    };
+    const env = childEnv(paths, parent);
+    const cases = new Map();
+    for (const [name, value] of Object.entries(env)) {
+      const key = name.toUpperCase();
+      // Windows names ignore case: two spellings would leave the choice to chance.
+      expect(cases.has(key)).toBe(false);
+      cases.set(key, value);
+    }
+    for (const name of [
+      "GOPATH",
+      "GOCACHE",
+      "GOMODCACHE",
+      "NPM_CONFIG_CACHE",
+      "NPM_CONFIG_STORE_DIR",
+      "XDG_CACHE_HOME",
+      "XDG_DATA_HOME",
+      "XDG_STATE_HOME",
+      "XDG_CONFIG_HOME",
+    ])
+      expect(cases.get(name)?.startsWith(paths.data)).toBe(true);
+  });
+
   it("installs from the lockfile without running package scripts", () => {
     const args = installArgs(paths);
     expect(args[0]).toBe(paths.pnpm);

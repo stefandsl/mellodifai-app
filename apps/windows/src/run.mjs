@@ -20,20 +20,35 @@ export function layout(here) {
   };
 }
 
+/** Every process of the app keeps temp files and tool caches (Go, npm, pnpm, XDG) in the
+ * data folder, whatever the owner's own settings say (they often point at C:). */
 export function childEnv(paths, env = process.env) {
   const temp = join(paths.data, "tmp");
-  return {
-    ...env,
+  const cache = join(paths.data, "cache");
+  const own = {
     MELLODIFAI_ROOT: paths.data,
     MELLODIFAI_RUNTIME: "native",
     TEMP: temp,
     TMP: temp,
     TMPDIR: temp,
-    npm_config_cache: join(paths.data, "cache", "npm"),
-    npm_config_store_dir: join(paths.data, "cache", "pnpm"),
-    PATH: `${dirname(process.execPath)};${env.PATH ?? ""}`,
+    npm_config_cache: join(cache, "npm"),
+    npm_config_store_dir: join(cache, "pnpm"),
+    GOPATH: join(cache, "go", "path"),
+    GOCACHE: join(cache, "go", "build"),
+    GOMODCACHE: join(cache, "go", "mod"),
+    XDG_CACHE_HOME: join(cache, "xdg"),
+    XDG_DATA_HOME: join(cache, "xdg-data"),
+    XDG_STATE_HOME: join(cache, "xdg-state"),
+    XDG_CONFIG_HOME: join(cache, "xdg-config"),
+    PATH: `${dirname(process.execPath)};${env.PATH ?? env.Path ?? ""}`,
     CI: "true",
   };
+  // Windows names ignore case: drop the parent's spelling of every name set here.
+  const names = new Set(Object.keys(own).map((name) => name.toUpperCase()));
+  const parent = Object.fromEntries(
+    Object.entries(env).filter(([name]) => !names.has(name.toUpperCase())),
+  );
+  return { ...parent, ...own };
 }
 
 export function installArgs(paths) {
