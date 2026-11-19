@@ -176,6 +176,13 @@ export function PublishDashboard({
   const lint = useMemo(() => lintYouTubeDraft(draft), [draft]);
   const saved = toDraft(current, defaults);
   const dirty = JSON.stringify(saved) !== JSON.stringify(draft);
+  // Problems only the server can see (the base thumbnail in Storage), for the saved draft.
+  const serverErrors = dirty
+    ? []
+    : (current?.destinations[0]?.problems ?? []).filter(
+        (issue) => issue.code === "no_base_image",
+      );
+  const errors = [...lint.errors, ...serverErrors];
   const state = current?.state;
   const editable = !!state && EDITABLE.includes(state);
   const destination = current?.destinations[0];
@@ -516,14 +523,14 @@ export function PublishDashboard({
                     }}
                   />
                 </div>
-                {lint.errors.length ? (
+                {errors.length ? (
                   <div
                     role="alert"
                     data-testid="lint-errors"
                     className="grid gap-1 text-sm text-destructive"
                   >
                     <strong>{pt(lang, "problems")}</strong>
-                    {lint.errors.map((issue) => (
+                    {errors.map((issue) => (
                       <span key={`${issue.field}-${issue.code}`}>
                         {issueText(lang, issue)}
                       </span>
@@ -576,7 +583,7 @@ export function PublishDashboard({
                     {pt(lang, "save")}
                   </Button>
                   <Button
-                    disabled={!slot || lint.errors.length > 0}
+                    disabled={!slot || errors.length > 0}
                     onClick={schedule}
                   >
                     {pt(lang, "schedule")}

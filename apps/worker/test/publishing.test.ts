@@ -16,6 +16,8 @@ import {
   ytScriptClient,
 } from "../src/publishing/youtube.js";
 
+// The base thumbnail exists on this PC unless a test says otherwise.
+const yes = async () => true;
 const claim = (over: Partial<Claim> = {}): Claim => ({
   destination_id: "d1",
   schedule_id: "s1",
@@ -24,6 +26,7 @@ const claim = (over: Partial<Claim> = {}): Claim => ({
   platform: "youtube",
   provider: "native",
   external_id: "vid-1",
+  render_path: "E:/ws/renders/master.mp4",
   draft: {
     title: "Mille volti",
     description: "Testo",
@@ -63,6 +66,10 @@ function fakeDb(script: {
       steps.push("handoff");
       return script.handoff ?? true;
     },
+    hold: async (_d, _t, reason) => {
+      steps.push(`hold:${reason}`);
+      return true;
+    },
     finish: async (_d, _t, outcome, url, error) => {
       steps.push(`finish:${outcome}`);
       finished.push({ outcome, url, error });
@@ -83,6 +90,7 @@ describe("publish dispatcher", () => {
       db: run.db,
       providers: run.providers,
       workerId: "w",
+      exists: yes,
     });
     expect(result).toMatchObject({ published: 1, skipped: 0 });
     expect(run.steps).toEqual([
@@ -101,9 +109,48 @@ describe("publish dispatcher", () => {
       description: "Testo",
       tags: ["pop"],
       thumbnailText: "Nuovo singolo",
-      thumbnail: null,
+      thumbnail: expect.stringMatching(/thumbnail\.png$/u),
     });
     expect(run.finished[0]?.url).toBe("https://youtu.be/vid-1");
+  });
+
+  it("holds before the intent when the approved thumbnail text has no base image", async () => {
+    const run = setup({
+      claims: [claim({ render_path: "E:/ws/renders/master.mp4" })],
+    });
+    const seen: string[] = [];
+    await dispatchTick({
+      db: run.db,
+      providers: run.providers,
+      workerId: "w",
+      exists: async (path) => {
+        seen.push(path.replace(/\\/gu, "/"));
+        return false;
+      },
+    });
+    expect(run.steps).toEqual(["recover", "claim", "hold:thumbnail_missing"]);
+    expect(seen).toEqual(["E:/ws/renders/thumbnail.png"]);
+    expect(run.youtube.calls).toEqual([]);
+    // Without thumbnail text no base image is needed.
+    const plain = setup({
+      claims: [
+        claim({
+          draft: {
+            title: "T",
+            description: "",
+            tags: [],
+            thumbnail_text: "",
+          },
+        }),
+      ],
+    });
+    await dispatchTick({
+      db: plain.db,
+      providers: plain.providers,
+      workerId: "w",
+      exists: async () => false,
+    });
+    expect(plain.steps).toContain("finish:published");
   });
 
   it("a refused metadata update keeps the video private and stores the code", async () => {
@@ -111,7 +158,7 @@ describe("publish dispatcher", () => {
       claims: [claim({ render_path: "E:/ws/renders/master.mp4" })],
     });
     run.youtube.failNext = "update";
-    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w" });
+    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w", exists: yes });
     expect(run.youtube.calls.map((call) => call.op)).toEqual([
       "update",
       "state",
@@ -131,6 +178,7 @@ describe("publish dispatcher", () => {
       db: again.db,
       providers: again.providers,
       workerId: "w",
+      exists: yes,
     });
     expect(
       again.youtube.meta.get("vid-1")?.thumbnail?.replace(/\\/gu, "/"),
@@ -144,6 +192,7 @@ describe("publish dispatcher", () => {
         db: run.db,
         providers: run.providers,
         workerId: "w",
+      exists: yes,
       });
       expect(run.youtube.calls).toEqual([]);
       expect(run.steps.some((step) => step.startsWith("finish"))).toBe(false);
@@ -156,6 +205,7 @@ describe("publish dispatcher", () => {
       db: sick.db,
       providers: sick.providers,
       workerId: "w",
+      exists: yes,
       healthy: () => false,
     });
     expect(sick.steps).toEqual(["recover"]);
@@ -175,6 +225,7 @@ describe("publish dispatcher", () => {
       db: long.db,
       providers: long.providers,
       workerId: "w",
+      exists: yes,
     });
     expect(long.steps).toEqual(["recover", "claim"]);
     expect(long.youtube.calls).toEqual([]);
@@ -193,6 +244,7 @@ describe("publish dispatcher", () => {
         db: run.db,
         providers: run.providers,
         workerId: "w",
+      exists: yes,
       });
       expect(run.steps.at(-1)).toBe(`finish:${outcome}`);
       // One flip, one status read: never a blind second flip.
@@ -207,7 +259,7 @@ describe("publish dispatcher", () => {
   it("stores a short error code, never the provider's raw text", async () => {
     const run = setup({ claims: [claim()] });
     run.youtube.failNext = "dark";
-    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w" });
+    await dispatchTick({ db: run.db, providers: run.providers, workerId: "w", exists: yes });
     expect(run.finished[0]).toMatchObject({
       outcome: "unknown",
       error: "set_public_failed",
@@ -221,6 +273,7 @@ describe("publish dispatcher", () => {
       db: raw.db,
       providers: new Map([["native:youtube", provider]]),
       workerId: "w",
+      exists: yes,
     });
     expect(raw.finished[0]?.error).toBe("provider_error");
     const lost = fakeDb({ checks: [claim()] });
@@ -230,6 +283,7 @@ describe("publish dispatcher", () => {
         ["native:youtube", new YouTubeProvider(new FakeYouTubeClient())],
       ]),
       workerId: "w",
+      exists: yes,
     });
     expect(lost.finished[0]?.error).toBe(
       "lost_handoff_definitely_not_accepted",
@@ -244,11 +298,12 @@ describe("publish dispatcher", () => {
       db: run.db,
       providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
       workerId: "w",
+      exists: yes,
     });
     expect(run.steps).toEqual(["recover", "finish:published", "claim"]);
     expect(youtube.calls).toEqual([{ op: "state", videoId: "vid-1" }]);
     const unknown = fakeDb({ checks: [claim({ provider: "blotato" })] });
-    await dispatchTick({ db: unknown.db, providers: new Map(), workerId: "w" });
+    await dispatchTick({ db: unknown.db, providers: new Map(), workerId: "w", exists: yes });
     expect(unknown.finished[0]?.outcome).toBe("unknown");
   });
 
@@ -260,6 +315,7 @@ describe("publish dispatcher", () => {
       db: run.db,
       providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
       workerId: "w",
+      exists: yes,
     });
     expect(run.finished[0]?.outcome).toBe("unknown");
     expect(youtube.calls.map((call) => call.op)).toEqual(["state"]);
@@ -271,12 +327,14 @@ describe("publishing wired in main", () => {
   it("claims only while the worker loop's health check passes", async () => {
     vi.useFakeTimers();
     const db = new InMemoryDb([], []);
-    const loop = new WorkerLoop({ db, workerId: "w", stages: {} });
+    const loop = new WorkerLoop({ db, workerId: "w",
+      exists: yes, stages: {} });
     const run = fakeDb({ claims: [] });
     const stop = startPublishing({
       db: run.db,
       youtube: new FakeYouTubeClient(),
       workerId: "w",
+      exists: yes,
       loop,
       report: () => {},
       intervalMs: 1000,

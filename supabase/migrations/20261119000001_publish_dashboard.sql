@@ -158,6 +158,24 @@ begin
 end;
 $$;
 
+-- Thumbnail text goes on the master's base thumbnail (the render's thumbnail_path, or
+-- thumbnail-1280x720.png / thumbnail.png next to its preview, as the dashboard finds it). Text
+-- without a base image blocks the approval with this problem instead of failing at the slot.
+create function ops._publish_thumbnail_problems(p_schedule uuid, p_draft jsonb) returns jsonb
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+begin
+  if btrim(coalesce(p_draft->>'thumbnail_text','')) = '' or exists (
+    select 1 from public.publish_schedules s join public.renders r on r.id=s.render_id
+      join storage.objects o on o.bucket_id='previews' and o.name in (r.qa_results#>>'{assets,thumbnail_path}',
+        regexp_replace(r.preview_path,'/[^/]*$','')||'/thumbnail-1280x720.png',
+        regexp_replace(r.preview_path,'/[^/]*$','')||'/thumbnail.png')
+    where s.id=p_schedule) then
+    return '[]'::jsonb;
+  end if;
+  return jsonb_build_array(jsonb_build_object('field','thumbnail_text','code','no_base_image'));
+end;
+$$;
+
 -- The frozen payload of an approval: render, slot and every destination draft.
 create function ops._publish_hash(p_schedule uuid) returns text
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
@@ -232,7 +250,7 @@ begin
       'expires_at',ap.expires_at,'decided_at',ap.decided_at,'decided_via',ap.decided_via) end,
     'destinations',coalesce((select jsonb_agg(jsonb_build_object('destination_id',d.id,'platform',d.platform,
         'provider',d.provider,'account_id',d.account_id,'state',d.state,'draft',d.draft,
-        'problems',ops._publish_problems(d.platform,d.draft),'external_url',d.external_url,
+        'problems',ops._publish_problems(d.platform,d.draft) || ops._publish_thumbnail_problems(s.id,d.draft),'external_url',d.external_url,
         'published_at',d.published_at,'error',d.error) order by d.platform,d.account_id)
       from public.publish_destinations d where d.schedule_id=s.id),'[]'::jsonb),
     'events',coalesce((select jsonb_agg(jsonb_build_object('at',e.at,'kind',e.kind,'actor',e.actor,'detail',e.detail) order by e.at,e.id)
@@ -422,7 +440,7 @@ begin
     if s.state <> 'draft' then raise exception 'a draft is required'; end if;
     if s.slot_at is null or s.slot_at <= now() then raise exception 'invalid slot'; end if;
     if exists (select 1 from public.publish_destinations x where x.schedule_id=s.id
-      and jsonb_array_length(ops._publish_problems(x.platform,x.draft)) > 0) then
+      and jsonb_array_length(ops._publish_problems(x.platform,x.draft) || ops._publish_thumbnail_problems(s.id,x.draft)) > 0) then
       raise exception 'invalid draft';
     end if;
     v_hash := ops._publish_hash(s.id);
@@ -797,6 +815,28 @@ begin
 end;
 $$;
 
+-- claimed -> held, before the intent: the worker found a reason it cannot publish (the base
+-- thumbnail for the approved text is missing on this PC). The owner sees the reason; nothing
+-- is retried until the owner sends the plan back to draft.
+create function ops.publish_dispatch_hold(p_destination uuid, p_token uuid, p_reason text) returns boolean
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+declare s public.publish_schedules; d public.publish_destinations;
+begin
+  if p_reason is null or p_reason not in ('thumbnail_missing') then raise exception 'invalid reason'; end if;
+  select * into s from public.publish_schedules where id=(select schedule_id from public.publish_destinations where id=p_destination) for update;
+  if not found then return false; end if;
+  perform 1 from public.publish_destinations where schedule_id=s.id order by id for update;
+  select * into d from public.publish_destinations where id=p_destination;
+  if d.state<>'claimed' or d.claim_token is distinct from p_token or s.state not in ('scheduled','publishing') then
+    return false;
+  end if;
+  update public.publish_destinations set state='scheduled',claim_token=null,claimed_by=null,claim_expires_at=null,updated_at=now() where id=d.id;
+  update public.publish_schedules set state='held',held_reason=p_reason,updated_at=now() where id=s.id;
+  perform ops._publish_event(s.id,d.id,'held','system',jsonb_build_object('reason',p_reason));
+  return true;
+end;
+$$;
+
 -- intent_recorded -> handoff_started: the last moment a veto can win.
 create function ops.publish_dispatch_handoff(p_destination uuid, p_token uuid) returns boolean
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
@@ -898,6 +938,7 @@ $grants$;
 grant execute on function ops._publish_event(uuid, uuid, text, text, jsonb), ops._publish_problems(text, jsonb),
   ops._publish_hash(uuid), ops._publish_price(uuid), ops._publish_guard_publication(), ops._publish_draft_clean(jsonb), ops._publish_view(uuid), ops._publish_activate(uuid, text),
   ops._publish_do(jsonb, text, jsonb), ops._publish_summary(uuid), ops._publish_run(jsonb, text, jsonb, text, boolean),
+  ops._publish_thumbnail_problems(uuid, jsonb), ops.publish_dispatch_hold(uuid, uuid, text),
   ops.publish_dispatch_recover(text), ops.publish_dispatch_claim(text, integer), ops.publish_dispatch_intent(uuid, uuid),
   ops.publish_dispatch_handoff(uuid, uuid), ops.publish_dispatch_finish(uuid, uuid, text, text, text) to service_role;
 grant execute on function ops.publish_plan(jsonb, uuid, jsonb, jsonb), ops.publish_draft_edit(jsonb, uuid, text, jsonb),

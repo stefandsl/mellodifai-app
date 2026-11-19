@@ -986,6 +986,12 @@ function txDispatchDb(tx: Tx): DispatchDb {
       ]),
     intent: (d, t) =>
       worker(tx, "select ops.publish_dispatch_intent($1,$2) as result", [d, t]),
+    hold: (d, t, reason) =>
+      worker(tx, "select ops.publish_dispatch_hold($1,$2,$3) as result", [
+        d,
+        t,
+        reason,
+      ]),
     handoff: (d, t) =>
       worker(tx, "select ops.publish_dispatch_handoff($1,$2) as result", [
         d,
@@ -1050,6 +1056,7 @@ it("veto, a new plan with a new title, approval: the public video carries the ne
       db: txDispatchDb(tx),
       providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
       workerId: `wpub-${owner.user_id}`,
+      exists: async () => true,
     });
     expect(result.published).toBe(1);
     expect(youtube.calls.map((c) => c.op)).toEqual(["update", "setPublic"]);
@@ -1099,6 +1106,62 @@ it("the old flow cannot change a video's privacy while a Pubblica plan is open",
     ).toMatchObject({ ok: true });
   });
 });
+
+it("thumbnail text without a base image blocks the approval with a clear reason", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const bare = await video(tx, owner.user_id, "approved", false);
+    const id = await plan(tx, owner, bare.version, inHours(3));
+    const preview = await op(tx, "publish_preview", owner, id);
+    expect(preview.data.destinations[0].problems).toEqual([
+      { field: "thumbnail_text", code: "no_base_image" },
+    ]);
+    expect(await op(tx, "publish_request_approval", owner, id)).toMatchObject({
+      ok: false,
+      code: "validation",
+    });
+    // Without thumbnail text the plan needs no base image.
+    expect(
+      await op(tx, "publish_draft_edit", owner, id, "youtube", {
+        thumbnail_text: "",
+      }),
+    ).toMatchObject({ data: { destinations: [{ problems: [] }] } });
+    expect(await op(tx, "publish_request_approval", owner, id)).toMatchObject({
+      ok: true,
+      data: { state: "scheduled" },
+    });
+  });
+});
+
+it("the worker holds a plan whose base thumbnail is missing at the slot, with its reason", async () => {
+  await fixture(async (tx) => {
+    const a = await scheduled(tx);
+    const [claimed] = await claim(tx);
+    expect(
+      await worker(
+        tx,
+        "select ops.publish_dispatch_hold($1,$2,'thumbnail_missing') as result",
+        [claimed.destination_id, claimed.claim_token],
+      ),
+    ).toBe(true);
+    expect(await op(tx, "publish_preview", a.owner, a.id)).toMatchObject({
+      data: {
+        state: "held",
+        held_reason: "thumbnail_missing",
+        destinations: [{ state: "scheduled" }],
+      },
+    });
+    expect(await intent(tx, claimed)).toBe(false);
+    expect(await claim(tx)).toEqual([]);
+  });
+});
+
+const SECTIONS = [
+  { title: "Intro", start: 0 },
+  { title: "Strofa", start: 15.4 },
+  { title: "Ritornello", start: 42 },
+];
+const CHAPTERS = "0:00 Intro\n0:15 Strofa\n0:42 Ritornello";
 
 it("an old render attempt's YouTube upload does not block a plan for the current video", async () => {
   await fixture(async (tx) => {

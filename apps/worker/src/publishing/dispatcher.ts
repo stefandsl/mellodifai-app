@@ -1,3 +1,4 @@
+import { access } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   type PostDraft,
@@ -53,6 +54,7 @@ export interface DispatchDb {
   recover(worker: string): Promise<Claim[]>;
   claim(worker: string, limit: number): Promise<Claim[]>;
   intent(destination: string, token: string): Promise<boolean>;
+  hold(destination: string, token: string, reason: string): Promise<boolean>;
   handoff(destination: string, token: string): Promise<boolean>;
   finish(
     destination: string,
@@ -78,6 +80,12 @@ export function supabaseDispatchDb(client: SupabaseClient): DispatchDb {
       call("publish_dispatch_intent", {
         p_destination: destination,
         p_token: token,
+      }),
+    hold: (destination, token, reason) =>
+      call("publish_dispatch_hold", {
+        p_destination: destination,
+        p_token: token,
+        p_reason: reason,
       }),
     handoff: (destination, token) =>
       call("publish_dispatch_handoff", {
@@ -151,9 +159,18 @@ export async function dispatchTick(input: {
   workerId: string;
   healthy?: () => boolean;
   report?: (line: string) => void;
+  // Whether a local file exists (the base thumbnail); tests inject it.
+  exists?: (path: string) => Promise<boolean>;
 }): Promise<{ checked: number; published: number; skipped: number }> {
   const { db, providers, workerId } = input;
   const report = input.report ?? (() => {});
+  const exists =
+    input.exists ??
+    ((path: string) =>
+      access(path).then(
+        () => true,
+        () => false,
+      ));
   let published = 0;
   let skipped = 0;
   const checks = await db.recover(workerId);
@@ -186,6 +203,18 @@ export async function dispatchTick(input: {
       report(
         `Publish ${claim.destination_id}: skipped, provider or draft not valid`,
       );
+      continue;
+    }
+    // Approved thumbnail text needs its base image on this PC: hold with the reason before the
+    // intent, never three refused attempts.
+    const base = draft.platformExtras.thumbnail;
+    if (
+      draft.thumbnailText?.trim() &&
+      !(typeof base === "string" && base && (await exists(base)))
+    ) {
+      await db.hold(claim.destination_id, claim.claim_token, "thumbnail_missing");
+      skipped++;
+      report(`Publish ${claim.destination_id}: held, base thumbnail missing`);
       continue;
     }
     if (!(await db.intent(claim.destination_id, claim.claim_token))) {

@@ -93,12 +93,16 @@ const it = {
   "held.missed_slot":
     "Lo slot è passato da più di 6 ore con il PC spento: il video resta privato.",
   "held.gate_failed": "Un controllo non è più valido: il video resta privato.",
+  "held.thumbnail_missing":
+    "Su questo PC manca l'immagine di base della miniatura: il video resta privato. Rimetti il piano in bozza e rifai la miniatura o togli il testo.",
   "held.status_unknown":
     "Esito sconosciuto: controlla in YouTube Studio. Nessun nuovo tentativo automatico.",
   "lint.required": "{field}: obbligatorio",
   "lint.too_long": "{field}: al massimo {limit} caratteri",
   "lint.angle_brackets": "{field}: YouTube rifiuta i caratteri < e >",
   "lint.invalid": "{field}: valore non valido",
+  "lint.no_base_image":
+    "{field}: manca l'immagine di base della miniatura. Rifai la miniatura o togli il testo.",
   "lint.platform_soon": "Piattaforma non ancora attiva",
   "lint.mobile_cut":
     "{field}: sul telefono si vede solo fino a circa {limit} caratteri",
@@ -239,12 +243,16 @@ const en: Record<PublishKey, string> = {
   "held.missed_slot":
     "The slot passed more than 6 hours ago while the PC was off: the video stays private.",
   "held.gate_failed": "A check no longer holds: the video stays private.",
+  "held.thumbnail_missing":
+    "The base thumbnail image is missing on this PC: the video stays private. Send the plan back to draft and make the thumbnail again or remove the text.",
   "held.status_unknown":
     "Unknown outcome: check YouTube Studio. No automatic new attempt.",
   "lint.required": "{field}: required",
   "lint.too_long": "{field}: at most {limit} characters",
   "lint.angle_brackets": "{field}: YouTube refuses the characters < and >",
   "lint.invalid": "{field}: invalid value",
+  "lint.no_base_image":
+    "{field}: the base thumbnail image is missing. Make the thumbnail again or remove the text.",
   "lint.platform_soon": "Platform not active yet",
   "lint.mobile_cut": "{field}: a phone shows only about {limit} characters",
   "lint.all_caps": "{field}: all capitals is hard to read",
