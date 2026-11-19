@@ -25,6 +25,7 @@ import {
   validOwnerEmail,
   WEB_PORT,
   WORKER_KEYS_TEMPLATE,
+  workerSettings,
 } from "../lib/desktop.js";
 import { ENV_TABLE, type StackEnv } from "../lib/envs.js";
 import { nativePorts } from "../lib/native/layout.js";
@@ -192,6 +193,24 @@ describe("desktop env files", () => {
       SUPABASE_SERVICE_ROLE_KEY: "service-key",
     });
     expect(JSON.stringify(worker)).not.toContain("mdf_web");
+  });
+
+  it("gives the worker the fonts the installer ships, never the data folder's", () => {
+    const paths = { workerKeys: "D:/keys.env", workerEnv: "D:/stack.env" };
+    const settings = workerSettings(
+      "I:/MellodifAI/app",
+      paths,
+      "owner-1",
+      "PC1",
+    );
+    expect(settings.MELLODIFAI_FONTS).toBe(join("I:/MellodifAI/app", "fonts"));
+    expect(settings.WORKER_ID).toBe("desktop-PC1");
+    expect(settings.WORKER_OWNER_ID).toBe("owner-1");
+    // Later files win: the stack's own keys override the owner's file.
+    expect(settings.WORKER_ENV_FILES).toBe("D:/keys.env;D:/stack.env");
+    expect(workerSettings("I:/app", paths, undefined)).not.toHaveProperty(
+      "WORKER_OWNER_ID",
+    );
   });
 
   it("round-trips through the env file format and refuses line breaks", () => {

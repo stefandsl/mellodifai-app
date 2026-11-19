@@ -65,6 +65,11 @@ the committed HEAD by `node apps/windows/src/build.mjs` (or `pnpm --filter @mell
 build:installer`). It carries:
 
 - `app\`: `git archive HEAD` plus a `VERSION` file;
+- `app\fonts\`: the worker's Japanese, Korean and Chinese lyric fonts (OFL, not in git), taken
+  from `MELLODIFAI_FONTS`, else `<MELLODIFAI_ROOT>\fonts` (default `E:\mellodifai\fonts`). The
+  build fails if a language or its `LICENSES.txt` is missing. The controller points the
+  worker's `MELLODIFAI_FONTS` there; without it every song failed at its first stage with
+  `ENOENT ... data\fonts`;
 - `node\node.exe`: the Node.js the build ran on (Node 22), so the owner needs no Node;
 - `pnpm\`: the pinned pnpm package (`packageManager` in package.json);
 - `mellodifai.ico`: built from `apps/web/app/icon.png` with classic DIB entries only, because

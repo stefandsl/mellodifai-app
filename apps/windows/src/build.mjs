@@ -24,6 +24,25 @@ export function versionName(describe, date = new Date()) {
   return clean || date.toISOString().slice(0, 10);
 }
 
+export const FONT_LANGS = ["ja", "ko", "zh"];
+
+/**
+ * The worker's lyric fonts (OFL, not in git), resolved as the worker does: MELLODIFAI_FONTS,
+ * else <MELLODIFAI_ROOT>\fonts. The installer ships them in app\fonts, so the build refuses a
+ * folder without every language and its licence file.
+ */
+export function fontsSource(env = process.env, exists = existsSync) {
+  const dir =
+    env.MELLODIFAI_FONTS ??
+    join(env.MELLODIFAI_ROOT ?? "E:/mellodifai", "fonts");
+  for (const lang of FONT_LANGS)
+    if (!exists(join(dir, lang, "LICENSES.txt")))
+      throw new Error(
+        `Fonts missing: ${join(dir, lang, "LICENSES.txt")} (set MELLODIFAI_FONTS)`,
+      );
+  return dir;
+}
+
 /** NSIS 3 from MAKENSIS, the PATH, or the electron-builder caches already on this PC. */
 export function findMakensis(
   env = process.env,
@@ -94,6 +113,7 @@ function main(argv) {
   if (/^[cC]:/.test(out)) throw new Error("Build output must stay off C:");
   if (git("status", "--porcelain") && !argv.includes("--allow-dirty"))
     throw new Error("Commit first: the installer is built from HEAD");
+  const fonts = fontsSource();
   const version = versionName(git("describe", "--tags", "--always", "--dirty"));
   const stage = join(out, `stage-${version}`);
   rmSync(stage, { recursive: true, force: true });
@@ -113,6 +133,10 @@ function main(argv) {
   execFileSync(windowsTar, ["-xf", tar, "-C", join(stage, "app")]);
   rmSync(tar);
   writeFileSync(join(stage, "app", "VERSION"), `${version}\n`);
+  for (const lang of FONT_LANGS)
+    cpSync(join(fonts, lang), join(stage, "app", "fonts", lang), {
+      recursive: true,
+    });
 
   mkdirSync(join(stage, "node"), { recursive: true });
   cpSync(process.execPath, join(stage, "node", "node.exe"));
@@ -127,6 +151,7 @@ function main(argv) {
       "MellodifAI bundles these programs, unchanged:",
       `- Node.js ${process.version} (node\\node.exe), MIT licence: https://github.com/nodejs/node/blob/${process.version}/LICENSE`,
       `- pnpm ${pinned} (pnpm\\), MIT licence: pnpm\\LICENSE`,
+      "- Japanese, Korean and Chinese lyric fonts (app\\fonts), subsets of Google Fonts, SIL Open Font License 1.1: app\\fonts\\<language>\\LICENSES.txt and OFL-*.txt",
       "The app's own dependencies are installed from the npm registry at setup; their licences are in app\\node_modules.",
       "",
     ].join("\r\n"),

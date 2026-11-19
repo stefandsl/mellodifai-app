@@ -36,6 +36,27 @@ export function desktopPaths(root = runtimeRoot()) {
   };
 }
 
+/**
+ * The worker's own settings. Its workspaces copy fonts from MELLODIFAI_FONTS (default
+ * `<data>\fonts`, which an install never has), so it gets the fonts the installer ships in
+ * `<app>\fonts`; without them every song failed at its first stage with ENOENT.
+ */
+export function workerSettings(
+  app: string,
+  paths: Pick<ReturnType<typeof desktopPaths>, "workerKeys" | "workerEnv">,
+  ownerId: string | undefined,
+  computer = process.env.COMPUTERNAME,
+): Record<string, string> {
+  return {
+    WORKER_ID: `desktop-${computer ?? "pc"}`,
+    // The worker creates its own row, owned by the owner's account.
+    ...(ownerId ? { WORKER_OWNER_ID: ownerId } : {}),
+    // Later files win: the stack's own keys override anything in the owner's file.
+    WORKER_ENV_FILES: [paths.workerKeys, paths.workerEnv].join(";"),
+    MELLODIFAI_FONTS: join(app, "fonts"),
+  };
+}
+
 type Secrets = { anon: string; service: string };
 
 /** What each process gets: the web app never sees the service key. */

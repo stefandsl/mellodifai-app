@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { findMakensis, versionName } from "../src/build.mjs";
+import { findMakensis, fontsSource, versionName } from "../src/build.mjs";
 import { decodePng, ICON_SIZES, pngToIco, resize } from "../src/icon.mjs";
 import {
   childEnv,
@@ -226,6 +226,23 @@ describe("installer build", () => {
     expect(versionName("v1 2/3\n")).toBe("v1-2-3");
     expect(versionName("", new Date("2026-11-13T00:00:00Z"))).toBe(
       "2026-11-13",
+    );
+  });
+
+  it("ships the worker's fonts and refuses a folder without every language", () => {
+    const all = new Set(
+      ["ja", "ko", "zh"].map((lang) => join("F:/fonts", lang, "LICENSES.txt")),
+    );
+    const exists = (path) => all.has(path);
+    expect(fontsSource({ MELLODIFAI_FONTS: "F:/fonts" }, exists)).toBe(
+      "F:/fonts",
+    );
+    expect(fontsSource({ MELLODIFAI_ROOT: "F:/" }, exists)).toBe(
+      join("F:/", "fonts"),
+    );
+    all.delete(join("F:/fonts", "zh", "LICENSES.txt"));
+    expect(() => fontsSource({ MELLODIFAI_FONTS: "F:/fonts" }, exists)).toThrow(
+      /Fonts missing/,
     );
   });
 

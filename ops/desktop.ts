@@ -37,6 +37,7 @@ import {
   WEB_HOST,
   WEB_PORT,
   WORKER_KEYS_TEMPLATE,
+  workerSettings,
 } from "./lib/desktop.js";
 import { nativeTools } from "./lib/native/build.js";
 import { nativeLayout } from "./lib/native/layout.js";
@@ -367,14 +368,7 @@ async function ensureWorker(ownerId: string | undefined) {
     "worker",
     [tsx, join(workerDir, "src", "main.ts")],
     workerDir,
-    {
-      ...baseEnv(),
-      WORKER_ID: `desktop-${process.env.COMPUTERNAME ?? "pc"}`,
-      // The worker creates its own row, owned by the owner's account.
-      ...(ownerId ? { WORKER_OWNER_ID: ownerId } : {}),
-      // Later files win: the stack's own keys override anything in the owner's file.
-      WORKER_ENV_FILES: [P.workerKeys, P.workerEnv].join(";"),
-    },
+    { ...baseEnv(), ...workerSettings(app, P, ownerId) },
   );
   const until = Date.now() + 90_000;
   while (Date.now() < until) {
