@@ -453,7 +453,7 @@ async function chatVerdict(
         { role: "system", content: JUDGE_INSTRUCTIONS },
         {
           role: "user",
-          content: `Requested topic: ${context.topic}\nLanguage: ${languageName(context.lang) ?? context.lang}\n${context.brief ? `User's brief (its explicit requirements override the defaults, for example a register, an accent, or a second language allowed or forbidden; when it names an accent, say each rhyme pair in that accent and rate singable "no" if they do not rhyme there): ${context.brief}\n` : ""}Reference song title (must not be reused): ${context.referenceTitle}\n${context.referenceLyrics ? `Reference song lyrics (the draft must not copy or paraphrase their lines):\n${context.referenceLyrics.slice(0, 4000)}\n` : ""}Title: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}`,
+          content: `Requested topic: ${context.topic}\nLanguage: ${languageName(context.lang) ?? context.lang}\n${context.brief ? `User's brief (its explicit requirements override the defaults, for example a register, an accent, or a second language allowed or forbidden): ${context.brief}\n` : ""}Reference song title (must not be reused): ${context.referenceTitle}\n${context.referenceLyrics ? `Reference song lyrics (the draft must not copy or paraphrase their lines):\n${context.referenceLyrics.slice(0, 4000)}\n` : ""}Title: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}`,
         },
       ],
     },
