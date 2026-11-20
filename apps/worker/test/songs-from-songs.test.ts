@@ -52,7 +52,12 @@ function pack(lyrics = "[Verse]\nUna riga\nDue righe"): LyricPack {
   });
 }
 
-async function setup(settings: Record<string, unknown> = {}, seconds = 200) {
+async function setup(
+  settings: Record<string, unknown> = {},
+  seconds = 200,
+  // Whether the uploaded file carries artwork (an attached picture ffmpeg can map).
+  artwork = true,
+) {
   const root = await mkdtemp(join(tmpdir(), "mellodifai-sfs-"));
   roots.push(root);
   const ws = {
@@ -73,6 +78,11 @@ async function setup(settings: Record<string, unknown> = {}, seconds = 200) {
     setImmediate(() => {
       void (async () => {
         if (cmd === "ffprobe") child.stdout.emit("data", `${seconds}\n`);
+        if (!artwork && cmd === "ffmpeg" && args.includes("0:v:0")) {
+          child.stderr.emit("data", "Stream map '0:v:0' matches no streams.\n");
+          child.emit("close", 1);
+          return;
+        }
         for (const arg of args)
           if (/\.part\.[^.]+$/u.test(arg))
             await writeFile(arg, `made by ${cmd}`);
@@ -201,6 +211,35 @@ describe("Importa da Suno", () => {
     // The lyrics are where score_takes.py reads them.
     expect(await readFile(join(ctx.ws.versionsDir, "lyrics.txt"), "utf8")).toBe(
       "[Verse]\nUna riga\nDue righe",
+    );
+  });
+  it("keeps the artwork Suno puts in the MP3 as the take's cover", async () => {
+    const { ctx, db, calls, storage } = await setup();
+    ctx.job.payload = { upload: `${OWNER}/audio/${TAKE}.mp3` };
+    await stages.import_audio?.(ctx);
+    const cover =
+      "previews/4b6f8d2e-1c3a-4e5f-9a7b-2c4d6e8f0a1b/project/it/take-1-cover.jpg";
+    expect(db.takes[0]?.cover_path).toBe(cover);
+    expect(storage.upload).toHaveBeenCalledWith(
+      cover,
+      join(ctx.ws.outDir, "take-1-cover.jpg"),
+      "image/jpeg",
+    );
+    // The picture is read from the uploaded file, the first video stream only.
+    const extract = calls.find((call) => call.args.includes("0:v:0"));
+    expect(extract?.args[extract.args.indexOf("-i") + 1]).toMatch(
+      /source\.mp3$/u,
+    );
+  });
+  it("imports a file without artwork with no cover", async () => {
+    const { ctx, db, storage } = await setup({}, 200, false);
+    const result = await stages.import_audio?.(ctx);
+    expect(result?.versionStatus).toBe("audio_ready");
+    expect(db.takes[0]?.cover_path).toBeNull();
+    expect(storage.upload).not.toHaveBeenCalledWith(
+      expect.stringContaining("cover"),
+      expect.anything(),
+      expect.anything(),
     );
   });
   it("accepts only a recording in the owner's own folder", async () => {
