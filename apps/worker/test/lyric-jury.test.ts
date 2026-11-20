@@ -259,6 +259,94 @@ describe("judge", () => {
     );
     expect(fine.passed).toBe(true);
   });
+
+  it("sends the brief and the reference lyrics only when they are known", async () => {
+    const fetchFn = reply({ lyrics_language: "Italian", scores: yes });
+    await judge(
+      draft,
+      {
+        ...context,
+        brief: "ritornello in inglese",
+        referenceLyrics: "il treno delle sei",
+      },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    const [, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(init.body)).toContain("User's brief");
+    expect(String(init.body)).toContain("ritornello in inglese");
+    expect(String(init.body)).toContain("il treno delle sei");
+    await judge(draft, context, ["m"], { key: "k", fetchFn });
+    const [, plain] = fetchFn.mock.calls[1] as unknown as [string, RequestInit];
+    expect(String(plain.body)).not.toContain("User's brief");
+    expect(String(plain.body)).not.toContain("Reference song lyrics");
+  });
+
+  it("fails originality when the draft paraphrases the reference lyrics", async () => {
+    const fetchFn = reply({ lyrics_language: "Italian", scores: yes });
+    const referenceLyrics =
+      "[Verse]\nIl treno delle sei non aspetta nessuno,\ncorro sul binario col caffè in mano,\nil capotreno fischia e io salto su,\ne la città si sveglia piano piano.";
+    const copied = await judge(
+      {
+        ...draft,
+        lyrics:
+          "[Verse]\nIl treno dell'alba non aspetta mai nessuno,\ncorro lungo il binario col caffè in mano,\nil controllore fischia e io salgo su,\ne la città si sveglia lentamente.",
+      },
+      { ...context, referenceLyrics },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(copied.failing).toEqual(["original"]);
+    const fresh = await judge(
+      {
+        ...draft,
+        lyrics:
+          "[Verse]\nLa sveglia suona quando è ancora notte,\nmi vesto al buio senza far rumore,\nla stazione è fredda e mezza vuota,\nun panino e già passano le ore.",
+      },
+      { ...context, referenceLyrics },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(fresh.passed).toBe(true);
+  });
+
+  it("fails singability when two chorus lines overflow the melody", async () => {
+    const fetchFn = reply({ lyrics_language: "Italian", scores: yes });
+    const chorus = [
+      "Domenica dalla nonna,",
+      "la tavola è già pronta,",
+      "domenica dalla nonna,",
+    ];
+    const long =
+      "e c'è sempre un piatto in più per chiunque bussi alla porta di casa";
+    const overflow = await judge(
+      {
+        ...draft,
+        lyrics: `[Chorus]\n${[...chorus, long, `${long} sua`].join("\n")}`,
+      },
+      context,
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(overflow.failing).toEqual(["singable"]);
+    const one = await judge(
+      { ...draft, lyrics: `[Chorus]\n${[...chorus, long].join("\n")}` },
+      context,
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(one.passed).toBe(true);
+    const verse = await judge(
+      {
+        ...draft,
+        lyrics: `[Verse 1]\n${[...chorus, long, `${long} sua`].join("\n")}`,
+      },
+      context,
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(verse.passed).toBe(true);
+  });
 });
 
 describe("privacy filter", () => {
