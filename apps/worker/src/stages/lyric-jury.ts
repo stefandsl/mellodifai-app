@@ -271,6 +271,7 @@ const JUDGE_INSTRUCTIONS = [
   ...CRITERION_KEYS.map((key) => `"${key}": ${CRITERIA[key]}`),
   'Reply with one JSON object: {"lyrics_language": the English name of the language most lines are written in, "scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
   'Use "strong" when the draft needs deep rewriting, "fast" when small fixes are enough.',
+  'When the request includes a user\'s brief, also add "brief_followed": "yes" or "no". Answer "no" when the lyrics break an explicit requirement of the brief: its register or tone, an accent the rhymes must work in, or which languages are allowed or forbidden.',
 ].join("\n");
 
 // Small judges rate in words more reliably than in decimals; numbers still count as given.
@@ -466,6 +467,11 @@ async function chatVerdict(
   const issues = Array.isArray(reply.issues)
     ? reply.issues.filter((i): i is string => typeof i === "string")
     : [];
+  // A draft that breaks an explicit requirement of the user's brief misses the request.
+  if (context.brief && reply.brief_followed === "no") {
+    scores.topic = 0;
+    issues.unshift("The lyrics break an explicit requirement of the brief.");
+  }
   // The judge names the language it reads; a mismatch fails the language criterion outright.
   const wanted = languageName(context.lang);
   const seen =
