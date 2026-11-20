@@ -267,7 +267,7 @@ async function jevVerdict(
 
 const JUDGE_INSTRUCTIONS = [
   REDACTION_NOTE,
-  'You are a strict judge of song lyrics. Rate the draft on each criterion with "yes" (fully met), "partly" or "no". Read every line: "yes" means every line meets the criterion; one line that clearly breaks it makes it "partly" at best.',
+  'You are a strict judge of song lyrics. Rate the draft on each criterion with "yes" (fully met), "partly" or "no":',
   ...CRITERION_KEYS.map((key) => `"${key}": ${CRITERIA[key]}`),
   'Reply with one JSON object: {"lyrics_language": the English name of the language most lines are written in, "scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
   'Use "strong" when the draft needs deep rewriting, "fast" when small fixes are enough.',
