@@ -247,16 +247,7 @@ test("render, pick a cover at phone size, the plan shows it", async ({
     "src",
     coverSrc ?? "",
   );
-  // On a non-default E2E_PORT the native gateway's CORS list (ops/lib/native/plan.ts appOrigins)
-  // refuses the sidebar's worker-status read; that is the stack, not this page. The images are
-  // checked above by their natural size.
-  expect(
-    errors.filter(
-      (text) =>
-        !/blocked by CORS policy/u.test(text) &&
-        text !== "Failed to load resource: net::ERR_FAILED",
-    ),
-  ).toEqual([]);
+  expect(errors).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });
   await picker.scrollIntoViewIfNeeded();
   expect(
