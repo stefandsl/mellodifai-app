@@ -123,7 +123,8 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
     jwtSecretFromEnv: false,
     sessions: {},
     fakeStack: true,
-    emailSentPerHour: 2,
+    // Test mail only reaches the local catcher; repeated suites must not hit the limit.
+    emailSentPerHour: 100,
   },
   ci: {
     projectId: "mellodifai_ci",
@@ -143,7 +144,7 @@ export const ENV_TABLE: Record<StackEnv, StackValues> = {
     jwtSecretFromEnv: false,
     sessions: {},
     fakeStack: true,
-    emailSentPerHour: 2,
+    emailSentPerHour: 100,
   },
   // The Windows desktop app (docs/windows-app.md), native runtime. MELLODIFAI_ROOT is its
   // install's data folder. Block 46300-46329: below the Windows dynamic range 49152-65535,

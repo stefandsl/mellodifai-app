@@ -187,7 +187,10 @@ it.each(["e2e", "ci"] as const)(
     expect(ENV_TABLE[env].smtp).toBe("catcher");
     expect(t.auth.jwt_secret).toBeUndefined();
     expect(t.auth.sessions).toEqual({});
-    expect(t.auth.rate_limit.email_sent).toBe(2);
+    // Test mail only reaches the local catcher: a limit of 2 per hour made the third e2e
+    // suite within an hour fail its OTP sign-in with over_email_send_rate_limit.
+    expect(t.auth.rate_limit.email_sent).toBe(100);
+    expect(ENV_TABLE[env].emailSentPerHour).toBe(100);
   },
 );
 
