@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { formatClock, parseClock } from "@/lib/studio/audio-edit";
 
@@ -14,27 +14,30 @@ export function ClockField({
   value: number;
   onCommit: (seconds: number) => void;
 }) {
-  const [text, setText] = useState(formatClock(value, true));
-  useEffect(() => setText(formatClock(value, true)), [value]);
+  // What is being typed, or null while the field only shows the value. The shown text is worked
+  // out in the render: an effect that copied the value into the text ran after the first
+  // keystroke when it came right after the mount, and put the old text back over it.
+  const [draft, setDraft] = useState<string | null>(null);
   const commit = () => {
-    const parsed = parseClock(text);
-    if (parsed === null) setText(formatClock(value, true));
-    else onCommit(parsed);
+    if (draft === null) return;
+    const parsed = parseClock(draft);
+    setDraft(null);
+    if (parsed !== null) onCommit(parsed);
   };
   return (
     <label className="flex min-w-0 flex-col gap-1 text-[12px] text-[var(--fg-muted)]">
       {label}
       <input
         inputMode="decimal"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
+        value={draft ?? formatClock(value, true)}
+        onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
             commit();
           } else if (event.key === "Escape") {
-            setText(formatClock(value, true));
+            setDraft(null);
           }
         }}
         className="h-9 w-full rounded-lg bg-[var(--surface-2)] px-3 text-[14px] tabular-nums text-[var(--fg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"

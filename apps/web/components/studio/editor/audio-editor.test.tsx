@@ -133,17 +133,8 @@ async function open(c = clip()) {
 }
 const field = (name: string) => screen.getByLabelText(name, { exact: true });
 async function setField(name: string, text: string) {
-  // Flush the controlled draft before Enter reads it, then flush the formatting
-  // effect before another field's blur handler or an assertion uses the value.
-  await act(async () => {
-    await userEvent.clear(field(name));
-  });
-  await act(async () => {
-    await userEvent.type(field(name), text);
-  });
-  await act(async () => {
-    await userEvent.keyboard("{Enter}");
-  });
+  await userEvent.clear(field(name));
+  await userEvent.type(field(name), `${text}{Enter}`);
 }
 
 describe("audio editor", () => {
@@ -215,8 +206,8 @@ describe("audio editor", () => {
     await open();
     await setField("Inizio", "2");
     await setField("Fine", "8");
-    await waitFor(() => expect(field("Inizio")).toHaveValue("0:02.0"));
-    await waitFor(() => expect(field("Fine")).toHaveValue("0:08.0"));
+    expect(field("Inizio")).toHaveValue("0:02.0");
+    expect(field("Fine")).toHaveValue("0:08.0");
     await userEvent.click(
       screen.getByRole("button", { name: /^Dissolvenza in entrata:/u }),
     );
@@ -255,7 +246,7 @@ describe("audio editor", () => {
       });
     await open();
     await setField("Fine", "4");
-    await waitFor(() => expect(field("Fine")).toHaveValue("0:04.0"));
+    expect(field("Fine")).toHaveValue("0:04.0");
     await userEvent.click(screen.getByRole("button", { name: "Scarica WAV" }));
     await waitFor(() => expect(saved).toHaveLength(1));
     await userEvent.click(screen.getByRole("button", { name: "Scarica MP3" }));
