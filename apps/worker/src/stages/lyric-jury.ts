@@ -67,7 +67,7 @@ export const CRITERIA = {
   language:
     "The lyrics are natural, correct and idiomatic in the requested language, with no clumsy or machine-translated lines.",
   singable:
-    "Lines have a steady meter, comparable syllable counts within a section and are easy to sing. A line about twice as long as the other lines of its section is rated no.",
+    "Lines have a steady meter, comparable syllable counts within a section and are easy to sing. A line about twice as long as the other lines of its section is "no".",
   chorus: "The chorus is catchy, memorable and repeatable.",
   original:
     "The lyrics do not reuse the title, phrases, characters or story of the reference song.",
