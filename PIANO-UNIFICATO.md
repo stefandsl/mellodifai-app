@@ -130,6 +130,8 @@ Dettaglio: `E:/mellodifai/research/2026-11-14/IMPROVED-research.md` e `GAUNTLET-
 
 ## F4. Pubblicazione e milestone pianificate (R13, R29)
 
+**Stato 20/11:** in produzione `native-20261120-r3` (backup preso prima del deploy, health ok, schema `20261120000001`): giuria testi con brief e testo di riferimento (v1 100, v2 95.0), look del visualizzatore dall'autoresearch, tre copertine candidate per video scelte nella dashboard Pubblica (l'hash di approvazione copre etag, frame e titolo; la pubblicazione si ferma se il file manca). Revisione cieca: 7 risultati, tutti corretti con test. Copia fissata per il riavvio: `E:/mellodifai/ops-pinned/native-20261120-r3`. Instabilita e2e aperta: `song-assets.spec.ts` (non riprodotta in 17 giri).
+
 **Stato 19/11:** in produzione `native-20261119-r2`: dashboard Pubblica solo YouTube (decisione del proprietario: altre piattaforme dopo, via Blotato o Postiz dietro `PublishingProvider`), veto, scheda di approvazione, regole fisse, comandi agenti (HTTP/MCP/CLI, guida `docs/agents-publishing.md`), metadati approvati inviati prima del pubblico. Ricerca e progetto: `E:/mellodifai/research/2026-11-19/`. Flusso video musicale (Cinema, previz, R31) anche in produzione; il gradino 2 a pagamento aspetta la ricarica kie. App desktop nativa su main (`2bcdfce`, tre giri di revisione cieca, isolata dalla produzione): installer `E:/mellodifai/dist/windows/MellodifAI-Setup-native-20261119-r2-43-g2bcdfce.exe`; canzoni e render restano spenti finche il proprietario non configura motore e Chrome propri.
 
 | Voce | Stato | Prossimo passo | Giudice |
