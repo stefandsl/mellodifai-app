@@ -58,6 +58,17 @@ export async function draftReference(lang: string) {
   return `80-line structural template (Italian; translate into the requested language):\n${await reference("it")}\n\nStyle/vocabulary only (ignore this reference's line count and structure):\n${target}`;
 }
 
+// The lyrics the writer reads as its reference, so the jury can fail a draft that copies or
+// paraphrases them. They already go to the same provider in the writer's prompt.
+export async function draftReferenceLyrics(lang: string): Promise<string> {
+  const read = (code: string) =>
+    readFile(join(ENGINE_ROOT, "versions", code, "lyrics.txt"), "utf8");
+  const lyrics = await read(lang);
+  return sungLines(lyrics) === 80 || lang === "it"
+    ? lyrics
+    : `${await read("it")}\n\n${lyrics}`;
+}
+
 // The model writes only the creative fields; the worker owns everything else.
 const DRAFT_INSTRUCTIONS = [
   "Write an original song about the topic below. The reference song is a format only: copy its section structure, its 80 sung lines and its chant pattern, but the subject, story, title, hook and every lyric line must come from the topic.",
@@ -129,6 +140,16 @@ ${project.brief}`
     : `Brief: ${project.brief ?? ""}`;
 }
 
+// The brief the jury reads: a studio project's brief holds the user's own lyrics, not
+// instructions, so it never goes to the jury as a brief.
+function juryBrief(project: {
+  brief?: string | null;
+  song_settings?: unknown;
+}): string {
+  const studio = Object.keys(project.song_settings ?? {}).length > 0;
+  return studio ? "" : (project.brief ?? "").trim();
+}
+
 // Writer calls per draft: at most MAX_FORMAT_ATTEMPTS drafts that break the format, plus
 // the jury's revision rounds. Each call counts against the daily cap.
 const MAX_WRITER_CALLS = 5;
@@ -147,6 +168,7 @@ export const draftLyrics: StageHandler = async (context) => {
   const secrets = context.secrets.values;
   const budget = await lyricsBudget(secrets);
   const template = await draftReference(context.version.lang);
+  const referenceLyrics = await draftReferenceLyrics(context.version.lang);
   const referenceTitle = (
     await optionalText(
       join(ENGINE_ROOT, "versions", context.version.lang, "title.txt"),
@@ -246,6 +268,8 @@ export const draftLyrics: StageHandler = async (context) => {
             topic: context.project.topic,
             lang: context.version.lang,
             referenceTitle,
+            brief: juryBrief(context.project),
+            referenceLyrics,
           },
           judges,
           call,

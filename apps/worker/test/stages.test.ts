@@ -1251,6 +1251,97 @@ describe("round 2 hardening", () => {
     });
     expect(result?.patch?.lyric_jury).toHaveProperty("rounds.length", 3);
   });
+  // A chat judge with steady high scores, so only the stage's wiring decides the verdict.
+  function juryFetch(writerPack: unknown) {
+    const judged: string[] = [];
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        model: string;
+        messages?: { content: string }[];
+      };
+      if (url.endsWith("/decisions"))
+        return new Response("down", { status: 503 });
+      if (body.model.includes("haiku")) {
+        judged.push(body.messages?.[1]?.content ?? "");
+        return respond({
+          scores: {
+            topic: 0.9,
+            language: 0.9,
+            singable: 0.9,
+            chorus: 0.9,
+            original: 0.9,
+          },
+          issues: [],
+        });
+      }
+      return respond(writerPack);
+    });
+    vi.stubGlobal("fetch", fetch);
+    return judged;
+  }
+  const oneJudge = (ctx: StageContext) => {
+    ctx.secrets.values = {
+      ...ctx.secrets.values,
+      LYRICS_JURY: "on",
+      LYRICS_JUDGES: "anthropic/claude-haiku-5.5",
+    };
+  };
+  it("gives the lyric jury the user's brief and the reference lyrics", async () => {
+    const { ctx } = await setup();
+    oneJudge(ctx);
+    ctx.project.brief = "a church song, solemn, no slang";
+    const judged = juryFetch(pack);
+    await stages.draft_lyrics?.(ctx);
+    const reference = await readFile(
+      join(ENGINE_ROOT, "versions", "fr", "lyrics.txt"),
+      "utf8",
+    );
+    const firstSung = reference
+      .split(/\r?\n/u)
+      .find((line) => line.trim() && !line.trim().startsWith("["));
+    expect(judged.length).toBeGreaterThan(0);
+    expect(judged[0]).toContain(
+      "User's brief (its explicit requirements override the defaults",
+    );
+    expect(judged[0]).toContain("a church song, solemn, no slang");
+    expect(judged[0]).toContain("Reference song lyrics");
+    expect(judged[0]).toContain(firstSung?.trim());
+  });
+  it("never gives the jury a studio project's own lyrics as its brief", async () => {
+    const { ctx } = await setup();
+    oneJudge(ctx);
+    ctx.project.brief = "my own words for the chorus";
+    ctx.project.song_settings = { title: "Mine" };
+    const judged = juryFetch(pack);
+    await stages.draft_lyrics?.(ctx);
+    expect(judged.length).toBeGreaterThan(0);
+    expect(judged[0]).not.toContain("User's brief");
+    expect(judged[0]).toContain("Reference song lyrics");
+  });
+  it("fails a close paraphrase of the reference song through the stage", async () => {
+    const { ctx } = await setup();
+    oneJudge(ctx);
+    const reference = await readFile(
+      join(ENGINE_ROOT, "versions", "fr", "lyrics.txt"),
+      "utf8",
+    );
+    // About one word in four swapped on every sung line: the judge still scores 0.9 everywhere.
+    const paraphrase = reference
+      .split(/\r?\n/u)
+      .map((line) =>
+        line.trim().startsWith("[")
+          ? line
+          : line.replace(/\p{L}{4,}/u, (word) => `${word}s`),
+      )
+      .join("\n");
+    const judged = juryFetch({ ...pack, lyrics: paraphrase });
+    const result = await stages.draft_lyrics?.(ctx);
+    expect(judged.length).toBeGreaterThan(0);
+    expect(result?.patch?.lyric_jury).toMatchObject({
+      passed: false,
+      failing: expect.arrayContaining(["original"]),
+    });
+  });
   it("draft_lyrics keeps the best draft, stores the jury incomplete and finishes when extend is refused (Major 10)", async () => {
     const { ctx } = await setup();
     ctx.secrets.values = {

@@ -620,6 +620,57 @@ describe("lyrics_assist (songless job)", () => {
     expect(db.versions).toHaveLength(0);
   });
 
+  const judgeMessages = (calls: { body: Record<string, unknown> }[]) =>
+    calls
+      .map((c) => c.body.messages as { content: string }[] | undefined)
+      .filter(
+        (m) => m?.[0]?.content.includes("strict judge of song lyrics") ?? false,
+      )
+      .map((m) => m?.[1]?.content ?? "");
+
+  it("gives the lyric jury the brief of the request", async () => {
+    const calls = openRouter(
+      JSON.stringify({
+        title: "Il lago",
+        lyrics:
+          "[Verse 1]\nRemi nell'acqua ferma\n\n[Chorus]\nAl lago si respira",
+      }),
+    );
+    const db = new InMemoryDb([
+      songless({ request_id: request("write", {}).id }),
+    ]);
+    db.lyricRequests.push(
+      request("write", { brief: "una ninna nanna, niente slang" }),
+    );
+    await loop(db).runOnce();
+    const judged = judgeMessages(calls);
+    expect(judged.length).toBeGreaterThan(0);
+    expect(judged[0]).toContain("User's brief");
+    expect(judged[0]).toContain("una ninna nanna, niente slang");
+    expect(judged[0]).not.toContain("Reference song lyrics");
+  });
+
+  it("fails a new version that paraphrases the user's own song", async () => {
+    const lyrics =
+      "[Verse 1]\nCammino piano lungo il fiume grigio\nLe foglie cadono sopra il mio cappotto\n\n[Chorus]\nResta con me stanotte amore mio\nResta con me finche' non torna il sole";
+    const calls = openRouter(
+      JSON.stringify({
+        title: "Fiume",
+        lyrics:
+          "[Verse 1]\nCammino piano lungo il fiume nero\nLe foglie cadono sopra il mio cappello\n\n[Chorus]\nResta con me stanotte amore caro\nResta con me finche' non sorge il sole",
+      }),
+    );
+    const db = new InMemoryDb([
+      songless({ request_id: request("regenerate", {}).id }),
+    ]);
+    db.lyricRequests.push(request("regenerate", { lyrics }));
+    await loop(db).runOnce();
+    expect(judgeMessages(calls)[0]).toContain("Reference song lyrics");
+    expect(db.lyricRequests[0]?.result).toMatchObject({
+      jury: { available: true, passed: false },
+    });
+  });
+
   it("rewrites only the chosen section and keeps the rest verbatim", async () => {
     openRouter(
       JSON.stringify({

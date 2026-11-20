@@ -219,7 +219,17 @@ export const lyricsAssist: SonglessHandler = async (context) => {
       const jury = juryOn
         ? await judge(
             { title: reply.title ?? input.title, lyrics, style: input.style },
-            { topic, lang: input.lang, referenceTitle: "" },
+            {
+              topic,
+              lang: input.lang,
+              referenceTitle: "",
+              brief: input.brief.trim(),
+              // A new version of the whole song must not reuse its lines; the writer read them.
+              referenceLyrics:
+                input.mode === "regenerate" && !input.section
+                  ? input.lyrics
+                  : "",
+            },
             judges,
             call,
             passScore,
