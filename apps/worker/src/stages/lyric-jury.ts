@@ -267,14 +267,14 @@ async function jevVerdict(
 
 const JUDGE_INSTRUCTIONS = [
   REDACTION_NOTE,
-  'You are a strict judge of song lyrics. Rate the draft on each criterion with "yes" (fully met), "partly" or "no":',
+  'You are a strict judge of song lyrics. Rate the draft on each criterion with "yes" (fully met), "mostly" (met, with a small flaw), "partly" (a real problem) or "no":',
   ...CRITERION_KEYS.map((key) => `"${key}": ${CRITERIA[key]}`),
-  'Reply with one JSON object: {"lyrics_language": the English name of the language most lines are written in, "scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
+  'Reply with one JSON object: {"lyrics_language": the English name of the language most lines are written in, "scores": {criterion: "yes" | "mostly" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
   'Use "strong" when the draft needs deep rewriting, "fast" when small fixes are enough.',
 ].join("\n");
 
 // Small judges rate in words more reliably than in decimals; numbers still count as given.
-const RATING: Record<string, number> = { yes: 1, partly: 0.5, no: 0 };
+const RATING: Record<string, number> = { yes: 1, mostly: 0.75, partly: 0.5, no: 0 };
 function ratings(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   return Object.fromEntries(
