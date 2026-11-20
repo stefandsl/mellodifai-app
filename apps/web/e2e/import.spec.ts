@@ -132,13 +132,14 @@ test("an MP3 from Suno with lyrics and artwork becomes a song that shows both", 
         { timeout: 30_000 },
       )
       .toBe(true);
+    const screens = screenshotDir();
+    await mkdir(screens, { recursive: true });
+    await song.screenshot({ path: join(screens, "import-suno-card.png") });
     await song.getByRole("button", { name: `Riproduci: ${title}` }).click();
     await page.getByRole("button", { name: "Testo" }).click();
     const panel = page.getByRole("dialog");
     await expect(panel.getByText("La luna sul mare")).toBeVisible();
     await expect(panel.getByText("Canto piano con te")).toBeVisible();
-    const screens = screenshotDir();
-    await mkdir(screens, { recursive: true });
     await page.screenshot({ path: join(screens, "import-suno.png") });
   } finally {
     await rm(temp, { recursive: true, force: true });
