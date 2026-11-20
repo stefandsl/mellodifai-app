@@ -1,5 +1,5 @@
-import { execFile } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -17,7 +17,10 @@ const run = promisify(execFile);
 let worker: ChildProcess | undefined;
 
 test.beforeAll(async () => {
-  worker = await startFakeWorker(await getAdminId(), `e2e-import-${Date.now()}`);
+  worker = await startFakeWorker(
+    await getAdminId(),
+    `e2e-import-${Date.now()}`,
+  );
 });
 
 test.afterAll(async () => {
