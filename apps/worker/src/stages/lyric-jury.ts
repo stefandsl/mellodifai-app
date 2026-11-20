@@ -345,6 +345,55 @@ function words(text: string): string {
     .trim();
 }
 
+// The distinct sung lines of a lyric, letters and digits only, lower case.
+function sungLines(text: string): string[] {
+  return [
+    ...new Set(
+      text
+        .split(/\r?\n/u)
+        .filter((line) => line.trim() && !line.trim().startsWith("["))
+        .map((line) => line.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""))
+        .filter((line) => line.length >= 4),
+    ),
+  ];
+}
+
+function bigrams(text: string): Map<string, number> {
+  const grams = new Map<string, number>();
+  for (let i = 0; i < text.length - 1; i += 1) {
+    const gram = text.slice(i, i + 2);
+    grams.set(gram, (grams.get(gram) ?? 0) + 1);
+  }
+  return grams;
+}
+
+// Dice similarity of the character bigrams of two lines (0 to 1); works in every script.
+function similarity(a: string, b: string): number {
+  const ga = bigrams(a);
+  const gb = bigrams(b);
+  let shared = 0;
+  let total = 0;
+  for (const [gram, count] of ga) {
+    shared += Math.min(count, gb.get(gram) ?? 0);
+    total += count;
+  }
+  for (const count of gb.values()) total += count;
+  return total ? (2 * shared) / total : 0;
+}
+
+// Share of the draft's distinct lines that are a close copy (similarity 0.6 or more) of a
+// reference line. A paraphrase that swaps a third of the words stays above 0.8; a new lyric on
+// the same theme stays near 0.
+export function copiedShare(lyrics: string, referenceLyrics: string): number {
+  const reference = sungLines(referenceLyrics);
+  const draft = sungLines(lyrics);
+  if (reference.length === 0 || draft.length === 0) return 0;
+  return (
+    draft.filter((line) => reference.some((r) => similarity(line, r) >= 0.6))
+      .length / draft.length
+  );
+}
+
 async function chatVerdict(
   model: string,
   draft: Draft,
@@ -398,6 +447,14 @@ async function chatVerdict(
     issues.unshift(
       `The draft reuses the reference title "${context.referenceTitle}".`,
     );
+  }
+  // Judges miss a close paraphrase of the reference lyrics; line similarity does not.
+  if (
+    context.referenceLyrics &&
+    copiedShare(draft.lyrics, context.referenceLyrics) >= 0.3
+  ) {
+    scores.original = 0;
+    issues.unshift("The draft paraphrases the reference song line by line.");
   }
   return {
     scores,
