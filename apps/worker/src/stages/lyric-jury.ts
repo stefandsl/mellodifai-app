@@ -409,7 +409,7 @@ async function chatVerdict(
         { role: "system", content: JUDGE_INSTRUCTIONS },
         {
           role: "user",
-          content: `Requested topic: ${context.topic}\nLanguage: ${languageName(context.lang) ?? context.lang}\n${context.brief ? `User's brief (its explicit requirements override the defaults, for example a register, an accent, or a second language allowed or forbidden): ${context.brief}\n` : ""}Reference song title (must not be reused): ${context.referenceTitle}\n${context.referenceLyrics ? `Reference song lyrics (the draft must not copy or paraphrase their lines):\n${context.referenceLyrics.slice(0, 4000)}\n` : ""}Title: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}`,
+          content: `Requested topic: ${context.topic}\nLanguage: ${languageName(context.lang) ?? context.lang}\n${context.brief ? `User's brief (its explicit requirements override the defaults, for example a register, an accent, or a second language allowed or forbidden): ${context.brief}\n` : ""}Reference song title (must not be reused): ${context.referenceTitle}\n${context.referenceLyrics ? `Reference song lyrics (the draft must not copy or paraphrase their lines):\n${context.referenceLyrics.slice(0, 4000)}\n` : ""}Title: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}${context.brief ? '\nAlso add "brief_followed": "yes" or "no" to your JSON. Answer "no" when the lyrics break an explicit requirement of the brief: its register or tone, an accent the rhymes must work in, or which languages are allowed or forbidden.' : ""}`,
         },
       ],
     },
@@ -422,6 +422,11 @@ async function chatVerdict(
   const issues = Array.isArray(reply.issues)
     ? reply.issues.filter((i): i is string => typeof i === "string")
     : [];
+  // A draft that breaks an explicit requirement of the user's brief misses the request.
+  if (context.brief && reply.brief_followed === "no") {
+    scores.topic = 0;
+    issues.unshift("The lyrics break an explicit requirement of the brief.");
+  }
   // The judge names the language it reads; a mismatch fails the language criterion outright.
   const wanted = languageName(context.lang);
   const seen =
