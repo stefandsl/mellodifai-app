@@ -372,7 +372,8 @@ export function languageCode(value: unknown): string | undefined {
 const SCRIPTS: Record<string, RegExp> = {
   ja: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
   zh: /\p{Script=Han}/u,
-  ko: /[\p{Script=Hangul}\p{Script=Han}]/u,
+  // Modern Korean lyrics use no hanja; Han letters in a Korean draft are Japanese or Chinese.
+  ko: /\p{Script=Hangul}/u,
   ru: /\p{Script=Cyrillic}/u,
   uk: /\p{Script=Cyrillic}/u,
   bg: /\p{Script=Cyrillic}/u,
@@ -382,14 +383,90 @@ const SCRIPTS: Record<string, RegExp> = {
   hi: /\p{Script=Devanagari}/u,
 };
 
-// Share of the sung letters (section tags left out) written in the language's script; 1 when
-// there are no letters.
+// The distinct sung lines of a lyric, section tags left out, trimmed.
+function distinctLines(lyrics: string): string[] {
+  return [
+    ...new Set(
+      lyrics
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("[")),
+    ),
+  ];
+}
+
+// Share of the distinct sung lines written in the language's script; 1 when there are none.
+// A line counts when at least half of its words (runs of letters of one script) are in the
+// script, so an English chorus or a loanword does not sink a Japanese or Korean song: the
+// chorus counts once, however often it repeats.
 function scriptShare(lyrics: string, lang: string): number {
-  const script =
-    SCRIPTS[lang.toLowerCase().split("-")[0] ?? ""] ?? /\p{Script=Latin}/u;
-  const letters = lyrics.replace(/\[[^\]]*\]/gu, "").match(/\p{L}/gu) ?? [];
-  if (letters.length === 0) return 1;
-  return letters.filter((c) => script.test(c)).length / letters.length;
+  const script = SCRIPTS[baseCode(lang)] ?? /\p{Script=Latin}/u;
+  const lines = distinctLines(lyrics).filter((line) => /\p{L}/u.test(line));
+  if (lines.length === 0) return 1;
+  const native = lines.filter((line) => {
+    let inside = 0;
+    let outside = 0;
+    let previous: boolean | null = null;
+    for (const c of line) {
+      const current = /\p{L}/u.test(c) ? script.test(c) : null;
+      if (current !== null && current !== previous)
+        current ? inside++ : outside++;
+      previous = current;
+    }
+    return inside >= outside;
+  });
+  return native.length / lines.length;
+}
+
+// Japanese written in Latin letters: most words split into romaji syllables.
+const ROMAJI_WORD =
+  /^(?:(?:[kgsztdnhbpmyrwfjv]|ch|sh|ts|[kgnhbpmr]y)?[aiueo]+|n(?![aiueo])|[kstpgdbcm](?=[kstpgdbcmj]))+$/u;
+function isRomaji(lyrics: string): boolean {
+  const latin = distinctLines(lyrics)
+    .join(" ")
+    .toLowerCase()
+    .match(/\p{Script=Latin}+/gu);
+  if (!latin || latin.length === 0) return false;
+  return (
+    latin.filter((word) => ROMAJI_WORD.test(word)).length / latin.length >= 0.7
+  );
+}
+const KANA_DEMANDED =
+  /kana|kanji|hiragana|katakana|仮名|かな|漢字|ひらがな|カタカナ/iu;
+
+// Whether the brief names a language other than the requested one, in English, in the
+// requested language or in its own ("inglese", "英語", "English"): such a brief allows or
+// forbids a second language, and only the judges can tell which.
+function briefNamesOtherLanguage(brief: string, lang: string): boolean {
+  const text = brief.toLowerCase();
+  if (!text.trim()) return false;
+  const wanted = baseCode(lang);
+  for (const code of KNOWN_CODES) {
+    if (code === wanted) continue;
+    for (const locale of ["en", wanted, code]) {
+      let name: string | undefined;
+      try {
+        name = new Intl.DisplayNames([locale], { type: "language" })
+          .of(code)
+          ?.toLowerCase();
+      } catch {}
+      if (!name || name === code) continue;
+      // Inflected languages change the ending ("inglés", "на английском").
+      const stem = name.length >= 7 ? name.slice(0, -2) : name;
+      const spaced =
+        /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u.test(stem);
+      if (
+        spaced
+          ? new RegExp(`(?<!\\p{L})${escapeRegExp(stem)}`, "u").test(text)
+          : text.includes(stem)
+      )
+        return true;
+    }
+  }
+  return false;
+}
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 // Lower case letters and digits only, one space between words.
@@ -531,11 +608,24 @@ async function chatVerdict(
       `The lyrics are in ${languageName(seen) ?? seen}, not ${wanted ?? context.lang}.`,
     );
   }
-  // Judges echo the requested language; the writing system cannot lie.
-  if (scriptShare(draft.lyrics, context.lang) < 0.5) {
-    scores.language = 0;
+  // Judges echo the requested language; the writing system cannot lie. A brief that names a
+  // second language is left to the judges, who read it.
+  if (
+    !briefNamesOtherLanguage(context.brief ?? "", context.lang) &&
+    scriptShare(draft.lyrics, context.lang) < 0.5
+  ) {
+    const lenient =
+      baseCode(context.lang) === "ja" &&
+      isRomaji(draft.lyrics) &&
+      !KANA_DEMANDED.test(context.brief ?? "");
+    scores.language = Math.min(
+      scores.language,
+      lenient ? (RATING.partly ?? 0.5) : 0,
+    );
     issues.unshift(
-      `The lyrics are not written in the script of ${wanted ?? context.lang}.`,
+      lenient
+        ? "The lyrics are Japanese in romaji, not in kana and kanji."
+        : `The lyrics are not written in the script of ${wanted ?? context.lang}.`,
     );
   }
   // Judges miss a reused reference title; a plain text match does not.

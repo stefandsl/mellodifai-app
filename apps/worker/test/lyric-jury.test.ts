@@ -449,4 +449,96 @@ describe("deterministic checks on real data shapes", () => {
     expect(jury.scores.language).toBe(0.83);
     expect(jury.passed).toBe(true);
   });
+
+  const verse = [
+    "[Verse 1]",
+    "あさのひかり まどをあける",
+    "コーヒーのかおり へやにみちる",
+    "[Verse 2]",
+    "ゆうぐれのみち ひとりあるく",
+    "かぜがやさしく かみをゆらす",
+  ].join("\n");
+  const englishChorus = [
+    "[Chorus]",
+    "Everything is gonna be alright tonight, alright tonight",
+    "We keep on dancing underneath the city lights forever",
+    "Everything is gonna be alright tonight, alright tonight",
+  ].join("\n");
+
+  it("lets a Japanese or Korean song with an English chorus pass the script check", async () => {
+    const report = await judge(
+      {
+        ...draft,
+        lyrics: `${verse}\n${englishChorus}\n${englishChorus}\n${englishChorus}`,
+      },
+      { ...context, lang: "ja" },
+      ["m"],
+      { key: "k", fetchFn: reply({ lyrics_language: "ja", scores: yes }) },
+    );
+    expect(report.passed).toBe(true);
+    const korean = await judge(
+      {
+        ...draft,
+        lyrics: `[Verse]\n아침 햇살 창문을 열어\n커피 향기 방에 가득해\n저녁 길을 혼자 걸어\n${englishChorus}\n${englishChorus}`,
+      },
+      { ...context, lang: "ko" },
+      ["m"],
+      { key: "k", fetchFn: reply({ lyrics_language: "ko", scores: yes }) },
+    );
+    expect(korean.passed).toBe(true);
+  });
+
+  it("skips the script check when the brief allows a second language", async () => {
+    const lyrics = `[Verse]\nあさのひかり\n${englishChorus}\n[Bridge]\nWe keep on running through the night\nNever looking back again`;
+    const fetchFn = reply({ lyrics_language: "ja", scores: yes });
+    const strict = await judge(
+      { ...draft, lyrics },
+      { ...context, lang: "ja" },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(strict.failing).toEqual(["language"]);
+    const allowed = await judge(
+      { ...draft, lyrics },
+      {
+        ...context,
+        lang: "ja",
+        brief: "J-POP。サビに英語のフレーズを入れてもよい。",
+      },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(allowed.passed).toBe(true);
+  });
+
+  it("rates romaji Japanese as partly unless the brief demands kana or kanji", async () => {
+    const romaji = {
+      ...draft,
+      lyrics:
+        "[Verse]\nasa no hikari mado wo akete\nkoohii no kaori heya ni michiru\n[Chorus]\nminaide pon, minaide pon\nkyou mo ashita mo daijoubu",
+    };
+    const fetchFn = reply({ lyrics_language: "ja", scores: yes });
+    const plain = await judge(romaji, { ...context, lang: "ja" }, ["m"], {
+      key: "k",
+      fetchFn,
+    });
+    expect(plain.scores.language).toBe(0.5);
+    const kana = await judge(
+      romaji,
+      { ...context, lang: "ja", brief: "ひらがなと漢字で書いてください。" },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(kana.scores.language).toBe(0);
+    const english = await judge(
+      {
+        ...draft,
+        lyrics: `[Verse]\nThe morning light comes through the window\n${englishChorus}`,
+      },
+      { ...context, lang: "ja" },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(english.scores.language).toBe(0);
+  });
 });
