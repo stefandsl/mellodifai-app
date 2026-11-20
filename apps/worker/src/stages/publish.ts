@@ -1,4 +1,4 @@
-import { mkdir, realpath, writeFile } from "node:fs/promises";
+import { access, mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   LyricPackSchema,
@@ -113,6 +113,13 @@ export const publish: StageHandler = async (context) => {
   const cover = /^cover-[1-3]$/u.test(requested?.cover ?? "")
     ? `${requested?.cover}.png`
     : "thumbnail.png";
+  // The owner approved this exact image: a missing file must not become another thumbnail.
+  if (cover !== "thumbnail.png")
+    await access(join(dirname(render.path), cover)).catch(() => {
+      throw new Error(
+        `The approved cover ${cover} is missing in the render folder; render the covers again or pick another cover in Pubblica.`,
+      );
+    });
   const meta = {
     video: render.path,
     captions: join(dirname(render.path), `${lang}.srt`),

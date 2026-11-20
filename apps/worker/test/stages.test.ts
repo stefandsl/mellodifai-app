@@ -245,11 +245,27 @@ it("uploads the cover the owner picked as the private upload's thumbnail", async
     ...(ctx.job.payload ?? {}),
     metadata: { title: "T", description: "", tags: "", cover: "cover-2" },
   };
+  await writeFile(join(ctx.ws.renderDir, "cover-2.png"), "png");
   await stages.publish?.(ctx);
   const meta = JSON.parse(
     await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
   ) as { thumbnail: string };
   expect(meta.thumbnail).toBe(join(ctx.ws.renderDir, "cover-2.png"));
+});
+it("fails clearly, before any upload, when the picked cover file is missing", async () => {
+  const { ctx, db } = await setup();
+  approvePublish(ctx, db);
+  ctx.job.payload = {
+    ...(ctx.job.payload ?? {}),
+    metadata: { title: "T", description: "", tags: "", cover: "cover-3" },
+  };
+  await rm(join(ctx.ws.renderDir, "cover-3.png"), { force: true });
+  await expect(stages.publish?.(ctx)).rejects.toThrow(
+    /approved cover cover-3\.png is missing/u,
+  );
+  await expect(
+    readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+  ).rejects.toThrow();
 });
 it("prunes legacy flat render assets only when they are unreferenced", async () => {
   const { ctx, db } = await setup();
