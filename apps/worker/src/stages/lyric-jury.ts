@@ -629,15 +629,24 @@ async function chatVerdict(
     );
   }
   // Judges miss a reused reference title; a plain text match does not.
-  const reference = words(context.referenceTitle);
+  // The engine's title.txt ends in a tag such as "(VBP)" that no lyric repeats, so it goes.
+  const referenceTitle = context.referenceTitle
+    .trim()
+    .replace(/\s*[(（][^()（）]*[)）]$/u, "")
+    .trim();
+  const reference = words(referenceTitle);
+  const sung = ` ${words(draft.title)} ${words(draft.lyrics)} `;
+  // Japanese and Chinese put no spaces between words: match them without word bounds.
+  const unspaced =
+    /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(reference);
   if (
     reference.length > 3 &&
-    ` ${words(draft.title)} ${words(draft.lyrics)} `.includes(` ${reference} `)
+    (unspaced
+      ? sung.replace(/ /gu, "").includes(reference.replace(/ /gu, ""))
+      : sung.includes(` ${reference} `))
   ) {
     scores.original = 0;
-    issues.unshift(
-      `The draft reuses the reference title "${context.referenceTitle}".`,
-    );
+    issues.unshift(`The draft reuses the reference title "${referenceTitle}".`);
   }
   // Judges miss two chorus lines that overflow the melody; a syllable count does not.
   const overlong = overlongChorusLines(draft.lyrics);

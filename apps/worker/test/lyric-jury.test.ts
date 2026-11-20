@@ -541,4 +541,30 @@ describe("deterministic checks on real data shapes", () => {
     );
     expect(english.scores.language).toBe(0);
   });
+
+  // Real lines of versions/it/title.txt and versions/ja/title.txt (suno-remake engine).
+  it("catches a reused reference title written with its trailing tag", async () => {
+    const fetchFn = reply({ lyrics_language: "it", scores: yes });
+    const reused = await judge(
+      { ...draft, lyrics: "[Chorus]\nVa bene... passa! la macchinetta" },
+      { ...context, referenceTitle: "Va bene, passa (VBP)" },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(reused.failing).toEqual(["original"]);
+    const japanese = await judge(
+      { ...draft, lyrics: "[Chorus]\nねえ見ないでポン！おねがい" },
+      { ...context, lang: "ja", referenceTitle: "見ないでポン！(ハンコ)" },
+      ["m"],
+      { key: "k", fetchFn: reply({ lyrics_language: "ja", scores: yes }) },
+    );
+    expect(japanese.failing).toEqual(["original"]);
+    const fine = await judge(
+      { ...draft, lyrics: "[Chorus]\nva bene il caffè, passa il tram" },
+      { ...context, referenceTitle: "Va bene, passa (VBP)" },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(fine.passed).toBe(true);
+  });
 });
