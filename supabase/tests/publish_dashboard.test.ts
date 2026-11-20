@@ -1454,3 +1454,36 @@ it("a re-render never replaces the cover of a published video", async () => {
     );
   });
 });
+
+it("the approval hash covers each cover's content, and a plan without covers keeps its r2 hash", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const { version, render } = await video(tx, owner.user_id);
+    const id = await plan(tx, owner, version, inHours(3));
+    // No candidates: the hash is the one r2 computed, so r2 cards stay valid after the upgrade.
+    const [r2] =
+      await tx`select ops._publish_hash(s.id) = md5(jsonb_build_object('render',s.render_id,'slot',s.slot_at,'destinations',coalesce((
+        select jsonb_agg(jsonb_build_array(d.platform,d.account_id,d.provider,d.draft) order by d.platform,d.account_id)
+        from public.publish_destinations d where d.schedule_id=s.id),'[]'::jsonb))::text) as same
+      from public.publish_schedules s where s.id=${id}`;
+    expect(r2?.same).toBe(true);
+    const covers = await withCovers(tx, owner.user_id, render);
+    await tx`update public.renders set qa_results=jsonb_set(qa_results,'{assets,title}',to_jsonb('Caffè'::text)) where id=${render}`;
+    await op(tx, "publish_draft_edit", owner, id, "youtube", {
+      cover: "cover-2",
+    });
+    const hashOf = async () =>
+      (await tx`select ops._publish_hash(${id}) as h`)[0]?.h as string;
+    const first = await hashOf();
+    // The image of cover-2 is replaced in Storage under the same name: a new etag.
+    await tx`update storage.objects set metadata=metadata||jsonb_build_object('eTag','v2') where bucket_id='previews' and name=${covers[1]?.path ?? ""}`;
+    const etag = await hashOf();
+    expect(etag).not.toBe(first);
+    // Another frame under the same id, or another drawn title, is another cover too.
+    await tx`update public.renders set qa_results=jsonb_set(qa_results,'{assets,cover_candidates,1,frame_sec}','21'::jsonb) where id=${render}`;
+    const frame = await hashOf();
+    expect(frame).not.toBe(etag);
+    await tx`update public.renders set qa_results=jsonb_set(qa_results,'{assets,title}',to_jsonb('Caffè!'::text)) where id=${render}`;
+    expect(await hashOf()).not.toBe(frame);
+  });
+});

@@ -3,8 +3,11 @@
 -- The owner picks one in "Pubblica": the pick is the draft's "cover" field, so the approval hash
 -- (ops._publish_hash covers every destination draft) covers it and any change of pick expires a
 -- pending card. An agent can list the candidates (publish_preview, publish_status) and propose one
--- (publish_draft_edit); only the owner approves. Additive: four functions replaced in place, no
+-- (publish_draft_edit); only the owner approves. Additive: five functions replaced in place, no
 -- table, column or grant changes (create or replace keeps owner and grants).
+-- The approval hash also covers each candidate's content (its Storage etag, else its update time, its
+-- frame and the drawn title): an image replaced under the same name expires the card. A render
+-- without candidates hashes exactly as in r2, so cards made before the upgrade stay valid.
 
 create or replace function ops._publish_draft_clean(p_draft jsonb) returns jsonb
 language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
@@ -93,6 +96,23 @@ begin
     'events',coalesce((select jsonb_agg(jsonb_build_object('at',e.at,'kind',e.kind,'actor',e.actor,'detail',e.detail) order by e.at,e.id)
       from (select * from public.publish_events where schedule_id=s.id order by at desc,id desc limit 50) e),'[]'::jsonb),
     'created_at',s.created_at,'updated_at',s.updated_at);
+end;
+$$;
+
+create or replace function ops._publish_hash(p_schedule uuid) returns text
+language plpgsql security definer set search_path = '' set timezone = 'UTC' as $$
+begin
+  return (select md5((jsonb_build_object('render',s.render_id,'slot',s.slot_at,'destinations',coalesce((
+      select jsonb_agg(jsonb_build_array(d.platform,d.account_id,d.provider,d.draft) order by d.platform,d.account_id)
+      from public.publish_destinations d where d.schedule_id=s.id),'[]'::jsonb))
+    || coalesce((select jsonb_build_object('covers',jsonb_agg(jsonb_build_array(c->>'id',c->>'path',c->'frame_sec',
+        r.qa_results#>>'{assets,title}',coalesce(o.metadata->>'eTag',o.updated_at::text)) order by c->>'id',c->>'path'))
+      from public.renders r
+      cross join lateral jsonb_array_elements(case when jsonb_typeof(r.qa_results#>'{assets,cover_candidates}')='array'
+        then r.qa_results#>'{assets,cover_candidates}' else '[]'::jsonb end) c
+      left join storage.objects o on o.bucket_id='previews' and o.name=c->>'path'
+      where r.id=s.render_id having count(*)>0),'{}'::jsonb))::text)
+    from public.publish_schedules s where s.id=p_schedule);
 end;
 $$;
 
