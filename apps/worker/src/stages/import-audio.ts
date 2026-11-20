@@ -1,7 +1,7 @@
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { LyricPackSchema } from "@mellodifai/shared";
-import type { StageHandler } from "../loop.js";
+import type { StageContext, StageHandler } from "../loop.js";
 import { encode, probeSeconds } from "./audio-util.js";
 import { scoreTakes } from "./score-takes.js";
 import { upload, writePack } from "./utils.js";
@@ -11,9 +11,44 @@ export const IMPORT_TEXT = {
   unreadable: "Il file caricato non contiene un audio leggibile.",
 };
 
+// Suno's MP3 carries the song's artwork as an attached picture: it becomes the take's cover,
+// as a generated take's cover does. A file without a picture is imported without a cover.
+export async function embeddedCover(
+  context: StageContext,
+  source: string,
+  target: string,
+): Promise<string | null> {
+  const { code } = await context.engine
+    // "matches no streams" for a file without artwork is expected, not a job log line.
+    .withWorkspace(context.ws.root, async () => {}, context.signal)
+    .run(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        source,
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "1",
+        "-update",
+        "1",
+        target,
+      ],
+      // The workspace, not the engine folder: ffmpeg needs no engine script, and the fake
+      // worker (e2e) has no engine folder.
+      { cwd: context.ws.root, outputs: [target], allowNonZero: true },
+    );
+  return code === 0 ? upload(context, target, "image/jpeg") : null;
+}
+
 // "Importa da Suno": the uploaded recording (uploads/<owner>/audio/<uuid>.<ext>) becomes take 1
 // of the song, as a generated take would be: the full-quality MP3 in out/<lang>/take-1.mp3 for
-// the video and the stems, a 128k preview for the studio, and Groq Whisper's words as its timing.
+// the video and the stems, a 128k preview for the studio, the file's artwork as its cover and
+// Groq Whisper's words as its timing.
 export const importAudio: StageHandler = async (context) => {
   const payload = (context.job.payload ?? {}) as { upload?: unknown };
   const owner = context.project.owner_id ?? context.version.owner_id;
@@ -55,7 +90,11 @@ export const importAudio: StageHandler = async (context) => {
       take_number: 1,
       engine: "import",
       audio_preview_path: await upload(context, preview, "audio/mpeg"),
-      cover_path: null,
+      cover_path: await embeddedCover(
+        context,
+        source,
+        join(context.ws.outDir, "take-1-cover.jpg"),
+      ),
       source: { kind: "import", upload: path },
     });
     await context.progress(60, "Ascolto il brano per il testo");

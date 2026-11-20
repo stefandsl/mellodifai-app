@@ -20,6 +20,7 @@ import {
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { workerTempDir } from "../runtime.js";
 import { makeCovers, makeThumbnail } from "../stages/art.js";
+import { embeddedCover } from "../stages/import-audio.js";
 import {
   genreOf,
   LANGUAGE_NAMES,
@@ -689,6 +690,20 @@ export function createFakeStages(
           return {};
         }
         case "import_audio": {
+          // The free part of the real import runs on the uploaded file, so its artwork becomes
+          // the cover; Whisper's hearing (paid) stays fake.
+          const uploaded = (ctx.job.payload as { upload?: unknown } | null)
+            ?.upload;
+          let cover: string | null = null;
+          if (typeof uploaded === "string" && ctx.storage.download) {
+            const source = join(ctx.ws.root, `import${extname(uploaded)}`);
+            await ctx.storage.download(uploaded, source, "uploads");
+            cover = await embeddedCover(
+              ctx,
+              source,
+              join(ctx.ws.outDir, "take-1-cover.jpg"),
+            );
+          }
           const take = await ctx.db.createTake({
             ...(ctx.version.owner_id ? { owner_id: ctx.version.owner_id } : {}),
             version_id: ctx.version.id,
@@ -700,6 +715,7 @@ export function createFakeStages(
               join(ctx.ws.outDir, "take-1-preview.mp3"),
               "audio/mpeg",
             ),
+            cover_path: cover,
             source: { kind: "import" },
           });
           return {
