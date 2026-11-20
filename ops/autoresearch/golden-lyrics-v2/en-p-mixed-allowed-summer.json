@@ -1,0 +1,15 @@
+{
+  "id": "en-p-mixed-allowed-summer",
+  "expected": "pass",
+  "category": "mixed-allowed",
+  "lang": "en",
+  "topic": "A summer romance on holiday in Spain",
+  "brief": "Latin pop crossover: English verses, and the chorus should switch to Spanish.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Hasta el Verano",
+  "style": "Latin pop, 102 BPM, male and female vocal",
+  "lyrics": "[Verse 1]\nI met you on the beach in Málaga in June,\nyou laughed at my accent and you hummed a tune,\nwe danced till the bars put the chairs on the tables,\nand the sky turned pink above the cables.\n\n[Chorus]\nAdiós, amor, hasta el verano,\nnunca olvidaré tu mano,\nadiós, amor, no llores más,\nel año que viene volverás.\n\n[Verse 2]\nNow I'm back in grey old Manchester rain,\nI keep your photo on my window pane,\nI'm learning Spanish on my phone at night,\nso next July I'll say it right.\n\n[Chorus]\nAdiós, amor, hasta el verano,\nnunca olvidaré tu mano,\nadiós, amor, no llores más,\nel año que viene volverás.",
+  "reason": "English verses and a Spanish chorus, as the brief asks; on topic, natural in both languages, singable.",
+  "source": "hand-written"
+}

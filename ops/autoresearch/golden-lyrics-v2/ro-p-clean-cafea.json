@@ -1,0 +1,15 @@
+{
+  "id": "ro-p-clean-cafea",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "ro",
+  "topic": "Cafeaua de dimineață cu mama",
+  "brief": "Cântec tandru, acustic.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Cafeaua cu mama",
+  "style": "Romanian acoustic pop, 86 BPM, female vocal",
+  "lyrics": "[Verse 1]\nMama pune ibricul pe foc,\ndouă căni ciobite, ca de obicei,\nîmi povestește ce-a visat azi-noapte,\nși râde de visele ei.\n\n[Chorus]\nCafeaua cu mama, la șapte fix,\nlumea poate să mai aștepte,\ncafeaua cu mama, zahăr puțin,\nși vorbe calde, și vorbe drepte.\n\n[Verse 2]\nAcum locuiesc într-un alt oraș,\ndar o sun în fiecare dimineață,\npunem cafeaua amândouă deodată,\nși-o bem împreună, de departe, în ceață.\n\n[Chorus]\nCafeaua cu mama, la șapte fix,\nlumea poate să mai aștepte,\ncafeaua cu mama, zahăr puțin,\nși vorbe calde, și vorbe drepte.",
+  "reason": "On topic, natural Romanian, steady meter, warm repeated chorus.",
+  "source": "hand-written"
+}

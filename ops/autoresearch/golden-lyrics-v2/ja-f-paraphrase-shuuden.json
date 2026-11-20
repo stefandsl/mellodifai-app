@@ -1,0 +1,15 @@
+{
+  "id": "ja-f-paraphrase-shuuden",
+  "expected": "fail",
+  "category": "paraphrase",
+  "lang": "ja",
+  "topic": "終電で帰る夜",
+  "brief": "終電で帰る夜を歌う新しい曲。参考曲の雰囲気は残しつつ、歌詞とイメージはすべて自分の言葉で。",
+  "referenceTitle": "終電",
+  "referenceLyrics": "[Verse 1]\n終電のベルが 遠くで鳴ってる\n階段かけおりて 息を切らした\nガラスに映るのは 疲れた顔\nそれでも明日は また来るから\n\n[Chorus]\n終電 終電 ひとりきり\n街の灯りが 流れてく\n終電 終電 君の街へ\nあと少しだけ 揺られてく\n\n[Verse 2]\n向かいの席には 眠るサラリーマン\nイヤホンの奥で 古いラブソング\n窓の外には 誰もいない駅\nドアが閉まって また動き出す\n\n[Chorus]\n終電 終電 ひとりきり\n街の灯りが 流れてく\n終電 終電 君の街へ\nあと少しだけ 揺られてく",
+  "title": "最終電車",
+  "style": "J-pop, 100 BPM",
+  "lyrics": "[Verse 1]\n最終のベルが 遠くで響く\n階段かけおりて 息を切らした\n窓に映るのは 疲れた顔\nそれでも明日は きっと来るから\n\n[Chorus]\n最終電車 ひとりきり\n街のあかりが 流れてく\n最終電車 君の街へ\nもう少しだけ 揺られてく\n\n[Verse 2]\n向かいの席には 眠る会社員\nイヤホンの奥で 古いラブソング\n窓の外には 誰もいないホーム\nドアが閉まって また走り出す\n\n[Chorus]\n最終電車 ひとりきり\n街のあかりが 流れてく\n最終電車 君の街へ\nもう少しだけ 揺られてく",
+  "reason": "Close paraphrase of the reference: same lines and images, about 30% of the words swapped for synonyms.",
+  "source": "hand-written"
+}

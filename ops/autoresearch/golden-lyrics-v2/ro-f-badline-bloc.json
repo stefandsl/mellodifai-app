@@ -1,0 +1,15 @@
+{
+  "id": "ro-f-badline-bloc",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "ro",
+  "topic": "Vecinii din blocul meu",
+  "brief": "Cântec ironic și jucăuș.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Blocul nostru",
+  "style": "Romanian pop rock, 118 BPM, male vocal",
+  "lyrics": "[Verse 1]\nLa etajul trei e doamna Popescu,\nștie tot ce mișcă pe scară,\nla patru un domn repară mereu ceva,\ncu bormașina de dimineață până seara.\n\n[Chorus]\nBlocul nostru, blocul nostru,\nzece etaje de povești,\nblocul nostru, blocul nostru,\nconform hotărârii adunării generale a asociației de proprietari, cota de întreținere se achită până pe data de cincisprezece a lunii următoare.\n\n[Verse 2]\nLiftul merge doar când are chef,\npisica de la parter e șefă pe hol,\ndar când se ia curentul seara,\nne strângem toți pe scări, cu un pahar plin.\n\n[Chorus]\nBlocul nostru, blocul nostru,\nzece etaje de povești,\nblocul nostru, blocul nostru,\nconform hotărârii adunării generale a asociației de proprietari, cota de întreținere se achită până pe data de cincisprezece a lunii următoare.",
+  "reason": "Good song except one chorus line: a 40-syllable legal notice about the maintenance fee, off meter and off the song's voice, sung in every chorus.",
+  "source": "hand-written"
+}

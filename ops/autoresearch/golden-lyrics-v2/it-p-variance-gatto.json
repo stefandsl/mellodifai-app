@@ -1,0 +1,15 @@
+{
+  "id": "it-p-variance-gatto",
+  "expected": "pass",
+  "category": "slight-variance",
+  "lang": "it",
+  "topic": "Il gatto che dorme sul divano",
+  "brief": "Canzone ironica e leggera.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Il padrone di casa",
+  "style": "Italian swing pop, 104 BPM, male vocal",
+  "lyrics": "[Verse 1]\nSi sveglia a mezzogiorno, sbadiglia piano,\nsi stira sul cuscino come un re,\nmi guarda con disprezzo dal divano,\nil posto buono ormai non è per me.\n\n[Chorus]\nIl gatto sul divano è il padrone di casa,\nio pago l'affitto e lui fa le fusa,\nil gatto sul divano non chiede permesso,\ne io sul pavimento, sempre lo stesso.\n\n[Verse 2]\nLa sera porta in dono una lucertola,\nla posa sul tappeto con orgoglio,\nio dico grazie e lui se ne va,\ndomani ne riporta un'altra, se voglio.\n\n[Chorus]\nIl gatto sul divano è il padrone di casa,\nio pago l'affitto e lui fa le fusa,\nil gatto sul divano non chiede permesso,\ne io sul pavimento, sempre lo stesso.",
+  "reason": "Line lengths vary by one or two syllables, normal for a sung verse; ironic, on topic, natural Italian.",
+  "source": "hand-written"
+}

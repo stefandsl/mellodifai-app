@@ -1,0 +1,15 @@
+{
+  "id": "it-p-register-matrimonio",
+  "expected": "pass",
+  "category": "right-register",
+  "lang": "it",
+  "topic": "Il matrimonio di mia sorella",
+  "brief": "Canzone per il matrimonio di mia sorella, da cantare in chiesa: tono solenne, tenero e rispettoso.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Va', sorella mia",
+  "style": "Italian ballad, organ and strings, 70 BPM",
+  "lyrics": "[Verse 1]\nTi ho vista crescere in questa casa,\ncon le trecce e le ginocchia sbucciate,\noggi cammini verso l'altare,\ne il tempo si ferma tra le navate.\n\n[Chorus]\nVa', sorella mia, con lui,\nche l'amore vi tenga per mano,\nva', sorella mia, con lui,\nio vi guardo e vi benedico piano.\n\n[Verse 2]\nLa mamma piange e sorride insieme,\nil papà stringe forte il cappello,\nnoi tutti in piedi davanti a voi,\nnon c'è mai stato un giorno più bello.\n\n[Chorus]\nVa', sorella mia, con lui,\nche l'amore vi tenga per mano,\nva', sorella mia, con lui,\nio vi guardo e vi benedico piano.",
+  "reason": "Solemn, tender and respectful, as the brief asks; natural Italian, singable, clear chorus.",
+  "source": "hand-written"
+}

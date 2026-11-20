@@ -1,0 +1,15 @@
+{
+  "id": "ja-p-mixed-allowed-hoshi",
+  "expected": "pass",
+  "category": "mixed-allowed",
+  "lang": "ja",
+  "topic": "星空の下の告白",
+  "brief": "J-POP。サビに英語のフレーズを入れてもよい。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "Starlight",
+  "style": "J-pop, 110 BPM, female vocal",
+  "lyrics": "[Verse 1]\n屋上のフェンス 君とならんで\n言えない言葉 飲みこんだ\n流れ星ひとつ 落ちるまえに\n勇気をください 神様\n\n[Chorus]\nStarlight 君が好きだよ\n夜空に向かって 叫びたい\nStarlight 届いてほしい\nこの胸の音 聞こえるかな\n\n[Verse 2]\n君が笑って 空を指さす\nオリオン座の 三つの星\n震える声で 名前を呼んだ\n君の返事を 待っている\n\n[Chorus]\nStarlight 君が好きだよ\n夜空に向かって 叫びたい\nStarlight 届いてほしい\nこの胸の音 聞こえるかな",
+  "reason": "Japanese lyrics with a short English hook in the chorus, as the brief allows; on topic, natural, singable.",
+  "source": "hand-written"
+}

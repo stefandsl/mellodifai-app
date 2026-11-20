@@ -1,0 +1,15 @@
+{
+  "id": "ro-f-badline-mare",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "ro",
+  "topic": "O vacanță la mare cu prietenii",
+  "brief": "Hit de vară, vesel.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Vama",
+  "style": "Romanian summer pop, 120 BPM",
+  "lyrics": "[Verse 1]\nAm plecat cu mașina lui Andrei,\npatru oameni și un cort de doi,\nam cântat pe drum până la Constanța,\nși marea ne-a așteptat pe noi.\n\n[Chorus]\nVara asta, în Vama Veche,\ndansăm desculți până dimineață,\nnoi suntem având un timp bun foarte mult,\nvara asta e toată viața.\n\n[Verse 2]\nDormim pe plajă, ne trezim cu soare,\nmâncăm porumb fiert și pește prăjit,\nIoana s-a îndrăgostit de un chitarist,\nși nimeni nu vrea să plece, e clar.\n\n[Chorus]\nVara asta, în Vama Veche,\ndansăm desculți până dimineață,\nnoi suntem având un timp bun foarte mult,\nvara asta e toată viața.",
+  "reason": "One chorus line is a word-for-word calque of English ('we are having a very good time'), ungrammatical in Romanian, sung in every chorus.",
+  "source": "hand-written"
+}

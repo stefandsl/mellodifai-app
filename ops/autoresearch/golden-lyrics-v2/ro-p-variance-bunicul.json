@@ -1,0 +1,15 @@
+{
+  "id": "ro-p-variance-bunicul",
+  "expected": "pass",
+  "category": "slight-variance",
+  "lang": "ro",
+  "topic": "Bunicul care repară totul",
+  "brief": "Cântec cald, folk.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Mâinile bunicului",
+  "style": "Romanian folk, 94 BPM, male vocal",
+  "lyrics": "[Verse 1]\nBunicul are o cutie cu șuruburi,\no știe pe de rost, ca pe o rugăciune,\nrepară ceasuri, roți și umbrele,\nși nu aruncă nimic din ce e bun.\n\n[Chorus]\nMâinile bunicului știu tot,\nun cui, un fir, și merge iar,\nmâinile bunicului, crăpate și calde,\nfac din nimic un dar.\n\n[Verse 2]\nMi-a dat o șurubelniță de ziua mea,\nmi-a zis: ce strici, tu să repari,\nacum când mi se strică ceva acasă,\nîl aud în gând cum îmi spune: hai.\n\n[Chorus]\nMâinile bunicului știu tot,\nun cui, un fir, și merge iar,\nmâinile bunicului, crăpate și calde,\nfac din nimic un dar.",
+  "reason": "Line lengths vary by one to three syllables, normal for a folk verse; on topic, natural Romanian.",
+  "source": "hand-written"
+}

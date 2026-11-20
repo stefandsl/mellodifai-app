@@ -1,0 +1,15 @@
+{
+  "id": "es-f-dialect-madrid",
+  "expected": "fail",
+  "category": "dialect-rhyme",
+  "lang": "es",
+  "topic": "Una tarde de invierno en la plaza del pueblo",
+  "brief": "Canción para un coro de Madrid, pronunciación castellana con distinción (z y c suenan distintas de s); todas las rimas deben ser consonantes perfectas en esa pronunciación.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "Tarde en la plaza",
+  "style": "Spanish choir pop, 92 BPM",
+  "lyrics": "[Verse 1]\nLas campanas suenan en la plaza,\nlas vecinas vuelven a su casa,\nun viejo sentado frente al pozo,\nmira a los niños con un oso.\n\n[Chorus]\nTarde de invierno, una sola vez,\nel sol se esconde, ya no lo ves,\ntarde de invierno, me das un abrazo,\ny el frío se va con cada paso.\n\n[Verse 2]\nHuele a castañas y a cerveza,\nel bar del pueblo pone la mesa,\nse apaga el día con su voz,\ny en el silencio quedamos los dos.\n\n[Chorus]\nTarde de invierno, una sola vez,\nel sol se esconde, ya no lo ves,\ntarde de invierno, me das un abrazo,\ny el frío se va con cada paso.",
+  "reason": "plaza/casa, pozo/oso, vez/ves, abrazo/paso, cerveza/mesa and voz/dos rhyme only with seseo; with the Castilian distinción the brief requires they are not perfect consonant rhymes.",
+  "source": "hand-written"
+}

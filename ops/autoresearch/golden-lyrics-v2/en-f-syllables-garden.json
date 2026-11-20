@@ -1,0 +1,15 @@
+{
+  "id": "en-f-syllables-garden",
+  "expected": "fail",
+  "category": "syllable-overflow",
+  "lang": "en",
+  "topic": "Planting a garden with my father",
+  "brief": "Gentle country song.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Rows of Green",
+  "style": "Country, 88 BPM, male vocal",
+  "lyrics": "[Verse 1]\nDad showed me how to make a row,\nand how deep the seeds should go,\nhis hands were brown from April ground,\nhe hummed a tune without a sound.\n\n[Chorus]\nRows of green, rows of green,\nprettiest thing I've ever seen,\ntomatoes climbing up the wooden fence that my father built the summer I turned nine,\nrows of green, rows of green,\nand every single evening we would water them together until the sun went down behind the line.\n\n[Verse 2]\nNow his hands are slower than before,\nI carry water to the door,\nhe points at where the beans should be,\nand leaves the digging up to me.\n\n[Chorus]\nRows of green, rows of green,\nprettiest thing I've ever seen,\ntomatoes climbing up the wooden fence that my father built the summer I turned nine,\nrows of green, rows of green,\nand every single evening we would water them together until the sun went down behind the line.",
+  "reason": "Chorus lines are 6-8 syllables except two that run past 20 syllables, breaking the melody in every chorus.",
+  "source": "hand-written"
+}

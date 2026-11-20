@@ -1,0 +1,15 @@
+{
+  "id": "es-p-register-graduacion",
+  "expected": "pass",
+  "category": "right-register",
+  "lang": "es",
+  "topic": "La fiesta de graduación del instituto",
+  "brief": "Reguetón para la fiesta de graduación: con jerga, divertido, para bailar.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "Nos graduamos",
+  "style": "Reggaeton, 94 BPM, male and female vocal",
+  "lyrics": "[Verse 1]\nCuatro años de exámenes y broncas,\nde apuntes copiados y de chuletas tontas,\nhoy el profe de mates baila en la pista,\ny la de historia se ha vuelto reguetonista.\n\n[Chorus]\nNos graduamos, qué pasada,\nse acabó la madrugada de estudiar,\nnos graduamos, toda la peña,\nhoy la noche es nuestra, a bailar.\n\n[Verse 2]\nEl birrete vuela por los aires,\nlas madres llorando en todos los lares,\nmañana cada uno por su lado,\npero esta noche nadie se ha marchado.\n\n[Chorus]\nNos graduamos, qué pasada,\nse acabó la madrugada de estudiar,\nnos graduamos, toda la peña,\nhoy la noche es nuestra, a bailar.",
+  "reason": "Slangy and danceable as the brief asks; on topic, natural Spanish, catchy chorus.",
+  "source": "hand-written"
+}

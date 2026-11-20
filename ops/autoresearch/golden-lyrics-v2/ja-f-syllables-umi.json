@@ -1,0 +1,15 @@
+{
+  "id": "ja-f-syllables-umi",
+  "expected": "fail",
+  "category": "syllable-overflow",
+  "lang": "ja",
+  "topic": "祖父と行った海",
+  "brief": "穏やかなフォークソング。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "じいちゃんの海",
+  "style": "Japanese folk, acoustic guitar, 88 BPM",
+  "lyrics": "[Verse 1]\n麦わら帽子の じいちゃんと\n朝の浜辺を 歩いたね\n貝殻ひろって ポケットに\n波の音だけ 聞いていた\n\n[Chorus]\nじいちゃんの海 青い海\nじいちゃんが若いころに毎朝船を出して魚をとっていたあの小さな港町の海\nじいちゃんの海 遠い海\nいつかぼくも大人になって自分の子どもを連れてもう一度あの浜辺に行きたいと思っている\n\n[Verse 2]\n釣り糸たらして 待つ時間\nじいちゃんは何も 言わなかった\n夕日が沈む その前に\n大きな手で 頭なでた\n\n[Chorus]\nじいちゃんの海 青い海\nじいちゃんが若いころに毎朝船を出して魚をとっていたあの小さな港町の海\nじいちゃんの海 遠い海\nいつかぼくも大人になって自分の子どもを連れてもう一度あの浜辺に行きたいと思っている",
+  "reason": "Chorus phrases are 7-12 morae except two that run past 35 morae, overflowing the melody in every chorus.",
+  "source": "hand-written"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "ja-p-variance-ramen",
+  "expected": "pass",
+  "category": "slight-variance",
+  "lang": "ja",
+  "topic": "深夜のラーメン屋",
+  "brief": "ちょっとコミカルなロック。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "深夜のラーメン",
+  "style": "J-rock, 132 BPM, male vocal",
+  "lyrics": "[Verse 1]\n残業終わりの 午前一時\nのれんの奥から 湯気があがる\nおやじは無口で 腕だけ太い\n替え玉ひとつ 今夜もたのむ\n\n[Chorus]\n深夜のラーメン 背徳の味\n明日の体重 気にしない\n深夜のラーメン スープまで飲んで\n生きててよかった そう思う\n\n[Verse 2]\nとなりの学生 ノート広げて\nテストの前の 腹ごしらえ\nおやじがそっと チャーシュー足した\nがんばれよって 言わないけれど\n\n[Chorus]\n深夜のラーメン 背徳の味\n明日の体重 気にしない\n深夜のラーメン スープまで飲んで\n生きててよかった そう思う",
+  "reason": "Phrases vary by one or two morae, normal for sung Japanese; funny, on topic, natural.",
+  "source": "hand-written"
+}

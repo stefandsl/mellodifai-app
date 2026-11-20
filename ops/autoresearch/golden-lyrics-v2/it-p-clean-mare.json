@@ -1,0 +1,15 @@
+{
+  "id": "it-p-clean-mare",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "it",
+  "topic": "Una domenica al mare con gli amici",
+  "brief": "Canzone estiva allegra, pop italiano.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Domenica al mare",
+  "style": "Italian summer pop, 118 BPM, male vocal",
+  "lyrics": "[Verse 1]\nPartiamo all'alba con la radio accesa,\nla strada scende dritta verso il blu,\nMarco ha la chitarra sulla spalla,\ne Giulia canta e non si ferma più.\n\n[Chorus]\nDomenica al mare, la sabbia sui piedi,\nil sole ci scotta e nessuno ci vede,\ndomenica al mare, ridiamo così,\nfermiamo il tempo e restiamo qui.\n\n[Verse 2]\nUn tuffo, un urlo, l'acqua è ancora fredda,\nil gelato al limone che cola giù,\nla sera scende lenta sulla spiaggia,\nrestiamo a guardare la luna lassù.\n\n[Chorus]\nDomenica al mare, la sabbia sui piedi,\nil sole ci scotta e nessuno ci vede,\ndomenica al mare, ridiamo così,\nfermiamo il tempo e restiamo qui.",
+  "reason": "On topic, natural Italian, steady meter, repeated chorus with a clear hook.",
+  "source": "hand-written"
+}

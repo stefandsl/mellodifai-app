@@ -1,0 +1,15 @@
+{
+  "id": "es-f-syllables-cocina",
+  "expected": "fail",
+  "category": "syllable-overflow",
+  "lang": "es",
+  "topic": "Cocinando paella con mi padre",
+  "brief": "Canción cálida, flamenco pop.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "La paella de papá",
+  "style": "Flamenco pop, 104 BPM, male vocal",
+  "lyrics": "[Verse 1]\nLos domingos papá enciende el fuego,\nel arroz espera en la mesa,\nme enseña a cortar el pimiento,\ny a no tener nunca prisa.\n\n[Chorus]\nLa paella de papá,\nhuele a mar y a familia,\ny nadie se levanta de la mesa hasta que se acaba el socarrat del fondo de la paellera,\nla paella de papá,\ny mientras tanto él nos cuenta otra vez cómo conoció a mamá en las fiestas de su pueblo en primavera.\n\n[Verse 2]\nAhora soy yo quien remueve,\nél mira y da consejos,\nle pongo un poco más de azafrán,\ny sonríe como los viejos.\n\n[Chorus]\nLa paella de papá,\nhuele a mar y a familia,\ny nadie se levanta de la mesa hasta que se acaba el socarrat del fondo de la paellera,\nla paella de papá,\ny mientras tanto él nos cuenta otra vez cómo conoció a mamá en las fiestas de su pueblo en primavera.",
+  "reason": "Chorus lines are 7-8 syllables except two that run past 28 syllables, overflowing the melody in every chorus.",
+  "source": "hand-written"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "es-p-variance-futbol",
+  "expected": "pass",
+  "category": "slight-variance",
+  "lang": "es",
+  "topic": "El partido de fútbol del barrio los domingos",
+  "brief": "Canción festiva, rumba pop.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "Domingo de fútbol",
+  "style": "Rumba pop, 118 BPM, male vocal",
+  "lyrics": "[Verse 1]\nDos mochilas son la portería,\nel balón ya no tiene ni alegría,\nel más pequeño siempre va de portero,\ny el del quinto se cree el mejor del mundo entero.\n\n[Chorus]\nDomingo de fútbol en el barrio,\ngritos, polvo y empate a diez,\ndomingo de fútbol, sin horario,\nhasta que mamá nos llama otra vez.\n\n[Verse 2]\nPasa una vecina con la compra,\nle damos sin querer en la sombra,\ncorremos todos a pedir perdón,\ny ella devuelve el balón con el talón.\n\n[Chorus]\nDomingo de fútbol en el barrio,\ngritos, polvo y empate a diez,\ndomingo de fútbol, sin horario,\nhasta que mamá nos llama otra vez.",
+  "reason": "Line lengths vary by one to three syllables, normal for a festive song; on topic, natural Spanish.",
+  "source": "hand-written"
+}

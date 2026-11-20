@@ -1,0 +1,15 @@
+{
+  "id": "it-p-mixed-allowed-notte",
+  "expected": "pass",
+  "category": "mixed-allowed",
+  "lang": "it",
+  "topic": "La mia città di notte",
+  "brief": "Pop italiano con il ritornello in inglese, come nelle hit estive: l'inglese nel ritornello è voluto.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "City Lights",
+  "style": "Italian synth pop, 112 BPM",
+  "lyrics": "[Verse 1]\nI lampioni si accendono uno a uno,\nil fornaio impasta già il pane,\nun tram vuoto attraversa la piazza,\ne un cane abbaia alla luna lontana.\n\n[Chorus]\nCity lights are calling me tonight,\nevery street is shining bright,\ncity lights, I never want to sleep,\nall the secrets that you keep.\n\n[Verse 2]\nDue ragazzi ridono su una panchina,\nun tassista ascolta la radio,\nle finestre si spengono piano,\ne io cammino senza fretta, da solo.\n\n[Chorus]\nCity lights are calling me tonight,\nevery street is shining bright,\ncity lights, I never want to sleep,\nall the secrets that you keep.",
+  "reason": "Italian verses with an English chorus, exactly what the brief asks for.",
+  "source": "hand-written"
+}

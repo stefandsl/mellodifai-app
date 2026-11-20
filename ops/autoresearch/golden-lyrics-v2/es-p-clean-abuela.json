@@ -1,0 +1,15 @@
+{
+  "id": "es-p-clean-abuela",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "es",
+  "topic": "Mi abuela aprendiendo a usar el móvil",
+  "brief": "Canción divertida y tierna, pop.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "La abuela tiene WhatsApp",
+  "style": "Spanish pop, 112 BPM, female vocal",
+  "lyrics": "[Verse 1]\nMi abuela tiene móvil nuevo,\nlo sostiene como un huevo,\nme llama a las seis de la mañana,\npara mandarme una foto de su ventana.\n\n[Chorus]\nLa abuela tiene WhatsApp,\nya no hay quien la pare,\nmanda flores y buenos días,\na todos sus compadres.\n\n[Verse 2]\nEscribe todo en mayúsculas,\ncon emojis de corazones,\ny aunque a veces llama sin querer,\nme alegra todas las canciones.\n\n[Chorus]\nLa abuela tiene WhatsApp,\nya no hay quien la pare,\nmanda flores y buenos días,\na todos sus compadres.",
+  "reason": "On topic, natural Spanish, singable, catchy repeated chorus.",
+  "source": "hand-written"
+}

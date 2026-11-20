@@ -1,0 +1,15 @@
+{
+  "id": "ja-p-clean-toshokan",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "ja",
+  "topic": "雨の日の図書館",
+  "brief": "静かでやさしいバラード。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "雨の図書館",
+  "style": "J-pop ballad, piano, 72 BPM, female vocal",
+  "lyrics": "[Verse 1]\n窓をたたく 雨の音\nページをめくる 指先\nとなりの席の 知らない人\n同じ本を 読んでいた\n\n[Chorus]\n雨の図書館 しずかな午後\n言葉はいらない 時間がながれる\n雨の図書館 やむまでここで\n物語の中 旅をしよう\n\n[Verse 2]\n閉館の音楽 流れても\nまだ雨は やまなくて\n傘をわすれた わたしにそっと\nあの人が 傘をかしてくれた\n\n[Chorus]\n雨の図書館 しずかな午後\n言葉はいらない 時間がながれる\n雨の図書館 やむまでここで\n物語の中 旅をしよう",
+  "reason": "On topic, natural Japanese, steady phrases, gentle repeated chorus.",
+  "source": "hand-written"
+}

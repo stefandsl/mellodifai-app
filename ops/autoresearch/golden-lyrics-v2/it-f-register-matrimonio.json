@@ -1,0 +1,15 @@
+{
+  "id": "it-f-register-matrimonio",
+  "expected": "fail",
+  "category": "wrong-register",
+  "lang": "it",
+  "topic": "Il matrimonio di mia sorella",
+  "brief": "Canzone per il matrimonio di mia sorella, da cantare in chiesa: tono solenne, tenero e rispettoso.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Sposati, sorè",
+  "style": "Italian pop, 100 BPM",
+  "lyrics": "[Verse 1]\nRaga, mia sorella si sposa, che botta,\nil tipo è un tamarro ma le vuole bene,\nla chiesa è piena, tutti tirati a lucido,\ne io sono ancora fuso da ieri sera.\n\n[Chorus]\nSposati, sorè, che figata pazzesca,\nfinalmente ti levi di casa,\nsposati, sorè, e chi se ne frega,\nstasera si beve fino a domattina.\n\n[Verse 2]\nLa mamma frigna, il papà è in paranoia,\nil prete parla e io mi sto a rompere,\nma quando dici sì mi sale il magone,\nsorè, ti voglio bene, non lo dire a nessuno.\n\n[Chorus]\nSposati, sorè, che figata pazzesca,\nfinalmente ti levi di casa,\nsposati, sorè, e chi se ne frega,\nstasera si beve fino a domattina.",
+  "reason": "Natural Italian and on topic, but slangy and crude ('che figata', 'chi se ne frega', 'mi sto a rompere') for a solemn church song: wrong register for the brief.",
+  "source": "hand-written"
+}

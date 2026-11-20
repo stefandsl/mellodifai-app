@@ -1,0 +1,15 @@
+{
+  "id": "ro-f-register-colind",
+  "expected": "fail",
+  "category": "wrong-register",
+  "lang": "ro",
+  "topic": "Nașterea Domnului, de Crăciun",
+  "brief": "Colind pentru corul bisericii: ton solemn, cuvinte curate, potrivit pentru slujbă.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Crăciun cu flow",
+  "style": "Romanian choir, 72 BPM",
+  "lyrics": "[Verse 1]\nFrate, s-a născut un copil smecher în iesle,\nmagii vin cu cadouri de fițe pe cămile,\npăstorii-s mangă de bucurie,\ntoată lumea dă de băut la toată gașca.\n\n[Chorus]\nCrăciun cu flow, Crăciun cu flow,\nbăgăm colinde ca la show,\nCrăciun cu flow, nu fi bleg,\nazi e party până dimineața, frate.\n\n[Verse 2]\nSteaua strălucește ca un bling pe cer,\nîngerii fac zgomot ca un DJ adevărat,\nMaria zice: lăsați-l, că doarme,\ndar noi dăm volumul mai tare, normal.\n\n[Chorus]\nCrăciun cu flow, Crăciun cu flow,\nbăgăm colinde ca la show,\nCrăciun cu flow, nu fi bleg,\nazi e party până dimineața, frate.",
+  "reason": "On topic and fluent, but street slang ('smecher', 'mangă', 'party', 'bling', 'flow') is the wrong register for a solemn church carol.",
+  "source": "hand-written"
+}

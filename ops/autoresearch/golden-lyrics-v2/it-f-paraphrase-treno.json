@@ -1,0 +1,15 @@
+{
+  "id": "it-f-paraphrase-treno",
+  "expected": "fail",
+  "category": "paraphrase",
+  "lang": "it",
+  "topic": "Il pendolare che prende il treno all'alba",
+  "brief": "Una canzone nuova sul pendolare che prende il treno all'alba, nello spirito della canzone di riferimento ma con parole e immagini proprie.",
+  "referenceTitle": "Il treno delle sei",
+  "referenceLyrics": "[Verse 1]\nIl treno delle sei non aspetta nessuno,\ncorro sul binario col caffè in mano,\nil capotreno fischia e io salto su,\ne la città si sveglia piano piano.\n\n[Chorus]\nIl treno delle sei, il treno delle sei,\nmi porta via da te, mi porta dove non vorrei,\nil treno delle sei, ogni mattina uguale,\nun biglietto, un sedile, un giornale.\n\n[Verse 2]\nDi fronte c'è una donna che legge un libro giallo,\nun ragazzo dorme con la testa sul vetro,\nfuori scorrono i campi e i capannoni,\ne io penso a te che sei rimasta indietro.\n\n[Chorus]\nIl treno delle sei, il treno delle sei,\nmi porta via da te, mi porta dove non vorrei,\nil treno delle sei, ogni mattina uguale,\nun biglietto, un sedile, un giornale.",
+  "title": "Il treno dell'alba",
+  "style": "Italian pop rock, 110 BPM",
+  "lyrics": "[Verse 1]\nIl treno dell'alba non aspetta mai nessuno,\ncorro lungo il binario col caffè in mano,\nil controllore fischia e io salgo su,\ne la città si sveglia lentamente.\n\n[Chorus]\nIl treno dell'alba, il treno dell'alba,\nmi porta lontano da te, mi porta dove non vorrei,\nil treno dell'alba, ogni giorno uguale,\nun biglietto, un posto, un giornale.\n\n[Verse 2]\nDavanti c'è una donna che legge un romanzo giallo,\nun ragazzo dorme con la fronte sul vetro,\nfuori passano i campi e i capannoni,\ne io penso a te che sei rimasta indietro.\n\n[Chorus]\nIl treno dell'alba, il treno dell'alba,\nmi porta lontano da te, mi porta dove non vorrei,\nil treno dell'alba, ogni giorno uguale,\nun biglietto, un posto, un giornale.",
+  "reason": "Close paraphrase of the reference song: same lines, same images, about 30% of the words swapped for synonyms.",
+  "source": "hand-written"
+}

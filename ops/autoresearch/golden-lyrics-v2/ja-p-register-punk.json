@@ -1,0 +1,15 @@
+{
+  "id": "ja-p-register-punk",
+  "expected": "pass",
+  "category": "right-register",
+  "lang": "ja",
+  "topic": "地元の悪友との友情",
+  "brief": "地元の不良仲間との友情を歌うパンク。荒っぽい言葉づかいで。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "ダチ公",
+  "style": "Japanese punk, 168 BPM, male vocal",
+  "lyrics": "[Verse 1]\nコンビニ前で たむろしてた\n金もねえのに 夢だけでけえ\nてめえのバイクの うしろに乗って\n朝まで海まで 突っ走った\n\n[Chorus]\nダチ公 ダチ公 なめんなよ\nどこにいたって 忘れねえ\nダチ公 ダチ公 いつまでも\nてめえのためなら 走ってやる\n\n[Verse 2]\n先公にキレて 停学くらって\nそれでもてめえは 笑ってた\n今じゃ二人とも 作業着だけど\nハートの中身は 変わらねえ\n\n[Chorus]\nダチ公 ダチ公 なめんなよ\nどこにいたって 忘れねえ\nダチ公 ダチ公 いつまでも\nてめえのためなら 走ってやる",
+  "reason": "Rough, slangy speech as the brief asks; on topic, natural Japanese, shoutable chorus.",
+  "source": "hand-written"
+}

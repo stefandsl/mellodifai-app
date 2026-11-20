@@ -1,0 +1,15 @@
+{
+  "id": "en-p-dialect-football",
+  "expected": "pass",
+  "category": "dialect-ok",
+  "lang": "en",
+  "topic": "Saturday at the football with my dad",
+  "brief": "Britpop song sung in a London (non-rhotic) accent; rhymes only need to work in that accent.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Saturday Three O'Clock",
+  "style": "Britpop, 126 BPM, male vocal",
+  "lyrics": "[Verse 1]\nDad would park the car outside the bakery on the corner,\npull his scarf up past his chin and say it's getting warmer,\nwe'd queue behind the stand with half the people that he saw,\nand every week he'd tell me this would be the year for sure.\n\n[Chorus]\nSaturday, three o'clock,\nsinging louder than the rest,\nSaturday, three o'clock,\nme and Dad and all the rest.\n\n[Verse 2]\nWe never won a thing, we nearly did in ninety-four,\nhe cried the way he never cried when Mum walked out the door,\nnow I bring my daughter and I tell her what I saw,\nand every week I tell her this will be the year for sure.\n\n[Chorus]\nSaturday, three o'clock,\nsinging louder than the rest,\nSaturday, three o'clock,\nme and Dad and all the rest.",
+  "reason": "corner/warmer, saw/sure/door rhyme in the London accent the brief names; on topic, natural English, singable.",
+  "source": "hand-written"
+}

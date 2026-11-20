@@ -1,0 +1,15 @@
+{
+  "id": "it-f-syllables-nonna",
+  "expected": "fail",
+  "category": "syllable-overflow",
+  "lang": "it",
+  "topic": "La nonna che cucina la domenica",
+  "brief": "Canzone affettuosa, folk italiano.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Domenica dalla nonna",
+  "style": "Italian folk, accordion, 96 BPM",
+  "lyrics": "[Verse 1]\nLa nonna accende il fuoco alle sette,\nil ragù borbotta piano in cucina,\nstende la sfoglia sul tavolo di legno,\nracconta di quando era bambina.\n\n[Chorus]\nDomenica dalla nonna,\nla tavola è già pronta,\ne c'è sempre un piatto in più per chiunque bussi alla porta,\ndomenica dalla nonna,\nnessuno se ne va via senza un'altra porzione abbondante.\n\n[Verse 2]\nLo zio arriva sempre in ritardo,\ni bambini giocano in cortile,\nla nonna conta i piatti e sorride,\ne dice: mangiate, che fa bene.\n\n[Chorus]\nDomenica dalla nonna,\nla tavola è già pronta,\ne c'è sempre un piatto in più per chiunque bussi alla porta,\ndomenica dalla nonna,\nnessuno se ne va via senza un'altra porzione abbondante.",
+  "reason": "Chorus lines are 7-8 syllables except two that run to 17-18 syllables: they overflow any melody built on the short lines, in every chorus.",
+  "source": "hand-written"
+}

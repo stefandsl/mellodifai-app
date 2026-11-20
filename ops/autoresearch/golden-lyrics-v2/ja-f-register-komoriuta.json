@@ -1,0 +1,15 @@
+{
+  "id": "ja-f-register-komoriuta",
+  "expected": "fail",
+  "category": "wrong-register",
+  "lang": "ja",
+  "topic": "幼い娘を寝かしつける夜",
+  "brief": "幼い娘のための子守唄。やさしく、穏やかに。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "さっさと寝ろ",
+  "style": "Lullaby, 62 BPM, female vocal",
+  "lyrics": "[Verse 1]\nおいコラ てめえ まだ起きてんのか\n何時だと思ってやがる\nぐずぐず言ってんじゃねえぞ\nさっさと目ぇ閉じやがれ\n\n[Chorus]\nさっさと寝ろ さっさと寝ろ\nガタガタ抜かすな もう夜だ\nさっさと寝ろ さっさと寝ろ\n明日もどうせ 早えんだ\n\n[Verse 2]\n親父もとっくに いびきかいてる\n犬っころまで 夢ん中\nまあ 嫌いじゃねえけどよ\nてめえの寝顔はな\n\n[Chorus]\nさっさと寝ろ さっさと寝ろ\nガタガタ抜かすな もう夜だ\nさっさと寝ろ さっさと寝ろ\n明日もどうせ 早えんだ",
+  "reason": "On topic and fluent, but rough yankee speech (てめえ, やがれ, ガタガタ抜かすな) is the wrong register for a gentle lullaby.",
+  "source": "hand-written"
+}

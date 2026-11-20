@@ -1,0 +1,15 @@
+{
+  "id": "ja-f-badline-neko",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "ja",
+  "topic": "うちの猫の一日",
+  "brief": "ゆるくてかわいい曲。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "ねこのいちにち",
+  "style": "J-pop, 104 BPM, female vocal",
+  "lyrics": "[Verse 1]\n朝はまどべで ひなたぼっこ\nしっぽゆらして あくびをひとつ\nお昼はソファで まるくなって\n夕方ごはんを まだかとせかす\n\n[Chorus]\nねこのいちにち のんびりと\nねこのいちにち 自由気まま\nつきましては本件につきまして関係各所へのご確認のほどよろしくお願い申し上げます\nねこのいちにち また明日\n\n[Verse 2]\n夜はふとんに もぐりこんで\nわたしの足を まくらにする\nごろごろの音 子守唄みたい\nいっしょにねむる いつもの夜\n\n[Chorus]\nねこのいちにち のんびりと\nねこのいちにち 自由気まま\nつきましては本件につきまして関係各所へのご確認のほどよろしくお願い申し上げます\nねこのいちにち また明日",
+  "reason": "Good song except one chorus line: a long formal business-email phrase, off topic and unsingable against the 7-5 phrases, sung in every chorus.",
+  "source": "hand-written"
+}

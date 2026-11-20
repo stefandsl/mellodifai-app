@@ -1,0 +1,15 @@
+{
+  "id": "es-p-dialect-habana",
+  "expected": "pass",
+  "category": "dialect-ok",
+  "lang": "es",
+  "topic": "Una tarde en el malecón de La Habana",
+  "brief": "Son cubano con pronunciación caribeña (seseo); las rimas solo tienen que funcionar con seseo.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "Tarde en el malecón",
+  "style": "Son cubano, 96 BPM, male vocal",
+  "lyrics": "[Verse 1]\nLas olas saltan sobre el malecón,\ny un viejo toca el tres con el corazón,\nlas muchachas cruzan hacia la plaza,\ny el sol se pone rojo sobre mi casa.\n\n[Chorus]\nTarde en La Habana, una sola vez,\nel sol se esconde y ya no lo ves,\ntarde en La Habana, me das un abrazo,\ny el mar me sigue a cada paso.\n\n[Verse 2]\nHuele a café y a cerveza,\nla abuela sirve frijoles en la mesa,\nse apaga el día con tu voz,\ny en el silencio quedamos los dos.\n\n[Chorus]\nTarde en La Habana, una sola vez,\nel sol se esconde y ya no lo ves,\ntarde en La Habana, me das un abrazo,\ny el mar me sigue a cada paso.",
+  "reason": "plaza/casa, vez/ves, abrazo/paso, cerveza/mesa and voz/dos are perfect rhymes with the seseo the brief names; on topic, natural Spanish.",
+  "source": "hand-written"
+}

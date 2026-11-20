@@ -1,0 +1,15 @@
+{
+  "id": "it-f-mixed-forbidden-notte",
+  "expected": "fail",
+  "category": "mixed-forbidden",
+  "lang": "it",
+  "topic": "La mia città di notte",
+  "brief": "Solo italiano, nessuna parola inglese: è per un concorso di canzone italiana.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Città di notte",
+  "style": "Italian synth pop, 112 BPM",
+  "lyrics": "[Verse 1]\nI lampioni si accendono uno a uno,\nil fornaio impasta già il pane,\nun tram vuoto attraversa la piazza,\ne un cane abbaia alla luna lontana.\n\n[Chorus]\nCity lights are calling me tonight,\nevery street is shining bright,\ncity lights, I never want to sleep,\nall the secrets that you keep.\n\n[Verse 2]\nDue ragazzi ridono su una panchina,\nun tassista ascolta la radio,\nle finestre si spengono piano,\ne io cammino senza fretta, da solo.\n\n[Chorus]\nCity lights are calling me tonight,\nevery street is shining bright,\ncity lights, I never want to sleep,\nall the secrets that you keep.",
+  "reason": "The brief forbids English, but the whole chorus is in English.",
+  "source": "hand-written"
+}

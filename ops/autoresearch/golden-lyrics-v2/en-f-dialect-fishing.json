@@ -1,0 +1,15 @@
+{
+  "id": "en-f-dialect-fishing",
+  "expected": "fail",
+  "category": "dialect-rhyme",
+  "lang": "en",
+  "topic": "Fishing with my father as a kid",
+  "brief": "Country song for a Nashville singer with a General American accent. Every couplet must rhyme perfectly in that accent.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Down by the Water",
+  "style": "Country, 84 BPM, male vocal",
+  "lyrics": "[Verse 1]\nMy daddy took me down the river past the farm,\nthe water was so quiet and the evening was so calm,\nhe showed me how to cast the way he learned it from his ma,\nand every fish we caught that year he hung up in the car.\n\n[Chorus]\nDown by the water, nothing more,\njust a rod and what we saw,\ndown by the water, sun and shore,\nmy father and the river's law.\n\n[Verse 2]\nWe never talked too much, we never needed to,\nhe'd whistle half a hymn and pass the bait to you,\nthe sky went pink and orange like a drama on TV,\nand he would say that's prettier than any farmer's tea.\n\n[Chorus]\nDown by the water, nothing more,\njust a rod and what we saw,\ndown by the water, sun and shore,\nmy father and the river's law.",
+  "reason": "The couplets farm/calm, ma/car, more/saw, shore/law and drama/farmer rhyme only in a non-rhotic accent; in the General American accent the brief requires they do not rhyme.",
+  "source": "hand-written"
+}

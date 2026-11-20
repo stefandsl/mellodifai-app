@@ -1,0 +1,15 @@
+{
+  "id": "ro-f-mixed-forbidden-toamna",
+  "expected": "fail",
+  "category": "mixed-forbidden",
+  "lang": "ro",
+  "topic": "Toamna în parc",
+  "brief": "Doar în limba română, fără niciun cuvânt străin: pentru un festival de muzică ușoară românească.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Toamna în parc",
+  "style": "Romanian ballad, 80 BPM, female vocal",
+  "lyrics": "[Verse 1]\nFrunzele cad pe banca noastră,\nun câine aleargă după un băț,\nun bătrân hrănește porumbeii,\nși vântul îmi intră sub fular.\n\n[Chorus]\nAutumn leaves are falling down,\nall the colours of the town,\nautumn leaves, I miss you so,\ntell me where the summers go.\n\n[Verse 2]\nȚi-am scris pe-o frunză numele tău,\nși am lăsat-o pe lac să plutească,\npoate ajunge până la tine,\npoate cineva o s-o citească.\n\n[Chorus]\nAutumn leaves are falling down,\nall the colours of the town,\nautumn leaves, I miss you so,\ntell me where the summers go.",
+  "reason": "The brief requires Romanian only, with no foreign words, but the whole chorus is in English.",
+  "source": "hand-written"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "es-p-mixed-allowed-lluvia",
+  "expected": "pass",
+  "category": "mixed-allowed",
+  "lang": "es",
+  "topic": "Un día de lluvia en Sevilla",
+  "brief": "Pop latino bilingüe para radio: versos en español y estribillo en inglés.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "Rain in Sevilla",
+  "style": "Latin pop, 96 BPM, female vocal",
+  "lyrics": "[Verse 1]\nLlueve sobre los naranjos,\nla Giralda se esconde en gris,\nlos turistas corren bajo los arcos,\ny yo camino sin paraguas, feliz.\n\n[Chorus]\nRain is falling on my face,\nwashing every single trace,\nrain is falling, let it pour,\nI don't need you anymore.\n\n[Verse 2]\nEl río baja crecido y pardo,\nun gato duerme en un balcón,\nlas campanas suenan a lo lejos,\ny la lluvia me limpia el corazón.\n\n[Chorus]\nRain is falling on my face,\nwashing every single trace,\nrain is falling, let it pour,\nI don't need you anymore.",
+  "reason": "Spanish verses with an English chorus, exactly what the brief asks for.",
+  "source": "hand-written"
+}

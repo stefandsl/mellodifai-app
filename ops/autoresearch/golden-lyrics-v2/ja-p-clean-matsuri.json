@@ -1,0 +1,15 @@
+{
+  "id": "ja-p-clean-matsuri",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "ja",
+  "topic": "夏祭りの夜",
+  "brief": "明るく懐かしいJ-POP。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "夏祭り",
+  "style": "J-pop, 116 BPM, female vocal",
+  "lyrics": "[Verse 1]\n浴衣のすそを 気にしながら\n下駄の音が 石畳に響く\nりんご飴ひとつ 半分こして\n君の横顔 ちょうちんの色\n\n[Chorus]\n夏祭り 夜空に咲いた\n大きな花火 胸に響く\n夏祭り 手をつないで\nこのまま時間 止まればいい\n\n[Verse 2]\n金魚すくいは 今年もだめで\n君が笑って 袋をくれた\n帰り道には 虫の声だけ\nまた来年も ここで会おうね\n\n[Chorus]\n夏祭り 夜空に咲いた\n大きな花火 胸に響く\n夏祭り 手をつないで\nこのまま時間 止まればいい",
+  "reason": "On topic, natural Japanese, steady phrase lengths, repeated chorus with a clear hook.",
+  "source": "hand-written"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "ja-p-original-shuuden",
+  "expected": "pass",
+  "category": "original-vs-source",
+  "lang": "ja",
+  "topic": "終電で帰る夜",
+  "brief": "終電で帰る夜を歌う新しい曲。参考曲の雰囲気は残しつつ、歌詞とイメージはすべて自分の言葉で。",
+  "referenceTitle": "終電",
+  "referenceLyrics": "[Verse 1]\n終電のベルが 遠くで鳴ってる\n階段かけおりて 息を切らした\nガラスに映るのは 疲れた顔\nそれでも明日は また来るから\n\n[Chorus]\n終電 終電 ひとりきり\n街の灯りが 流れてく\n終電 終電 君の街へ\nあと少しだけ 揺られてく\n\n[Verse 2]\n向かいの席には 眠るサラリーマン\nイヤホンの奥で 古いラブソング\n窓の外には 誰もいない駅\nドアが閉まって また動き出す\n\n[Chorus]\n終電 終電 ひとりきり\n街の灯りが 流れてく\n終電 終電 君の街へ\nあと少しだけ 揺られてく",
+  "title": "午前零時のホーム",
+  "style": "J-pop, 100 BPM",
+  "lyrics": "[Verse 1]\nコンビニの袋 ぶらさげて\n改札ぬけたら 風が冷たい\nスマホの充電 あと三パーセント\n母からのメール まだ読めてない\n\n[Chorus]\n午前零時の ホームには\nため息だけが ならんでる\n午前零時の ホームから\nそれぞれの夜へ 帰ってく\n\n[Verse 2]\n酔っぱらいの歌 はずれた音程\nベンチの鳩も 目をさました\n最後の駅で ひとりおりたら\n月がやけに 近く見えた\n\n[Chorus]\n午前零時の ホームには\nため息だけが ならんでる\n午前零時の ホームから\nそれぞれの夜へ 帰ってく",
+  "reason": "Same theme as the reference, as the brief asks, but every line, image and character is new.",
+  "source": "hand-written"
+}

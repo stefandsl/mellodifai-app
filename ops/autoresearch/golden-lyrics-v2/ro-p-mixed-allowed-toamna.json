@@ -1,0 +1,15 @@
+{
+  "id": "ro-p-mixed-allowed-toamna",
+  "expected": "pass",
+  "category": "mixed-allowed",
+  "lang": "ro",
+  "topic": "Toamna în parc",
+  "brief": "Pop românesc pentru radio, cu refrenul în engleză: engleza din refren este dorită.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Autumn Leaves",
+  "style": "Romanian pop, 96 BPM, female vocal",
+  "lyrics": "[Verse 1]\nFrunzele cad pe banca noastră,\nun câine aleargă după un băț,\nun bătrân hrănește porumbeii,\nși vântul îmi intră sub fular.\n\n[Chorus]\nAutumn leaves are falling down,\nall the colours of the town,\nautumn leaves, I miss you so,\ntell me where the summers go.\n\n[Verse 2]\nȚi-am scris pe-o frunză numele tău,\nși am lăsat-o pe lac să plutească,\npoate ajunge până la tine,\npoate cineva o s-o citească.\n\n[Chorus]\nAutumn leaves are falling down,\nall the colours of the town,\nautumn leaves, I miss you so,\ntell me where the summers go.",
+  "reason": "Romanian verses with an English chorus, exactly what the brief asks for.",
+  "source": "hand-written"
+}

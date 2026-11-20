@@ -1,0 +1,15 @@
+{
+  "id": "en-f-paraphrase-bus",
+  "expected": "fail",
+  "category": "paraphrase",
+  "lang": "en",
+  "topic": "Riding the night bus home",
+  "brief": "A new song about riding the night bus home, in the spirit of the reference song but with its own words and images.",
+  "referenceTitle": "Last Bus Home",
+  "referenceLyrics": "[Verse 1]\nThe last bus home is running late again,\nI count the puddles shining in the rain,\nthe driver nods like he's seen me before,\nI take the seat beside the folding door.\n\n[Chorus]\nLast bus home, last bus home,\nthrough the city on my own,\nevery window tells a story,\non the last bus home.\n\n[Verse 2]\nA nurse is sleeping in her hospital blue,\na boy is writing words he can't say to you,\nthe street lights flicker past us one by one,\nand none of us can say where the night has gone.\n\n[Chorus]\nLast bus home, last bus home,\nthrough the city on my own,\nevery window tells a story,\non the last bus home.",
+  "title": "Night Bus",
+  "style": "Indie folk, 96 BPM",
+  "lyrics": "[Verse 1]\nThe night bus home is running late once more,\nI count the puddles shining on the floor,\nthe driver nods like he's seen me before,\nI take the seat beside the sliding door.\n\n[Chorus]\nNight bus home, night bus home,\nthrough the city all alone,\nevery window tells a story,\non the night bus home.\n\n[Verse 2]\nA nurse is dozing in her hospital blue,\na kid is writing words he can't say to you,\nthe street lamps flicker past us one by one,\nand none of us can tell where the night has gone.\n\n[Chorus]\nNight bus home, night bus home,\nthrough the city all alone,\nevery window tells a story,\non the night bus home.",
+  "reason": "Close paraphrase of the reference: same lines and images, about 30% of the words swapped.",
+  "source": "hand-written"
+}

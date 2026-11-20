@@ -1,0 +1,15 @@
+{
+  "id": "it-p-clean-motorino",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "it",
+  "topic": "Il mio primo motorino",
+  "brief": "Canzone nostalgica, pop rock anni novanta.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Cinquanta di cilindrata",
+  "style": "Italian pop rock, 124 BPM, male vocal",
+  "lyrics": "[Verse 1]\nAvevo quattordici anni e un casco blu,\nil motorino usato di mio cugino,\npartiva solo dopo dieci pedalate,\nma per me era un aeroplanino.\n\n[Chorus]\nCinquanta di cilindrata,\ne tutta l'estate davanti,\ncinquanta di cilindrata,\nnoi eravamo giganti.\n\n[Verse 2]\nLa miscela comprata coi risparmi,\nla ragazza seduta dietro a me,\nla salita del paese a passo d'uomo,\ne il vento in faccia come un re.\n\n[Chorus]\nCinquanta di cilindrata,\ne tutta l'estate davanti,\ncinquanta di cilindrata,\nnoi eravamo giganti.",
+  "reason": "On topic, natural Italian, steady short chorus, singable.",
+  "source": "hand-written"
+}

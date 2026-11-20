@@ -1,0 +1,15 @@
+{
+  "id": "it-f-badline-scuola",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "it",
+  "topic": "Il primo giorno di scuola di mia figlia",
+  "brief": "Ballata tenera, voce femminile.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Vai, piccola mia",
+  "style": "Italian ballad, piano, 76 BPM, female vocal",
+  "lyrics": "[Verse 1]\nLo zaino rosa è più grande di lei,\nle scarpe nuove che fanno rumore,\nmi stringe la mano davanti al cancello,\ne sento battere forte il suo cuore.\n\n[Chorus]\nVai, piccola mia, vai,\nil mondo ti aspetta lassù,\nvai, piccola mia, vai,\ne ricordati che il modulo per la mensa va consegnato in segreteria entro venerdì.\n\n[Verse 2]\nLa maestra sorride e la chiama per nome,\nlei si gira un momento e mi saluta,\nio resto lì fuori con gli occhi lucidi,\ne la casa stasera sarà più muta.\n\n[Chorus]\nVai, piccola mia, vai,\nil mondo ti aspetta lassù,\nvai, piccola mia, vai,\ne ricordati che il modulo per la mensa va consegnato in segreteria entro venerdì.",
+  "reason": "Good song except the last chorus line: a 27-syllable bureaucratic prose sentence about the canteen form, off the song's meter and feeling, sung in every chorus.",
+  "source": "hand-written"
+}

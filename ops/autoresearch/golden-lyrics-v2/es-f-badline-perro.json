@@ -1,0 +1,15 @@
+{
+  "id": "es-f-badline-perro",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "es",
+  "topic": "Paseando a mi perro por el parque",
+  "brief": "Canción alegre, pop acústico.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "Mi perro y yo",
+  "style": "Acoustic pop, 100 BPM, male vocal",
+  "lyrics": "[Verse 1]\nCada mañana me espera en la puerta,\ncon la correa en la boca y la cola despierta,\ncruzamos la calle, saludamos al frutero,\ny en el parque es el rey del sendero.\n\n[Chorus]\nMi perro y yo, mi perro y yo,\nno hay nada que nos pare,\nmi perro y yo estamos teniendo un tiempo muy bueno de ello,\nmi perro y yo, por todas partes.\n\n[Verse 2]\nPersigue palomas que nunca alcanza,\nse revuelca en el barro con mucha confianza,\nvolvemos a casa cansados y sucios,\ny él se duerme a mis pies, sin anuncios.\n\n[Chorus]\nMi perro y yo, mi perro y yo,\nno hay nada que nos pare,\nmi perro y yo estamos teniendo un tiempo muy bueno de ello,\nmi perro y yo, por todas partes.",
+  "reason": "One chorus line is a word-for-word calque of English ('we are having a very good time of it'), ungrammatical in Spanish, sung in every chorus.",
+  "source": "hand-written"
+}

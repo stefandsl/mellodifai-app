@@ -1,0 +1,15 @@
+{
+  "id": "en-f-badline-dog",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "en",
+  "topic": "My dog waiting for me at the window",
+  "brief": "Warm acoustic song.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "At the Window",
+  "style": "Acoustic folk, 92 BPM, male vocal",
+  "lyrics": "[Verse 1]\nEvery evening when I turn the key,\nthere's a nose against the glass for me,\na tail that's going faster than the clock,\nhe's been waiting since I left at eight o'clock.\n\n[Chorus]\nAt the window, at the window,\nhe waiting window for me is always being,\nat the window, at the window,\nthe one face I know I'll be seeing.\n\n[Verse 2]\nHe doesn't care how bad my day has been,\nhe doesn't ask me where or why or when,\nhe only knows the sound of my old car,\nand that's enough to make me who we are.\n\n[Chorus]\nAt the window, at the window,\nhe waiting window for me is always being,\nat the window, at the window,\nthe one face I know I'll be seeing.",
+  "reason": "Good song except one chorus line that is ungrammatical word salad ('he waiting window for me is always being'), sung in every chorus.",
+  "source": "hand-written"
+}

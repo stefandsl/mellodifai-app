@@ -1,0 +1,15 @@
+{
+  "id": "it-p-original-treno",
+  "expected": "pass",
+  "category": "original-vs-source",
+  "lang": "it",
+  "topic": "Il pendolare che prende il treno all'alba",
+  "brief": "Una canzone nuova sul pendolare che prende il treno all'alba, nello spirito della canzone di riferimento ma con parole e immagini proprie.",
+  "referenceTitle": "Il treno delle sei",
+  "referenceLyrics": "[Verse 1]\nIl treno delle sei non aspetta nessuno,\ncorro sul binario col caffè in mano,\nil capotreno fischia e io salto su,\ne la città si sveglia piano piano.\n\n[Chorus]\nIl treno delle sei, il treno delle sei,\nmi porta via da te, mi porta dove non vorrei,\nil treno delle sei, ogni mattina uguale,\nun biglietto, un sedile, un giornale.\n\n[Verse 2]\nDi fronte c'è una donna che legge un libro giallo,\nun ragazzo dorme con la testa sul vetro,\nfuori scorrono i campi e i capannoni,\ne io penso a te che sei rimasta indietro.\n\n[Chorus]\nIl treno delle sei, il treno delle sei,\nmi porta via da te, mi porta dove non vorrei,\nil treno delle sei, ogni mattina uguale,\nun biglietto, un sedile, un giornale.",
+  "title": "Binario tre",
+  "style": "Italian pop rock, 110 BPM",
+  "lyrics": "[Verse 1]\nLa sveglia suona quando è ancora notte,\nmi vesto al buio senza far rumore,\nla stazione è fredda e mezza vuota,\nun panino e già passano le ore.\n\n[Chorus]\nBinario tre, sempre lo stesso posto,\nlo stesso vetro appannato davanti,\nbinario tre, la vita va di corsa,\ne io la guardo passare coi guanti.\n\n[Verse 2]\nLa signora col cane fa la maglia,\nil ragazzo dorme sulla chitarra,\nogni giorno siamo sconosciuti,\nma ci salutiamo con lo sguardo.\n\n[Chorus]\nBinario tre, sempre lo stesso posto,\nlo stesso vetro appannato davanti,\nbinario tre, la vita va di corsa,\ne io la guardo passare coi guanti.",
+  "reason": "Same theme as the reference, as the brief asks, but every line, image and character is new.",
+  "source": "hand-written"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "en-p-variance-coffee",
+  "expected": "pass",
+  "category": "slight-variance",
+  "lang": "en",
+  "topic": "My morning coffee ritual",
+  "brief": "Light, funny pop song.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Before the First Cup",
+  "style": "Pop, 108 BPM, female vocal",
+  "lyrics": "[Verse 1]\nDon't talk to me before the first cup,\nthe sun is up but I am not up,\nthe kettle sings, the beans go round,\nthe sweetest, darkest morning sound.\n\n[Chorus]\nBefore the first cup, I'm a zombie in a robe,\nbefore the first cup, I don't love anyone I know,\nthen it hits me warm and slow,\nand I'm ready, here I go.\n\n[Verse 2]\nMy cat knows better than to meow,\nmy phone stays face down until now,\none sip, two sips, the world comes back,\nthe colours slowly leave the black.\n\n[Chorus]\nBefore the first cup, I'm a zombie in a robe,\nbefore the first cup, I don't love anyone I know,\nthen it hits me warm and slow,\nand I'm ready, here I go.",
+  "reason": "Chorus lines differ by two or three syllables, normal pop phrasing; funny, on topic, singable.",
+  "source": "hand-written"
+}

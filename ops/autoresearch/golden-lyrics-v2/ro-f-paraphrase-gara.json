@@ -1,0 +1,15 @@
+{
+  "id": "ro-f-paraphrase-gara",
+  "expected": "fail",
+  "category": "paraphrase",
+  "lang": "ro",
+  "topic": "Plecarea dintr-o gară",
+  "brief": "Un cântec nou despre plecarea dintr-o gară, în spiritul cântecului de referință, dar cu versuri și imagini proprii.",
+  "referenceTitle": "Gara de Nord",
+  "referenceLyrics": "[Verse 1]\nLa Gara de Nord e frig și e devreme,\nun tren întârzie, nimeni nu se teme,\no babă vinde covrigi calzi din coș,\nși cerul e un pic mai roz.\n\n[Chorus]\nGara de Nord, gara de Nord,\ntoți plecăm și ne-ntoarcem în cor,\nGara de Nord, cu valiza în mână,\nlas o inimă și iau o lună.\n\n[Verse 2]\nUn soldat își sună mama la telefon,\nun student doarme lângă un vagon,\neu număr șinele ca pe niște ani,\nși-mi pare rău de toți cei care-au plecat.\n\n[Chorus]\nGara de Nord, gara de Nord,\ntoți plecăm și ne-ntoarcem în cor,\nGara de Nord, cu valiza în mână,\nlas o inimă și iau o lună.",
+  "title": "Gara din oraș",
+  "style": "Romanian folk pop, 98 BPM",
+  "lyrics": "[Verse 1]\nLa gara din oraș e frig și e devreme,\nun tren întârzie, nimeni nu se teme,\no bătrână vinde covrigi calzi din coș,\nși cerul e puțin mai roz.\n\n[Chorus]\nGara din oraș, gara din oraș,\ntoți plecăm și ne-ntoarcem în cor,\ngara din oraș, cu bagajul în mână,\nlas o inimă și iau o lună.\n\n[Verse 2]\nUn militar își sună mama la telefon,\nun elev doarme lângă un vagon,\neu număr șinele ca pe niște ani,\nși-mi pare rău de toți cei care-au plecat.\n\n[Chorus]\nGara din oraș, gara din oraș,\ntoți plecăm și ne-ntoarcem în cor,\ngara din oraș, cu bagajul în mână,\nlas o inimă și iau o lună.",
+  "reason": "Close paraphrase of the reference: same lines and images, about 30% of the words swapped.",
+  "source": "hand-written"
+}

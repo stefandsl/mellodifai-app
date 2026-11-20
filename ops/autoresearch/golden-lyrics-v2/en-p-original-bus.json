@@ -1,0 +1,15 @@
+{
+  "id": "en-p-original-bus",
+  "expected": "pass",
+  "category": "original-vs-source",
+  "lang": "en",
+  "topic": "Riding the night bus home",
+  "brief": "A new song about riding the night bus home, in the spirit of the reference song but with its own words and images.",
+  "referenceTitle": "Last Bus Home",
+  "referenceLyrics": "[Verse 1]\nThe last bus home is running late again,\nI count the puddles shining in the rain,\nthe driver nods like he's seen me before,\nI take the seat beside the folding door.\n\n[Chorus]\nLast bus home, last bus home,\nthrough the city on my own,\nevery window tells a story,\non the last bus home.\n\n[Verse 2]\nA nurse is sleeping in her hospital blue,\na boy is writing words he can't say to you,\nthe street lights flicker past us one by one,\nand none of us can say where the night has gone.\n\n[Chorus]\nLast bus home, last bus home,\nthrough the city on my own,\nevery window tells a story,\non the last bus home.",
+  "title": "N29",
+  "style": "Indie folk, 96 BPM",
+  "lyrics": "[Verse 1]\nTop deck, front seat, I'm a captain of the dark,\nwe sail past shuttered chip shops and the gates of Finsbury Park,\na couple shares a kebab like it's a candlelit affair,\nand someone's left a balloon tied to the handrail of the stair.\n\n[Chorus]\nRide the N29, ride it to the end,\nthe city's half asleep and every stranger is a friend,\nride the N29, the long way round,\nthe softest kind of lonely sound.\n\n[Verse 2]\nThe heater's breathing warm against my ankles and my knees,\nI write a little poem on the window with my sleeve,\nthe stop before my stop, I always think I'll stay,\nthen I ring the bell and let the bus go on its way.\n\n[Chorus]\nRide the N29, ride it to the end,\nthe city's half asleep and every stranger is a friend,\nride the N29, the long way round,\nthe softest kind of lonely sound.",
+  "reason": "Same theme as the reference, as the brief asks, but every line, image and character is new.",
+  "source": "hand-written"
+}

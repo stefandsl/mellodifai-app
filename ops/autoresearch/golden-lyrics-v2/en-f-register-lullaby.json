@@ -1,0 +1,15 @@
+{
+  "id": "en-f-register-lullaby",
+  "expected": "fail",
+  "category": "wrong-register",
+  "lang": "en",
+  "topic": "Putting my newborn son to sleep",
+  "brief": "A lullaby for my newborn son: soft, gentle and calm.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Lights Out, Little Man",
+  "style": "Lullaby, 60 BPM, female vocal",
+  "lyrics": "[Verse 1]\nYo, listen up, little man, it's lights out, no cap,\nyou been screaming all night, give your mama a break,\nquit flexing them lungs, nobody's impressed,\nshut them eyes, lock it down, get some rest.\n\n[Chorus]\nLights out, little man, for real this time,\nlights out, little man, you're wasting my grind,\nlights out, little man, don't start that again,\nlights out, little man, I'm counting to ten.\n\n[Verse 2]\nYour daddy's knocked out and the dog is too,\nthe whole block's sleeping, what's wrong with you,\nI love you to bits, you know that's facts,\nnow hit the pillow and just relax.\n\n[Chorus]\nLights out, little man, for real this time,\nlights out, little man, you're wasting my grind,\nlights out, little man, don't start that again,\nlights out, little man, I'm counting to ten.",
+  "reason": "On topic and fluent, but aggressive street slang ('no cap', 'quit flexing', 'shut them eyes') is the wrong register for a soft, gentle lullaby.",
+  "source": "hand-written"
+}

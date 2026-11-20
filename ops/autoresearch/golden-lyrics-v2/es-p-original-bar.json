@@ -1,0 +1,15 @@
+{
+  "id": "es-p-original-bar",
+  "expected": "pass",
+  "category": "original-vs-source",
+  "lang": "es",
+  "topic": "La última copa con un amigo antes de cerrar el bar",
+  "brief": "Una canción nueva sobre la última copa con un amigo antes de cerrar el bar, con el espíritu de la canción de referencia pero con palabras e imágenes propias.",
+  "referenceTitle": "La última cerveza",
+  "referenceLyrics": "[Verse 1]\nCierran el bar a las dos en punto,\nel camarero apila las sillas,\ntú y yo seguimos en la barra,\ncontando historias y pesadillas.\n\n[Chorus]\nLa última cerveza, la última de la noche,\nbrindamos por los que ya se han ido,\nla última cerveza, sin prisa y sin reproche,\nmañana nadie se acuerda de lo vivido.\n\n[Verse 2]\nFuera llueve sobre la plaza,\nun taxi espera con la luz verde,\nme das un abrazo sin palabras,\ny lo que no se dice no se pierde.\n\n[Chorus]\nLa última cerveza, la última de la noche,\nbrindamos por los que ya se han ido,\nla última cerveza, sin prisa y sin reproche,\nmañana nadie se acuerda de lo vivido.",
+  "title": "Ponme otra, Manolo",
+  "style": "Spanish rock, 98 BPM",
+  "lyrics": "[Verse 1]\nManolo ya ha bajado media persiana,\nla tele habla sola del tiempo de mañana,\nJavi me cuenta que se va a Berlín,\ny yo le digo que eso no es el fin.\n\n[Chorus]\nPonme otra, Manolo, que esto se acaba,\nque mi amigo se marcha y no me avisaba,\nponme otra, Manolo, la del estribo,\nque mañana está lejos y hoy está vivo.\n\n[Verse 2]\nPagamos a medias como en el instituto,\nManolo nos echa con cara de luto,\nen la acera nos damos la mano y ya,\ny el eco de la risa se queda allá.\n\n[Chorus]\nPonme otra, Manolo, que esto se acaba,\nque mi amigo se marcha y no me avisaba,\nponme otra, Manolo, la del estribo,\nque mañana está lejos y hoy está vivo.",
+  "reason": "Same theme as the reference, as the brief asks, but every line, image and character is new.",
+  "source": "hand-written"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "it-f-badline-treno-nord",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "it",
+  "topic": "Un viaggio in treno verso il nord",
+  "brief": "Canzone d'autore malinconica.",
+  "referenceTitle": "Va bene, passa",
+  "referenceLyrics": "",
+  "title": "Verso nord",
+  "style": "Italian singer-songwriter, acoustic guitar, 90 BPM",
+  "lyrics": "[Verse 1]\nLa valigia sul sedile accanto,\nle colline diventano pianura,\nil controllore passa senza fretta,\ne fuori il cielo cambia la sua luce.\n\n[Chorus]\nVerso nord, dove nevica piano,\nverso nord, con il cuore in mano,\nnoi siamo andati là dove il vento è stato soffiando,\nverso nord, e non so fino a quando.\n\n[Verse 2]\nBologna passa come una cartolina,\na Milano scende quasi tutta la gente,\nio resto seduto col mio panino,\ne il paese è lontano, ma presente.\n\n[Chorus]\nVerso nord, dove nevica piano,\nverso nord, con il cuore in mano,\nnoi siamo andati là dove il vento è stato soffiando,\nverso nord, e non so fino a quando.",
+  "reason": "One chorus line is a calque of the English present perfect continuous ('è stato soffiando'), ungrammatical in Italian and repeated in every chorus.",
+  "source": "hand-written"
+}

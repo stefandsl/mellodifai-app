@@ -1,0 +1,15 @@
+{
+  "id": "ja-f-badline-sakura",
+  "expected": "fail",
+  "category": "one-bad-line",
+  "lang": "ja",
+  "topic": "卒業式の日の桜",
+  "brief": "切ない卒業ソング。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "桜の下で",
+  "style": "J-pop ballad, 78 BPM, male vocal",
+  "lyrics": "[Verse 1]\n校門の前 桜がゆれて\n制服のボタン ひとつなくした\n黒板に書いた 最後のことば\nみんなで笑って 写真を撮った\n\n[Chorus]\n桜の下で さよならを\n言えないままで 春が来る\n私はあなたを愛することをしています\n桜の下で またいつか\n\n[Verse 2]\n屋上で食べた パンの味も\n部活の帰りの 夕焼けも\nぜんぶ胸に しまっておくよ\n大人になっても 忘れないよ\n\n[Chorus]\n桜の下で さよならを\n言えないままで 春が来る\n私はあなたを愛することをしています\n桜の下で またいつか",
+  "reason": "One chorus line is a machine-translated calque of 'I am loving you' (愛することをしています), unnatural Japanese, sung in every chorus.",
+  "source": "hand-written"
+}

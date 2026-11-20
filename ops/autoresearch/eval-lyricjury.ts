@@ -1,5 +1,9 @@
-// FROZEN evaluator of the lyric jury prompt (autoresearch run nov19-lyricjury). Do not edit during the loop.
+// FROZEN evaluator of the lyric jury prompt (autoresearch runs nov19-lyricjury and nov20-lyricjury2).
+// Do not edit during the loop.
 //   pnpm -s ops autoresearch/eval-lyricjury.ts > run.log 2>&1 ; grep "^score:" run.log
+//   pnpm -s ops autoresearch/eval-lyricjury.ts --set v2 > run.log 2>&1   (harder near-miss set)
+// v2 samples also carry the user's brief and the reference lyrics; they go to the jury in the
+// context, which the jury may use or ignore. v1 runs exactly as before.
 // Runs the production `judge` (apps/worker/src/stages/lyric-jury.ts) with one local Ollama model as
 // the only judge on every sample of the frozen golden set, and compares `passed` with the expected
 // verdict. Zero paid calls: the OpenRouter transport is replaced by a fetch to local Ollama.
@@ -9,7 +13,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { judge } from "../../apps/worker/src/stages/lyric-jury.js";
 
-const GOLDEN = join(import.meta.dirname, "golden-lyrics");
+const setArg = process.argv.indexOf("--set");
+const SET = setArg >= 0 ? process.argv[setArg + 1] : "v1";
+if (SET !== "v1" && SET !== "v2") throw new Error(`unknown set ${SET}`);
+const GOLDEN = join(
+  import.meta.dirname,
+  SET === "v2" ? "golden-lyrics-v2" : "golden-lyrics",
+);
 const OLLAMA = process.env.OLLAMA_URL ?? "http://127.0.0.1:11434";
 const MODEL = process.env.JURY_MODEL ?? "gemma4:e4b";
 const SEED = 42;
@@ -21,6 +31,9 @@ type Sample = {
   lang: string;
   topic: string;
   referenceTitle: string;
+  category?: string;
+  brief?: string;
+  referenceLyrics?: string;
   title: string;
   style: string;
   lyrics: string;
@@ -70,7 +83,7 @@ const samples = files.map((f) => {
   return JSON.parse(text) as Sample;
 });
 console.log(
-  `golden: ${samples.length} samples sha256=${hash.digest("hex").slice(0, 16)} model=${MODEL}`,
+  `golden${SET === "v2" ? "-v2" : ""}: ${samples.length} samples sha256=${hash.digest("hex").slice(0, 16)} model=${MODEL}`,
 );
 
 const only = process.env.ONLY;
@@ -80,11 +93,20 @@ let falsePass = 0;
 let falseFail = 0;
 let unavailable = 0;
 const ms: number[] = [];
+const categories = new Map<string, { ok: number; n: number }>();
 for (const s of samples) {
   if (only && !s.id.includes(only)) continue;
+  const context = {
+    topic: s.topic,
+    lang: s.lang,
+    referenceTitle: s.referenceTitle,
+    ...(SET === "v2"
+      ? { brief: s.brief ?? "", referenceLyrics: s.referenceLyrics ?? "" }
+      : {}),
+  };
   const report = await judge(
     { title: s.title, lyrics: s.lyrics, style: s.style },
-    { topic: s.topic, lang: s.lang, referenceTitle: s.referenceTitle },
+    context,
     [MODEL],
     { key: "local", fetchFn },
   );
@@ -94,6 +116,12 @@ for (const s of samples) {
   if (s.expected === "pass") got === "pass" ? truePass++ : falseFail++;
   else got === "fail" ? trueFail++ : falsePass++;
   const verdict = report.verdicts[0];
+  if (s.category) {
+    const c = categories.get(s.category) ?? { ok: 0, n: 0 };
+    c.n += 1;
+    if (got === s.expected) c.ok += 1;
+    categories.set(s.category, c);
+  }
   console.log(
     `${got === s.expected ? "ok  " : "MISS"} ${s.id} expected=${s.expected} got=${got} ms=${report.ms} scores=${JSON.stringify(report.scores)}${verdict?.error ? ` error=${verdict.error}` : ""}`,
   );
@@ -103,6 +131,8 @@ const passRecall = truePass / Math.max(1, truePass + falseFail);
 const failRecall = trueFail / Math.max(1, trueFail + falsePass);
 ms.sort((a, b) => a - b);
 const median = ms.length ? ms[Math.floor((ms.length - 1) / 2)] : 0;
+for (const [name, c] of [...categories].sort())
+  console.log(`category ${name}: ${c.ok}/${c.n}`);
 console.log(`pass_recall: ${(passRecall * 100).toFixed(1)}`);
 console.log(`fail_recall: ${(failRecall * 100).toFixed(1)}`);
 console.log(`false_pass: ${falsePass}`);

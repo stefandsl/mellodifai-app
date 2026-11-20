@@ -1,0 +1,15 @@
+{
+  "id": "ro-f-syllables-piata",
+  "expected": "fail",
+  "category": "syllable-overflow",
+  "lang": "ro",
+  "topic": "Sâmbăta la piață cu mama",
+  "brief": "Cântec vesel, pop.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "La piață",
+  "style": "Romanian pop, 108 BPM, female vocal",
+  "lyrics": "[Verse 1]\nSâmbăta dimineață, cu sacoșa,\nmama mă trage de mână prin lume,\nroșii, ardei și brânză de oaie,\nși fiecare țărancă o știe pe nume.\n\n[Chorus]\nLa piață, la piață,\nmiroase a vară și a viață,\nmama gustă fiecare roșie de pe tarabă și se ceartă cu vânzătoarea pentru un leu,\nla piață, la piață,\niar eu car sacoșele grele până acasă și mă gândesc că așa face și bunicul meu.\n\n[Verse 2]\nUn domn vinde miere din Bucovina,\no fată vinde flori de câmp,\nmama le cumpără pe toate,\nși zice că e ultima oară, ca-ntotdeauna.\n\n[Chorus]\nLa piață, la piață,\nmiroase a vară și a viață,\nmama gustă fiecare roșie de pe tarabă și se ceartă cu vânzătoarea pentru un leu,\nla piață, la piață,\niar eu car sacoșele grele până acasă și mă gândesc că așa face și bunicul meu.",
+  "reason": "Chorus lines are 6-9 syllables except two that run past 25 syllables, overflowing the melody in every chorus.",
+  "source": "hand-written"
+}

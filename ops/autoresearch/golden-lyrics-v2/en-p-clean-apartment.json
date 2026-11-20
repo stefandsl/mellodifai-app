@@ -1,0 +1,15 @@
+{
+  "id": "en-p-clean-apartment",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "en",
+  "topic": "Moving into my first apartment",
+  "brief": "Upbeat indie pop, a little proud, a little scared.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Four White Walls",
+  "style": "Indie pop, 120 BPM, female vocal",
+  "lyrics": "[Verse 1]\nBoxes in the hallway, tape around my hands,\na mattress on the floor and no real plans,\nthe faucet makes a sound like it's alive,\nI eat my cereal at half past five.\n\n[Chorus]\nFour white walls and a key of my own,\nnobody calling me back home,\nfour white walls and a window on the street,\nit's small, it's mine, it's incomplete.\n\n[Verse 2]\nI hang a picture slightly to the left,\nI learn which stair will creak beneath my step,\nthe neighbours play guitar at two a.m.,\nand I start singing quietly with them.\n\n[Chorus]\nFour white walls and a key of my own,\nnobody calling me back home,\nfour white walls and a window on the street,\nit's small, it's mine, it's incomplete.",
+  "reason": "On topic, natural English, steady meter, clear repeated hook.",
+  "source": "hand-written"
+}

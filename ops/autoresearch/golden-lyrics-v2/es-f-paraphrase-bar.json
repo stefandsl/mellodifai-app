@@ -1,0 +1,15 @@
+{
+  "id": "es-f-paraphrase-bar",
+  "expected": "fail",
+  "category": "paraphrase",
+  "lang": "es",
+  "topic": "La última copa con un amigo antes de cerrar el bar",
+  "brief": "Una canción nueva sobre la última copa con un amigo antes de cerrar el bar, con el espíritu de la canción de referencia pero con palabras e imágenes propias.",
+  "referenceTitle": "La última cerveza",
+  "referenceLyrics": "[Verse 1]\nCierran el bar a las dos en punto,\nel camarero apila las sillas,\ntú y yo seguimos en la barra,\ncontando historias y pesadillas.\n\n[Chorus]\nLa última cerveza, la última de la noche,\nbrindamos por los que ya se han ido,\nla última cerveza, sin prisa y sin reproche,\nmañana nadie se acuerda de lo vivido.\n\n[Verse 2]\nFuera llueve sobre la plaza,\nun taxi espera con la luz verde,\nme das un abrazo sin palabras,\ny lo que no se dice no se pierde.\n\n[Chorus]\nLa última cerveza, la última de la noche,\nbrindamos por los que ya se han ido,\nla última cerveza, sin prisa y sin reproche,\nmañana nadie se acuerda de lo vivido.",
+  "title": "La última ronda",
+  "style": "Spanish rock, 98 BPM",
+  "lyrics": "[Verse 1]\nCierran el bar a las dos y media,\nel camarero recoge las sillas,\ntú y yo seguimos en la barra,\ncontando cuentos y pesadillas.\n\n[Chorus]\nLa última ronda, la última de la noche,\nbrindamos por los que ya se marcharon,\nla última ronda, sin prisa y sin reproche,\nmañana nadie recuerda lo que pasaron.\n\n[Verse 2]\nFuera llueve sobre la calle,\nun taxi aguarda con la luz verde,\nme das un abrazo sin decir nada,\ny lo que no se dice no se pierde.\n\n[Chorus]\nLa última ronda, la última de la noche,\nbrindamos por los que ya se marcharon,\nla última ronda, sin prisa y sin reproche,\nmañana nadie recuerda lo que pasaron.",
+  "reason": "Close paraphrase of the reference: same lines and images, about 30% of the words swapped.",
+  "source": "hand-written"
+}

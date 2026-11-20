@@ -1,0 +1,15 @@
+{
+  "id": "es-f-register-abuelo",
+  "expected": "fail",
+  "category": "wrong-register",
+  "lang": "es",
+  "topic": "Homenaje a mi abuelo que falleció",
+  "brief": "Canción para la misa en memoria de mi abuelo: respetuosa, serena y emotiva.",
+  "referenceTitle": "Bueno, pues vale",
+  "referenceLyrics": "",
+  "title": "El abuelo era un crack",
+  "style": "Spanish ballad, 70 BPM",
+  "lyrics": "[Verse 1]\nTío, el abuelo era un crack total,\nse marcaba unos bailes que flipas, chaval,\npillaba el tractor y a tope por el pueblo,\ny a la vecina le echaba unos piropos de escándalo.\n\n[Chorus]\nEl abuelo era un crack, qué pasada,\nse ha ido de fiesta sin decirnos nada,\nel abuelo era un crack, a lo loco,\nbrindamos por él con un cubata de coco.\n\n[Verse 2]\nNos dejó la huerta y un gato pocho,\ny un chiste verde que no repito, que es muy chocho,\nle echamos de menos un montón, en serio,\naunque esto de la misa es un muermo.\n\n[Chorus]\nEl abuelo era un crack, qué pasada,\nse ha ido de fiesta sin decirnos nada,\nel abuelo era un crack, a lo loco,\nbrindamos por él con un cubata de coco.",
+  "reason": "On topic and fluent, but party slang ('un crack', 'que flipas', 'cubata', 'un muermo') is the wrong register for a respectful memorial mass.",
+  "source": "hand-written"
+}

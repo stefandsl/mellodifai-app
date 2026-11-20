@@ -1,0 +1,15 @@
+{
+  "id": "en-f-mixed-forbidden-summer",
+  "expected": "fail",
+  "category": "mixed-forbidden",
+  "lang": "en",
+  "topic": "The last day of summer camp",
+  "brief": "For an English-language school choir: English only, no words in other languages.",
+  "referenceTitle": "It's Totally Fine",
+  "referenceLyrics": "",
+  "title": "Last Day of Camp",
+  "style": "Choir pop, 104 BPM",
+  "lyrics": "[Verse 1]\nWe packed our bags and rolled our sleeping mats,\nwe swapped our numbers and we signed our hats,\nthe lake was still, the fire burning low,\nnobody wanted to be the first to go.\n\n[Chorus]\nAdiós, amigos, hasta el verano,\nnunca olvidaré tu mano,\nadiós, amigos, no llores más,\nel año que viene volverás.\n\n[Verse 2]\nThe bus is waiting by the dining hall,\nwe wave until we can't see them at all,\nI've got a friendship bracelet on my wrist,\nand every name I'll ever miss.\n\n[Chorus]\nAdiós, amigos, hasta el verano,\nnunca olvidaré tu mano,\nadiós, amigos, no llores más,\nel año que viene volverás.",
+  "reason": "The brief requires English only, but the whole chorus is in Spanish.",
+  "source": "hand-written"
+}

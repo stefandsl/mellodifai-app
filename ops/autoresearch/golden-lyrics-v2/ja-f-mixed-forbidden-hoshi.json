@@ -1,0 +1,15 @@
+{
+  "id": "ja-f-mixed-forbidden-hoshi",
+  "expected": "fail",
+  "category": "mixed-forbidden",
+  "lang": "ja",
+  "topic": "星空を見上げる子ども",
+  "brief": "日本語のみ。英語は一切使わないこと（童謡コンクール用）。",
+  "referenceTitle": "見ないでポン！",
+  "referenceLyrics": "",
+  "title": "ほしぞら",
+  "style": "Children's song, 92 BPM",
+  "lyrics": "[Verse 1]\nおふとん ぬけだし まどをあけ\nそらいっぱいの ほしをみた\nあれがおおぐま あれがはくちょう\nおとうさんが おしえてくれた\n\n[Chorus]\nTwinkle, twinkle, shining star,\nI can see you from afar,\ntwinkle, twinkle, in the sky,\nsay goodnight and say goodbye.\n\n[Verse 2]\nながれぼしに おねがいしたよ\nあしたも はれに なりますように\nまぶたがだんだん おもくなる\nほしのゆめを みられるかな\n\n[Chorus]\nTwinkle, twinkle, shining star,\nI can see you from afar,\ntwinkle, twinkle, in the sky,\nsay goodnight and say goodbye.",
+  "reason": "The brief forbids English, but the whole chorus is in English.",
+  "source": "hand-written"
+}

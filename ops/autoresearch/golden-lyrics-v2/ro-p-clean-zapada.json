@@ -1,0 +1,15 @@
+{
+  "id": "ro-p-clean-zapada",
+  "expected": "pass",
+  "category": "clean",
+  "lang": "ro",
+  "topic": "Prima zăpadă din an",
+  "brief": "Cântec vesel de iarnă, pop românesc.",
+  "referenceTitle": "Merge și-așa",
+  "referenceLyrics": "",
+  "title": "Prima zăpadă",
+  "style": "Romanian pop, 112 BPM, female vocal",
+  "lyrics": "[Verse 1]\nM-am trezit și totul era alb,\npe stradă nu trecea nicio mașină,\ncopiii vecinilor strigau în curte,\nși cerul cădea încet, în lumină.\n\n[Chorus]\nPrima zăpadă, prima zăpadă,\ntot orașul a ieșit pe stradă,\nprima zăpadă, fulgi pe gene,\niarna a venit, e bine, e bine.\n\n[Verse 2]\nAm scos sania din pod, cu praf pe ea,\ntata zice că mai ține un an,\nalunecăm pe deal până se-nserează,\nși mama ne cheamă cu ceai din geam.\n\n[Chorus]\nPrima zăpadă, prima zăpadă,\ntot orașul a ieșit pe stradă,\nprima zăpadă, fulgi pe gene,\niarna a venit, e bine, e bine.",
+  "reason": "On topic, natural Romanian, steady meter, repeated chorus.",
+  "source": "hand-written"
+}
