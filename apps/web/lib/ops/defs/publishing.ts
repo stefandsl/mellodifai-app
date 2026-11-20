@@ -17,7 +17,27 @@ export const PublishDraft = z.object({
   description: z.string(),
   tags: z.array(z.string()),
   thumbnail_text: z.string(),
+  // The picked cover candidate (migration 20261120000001); "" is the default thumbnail.
+  cover: z.string().optional(),
 });
+// One of the master render's three cover candidates (apps/worker/src/stages/art.ts).
+export const CoverCandidate = z.object({
+  id: z.string(),
+  path: z.string(),
+  frame_sec: z.number().nullable().optional(),
+  lyric_free: z.boolean().nullable().optional(),
+  fonts: z.array(z.string()).optional(),
+  phone: z
+    .object({
+      min_line_px: z.number(),
+      em_px: z.number(),
+      contrast: z.number(),
+    })
+    .nullable()
+    .optional(),
+  source: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+export type CoverCandidate = z.infer<typeof CoverCandidate>;
 export const ScheduleState = z.enum([
   "draft",
   "awaiting_approval",
@@ -47,6 +67,8 @@ export const ScheduleView = z.object({
   price_eur: z.number().nullable(),
   created_via: z.string(),
   vetoed_at: When.nullable(),
+  // Older views (before migration 20261120000001) have none.
+  covers: z.array(CoverCandidate).optional(),
   media: z
     .object({
       state: z.string(),
@@ -100,6 +122,8 @@ const DraftEdit = z
     description: z.string().max(10_000),
     tags: z.array(z.string().max(200)).max(100),
     thumbnail_text: z.string().max(200),
+    // Propose or pick a cover: an agent may set it, only the owner approves the plan.
+    cover: z.enum(["", "cover-1", "cover-2", "cover-3"]),
   })
   .partial()
   .strict();

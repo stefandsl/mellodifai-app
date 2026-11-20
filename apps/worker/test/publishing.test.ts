@@ -153,6 +153,60 @@ describe("publish dispatcher", () => {
     expect(plain.steps).toContain("finish:published");
   });
 
+  it("sends the cover the owner picked to YouTube, and holds when its file is missing", async () => {
+    const picked = (cover: string) =>
+      claim({
+        draft: {
+          title: "Mille volti",
+          description: "Testo",
+          tags: ["pop"],
+          thumbnail_text: "",
+          cover,
+        },
+      });
+    const run = setup({ claims: [picked("cover-2")] });
+    const seen: string[] = [];
+    await dispatchTick({
+      db: run.db,
+      providers: run.providers,
+      workerId: "w",
+      exists: async (path) => {
+        seen.push(path.replace(/\\/gu, "/"));
+        return true;
+      },
+    });
+    expect(run.steps).toContain("finish:published");
+    expect(seen).toEqual(["E:/ws/renders/cover-2.png"]);
+    expect(run.youtube.meta.get("vid-1")?.thumbnail?.replace(/\\/gu, "/")).toBe(
+      "E:/ws/renders/cover-2.png",
+    );
+    // A picked cover that is not on this PC never goes public with another image.
+    const missing = setup({ claims: [picked("cover-3")] });
+    await dispatchTick({
+      db: missing.db,
+      providers: missing.providers,
+      workerId: "w",
+      exists: async () => false,
+    });
+    expect(missing.steps).toEqual([
+      "recover",
+      "claim",
+      "hold:thumbnail_missing",
+    ]);
+    expect(missing.youtube.calls).toEqual([]);
+    // Anything else than cover-1..3 is the default thumbnail, never a path of its choosing.
+    const odd = setup({ claims: [picked("../../secrets/x")] });
+    await dispatchTick({
+      db: odd.db,
+      providers: odd.providers,
+      workerId: "w",
+      exists: yes,
+    });
+    expect(odd.youtube.meta.get("vid-1")?.thumbnail).toMatch(
+      /thumbnail\.png$/u,
+    );
+  });
+
   it("a refused metadata update keeps the video private and stores the code", async () => {
     const run = setup({
       claims: [claim({ render_path: "E:/ws/renders/master.mp4" })],

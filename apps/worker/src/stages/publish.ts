@@ -100,13 +100,24 @@ export const publish: StageHandler = async (context) => {
       ),
   );
   const requested = context.job.payload?.metadata as
-    | { title?: string; description?: string; tags?: string; chapters?: string }
+    | {
+        title?: string;
+        description?: string;
+        tags?: string;
+        chapters?: string;
+        cover?: string;
+      }
     | undefined;
+  // The cover the owner picked in "Pubblica" (cover-1..3 of this render attempt), else the
+  // default thumbnail.
+  const cover = /^cover-[1-3]$/u.test(requested?.cover ?? "")
+    ? `${requested?.cover}.png`
+    : "thumbnail.png";
   const meta = {
     video: render.path,
     captions: join(dirname(render.path), `${lang}.srt`),
     captions_name: pack.title,
-    thumbnail: join(dirname(render.path), "thumbnail.png"),
+    thumbnail: join(dirname(render.path), cover),
     title: requested?.title?.trim() || defaults.title,
     description: [
       requested?.description?.trim() || defaults.description,

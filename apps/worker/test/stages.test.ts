@@ -23,7 +23,7 @@ import { childEnvironment, loadSecrets } from "../src/secrets.js";
 import { refreshBalance } from "../src/stages/generate-song.js";
 import { stages } from "../src/stages/index.js";
 import { nextPacificQuotaTime } from "../src/stages/quota.js";
-import { ENGINE_ROOT, writePack } from "../src/stages/utils.js";
+import { ENGINE_ROOT, previewPath, writePack } from "../src/stages/utils.js";
 import { recordingLedger } from "./support/ledger.js";
 import { workerWithTestStages } from "./support/worker-loop.js";
 
@@ -195,6 +195,61 @@ it("retains the preview of a published render after rerendering", async () => {
   expect(JSON.stringify(remove.mock.calls)).not.toContain(
     "previews/owner/project/fr/version/6/thumbnail.png",
   );
+});
+it.each([
+  [true, "keeps"],
+  [false, "prunes"],
+])(
+  "published=%s: a re-render %s the old attempt's cover candidates",
+  async (published) => {
+    const { ctx, db } = await setup();
+    const covers = [1, 2, 3].map((n) => ({
+      id: `cover-${n}`,
+      path: `previews/owner/project/fr/version/6/cover-${n}.png`,
+    }));
+    db.renders.push({
+      id: "old-master",
+      version_id: ctx.version.id,
+      kind: "master",
+      render_attempt: 6,
+      preview_path: "previews/owner/project/fr/version/6/master-preview.mp4",
+      qa_results: {
+        assets: {
+          thumbnail_path: "previews/owner/project/fr/version/6/thumbnail.png",
+          cover_candidates: covers,
+        },
+      },
+    });
+    if (published)
+      db.publications.push({
+        id: "publication",
+        render_id: "old-master",
+        privacy: "public",
+      });
+    const remove = vi.fn(async () => {});
+    ctx.storage.remove = remove;
+    await stages.render_master?.(ctx);
+    const removed = JSON.stringify(remove.mock.calls);
+    for (const cover of covers)
+      expect(removed.includes(cover.path)).toBe(!published);
+    // The new attempt's own covers live in its own folder: never the published ones.
+    expect(previewPath(ctx, "cover-2.png")).toBe(
+      "previews/owner/project/fr/version/7/cover-2.png",
+    );
+  },
+);
+it("uploads the cover the owner picked as the private upload's thumbnail", async () => {
+  const { ctx, db } = await setup();
+  approvePublish(ctx, db);
+  ctx.job.payload = {
+    ...(ctx.job.payload ?? {}),
+    metadata: { title: "T", description: "", tags: "", cover: "cover-2" },
+  };
+  await stages.publish?.(ctx);
+  const meta = JSON.parse(
+    await readFile(join(ctx.ws.root, "publish", "meta", "fr.json"), "utf8"),
+  ) as { thumbnail: string };
+  expect(meta.thumbnail).toBe(join(ctx.ws.renderDir, "cover-2.png"));
 });
 it("prunes legacy flat render assets only when they are unreferenced", async () => {
   const { ctx, db } = await setup();
@@ -2715,6 +2770,47 @@ describe("exact stage subprocess contracts", () => {
           "fr",
           render("fr.part.srt"),
         ]),
+        command(
+          "ffmpeg",
+          [
+            "-y",
+            "-i",
+            render("video.mp4"),
+            "-vf",
+            "fps=1/2,scale=1280:720",
+            "-q:v",
+            "3",
+            join(render("cover-frames"), "f%04d.jpg"),
+          ],
+          ctx.ws.root,
+        ),
+        command(
+          "python",
+          [
+            "-I",
+            "-X",
+            "utf8",
+            fileURLToPath(
+              new URL("../src/stages/thumbnail.py", import.meta.url),
+            ),
+            "--title=--Night",
+            "--lang",
+            "fr",
+            "--frames",
+            render("cover-frames"),
+            "--step",
+            "2",
+            "--srt",
+            render("fr.srt"),
+            "--manifest",
+            render("cover-manifest.part.json"),
+            "--covers",
+            render("cover-1.part.png"),
+            render("cover-2.part.png"),
+            render("cover-3.part.png"),
+          ],
+          ctx.ws.root,
+        ),
       ],
       publish: [
         command("python", [

@@ -9,6 +9,9 @@ export type DraftFields = {
   description: string;
   tags: string[];
   thumbnail_text: string;
+  // The picked cover candidate (cover-1..3), empty for the default thumbnail. The cover already
+  // carries the song title as typography.
+  cover?: string;
 };
 export type LintIssue = {
   field: keyof DraftFields;
@@ -103,9 +106,12 @@ export function lintYouTubeDraft(draft: DraftFields): LintResult {
   if (words(title).some((word) => VAGUE.has(word)))
     warnings.push({ field: "title", code: "vague" });
   const thumb = words(draft.thumbnail_text);
-  if (!draft.thumbnail_text.trim())
-    warnings.push({ field: "thumbnail_text", code: "missing" });
-  else {
+  const cover = Boolean(draft.cover);
+  if (cover && draft.thumbnail_text.trim())
+    warnings.push({ field: "cover", code: "text_on_cover" });
+  if (!draft.thumbnail_text.trim()) {
+    if (!cover) warnings.push({ field: "thumbnail_text", code: "missing" });
+  } else {
     const titleWords = new Set(words(title).filter((word) => word.length >= 4));
     if (thumb.some((word) => titleWords.has(word)))
       warnings.push({ field: "thumbnail_text", code: "repeats_title" });

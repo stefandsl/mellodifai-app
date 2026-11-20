@@ -19,7 +19,7 @@ import {
 } from "@mellodifai/shared";
 import type { StageContext, StageRegistry, StageResult } from "../loop.js";
 import { workerTempDir } from "../runtime.js";
-import { makeThumbnail } from "../stages/art.js";
+import { makeCovers, makeThumbnail } from "../stages/art.js";
 import {
   genreOf,
   LANGUAGE_NAMES,
@@ -500,6 +500,23 @@ export function createFakeStages(
                   : "image/jpeg",
             );
           } else thumbnailPath = await makeThumbnail(ctx, fixtures.thumbnail);
+          await writeFile(
+            join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
+            "1\n00:00:00,000 --> 00:00:10,000\nA little brighter\n",
+          );
+          await upload(
+            ctx,
+            join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
+            "application/x-subrip",
+          );
+          // The real cover candidates from the fake master's own frames (ffmpeg and PIL, free).
+          const covers = master.path
+            ? await makeCovers(
+                ctx,
+                master.path,
+                join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
+              )
+            : [];
           await ctx.db.patchRender(master.id, {
             qa_results: {
               ...((master.qa_results as Record<string, unknown> | null) ?? {}),
@@ -507,6 +524,7 @@ export function createFakeStages(
                 ...saved,
                 storyboard_path: ctx.version.storyboard_path,
                 thumbnail_path: thumbnailPath,
+                cover_candidates: covers,
                 chosen_take_id: ctx.version.chosen_take_id,
                 lyric_pack: ctx.version.lyric_pack,
                 storyboard_sections: ctx.version.storyboard_sections,
@@ -520,15 +538,6 @@ export function createFakeStages(
               },
             },
           });
-          await writeFile(
-            join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
-            "1\n00:00:00,000 --> 00:00:10,000\nA little brighter\n",
-          );
-          await upload(
-            ctx,
-            join(ctx.ws.renderDir, `${ctx.version.lang}.srt`),
-            "application/x-subrip",
-          );
           result.versionStatus = "video_review";
           break;
         }

@@ -128,6 +128,13 @@ const errorText = (lang: "it" | "en", code: string) =>
       : `error.${ERROR_CODES.includes(code) ? code : "provider_error"}`,
   );
 
+// A cover candidate as the page signed it (null: the image is not reachable).
+export type CoverOption = {
+  id: string;
+  url: string | null;
+  frame_sec?: number | null;
+};
+
 const toDraft = (
   view: ScheduleView | null,
   fallback: DraftFields,
@@ -138,6 +145,7 @@ export function PublishDashboard({
   songTitle,
   canPublish,
   thumbnailUrl,
+  covers = [],
   defaults,
   current,
   past,
@@ -147,6 +155,7 @@ export function PublishDashboard({
   songTitle: string;
   canPublish: boolean;
   thumbnailUrl: string | null;
+  covers?: CoverOption[];
   defaults: DraftFields;
   current: ScheduleView | null;
   past: ScheduleView[];
@@ -182,12 +191,15 @@ export function PublishDashboard({
   const serverErrors = dirty
     ? []
     : (current?.destinations[0]?.problems ?? []).filter(
-        (issue) => issue.code === "no_base_image",
+        (issue) =>
+          issue.code === "no_base_image" || issue.code === "not_a_candidate",
       );
   const errors = [...lint.errors, ...serverErrors];
   const state = current?.state;
   const editable = !!state && EDITABLE.includes(state);
   const destination = current?.destinations[0];
+  const picked = covers.find((cover) => cover.id === draft.cover) ?? null;
+  const previewUrl = picked?.url ?? thumbnailUrl;
   const refresh = (done?: string) => () => {
     if (done) toast.success(done);
     router.refresh();
@@ -509,6 +521,64 @@ export function PublishDashboard({
                     }
                   />
                 </div>
+                <fieldset data-testid="cover-picker" className="grid gap-2">
+                  <legend className="text-sm font-medium">
+                    {pt(lang, "cover")}
+                  </legend>
+                  <span className="text-xs text-muted-foreground">
+                    {covers.length
+                      ? pt(lang, "coverHint")
+                      : pt(lang, "coverNone")}
+                  </span>
+                  <div className="flex flex-wrap gap-3">
+                    {[
+                      { id: "", url: thumbnailUrl, frame_sec: null },
+                      ...covers,
+                    ].map((cover, index) => {
+                      const checked = (draft.cover ?? "") === cover.id;
+                      const label = cover.id
+                        ? pt(lang, "coverOption", {
+                            n: index,
+                            time: cover.frame_sec ?? "-",
+                          })
+                        : pt(lang, "coverDefault");
+                      return (
+                        <label
+                          key={cover.id || "default"}
+                          title={label}
+                          data-cover={cover.id || "default"}
+                          className={`relative block h-[94px] w-[168px] shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-muted has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${checked ? "border-primary" : "border-transparent"}`}
+                        >
+                          <input
+                            type="radio"
+                            name="pub-cover"
+                            value={cover.id}
+                            checked={checked}
+                            aria-label={label}
+                            onChange={() =>
+                              setDraft({ ...draft, cover: cover.id })
+                            }
+                            className="sr-only"
+                          />
+                          {cover.url ? (
+                            // biome-ignore lint/performance/noImgElement: signed media URL, no Next image loader.
+                            <img
+                              src={cover.url}
+                              alt=""
+                              width={168}
+                              height={94}
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            <span className="grid size-full place-items-center p-2 text-center text-xs text-muted-foreground">
+                              {label}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
                 <div className="grid gap-2">
                   <Label htmlFor="pub-description">
                     {pt(lang, "fieldDescription")}
@@ -618,10 +688,11 @@ export function PublishDashboard({
                 </figcaption>
                 <div className="mx-auto w-full max-w-[18rem] rounded-[1.75rem] border-4 border-foreground/80 bg-background p-2">
                   <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
-                    {thumbnailUrl ? (
+                    {previewUrl ? (
                       // biome-ignore lint/performance/noImgElement: signed media URL, no Next image loader.
                       <img
-                        src={thumbnailUrl}
+                        data-testid="preview-image"
+                        src={previewUrl}
                         alt=""
                         className="size-full object-cover"
                       />

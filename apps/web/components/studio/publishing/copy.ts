@@ -18,6 +18,12 @@ const it = {
   fieldDescription: "Descrizione",
   fieldTags: "Tag, separati da virgola",
   fieldThumb: "Testo della miniatura",
+  cover: "Copertina",
+  coverHint:
+    "Tre fotogrammi del tuo video, scelti senza AI, con il titolo. Qui li vedi a grandezza telefono (168x94).",
+  coverDefault: "Miniatura standard",
+  coverOption: "Copertina {n}, fotogramma a {time} s",
+  coverNone: "Nessuna copertina candidata per questo video.",
   preview: "Anteprima su telefono",
   save: "Salva bozza",
   saved: "Bozza salvata",
@@ -149,6 +155,11 @@ const it = {
   "field.description": "Descrizione",
   "field.tags": "Tag",
   "field.thumbnail_text": "Testo della miniatura",
+  "field.cover": "Copertina",
+  "lint.not_a_candidate":
+    "{field}: non è una delle copertine di questo video. Scegline un'altra.",
+  "lint.text_on_cover":
+    "{field}: ha già il titolo, il testo della miniatura ci finisce sopra",
   "field.platform": "Piattaforma",
   "via.session": "tu, nell'app",
   "via.pat": "un agente (token)",
@@ -176,6 +187,12 @@ const en: Record<PublishKey, string> = {
   fieldDescription: "Description",
   fieldTags: "Tags, comma separated",
   fieldThumb: "Thumbnail text",
+  cover: "Cover",
+  coverHint:
+    "Three frames of your video, picked without AI, with the title. Shown here at phone size (168x94).",
+  coverDefault: "Default thumbnail",
+  coverOption: "Cover {n}, frame at {time} s",
+  coverNone: "No cover candidates for this video.",
   preview: "Phone preview",
   save: "Save draft",
   saved: "Draft saved",
@@ -306,6 +323,11 @@ const en: Record<PublishKey, string> = {
   "field.description": "Description",
   "field.tags": "Tags",
   "field.thumbnail_text": "Thumbnail text",
+  "field.cover": "Cover",
+  "lint.not_a_candidate":
+    "{field}: not one of this video's covers. Pick another one.",
+  "lint.text_on_cover":
+    "{field}: already shows the title, the thumbnail text goes on top of it",
   "field.platform": "Platform",
   "via.session": "you, in the app",
   "via.pat": "an agent (token)",

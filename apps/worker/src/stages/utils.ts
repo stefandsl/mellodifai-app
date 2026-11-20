@@ -14,8 +14,9 @@ export function key(stage: string, context: StageContext): string {
 }
 export function previewPath(context: StageContext, file: string): string {
   const renderAsset =
-    /^(master-preview|hook-preview|thumbnail|contact-sheet)\./u.test(file) ||
-    file === `${context.version.lang}.srt`;
+    /^(master-preview|hook-preview|thumbnail|contact-sheet|cover-[1-3])\./u.test(
+      file,
+    ) || file === `${context.version.lang}.srt`;
   return [
     PREVIEW_ROOT,
     context.version.owner_id ?? "unknown",
@@ -122,15 +123,22 @@ export async function upload(
         live.add(sourceThumbnail);
       for (const r of rows.renders) {
         // A visualizer video belongs to no render attempt: a new lyric video leaves it alone.
-        const thumbnail = (
-          r.qa_results as { assets?: { thumbnail_path?: unknown } } | null
-        )?.assets?.thumbnail_path;
+        const assets = (
+          r.qa_results as {
+            assets?: { thumbnail_path?: unknown; cover_candidates?: unknown };
+          } | null
+        )?.assets;
+        const covers = Array.isArray(assets?.cover_candidates)
+          ? assets.cover_candidates.map(
+              (cover: unknown) => (cover as { path?: unknown } | null)?.path,
+            )
+          : [];
         const files =
           r.kind === "visualizer"
             ? r.preview_path
               ? [r.preview_path, posterOf(r.preview_path)]
               : []
-            : [r.preview_path, thumbnail].filter(
+            : [r.preview_path, assets?.thumbnail_path, ...covers].filter(
                 (file): file is string =>
                   typeof file === "string" && Boolean(file),
               );
@@ -142,7 +150,7 @@ export async function upload(
               file,
               r.kind === "visualizer"
                 ? /^(?:visualizer-[^/]+)\.(?:mp4|jpg)$/u
-                : /^(?:master-preview\.mp4|hook-preview\.mp4|thumbnail(?:-1280x720)?\.(?:png|jpg|jpeg|webp))$/u,
+                : /^(?:master-preview\.mp4|hook-preview\.mp4|thumbnail(?:-1280x720)?\.(?:png|jpg|jpeg|webp)|cover-[1-3]\.png)$/u,
             )
           )
             continue;

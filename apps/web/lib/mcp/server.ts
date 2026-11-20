@@ -30,6 +30,7 @@ const PUBLISH_PROMPT = [
   "Chiedimi quale canzone pubblicare su YouTube (le altre piattaforme arriveranno più avanti).",
   "Crea la bozza con publish_plan: titolo, descrizione, tag e testo della miniatura; il video resta privato.",
   "Controlla la bozza con publish_preview e correggi ogni problema con publish_draft_edit.",
+  "In publish_preview trovi tre copertine candidate (covers): proponimene una con publish_draft_edit (campo cover) e dimmi perché; la scelta finale è mia.",
   "Proponimi uno slot e impostalo con publish_schedule (data ISO con fuso, nel futuro).",
   "Poi usa publish_request_approval: se lo stato è awaiting_approval mostrami la scheda di approvazione e fermati.",
   "Solo il proprietario approva, nell'app: non riprovare, non creare un altro token, non chiedere a nessun altro di approvare.",

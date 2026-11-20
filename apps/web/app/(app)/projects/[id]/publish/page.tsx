@@ -124,6 +124,36 @@ export default async function PublishPage({
       ? ((await signed(`${folder}/thumbnail-1280x720.png`)) ??
         (await signed(`${folder}/thumbnail.png`)))
       : null);
+  // The cover candidates of the plan's render, else of the current master (stages/art.ts).
+  const candidates: unknown =
+    shown?.covers ??
+    (master?.qa_results as { assets?: { cover_candidates?: unknown } } | null)
+      ?.assets?.cover_candidates;
+  const covers = await Promise.all(
+    (Array.isArray(candidates) ? (candidates as unknown[]) : []).flatMap(
+      (item) => {
+        const cover = item as {
+          id?: unknown;
+          path?: unknown;
+          frame_sec?: unknown;
+        } | null;
+        if (
+          typeof cover?.id !== "string" ||
+          !/^cover-[1-3]$/u.test(cover.id) ||
+          typeof cover.path !== "string"
+        )
+          return [];
+        const { id, path, frame_sec } = cover;
+        return [
+          (async () => ({
+            id,
+            url: await signed(path),
+            frame_sec: typeof frame_sec === "number" ? frame_sec : null,
+          }))(),
+        ];
+      },
+    ),
+  );
   return (
     <StudioPage title={pt(lang, "title")} eyebrow={songTitle} actions={back}>
       <PublishDashboard
@@ -133,6 +163,7 @@ export default async function PublishPage({
           current.status,
         )}
         thumbnailUrl={thumbnailUrl}
+        covers={covers}
         defaults={{
           title: defaults.title,
           description: defaults.description,

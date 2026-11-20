@@ -373,6 +373,7 @@ it("an edit after the card invalidates it; the owner's yes schedules a private u
       description: "Descrizione",
       tags: "musica,ai",
       chapters: "",
+      cover: "",
     });
     // Scheduled: no more edits without a veto, and no cancel either.
     expect(
@@ -1284,5 +1285,172 @@ it("an old render attempt's YouTube upload does not block a plan for the current
     expect(
       await op(tx, "publish_plan", owner, version, ["youtube"], {}),
     ).toMatchObject({ ok: true, data: { state: "draft" } });
+  });
+});
+
+// Cover candidates (migration 20261120000001, PIANO-UNIFICATO M2b).
+
+async function withCovers(tx: Tx, owner: string, render: string, stored = 3) {
+  const folder = `${owner}/${render}`;
+  const covers = [1, 2, 3].map((n) => ({
+    id: `cover-${n}`,
+    path: `${folder}/cover-${n}.png`,
+    frame_sec: n * 10,
+    lyric_free: true,
+    fonts: ["arialbd.ttf"],
+    phone: { min_line_px: 12, em_px: 13, contrast: 7 },
+    source: { kind: "render_frame", method: "frames-v1", render_attempt: 1 },
+  }));
+  await tx`update public.renders set qa_results=jsonb_build_object('assets',jsonb_build_object('cover_candidates',${tx.json(covers as never)}::jsonb)) where id=${render}`;
+  for (const cover of covers.slice(0, stored))
+    await tx`insert into storage.objects(bucket_id,name,metadata) values('previews',${cover.path},'{"mimetype":"image/png"}')`;
+  return covers;
+}
+
+it("an agent lists the covers and proposes one; the owner's yes covers that pick; it goes to YouTube", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const { version, render } = await video(tx, owner.user_id);
+    await withCovers(tx, owner.user_id, render, 2);
+    const id = await plan(tx, pat, version, inHours(3));
+    const preview = await op(tx, "publish_preview", pat, id);
+    expect(preview.data.covers.map((c: { id: string }) => c.id)).toEqual([
+      "cover-1",
+      "cover-2",
+      "cover-3",
+    ]);
+    expect(preview.data.covers[1]).toMatchObject({
+      frame_sec: 20,
+      phone: { min_line_px: 12 },
+    });
+    expect(preview.data.destinations[0].draft.cover).toBe("");
+    // Only cover-1..3 or "" (the default): anything else is refused.
+    for (const cover of ["../secrets/x.png", "cover-4", 3])
+      expect(
+        await op(tx, "publish_draft_edit", pat, id, "youtube", { cover }),
+        String(cover),
+      ).toMatchObject({ ok: false, code: "validation" });
+    // A candidate whose image is not in Storage blocks the approval.
+    const missing = await op(tx, "publish_draft_edit", pat, id, "youtube", {
+      cover: "cover-3",
+    });
+    expect(missing.data.destinations[0].problems).toEqual([
+      { field: "cover", code: "not_a_candidate" },
+    ]);
+    expect(await op(tx, "publish_request_approval", pat, id)).toMatchObject({
+      ok: false,
+      code: "validation",
+    });
+    // The agent proposes cover-2; the card freezes it; a new pick expires the card.
+    await op(tx, "publish_draft_edit", pat, id, "youtube", {
+      cover: "cover-2",
+    });
+    const card = await op(tx, "publish_request_approval", pat, id);
+    expect(card.data.state).toBe("awaiting_approval");
+    const changed = await op(tx, "publish_draft_edit", pat, id, "youtube", {
+      cover: "cover-1",
+    });
+    expect(changed.data).toMatchObject({
+      state: "draft",
+      approval: { state: "expired" },
+    });
+    expect(
+      await op(
+        tx,
+        "publish_approval_decide",
+        owner,
+        card.data.approval.approval_id,
+        "approve",
+      ),
+    ).toMatchObject({ ok: false });
+    // The agent cannot approve its own proposal.
+    const again = await op(tx, "publish_request_approval", pat, id);
+    expect(
+      await op(
+        tx,
+        "publish_approval_decide",
+        pat,
+        again.data.approval.approval_id,
+        "approve",
+      ),
+    ).toMatchObject({ ok: false, code: "forbidden_scope" });
+    expect(
+      await op(
+        tx,
+        "publish_approval_decide",
+        owner,
+        again.data.approval.approval_id,
+        "approve",
+      ),
+    ).toMatchObject({ ok: true, data: { state: "scheduled" } });
+    // The private upload carries the approved cover as its thumbnail.
+    const [job] =
+      await tx`select payload from public.jobs where stage='publish' and payload->>'render_id'=${render}`;
+    expect(job.payload.metadata.cover).toBe("cover-1");
+    // A pick changed behind the card's back fails closed: nothing goes public.
+    await due(tx, id, render, owner.user_id);
+    await tx`update public.publish_destinations set draft=jsonb_set(draft,'{cover}','"cover-2"') where schedule_id=${id}`;
+    const youtube = new FakeYouTubeClient();
+    const providers = new Map([
+      ["native:youtube", new YouTubeProvider(youtube)],
+    ]);
+    const tick = () =>
+      dispatchTick({
+        db: txDispatchDb(tx),
+        providers,
+        workerId: `wpub-${owner.user_id}`,
+        exists: async () => true,
+      });
+    expect((await tick()).published).toBe(0);
+    expect(await state(tx, id)).toBe("held");
+    expect(youtube.calls).toEqual([]);
+    // Back to the approved pick: the fake YouTube gets cover-1 next to the render.
+    await tx`update public.publish_destinations set draft=jsonb_set(draft,'{cover}','"cover-1"') where schedule_id=${id}`;
+    await tx`update public.publish_schedules set state='scheduled',held_reason=null where id=${id}`;
+    expect((await tick()).published).toBe(1);
+    expect(youtube.meta.get("vid-1")?.thumbnail?.replace(/\\/gu, "/")).toBe(
+      "E:/mellodifai/native-lab/fixture/cover-1.png",
+    );
+    expect(await state(tx, id)).toBe("published");
+  });
+});
+
+it("a re-render never replaces the cover of a published video", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const { version, render } = await video(tx, owner.user_id);
+    await withCovers(tx, owner.user_id, render);
+    const id = await plan(tx, owner, version, inHours(3));
+    await op(tx, "publish_draft_edit", owner, id, "youtube", {
+      cover: "cover-2",
+    });
+    await op(tx, "publish_request_approval", owner, id);
+    await due(tx, id, render, owner.user_id);
+    const youtube = new FakeYouTubeClient();
+    await dispatchTick({
+      db: txDispatchDb(tx),
+      providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
+      workerId: `wpub-${owner.user_id}`,
+      exists: async () => true,
+    });
+    expect(await state(tx, id)).toBe("published");
+    // The owner re-renders: a new attempt with its own covers in its own folder.
+    await tx`update public.versions set render_attempt=render_attempt+1 where id=${version}`;
+    const [next] =
+      await tx`insert into public.renders(owner_id,version_id,kind,render_attempt,path,approved_at)
+      values(${owner.user_id},${version},'master',(select render_attempt from public.versions where id=${version}),'E:/mellodifai/native-lab/fixture/2/master.mp4',now()) returning id`;
+    await withCovers(tx, owner.user_id, next.id);
+    // The published plan still points at its render, its pick and its stored image.
+    const shown = await op(tx, "publish_preview", owner, id);
+    expect(shown.data).toMatchObject({ render_id: render, state: "published" });
+    expect(shown.data.destinations[0].draft.cover).toBe("cover-2");
+    expect(shown.data.covers[1].path).toBe(
+      `${owner.user_id}/${render}/cover-2.png`,
+    );
+    expect(shown.data.destinations[0].problems).toEqual([]);
+    expect(youtube.meta.get("vid-1")?.thumbnail?.replace(/\\/gu, "/")).toBe(
+      "E:/mellodifai/native-lab/fixture/cover-2.png",
+    );
   });
 });

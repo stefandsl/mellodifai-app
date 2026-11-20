@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { lintYouTubeDraft, tagChars } from "./lint.js";
+import { type DraftFields, lintYouTubeDraft, tagChars } from "./lint.js";
 
 const base = {
   title: "Mille volti",
@@ -58,4 +58,19 @@ it("warns on a cut title, a repeated or long thumbnail text and vague words", ()
 it("counts tags like YouTube: quotes around a space and commas between", () => {
   expect(tagChars(["a b", "cd"])).toBe(5 + 2 + 1);
   expect(tagChars([])).toBe(0);
+});
+
+it("pairs the picked cover with the thumbnail text: the cover already shows the title", () => {
+  const codes = (draft: Partial<DraftFields>) =>
+    lintYouTubeDraft({ ...base, ...draft }).warnings.map(
+      (issue) => `${issue.field}:${issue.code}`,
+    );
+  // A picked cover needs no thumbnail text; text on top of it is flagged, never blocked.
+  expect(codes({ thumbnail_text: "", cover: "cover-2" })).toEqual([]);
+  expect(codes({ thumbnail_text: "Nuovo singolo", cover: "cover-1" })).toEqual([
+    "cover:text_on_cover",
+  ]);
+  expect(codes({ thumbnail_text: "", cover: "" })).toEqual([
+    "thumbnail_text:missing",
+  ]);
 });

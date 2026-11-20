@@ -28,6 +28,8 @@ export type Claim = {
     description: string;
     tags: string[];
     thumbnail_text: string;
+    // The picked cover candidate (cover-1..3 of the render attempt); empty for the default.
+    cover?: string;
   };
 };
 // A failure the worker stores and the dashboard shows: a short code, never raw provider text.
@@ -121,8 +123,16 @@ export function postDraft(claim: Claim): PostDraft {
     madeForKids: false,
     platformExtras: {
       videoId: claim.external_id,
+      cover: /^cover-[1-3]$/u.test(claim.draft?.cover ?? "")
+        ? claim.draft?.cover
+        : null,
       thumbnail: claim.render_path
-        ? join(dirname(claim.render_path), "thumbnail.png")
+        ? join(
+            dirname(claim.render_path),
+            /^cover-[1-3]$/u.test(claim.draft?.cover ?? "")
+              ? `${claim.draft?.cover}.png`
+              : "thumbnail.png",
+          )
         : null,
     },
   };
@@ -205,11 +215,11 @@ export async function dispatchTick(input: {
       );
       continue;
     }
-    // Approved thumbnail text needs its base image on this PC: hold with the reason before the
-    // intent, never three refused attempts.
+    // Approved thumbnail text or a picked cover needs its image on this PC: hold with the reason
+    // before the intent, never three refused attempts.
     const base = draft.platformExtras.thumbnail;
     if (
-      draft.thumbnailText?.trim() &&
+      (draft.thumbnailText?.trim() || draft.platformExtras.cover) &&
       !(typeof base === "string" && base && (await exists(base)))
     ) {
       await db.hold(

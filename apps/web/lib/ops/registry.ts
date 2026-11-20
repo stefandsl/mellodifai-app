@@ -392,12 +392,12 @@ export const tokenOps = {
   publish_preview: http(
     publishPreview,
     "/publish/{schedule_id}",
-    "Returns one publication plan with its drafts, the problems that block it, the price, the slot and the veto deadline (scope read); fix problems with publish_draft_edit.",
+    "Returns one publication plan with its drafts, the problems that block it, the price, the slot, the veto deadline and the video's three cover candidates in covers with frame time and phone-size measures (scope read); fix problems with publish_draft_edit.",
   ),
   publish_draft_edit: http(
     publishDraftEdit,
     "/publish/{schedule_id}/draft",
-    "Edits the title, description, tags or thumbnail text of a plan that is not scheduled yet (scope create); an edit cancels a pending approval card, so ask again with publish_request_approval.",
+    "Edits the title, description, tags, thumbnail text or cover (an id from publish_preview covers, empty for the default) of a plan not scheduled yet (scope create); the owner approves the cover with the plan; an edit cancels a pending approval card, so ask again with publish_request_approval.",
   ),
   publish_schedule: http(
     publishSchedule,
