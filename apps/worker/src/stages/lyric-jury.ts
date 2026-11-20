@@ -345,6 +345,50 @@ function words(text: string): string {
     .trim();
 }
 
+// Approximate syllables of a sung line: vowel groups, kana morae, two per Han character, one
+// per Hangul block. Rough, but enough to spot a line twice as long as its neighbours.
+const SMALL_KANA = "ゃゅょぁぃぅぇぉャュョァィゥェォ";
+function syllables(line: string): number {
+  const text = line.toLowerCase();
+  const kana = (
+    text.match(/[\p{Script=Hiragana}\p{Script=Katakana}ー]/gu) ?? []
+  ).filter((c) => !SMALL_KANA.includes(c)).length;
+  const han = (text.match(/\p{Script=Han}/gu) ?? []).length * 2;
+  const hangul = (text.match(/\p{Script=Hangul}/gu) ?? []).length;
+  const vowels = (
+    text.match(/[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüýăœаеёиоуыэюяіїє]+/gu) ?? []
+  ).length;
+  return kana + han + hangul + vowels;
+}
+
+const CHORUS_TAG = /chorus|refrain|hook|ritornello|refren|estribillo|サビ/iu;
+
+// Distinct chorus lines that are at least twice as long as their section's median line and at
+// least 6 syllables longer: one melody cannot carry them.
+export function overlongChorusLines(lyrics: string): string[] {
+  const sections: string[][] = [];
+  let current: string[] | null = null;
+  for (const raw of lyrics.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (line.startsWith("[")) {
+      current = CHORUS_TAG.test(line) ? [] : null;
+      if (current) sections.push(current);
+    } else if (line && current) current.push(line);
+  }
+  const long = new Set<string>();
+  for (const lines of sections) {
+    if (lines.length < 3) continue;
+    const counts = lines.map(syllables);
+    const sorted = [...counts].sort((a, b) => a - b);
+    const median = sorted[Math.floor((sorted.length - 1) / 2)] ?? 0;
+    lines.forEach((line, i) => {
+      const n = counts[i] ?? 0;
+      if (n >= 2 * median && n >= median + 6) long.add(line);
+    });
+  }
+  return [...long];
+}
+
 // The distinct sung lines of a lyric, letters and digits only, lower case.
 function sungLines(text: string): string[] {
   return [
@@ -446,6 +490,14 @@ async function chatVerdict(
     scores.original = 0;
     issues.unshift(
       `The draft reuses the reference title "${context.referenceTitle}".`,
+    );
+  }
+  // Judges miss two chorus lines that overflow the melody; a syllable count does not.
+  const overlong = overlongChorusLines(draft.lyrics);
+  if (overlong.length >= 2) {
+    scores.singable = 0;
+    issues.unshift(
+      `These chorus lines are about twice as long as the others: "${overlong.slice(0, 2).join('", "')}".`,
     );
   }
   // Judges miss a close paraphrase of the reference lyrics; line similarity does not.
