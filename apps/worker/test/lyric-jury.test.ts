@@ -383,3 +383,70 @@ describe("privacy filter", () => {
     expect(String(init.body)).toContain(REDACTION_NOTE.slice(0, 40));
   });
 });
+
+describe("deterministic checks on real data shapes", () => {
+  const yes = Object.fromEntries(keys.map((key) => [key, "yes"]));
+  const reply = (content: Record<string, unknown>) =>
+    vi.fn(async () =>
+      json({ choices: [{ message: { content: JSON.stringify(content) } }] }),
+    );
+
+  it("asks judges for a language code and accepts codes and common names", async () => {
+    const fetchFn = reply({ lyrics_language: "it", scores: yes });
+    expect(
+      (await judge(draft, context, ["m"], { key: "k", fetchFn })).passed,
+    ).toBe(true);
+    const [, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(init.body)).toContain("ISO 639-1");
+    const lyricsFor: Record<string, string> = {
+      zh: "[Chorus]\n差不多就好",
+      ja: "[Chorus]\nみないで",
+    };
+    for (const [lang, seen] of [
+      ["it", "Italiano"],
+      ["zh", "Mandarin"],
+      ["zh", "Chinese (Simplified)"],
+      ["pt", "Brazilian Portuguese"],
+      ["ja", "日本語"],
+      ["ro-RO", "ro"],
+    ] as const) {
+      const report = await judge(
+        { ...draft, lyrics: lyricsFor[lang] ?? draft.lyrics },
+        { ...context, lang },
+        ["m"],
+        { key: "k", fetchFn: reply({ lyrics_language: seen, scores: yes }) },
+      );
+      expect(report.passed, `${lang} ${seen}`).toBe(true);
+    }
+  });
+
+  it("counts one judge's language mismatch as partly, not as a zero", async () => {
+    const single = await judge(draft, context, ["m"], {
+      key: "k",
+      fetchFn: reply({ lyrics_language: "en", scores: yes }),
+    });
+    expect(single.scores.language).toBe(0.5);
+    expect(single.issues[0]).toContain("English, not Italian");
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      const model = JSON.parse(String(init?.body)).model as string;
+      return json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                lyrics_language: model === "a" ? "English" : "it",
+                scores: yes,
+              }),
+            },
+          },
+        ],
+      });
+    });
+    const jury = await judge(draft, context, ["a", "b", "c"], {
+      key: "k",
+      fetchFn: fetchFn as never,
+    });
+    expect(jury.scores.language).toBe(0.83);
+    expect(jury.passed).toBe(true);
+  });
+});

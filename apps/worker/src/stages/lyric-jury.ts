@@ -269,7 +269,7 @@ const JUDGE_INSTRUCTIONS = [
   REDACTION_NOTE,
   'You are a strict judge of song lyrics. Rate the draft on each criterion with "yes" (fully met), "partly" or "no":',
   ...CRITERION_KEYS.map((key) => `"${key}": ${CRITERIA[key]}`),
-  'Reply with one JSON object: {"lyrics_language": the English name of the language most lines are written in, "scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
+  'Reply with one JSON object: {"lyrics_language": the ISO 639-1 code of the language most lines are written in (for example "it", "ja", "en"), "scores": {criterion: "yes" | "partly" | "no"}, "issues": [short concrete problems, quoting the line], "improver": "strong" or "fast"}.',
   'Use "strong" when the draft needs deep rewriting, "fast" when small fixes are enough.',
 ].join("\n");
 
@@ -311,6 +311,61 @@ function languageName(code: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function baseCode(lang: string): string {
+  return lang.trim().toLowerCase().split(/[-_]/u)[0] ?? "";
+}
+
+// Languages a judge may name by an English or native name instead of a code.
+const KNOWN_CODES =
+  "it en es fr de pt ro ru ja ko zh uk bg el ar he hi pl nl sv tr cs hu fi da nb vi th id ca hr sr sk sl lt lv et ga fa ms tl sw".split(
+    " ",
+  );
+const ALIASES: Record<string, string> = {
+  mandarin: "zh",
+  cantonese: "zh",
+  putonghua: "zh",
+  中文: "zh",
+  普通话: "zh",
+  castilian: "es",
+  castellano: "es",
+  farsi: "fa",
+  norwegian: "nb",
+  tagalog: "tl",
+  filipino: "tl",
+  moldovan: "ro",
+};
+let names: Map<string, string> | undefined;
+function languageNames(): Map<string, string> {
+  if (names) return names;
+  names = new Map(Object.entries(ALIASES));
+  for (const code of KNOWN_CODES)
+    for (const locale of ["en", code]) {
+      try {
+        const name = new Intl.DisplayNames([locale], { type: "language" }).of(
+          code,
+        );
+        if (name && name !== code) names.set(name.toLowerCase(), code);
+      } catch {}
+    }
+  return names;
+}
+
+// The ISO 639-1 code of a judge's answer: a code ("it", "pt-BR") or a known name in English
+// or in the language itself ("Italiano", "Mandarin", "Brazilian Portuguese"); undefined when
+// the answer cannot be read, so an unreadable answer never fails a draft.
+export function languageCode(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim().toLowerCase();
+  if (/^[a-z]{2}(?:[-_][a-z0-9]+)*$/u.test(text)) return baseCode(text);
+  const known = languageNames();
+  const plain = text.replace(/\s*[(（][^)）]*[)）]\s*/gu, " ").trim();
+  for (const candidate of [text, plain, ...plain.split(/[\s,/]+/u)]) {
+    const code = known.get(candidate);
+    if (code) return code;
+  }
+  return undefined;
 }
 
 // The letters a language is written in; every other language uses the Latin alphabet.
@@ -466,13 +521,15 @@ async function chatVerdict(
   const issues = Array.isArray(reply.issues)
     ? reply.issues.filter((i): i is string => typeof i === "string")
     : [];
-  // The judge names the language it reads; a mismatch fails the language criterion outright.
+  // The judge names the language it reads. One judge can misread, so its mismatch counts as
+  // "partly": it fails a single-judge jury but not a jury whose other judges agree.
   const wanted = languageName(context.lang);
-  const seen =
-    typeof reply.lyrics_language === "string" ? reply.lyrics_language : "";
-  if (wanted && seen && !seen.toLowerCase().includes(wanted.toLowerCase())) {
-    scores.language = 0;
-    issues.unshift(`The lyrics are in ${seen}, not ${wanted}.`);
+  const seen = languageCode(reply.lyrics_language);
+  if (seen && seen !== baseCode(context.lang)) {
+    scores.language = Math.min(scores.language, RATING.partly ?? 0.5);
+    issues.unshift(
+      `The lyrics are in ${languageName(seen) ?? seen}, not ${wanted ?? context.lang}.`,
+    );
   }
   // Judges echo the requested language; the writing system cannot lie.
   if (scriptShare(draft.lyrics, context.lang) < 0.5) {
