@@ -578,6 +578,33 @@ export function copiedShare(lyrics: string, referenceLyrics: string): number {
   );
 }
 
+const REFERENCE_QUOTE = "[reference line]";
+const QUOTED = /["“„«「『]([^"”»」』]+)["”»」』]/gu;
+
+// An issue that quotes the reference song would store its lyrics with the draft and send them
+// on to the writer: every quoted passage close to a reference line, and every reference line
+// written out in full, becomes a placeholder.
+function redactReference(issue: string, referenceLyrics: string): string {
+  const reference = sungLines(referenceLyrics);
+  if (reference.length === 0) return issue;
+  let text = issue.replace(QUOTED, (quote, inner: string) => {
+    const line = inner.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+    const copied = reference.some(
+      (r) =>
+        similarity(line, r) >= 0.6 || (line.length >= 8 && r.includes(line)),
+    );
+    return copied ? REFERENCE_QUOTE : quote;
+  });
+  for (const raw of referenceLyrics.split(/\r?\n/u)) {
+    if (raw.trim().startsWith("[") || syllables(raw) <= SHORT_LINE) continue;
+    const parts = raw.match(/[\p{L}\p{N}]+/gu);
+    if (!parts) continue;
+    const pattern = parts.map(escapeRegExp).join("[^\\p{L}\\p{N}]+");
+    text = text.replace(new RegExp(pattern, "giu"), REFERENCE_QUOTE);
+  }
+  return text;
+}
+
 async function chatVerdict(
   model: string,
   draft: Draft,
@@ -674,7 +701,9 @@ async function chatVerdict(
   }
   return {
     scores,
-    issues,
+    issues: issues.map((issue) =>
+      redactReference(issue, context.referenceLyrics ?? ""),
+    ),
     improver: reply.improver === "fast" ? "fast" : "strong",
   };
 }

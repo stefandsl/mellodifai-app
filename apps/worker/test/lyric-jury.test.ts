@@ -601,4 +601,27 @@ describe("deterministic checks on real data shapes", () => {
     );
     expect(report.passed).toBe(true);
   });
+
+  it("never stores a judge issue that quotes a reference line", async () => {
+    const line = "Il treno delle sei non aspetta nessuno";
+    const fetchFn = reply({
+      lyrics_language: "it",
+      scores: { ...yes, original: "no" },
+      issues: [
+        `The line "${line.toLowerCase()}" is copied from the reference song.`,
+        `It echoes ${line} almost word for word.`,
+        'The line "la macchinetta" is too short.',
+      ],
+    });
+    const report = await judge(
+      draft,
+      { ...context, referenceLyrics: `[Verse]\n${line},\ncorro sul binario` },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    const text = report.issues.join("\n").toLowerCase();
+    expect(text).not.toContain("treno delle sei");
+    expect(text).toContain("[reference line]");
+    expect(report.issues).toContain('The line "la macchinetta" is too short.');
+  });
 });
