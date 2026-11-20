@@ -345,6 +345,42 @@ function words(text: string): string {
     .trim();
 }
 
+// Approximate syllables of a sung line: vowel groups, kana morae, two per Han character, one
+// per Hangul block. Good enough to show a line far longer than its neighbours.
+const SMALL_KANA = "ゃゅょぁぃぅぇぉャュョァィゥェォ";
+function syllables(line: string): number {
+  const text = line.toLowerCase();
+  const kana = (
+    text.match(/[\p{Script=Hiragana}\p{Script=Katakana}ー]/gu) ?? []
+  ).filter((c) => !SMALL_KANA.includes(c)).length;
+  const han = (text.match(/\p{Script=Han}/gu) ?? []).length * 2;
+  const hangul = (text.match(/\p{Script=Hangul}/gu) ?? []).length;
+  const vowels = (
+    text.match(/[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüýăœаеёиоуыэюяіїє]+/gu) ?? []
+  ).length;
+  return kana + han + hangul + vowels;
+}
+
+// One row per section: its tag and the approximate syllables of each sung line.
+export function syllableMap(lyrics: string): string {
+  const rows: string[] = [];
+  let tag = "Lyrics";
+  let counts: number[] = [];
+  const flush = () => {
+    if (counts.length) rows.push(`${tag}: ${counts.join(" ")}`);
+    counts = [];
+  };
+  for (const raw of lyrics.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (line.startsWith("[")) {
+      flush();
+      tag = line.replace(/^\[|\]$/gu, "");
+    } else if (line) counts.push(syllables(line));
+  }
+  flush();
+  return rows.join("\n");
+}
+
 // The distinct sung lines of a lyric, letters and digits only, lower case.
 function sungLines(text: string): string[] {
   return [
@@ -409,7 +445,7 @@ async function chatVerdict(
         { role: "system", content: JUDGE_INSTRUCTIONS },
         {
           role: "user",
-          content: `Requested topic: ${context.topic}\nLanguage: ${languageName(context.lang) ?? context.lang}\n${context.brief ? `User's brief (its explicit requirements override the defaults, for example a register, an accent, or a second language allowed or forbidden): ${context.brief}\n` : ""}Reference song title (must not be reused): ${context.referenceTitle}\n${context.referenceLyrics ? `Reference song lyrics (the draft must not copy or paraphrase their lines):\n${context.referenceLyrics.slice(0, 4000)}\n` : ""}Title: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}`,
+          content: `Requested topic: ${context.topic}\nLanguage: ${languageName(context.lang) ?? context.lang}\n${context.brief ? `User's brief (its explicit requirements override the defaults, for example a register, an accent, or a second language allowed or forbidden): ${context.brief}\n` : ""}Reference song title (must not be reused): ${context.referenceTitle}\n${context.referenceLyrics ? `Reference song lyrics (the draft must not copy or paraphrase their lines):\n${context.referenceLyrics.slice(0, 4000)}\n` : ""}Title: ${draft.title}\nStyle: ${draft.style}\nLyrics:\n${draft.lyrics}\nApproximate syllables per sung line, by section (a line far longer than the others in its section breaks the meter):\n${syllableMap(draft.lyrics)}`,
         },
       ],
     },
