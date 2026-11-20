@@ -65,7 +65,7 @@ export const CRITERIA = {
   topic:
     "The lyrics are really about the requested topic, not about something else.",
   language:
-    "The lyrics are natural, correct and idiomatic in the requested language, with no clumsy or machine-translated lines. A single ungrammatical or word-for-word translated line already fails this.",
+    "The lyrics are natural, correct and idiomatic in the requested language, with no clumsy or machine-translated lines.",
   singable:
     "Lines have a steady meter, comparable syllable counts within a section and are easy to sing.",
   chorus: "The chorus is catchy, memorable and repeatable.",
