@@ -567,4 +567,38 @@ describe("deterministic checks on real data shapes", () => {
     );
     expect(fine.passed).toBe(true);
   });
+
+  it("leaves lines of three syllables or fewer out of the chorus median", async () => {
+    const fetchFn = reply({ lyrics_language: "it", scores: yes });
+    const report = await judge(
+      {
+        ...draft,
+        lyrics:
+          "[Chorus]\nOh oh\nHey!\nSì!\nla tavola è già pronta per tutti noi\ndomenica dalla nonna si mangia sempre",
+      },
+      context,
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(report.passed).toBe(true);
+  });
+
+  it("leaves lines of three syllables or fewer out of the copied share", async () => {
+    const fetchFn = reply({ lyrics_language: "it", scores: yes });
+    const report = await judge(
+      {
+        ...draft,
+        lyrics:
+          "[Chorus]\nOh oh oh\nYeah yeah\nla sveglia suona quando è ancora notte\nmi vesto al buio senza far rumore\nla stazione è fredda e mezza vuota",
+      },
+      {
+        ...context,
+        referenceLyrics:
+          "[Chorus]\nOh oh oh\nYeah yeah\nIl treno delle sei non aspetta nessuno",
+      },
+      ["m"],
+      { key: "k", fetchFn },
+    );
+    expect(report.passed).toBe(true);
+  });
 });

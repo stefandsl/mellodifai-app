@@ -493,6 +493,9 @@ function syllables(line: string): number {
   return kana + han + hangul + vowels;
 }
 
+// Lines of this many syllables or fewer are shouts or ad-libs, not melody lines.
+const SHORT_LINE = 3;
+
 const CHORUS_TAG = /chorus|refrain|hook|ritornello|refren|estribillo|サビ/iu;
 
 // Distinct chorus lines that are at least twice as long as their section's median line and at
@@ -508,7 +511,10 @@ export function overlongChorusLines(lyrics: string): string[] {
     } else if (line && current) current.push(line);
   }
   const long = new Set<string>();
-  for (const lines of sections) {
+  for (const section of sections) {
+    // Shouts and ad-libs ("Hey!", "Oh oh") are not melody lines: they would drag the median
+    // down and make every real line look twice as long.
+    const lines = section.filter((line) => syllables(line) > SHORT_LINE);
     if (lines.length < 3) continue;
     const counts = lines.map(syllables);
     const sorted = [...counts].sort((a, b) => a - b);
@@ -528,6 +534,8 @@ function sungLines(text: string): string[] {
       text
         .split(/\r?\n/u)
         .filter((line) => line.trim() && !line.trim().startsWith("["))
+        // A shared "Oh oh oh" or "Yeah yeah" is not a copied line.
+        .filter((line) => syllables(line) > SHORT_LINE)
         .map((line) => line.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""))
         .filter((line) => line.length >= 4),
     ),
