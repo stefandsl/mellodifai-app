@@ -279,6 +279,8 @@ export async function launchHostedService(opts: {
   args: string[];
   cwd: string;
   stateFile: string;
+  // Restart backoff unit for tests; the host defaults to one second.
+  backoffMs?: number;
 }) {
   const { root, service, cmd, args, cwd, stateFile } = opts;
   const logs = runtimePath(join(root, "logs"));
@@ -301,6 +303,7 @@ export async function launchHostedService(opts: {
       stdout: join(logs, `${service}.log`),
       stderr: join(logs, `${service}.error.log`),
       ports: service === "cloudflared" ? await expectedPortOwners() : null,
+      backoffMs: opts.backoffMs ?? null,
     }),
   );
   const psQuote = (value: string) => `'${value.replaceAll("'", "''")}'`;

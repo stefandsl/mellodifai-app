@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Globalization;
 using System.Security;
+using System.Security.Principal;
 using System.Text;
 
 // The job handle is never inherited. Closing it kills the entire service tree.
@@ -50,6 +52,8 @@ public sealed class ServiceProcess : IDisposable {
   [DllImport("kernel32.dll", SetLastError=true)] static extern uint ResumeThread(IntPtr thread);
   [DllImport("kernel32.dll", SetLastError=true)] static extern bool TerminateProcess(IntPtr process, uint code);
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool GetProcessTimes(IntPtr process, out long creation, out long exit, out long kernel, out long user);
+  [DllImport("advapi32.dll", SetLastError=true)] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
 
   IntPtr job;
   ProcessInfo process;
@@ -100,6 +104,29 @@ public sealed class ServiceProcess : IDisposable {
       if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
       foreach (var handle in new[] {input, output, error}) if (handle != IntPtr.Zero) CloseHandle(handle);
     }
+  }
+
+  // The same text as WMI Win32_Process.CreationDate in UTC, which keeps only microseconds.
+  // The handle stays valid after the process exits, so this cannot race a fast crash.
+  static string IdentityOf(IntPtr handle) {
+    long creation, exit, kernel, user;
+    if (!GetProcessTimes(handle, out creation, out exit, out kernel, out user)) throw new Win32Exception(Marshal.GetLastWin32Error());
+    var ticks = DateTime.FromFileTimeUtc(creation).Ticks;
+    return new DateTime(ticks - ticks % 10, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture);
+  }
+
+  public static string CurrentIdentity() {
+    using (var current = Process.GetCurrentProcess()) return IdentityOf(current.Handle);
+  }
+
+  public string Identity() { return IdentityOf(process.Process); }
+
+  // Only for a child created with the host's own token; the host can always query that token.
+  public string Owner() {
+    IntPtr token;
+    if (!OpenProcessToken(process.Process, 0x8, out token)) throw new Win32Exception(Marshal.GetLastWin32Error()); // TOKEN_QUERY
+    try { using (var owner = new WindowsIdentity(token)) return owner.Name; }
+    finally { CloseHandle(token); }
   }
 
   public void Resume() {
