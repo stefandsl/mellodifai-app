@@ -4,7 +4,9 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { StackEnv } from "../envs.js";
+import { realRunner } from "../run.js";
 import { NativeDiagnosticError } from "./diagnostics.js";
+import { pidAlive } from "./host.js";
 import { nativeLayout } from "./layout.js";
 
 type Ownership = { active: boolean };
@@ -29,6 +31,28 @@ const exitOnLoss = () => {
   );
   process.exit(1);
 };
+
+/** For the error text only. A lease whose last holder is gone is released as
+ * soon as its helper ends. When it stays locked, say whether that helper still
+ * runs. If it does not, a process that is not a lease helper has the file. */
+async function orphanedLease(path: string, owner: number): Promise<string> {
+  const reply = await realRunner(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:MDF_LEASE_PATH) -and $_.CommandLine.Contains('-OwnerPid ' + $env:MDF_LEASE_OWNER + ' ') } | ForEach-Object { $_.ProcessId }",
+    ],
+    { env: { MDF_LEASE_PATH: path, MDF_LEASE_OWNER: String(owner) } },
+  ).catch(() => null);
+  const gone = `process ${owner} is no longer running`;
+  if (reply?.code !== 0) return ` (${gone})`;
+  const helpers = reply.stdout.split(/\s+/).filter(Boolean);
+  return helpers.length
+    ? ` (${gone}; its lease helper, pid ${helpers.join(", ")}, is still running)`
+    : ` (${gone} and none of its lease helpers is running)`;
+}
 
 /**
  * Hold an OS-backed exclusive lease while the returned release is pending.
@@ -69,6 +93,7 @@ export async function acquireLease(
   const exited = new Promise<void>((done) => child.once("close", () => done()));
   child.stdin.on("error", () => {});
   let active = false;
+  let refused = false;
   let releasing = false;
   child.once("exit", () => {
     if (active && !releasing) onLost();
@@ -86,7 +111,7 @@ export async function acquireLease(
       });
       child.once("exit", () => {
         clearTimeout(timer);
-        if (!active)
+        if (!active && !refused)
           fail(new Error("Stack lease helper exited before acquisition"));
       });
       child.stdout.on("data", (chunk: Buffer) => {
@@ -97,7 +122,9 @@ export async function acquireLease(
           active = true;
           done();
         } else {
+          refused = true;
           let holder = "unknown operation";
+          let orphan = Promise.resolve("");
           try {
             const value = JSON.parse(
               readFileSync(`${path}.holder.json`, "utf8"),
@@ -105,14 +132,18 @@ export async function acquireLease(
             if (
               /^[a-z][a-z0-9-]*$/.test(value.command) &&
               Number.isSafeInteger(value.pid)
-            )
+            ) {
               holder = `${value.command} (pid ${value.pid})`;
+              if (!pidAlive(value.pid)) orphan = orphanedLease(path, value.pid);
+            }
           } catch {
             /* Informational metadata may be absent, never guess ownership. */
           }
-          fail(
-            new NativeDiagnosticError(
-              `Stack lease held by ${holder}; timed out after ${timeoutMs}ms`,
+          void orphan.then((detail) =>
+            fail(
+              new NativeDiagnosticError(
+                `Stack lease held by ${holder}; timed out after ${timeoutMs}ms${detail}`,
+              ),
             ),
           );
         }
