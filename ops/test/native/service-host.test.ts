@@ -58,7 +58,14 @@ it.skipIf(process.platform !== "win32")(
         ).toBeGreaterThanOrEqual(lifeMs + backoffMs * 2 ** restart);
     } finally {
       await managedService("stop", "worker", root);
-      rmSync(root, { recursive: true, force: true });
+      // Windows frees the folder handle of a process that just ended a moment later: rmdir
+      // fails with EBUSY until then, so retry it.
+      rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 20,
+        retryDelay: 100,
+      });
     }
   },
   180_000,
