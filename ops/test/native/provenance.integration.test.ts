@@ -79,5 +79,8 @@ it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
         if (directory) rmSync(directory, { recursive: true, force: true });
     }
   },
-  600_000,
+  // Two production restores, two backups and now a first boot of the e2e
+  // lab: about 300 s on a calm PC (241 s before the reset was added), 547 s
+  // measured under load. Three times the calm cost, as for the other tests.
+  900_000,
 );
