@@ -1,10 +1,25 @@
 import { expect, it } from "vitest";
 import { ledgerHead } from "../../lib/native/identity.js";
 import {
+  assertRehearsalLab,
   phaseVerdict,
   rehearsalEnvironment,
   rehearsalMigrationCount,
 } from "../../test-native.js";
+
+it("lets rehearsal code act only on the rehearsal lab, never on the default production root", () => {
+  const lab = rehearsalEnvironment({}, "E:/cache");
+  expect(() => assertRehearsalLab(lab)).not.toThrow();
+  for (const env of [
+    {},
+    { ...lab, MELLODIFAI_ROOT: undefined },
+    { ...lab, MELLODIFAI_ROOT: "E:/mellodifai" },
+    { ...lab, MELLODIFAI_ROOT: "E:/mellodifai/native-lab" },
+    { ...lab, MDF_NATIVE_REHEARSAL_PORT_BASE: undefined },
+    { ...lab, MDF_NATIVE_REHEARSAL_PORT_BASE: "46320" },
+  ])
+    expect(() => assertRehearsalLab(env)).toThrow(/rehearsal lab/);
+});
 
 it("finds the release of the rehearsal lab's ledger among this checkout's migrations", () => {
   const files = ["1", "2", "3"].map((version) => ({

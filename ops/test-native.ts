@@ -19,6 +19,20 @@ import { assertNativeIntegrationEnvironment } from "./test/native/integration-en
 
 const REHEARSAL_ROOT = "E:/mellodifai/native-lab-prod";
 
+/** Rehearsal code acts on a production-shaped stack and passes production
+ * confirmations. It may only ever see the rehearsal lab: with another root
+ * (the default root is the real production) it must stop before any action. */
+export function assertRehearsalLab(env: NodeJS.ProcessEnv = process.env): void {
+  if (
+    !env.MELLODIFAI_ROOT ||
+    resolve(env.MELLODIFAI_ROOT) !== resolve(REHEARSAL_ROOT) ||
+    env.MDF_NATIVE_REHEARSAL_PORT_BASE !== "46300"
+  )
+    throw new Error(
+      "Rehearsal tests require the production rehearsal lab: MELLODIFAI_ROOT=E:/mellodifai/native-lab-prod and port base 46300",
+    );
+}
+
 /** Ledger hash recorded in the rehearsal lab's verified backup. */
 export function rehearsalLedgerHead(): string {
   const manifest = JSON.parse(
@@ -80,6 +94,9 @@ export function stageRehearsalRelease(target: string): string {
     symlinkSync(join(source, link), join(target, link), "junction");
   if (readMigrations(migrations).length !== kept.size)
     throw new Error("The staged rehearsal release has the wrong migrations");
+  console.log(
+    `Native rehearsal phase: runs as the release of the rehearsal lab's ledger, ${kept.size} of this checkout's ${files.length} migrations`,
+  );
   return join(target, "ops");
 }
 
