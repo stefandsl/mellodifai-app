@@ -734,7 +734,8 @@ it.skipIf(process.platform !== "win32")(
       rmSync(root, { recursive: true, force: true });
     }
   },
-  60000,
+  // About 15 CLI and PowerShell launches: 20 to 35 s on a quiet PC, more than 60 s on a busy one.
+  180000,
 );
 
 it.skipIf(process.platform !== "win32")(

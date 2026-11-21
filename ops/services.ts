@@ -107,7 +107,7 @@ async function identity(pid: number): Promise<string> {
 
 // The supervisor removes this file too, a few milliseconds after its service ends. When both
 // removals meet, the file is already gone or Windows refuses the delete while the supervisor
-// still reads it. Neither means that the stop failed; only a lasting refusal does.
+// still reads it. Neither means that the stop failed; only a refusal that lasts 5 s does.
 async function removeStateFile(path: string): Promise<void> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -116,7 +116,7 @@ async function removeStateFile(path: string): Promise<void> {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT") return;
-      if (!["EPERM", "EACCES", "EBUSY"].includes(code ?? "") || attempt >= 20)
+      if (!["EPERM", "EACCES", "EBUSY"].includes(code ?? "") || attempt >= 100)
         throw error;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
