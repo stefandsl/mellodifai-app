@@ -57,10 +57,16 @@ of every tool is the plan: `state`, `slot_at`, `veto_deadline_at`, `veto_open`, 
 upload) and `events` (history).
 
 States: `draft`, `awaiting_approval`, `scheduled` (veto open), `publishing`, `published`,
-`held` (needs the owner: `held_reason` is `missed_slot`, `gate_failed`, `status_unknown` or
-`thumbnail_missing`; the owner can send a held plan back to draft in the app unless a handoff
-may have reached YouTube, and it then needs a new yes),
+`held` (needs the owner: `held_reason` is `missed_slot`, `gate_failed`, `qa_failed`,
+`status_unknown` or `thumbnail_missing`; the owner can send a held plan back to draft in the app
+unless a handoff may have reached YouTube, and it then needs a new yes),
 `failed`, `vetoed`, `cancelled`, `rejected`, `expired`.
+
+A video whose render failed its QA is never published, also when the owner approved it with the
+override: `destinations[].problems` holds `{"field": "render", "code": "qa_failed"}`,
+`publish_request_approval` answers `validation` and makes no card, and a plan approved earlier is
+held at the slot with `held_reason` `qa_failed`. No draft edit fixes it: the owner makes a new
+render. A render with no QA result (an old video or a legacy import) is not blocked.
 
 When `publish_request_approval` answers `awaiting_approval`: show the card to the person and stop.
 Never retry, never create another token, never ask anyone else to approve. The MCP prompt
