@@ -106,6 +106,8 @@ const it = {
   "held.missed_slot":
     "Lo slot è passato da più di 6 ore con il PC spento: il video resta privato.",
   "held.gate_failed": "Un controllo non è più valido: il video resta privato.",
+  "held.qa_failed":
+    "Il controllo qualità di questo video non è passato: il video resta privato. Fai un nuovo render e pubblica quello.",
   "held.thumbnail_missing":
     "Su questo PC manca l'immagine di base della miniatura: il video resta privato. Rimetti il piano in bozza e rifai la miniatura o togli il testo.",
   "held.status_unknown":
@@ -116,6 +118,8 @@ const it = {
   "lint.invalid": "{field}: valore non valido",
   "lint.no_base_image":
     "{field}: manca l'immagine di base della miniatura. Rifai la miniatura o togli il testo.",
+  "lint.qa_failed":
+    "{field}: il controllo qualità non è passato, quindi non si può pubblicare. Fai un nuovo render.",
   "lint.platform_soon": "Piattaforma non ancora attiva",
   "lint.mobile_cut":
     "{field}: sul telefono si vede solo fino a circa {limit} caratteri",
@@ -156,6 +160,7 @@ const it = {
   "field.tags": "Tag",
   "field.thumbnail_text": "Testo della miniatura",
   "field.cover": "Copertina",
+  "field.render": "Video",
   "lint.not_a_candidate":
     "{field}: non è una delle copertine di questo video. Scegline un'altra.",
   "lint.text_on_cover":
@@ -275,6 +280,8 @@ const en: Record<PublishKey, string> = {
   "held.missed_slot":
     "The slot passed more than 6 hours ago while the PC was off: the video stays private.",
   "held.gate_failed": "A check no longer holds: the video stays private.",
+  "held.qa_failed":
+    "This video did not pass its quality check: the video stays private. Make a new render and publish that one.",
   "held.thumbnail_missing":
     "The base thumbnail image is missing on this PC: the video stays private. Send the plan back to draft and make the thumbnail again or remove the text.",
   "held.status_unknown":
@@ -285,6 +292,8 @@ const en: Record<PublishKey, string> = {
   "lint.invalid": "{field}: invalid value",
   "lint.no_base_image":
     "{field}: the base thumbnail image is missing. Make the thumbnail again or remove the text.",
+  "lint.qa_failed":
+    "{field}: it did not pass the quality check, so it cannot be published. Make a new render.",
   "lint.platform_soon": "Platform not active yet",
   "lint.mobile_cut": "{field}: a phone shows only about {limit} characters",
   "lint.all_caps": "{field}: all capitals is hard to read",
@@ -324,6 +333,7 @@ const en: Record<PublishKey, string> = {
   "field.tags": "Tags",
   "field.thumbnail_text": "Thumbnail text",
   "field.cover": "Cover",
+  "field.render": "Video",
   "lint.not_a_candidate":
     "{field}: not one of this video's covers. Pick another one.",
   "lint.text_on_cover":

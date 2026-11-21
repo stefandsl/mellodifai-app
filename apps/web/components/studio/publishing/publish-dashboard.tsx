@@ -187,13 +187,14 @@ export function PublishDashboard({
   const lint = useMemo(() => lintYouTubeDraft(draft), [draft]);
   const saved = toDraft(current, defaults);
   const dirty = JSON.stringify(saved) !== JSON.stringify(draft);
-  // Problems only the server can see (the base thumbnail in Storage), for the saved draft.
-  const serverErrors = dirty
-    ? []
-    : (current?.destinations[0]?.problems ?? []).filter(
-        (issue) =>
-          issue.code === "no_base_image" || issue.code === "not_a_candidate",
-      );
+  // Problems only the server can see. The base thumbnail and the cover in Storage are for the
+  // saved draft; the failed QA belongs to the render, so no edit of the draft removes it.
+  const serverErrors = (current?.destinations[0]?.problems ?? []).filter(
+    (issue) =>
+      issue.code === "qa_failed" ||
+      (!dirty &&
+        (issue.code === "no_base_image" || issue.code === "not_a_candidate")),
+  );
   const errors = [...lint.errors, ...serverErrors];
   const state = current?.state;
   const editable = !!state && EDITABLE.includes(state);
