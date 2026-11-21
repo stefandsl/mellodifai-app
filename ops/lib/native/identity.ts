@@ -46,14 +46,23 @@ export function dumpLedgerHead(dump: DumpData): string {
       row.sha256,
     ]),
   );
-  const rows = tableRows(ledger)
-    .map((row) => ({
+  return ledgerHead(
+    tableRows(ledger).map((row) => ({
       version: row.version,
       name: row.name,
       sha256: hashes.get(row.version) ?? null,
-    }))
+    })),
+  );
+}
+/** One hash for an ordered migration ledger: versions, names and checksums.
+ * The same list of migration files gives the same hash as its ledger. */
+export function ledgerHead(
+  rows: { version: unknown; name: unknown; sha256: unknown }[],
+): string {
+  const sorted = rows
+    .map(({ version, name, sha256 }) => ({ version, name, sha256 }))
     .sort((a, b) => String(a.version).localeCompare(String(b.version)));
-  return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
+  return createHash("sha256").update(JSON.stringify(sorted)).digest("hex");
 }
 /** The application ledger with its native checksums, as startup reads it. */
 export function dumpAppliedMigrations(

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { nativeLayout } from "../../lib/native/layout.js";
@@ -28,7 +28,7 @@ it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
       "--confirm-production",
     ]);
     await nativeBackup(["backup", "--env", "prod", before]);
-    let bundle: string;
+    let bundle: string | undefined;
     try {
       vi.stubEnv("MELLODIFAI_ROOT", "E:/mellodifai/native-lab");
       vi.stubEnv("MDF_NATIVE_REHEARSAL_PORT_BASE", undefined);
@@ -36,7 +36,10 @@ it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
         nativeLayout("e2e").root,
         `provenance-test-${randomUUID()}`,
       );
-      await runStack("start", "e2e", { runtime: "native" });
+      // A new e2e lab booted by this release has the schema of the production
+      // lab, whatever release last ran the e2e lab: the bundle is refused for
+      // its identity alone.
+      await runStack("reset", "e2e", { runtime: "native" });
       await nativeBackup(["backup", "--env", "e2e", bundle]);
       await runStack("stop", "e2e", { runtime: "native" });
       vi.stubEnv("MELLODIFAI_ROOT", prod);
@@ -71,6 +74,9 @@ it.skipIf(process.env.MDF_NATIVE_REHEARSAL !== "1")(
       ]);
       await runStack("stop", "prod", { runtime: "native" });
       vi.unstubAllEnvs();
+      // Both backups are this test's own. Do not leave them in the labs.
+      for (const directory of [bundle, before])
+        if (directory) rmSync(directory, { recursive: true, force: true });
     }
   },
   600_000,

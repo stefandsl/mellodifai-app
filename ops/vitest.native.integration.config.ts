@@ -25,6 +25,7 @@ export default defineConfig({
       ? REHEARSAL_TESTS
       : ["test/native/**/*.integration.test.ts"],
     exclude: rehearsal ? [] : REHEARSAL_TESTS,
+    setupFiles: rehearsal ? ["test/native/rehearsal-release.ts"] : [],
     maxWorkers: 1,
     fileParallelism: false,
     testTimeout: 300_000,
