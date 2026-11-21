@@ -627,8 +627,10 @@ it("a worker claims only its own owner's plans; three refusals stop the retries"
 // Committed rows on two connections: the veto and the handoff serialize on the schedule row.
 const sql = ownerSql();
 afterAll(() => sql.end());
+const committedOwners: string[] = [];
 async function committed() {
   const user = randomUUID();
+  committedOwners.push(user);
   const email = `${user}@example.test`;
   const session = randomUUID();
   await sql`insert into public.admin_allowlist (email, role) values (${email}, 'admin')`;
@@ -667,6 +669,12 @@ async function committed() {
   expect(await intent(sql, claimed)).toBe(true);
   const veto = () => run("publish_veto", { schedule_id: id });
   const cleanup = async () => {
+    // video() committed a Storage row that has no file. Remove it: the native
+    // backup and the Storage metadata check refuse a row whose file is missing.
+    await sql.begin(async (tx) => {
+      await tx.unsafe("set local storage.allow_delete_query = 'true'");
+      await tx`delete from storage.objects where bucket_id='previews' and name like ${`${user}/%`}`;
+    });
     await sql`delete from auth.users where id=${user}`;
     await sql`delete from public.admin_allowlist where email=${email}`;
   };
@@ -725,6 +733,12 @@ it("a veto and a handoff started together: exactly one wins", async () => {
       await c.cleanup();
     }
   }
+});
+
+it("the committed fixtures leave no Storage row behind", async () => {
+  const [row] =
+    await sql`select count(*)::int as n from storage.objects where bucket_id='previews' and split_part(name,'/',1) = any(${committedOwners})`;
+  expect(row.n).toBe(0);
 });
 
 // Blind-review fixes (fix-brief 2026-11-19).
