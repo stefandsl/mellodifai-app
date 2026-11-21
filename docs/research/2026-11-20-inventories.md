@@ -8,7 +8,7 @@ Date 2026-11-20, against `origin/main` 3d8db34. Full decision files (one per sou
 - Missing with reason: synced LRC export (not asked yet), LM thinking mode, expert diffusion panel, LoRA training (model internals, no product value), social layer (comments, follow, profiles: private studio, YouTube is the public surface), UI languages beyond it/en (no owner request), Matrix glyph-rain look, and the effects strobe, shake, letterbox, hue shift, bloom, pixelate, CCTV (photosensitivity, readability, 9:16 re-layout, brand colours).
 - Visualizer presets map to `circle`, `spectrum`, `mirror`, `contours`, `wirering`, `shaped`, `waveform`, `burst`, `minimal`/`editorial`.
 - Cheap candidate if wanted: `.lrc` download from the existing word timing.
-- No code copied: the repo has no LICENSE file.
+- No code copied: the repo has no LICENSE file. Its `README.md` declares the MIT License, but the link to `LICENSE` is dead.
 
 ## HORIZONS 1ST (R34)
 
@@ -17,7 +17,7 @@ Date 2026-11-20, against `origin/main` 3d8db34. Full decision files (one per sou
 
 ## I:\.YT STUFF (R16)
 
-- 58 folders and 2 installers, read only. 7 packs are audio reactive: the 3 already catalogued (AVP, SPEC, POD) plus Neon Podcast, Sound Keys, Stream Audio and Lyrics Template. Each of their presets maps to one of the 20 built looks; the only unbuilt idea is the `badges` text-ring overlay.
+- 58 folders and 2 installers, read only. 7 packs are audio reactive: the 3 already catalogued (AVP, SPEC, POD) plus Neon Podcast, Sound Keys, Stream Audio and Lyrics Template. Each of their presets maps to one of the 20 built looks. The `badges` text-ring overlay (catalogue P13) is also built: it draws over any look (`drawBadges` in `packages/shared/src/visualizer/viz-looks.ts`, toggle in the Video Studio preset tab, commit `9109a5a`).
 - The other 47 packs (slideshows, titles, transitions, overlays, channel elements, maps) are not visualizer presets; they map to text layers, background mode or effects, or are excluded with a reason. Rerender-A-Video (non-commercial licence), a cracked audio plug-in and two installers are not used.
 - Provenance: torrent naming, a RuTracker advert and a `Crack` folder. Treat the packs as unlicensed unless the owner shows a purchase. The app is not affected (looks are drawn from scratch, nothing shipped).
 - No new look is required.
