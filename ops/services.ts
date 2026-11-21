@@ -105,6 +105,24 @@ async function identity(pid: number): Promise<string> {
   return reply.stdout.trim();
 }
 
+// The supervisor removes this file too, a few milliseconds after its service ends. When both
+// removals meet, the file is already gone or Windows refuses the delete while the supervisor
+// still reads it. Neither means that the stop failed; only a lasting refusal does.
+async function removeStateFile(path: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      unlinkSync(path);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return;
+      if (!["EPERM", "EACCES", "EBUSY"].includes(code ?? "") || attempt >= 20)
+        throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+}
+
 export async function managedService(
   action: string,
   service: Service,
@@ -168,6 +186,7 @@ export async function managedService(
   const stateFile = runtimePath(join(logs, `${service}.pid.json`));
   let running = false;
   let pid = 0;
+  let recorded = "";
   if (existsSync(stateFile)) {
     const state = JSON.parse(
       readFileSync(stateFile, "utf8").replace(/^\uFEFF/, ""),
@@ -181,9 +200,8 @@ export async function managedService(
       state.supervisorPid && state.supervisorIdentity
         ? state.supervisorPid
         : state.pid;
-    running =
-      Boolean(state.identity) &&
-      (await identity(pid)) === (state.supervisorIdentity ?? state.identity);
+    recorded = state.supervisorIdentity ?? state.identity;
+    running = Boolean(state.identity) && (await identity(pid)) === recorded;
   }
   if (action === "status") {
     process.stdout.write(`${running ? "running" : "stopped"}\n`);
@@ -197,10 +215,13 @@ export async function managedService(
         "/T",
         "/F",
       ]);
-      if (result.code !== 0)
+      // taskkill /T exits 128 or 255 when a process it listed has ended by itself, as the
+      // cmd.exe shell of `pnpm start` does once its child is killed. The exit code cannot
+      // tell a stopped tree from a live one, so the recorded process decides.
+      if (result.code !== 0 && (await identity(pid)) === recorded)
         throw new Error("Cannot stop service process tree");
     }
-    if (existsSync(stateFile)) unlinkSync(stateFile);
+    await removeStateFile(stateFile);
     return;
   }
   if (running) return;
