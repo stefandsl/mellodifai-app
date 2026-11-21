@@ -25,12 +25,27 @@ try {
   $executable = (Get-Command -Name $config.command -CommandType Application -ErrorAction Stop).Source
   $user = $null; $domain = $null; $password = $null
   if ($credential) { $user = $config.account; $domain = $env:COMPUTERNAME; $password = $credential.Password }
+  # Tests shorten the restart backoff; production leaves it at one second.
+  $backoffMs = 1000
+  if ($null -ne $config.backoffMs) { $backoffMs = [int]$config.backoffMs }
+  if ($backoffMs -le 0) { throw 'Invalid restart backoff' }
+  $supervisorIdentity = [ServiceProcess]::CurrentIdentity()
   for ($restart = 0; $restart -le 5; $restart++) {
   $service = [ServiceProcess]::CreateSuspended($executable, $config.arguments, $config.cwd, $config.stdout, $config.stderr, $user, $domain, $password)
   $child = $service.Child
-  $processOwner = Invoke-CimMethod -InputObject (Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $child.Id)) -MethodName GetOwner
-  if ($processOwner.ReturnValue -ne 0) { throw 'Cannot verify service process owner' }
-  $actual = $processOwner.Domain + '\' + $processOwner.User
+  # Read owner and identity while the child is still suspended: a child that crashes fast must
+  # not take its supervisor down with it.
+  if ($credential) {
+    # A service account child keeps the WMI checks, which run with rights the host may lack.
+    $processOwner = Invoke-CimMethod -InputObject (Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $child.Id)) -MethodName GetOwner
+    if ($processOwner.ReturnValue -ne 0) { throw 'Cannot verify service process owner' }
+    $actual = $processOwner.Domain + '\' + $processOwner.User
+    $identity = (Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $child.Id)).CreationDate.ToUniversalTime().ToString('o')
+  } else {
+    # WMI takes seconds per query under load; the host's own handle and token answer at once.
+    $actual = $service.Owner()
+    $identity = $service.Identity()
+  }
   if ($actual -ine $expected) { throw 'Service process owner mismatch' }
   function Assert-Ports {
     foreach ($entry in $config.ports.PSObject.Properties) {
@@ -44,15 +59,14 @@ try {
   }
   if ($config.ports) { Assert-Ports }
   $service.Resume()
-  $identity = (Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $child.Id)).CreationDate.ToUniversalTime().ToString('o')
-  @{ pid=$child.Id; identity=$identity; supervisorPid=$PID; supervisorIdentity=(Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $PID)).CreationDate.ToUniversalTime().ToString('o'); owner=$actual; restarts=$restart } | ConvertTo-Json -Compress | Set-Content -LiteralPath $config.state -Encoding UTF8
+  @{ pid=$child.Id; identity=$identity; supervisorPid=$PID; supervisorIdentity=$supervisorIdentity; owner=$actual; restarts=$restart } | ConvertTo-Json -Compress | Set-Content -LiteralPath $config.state -Encoding UTF8
   while (-not $child.WaitForExit(60000)) {
     if ($config.ports) { Assert-Ports }
   }
   $service.Dispose(); $service = $null
   if ($restart -eq 5) { throw 'Service restart limit reached' }
   [Console]::Error.WriteLine('Service exited; restarting within the five restart bound')
-  Start-Sleep -Seconds ([Math]::Min(30, [Math]::Pow(2, $restart)))
+  Start-Sleep -Milliseconds ([int]([Math]::Min(30, [Math]::Pow(2, $restart)) * $backoffMs))
   }
 } catch {
   # Only a fixed diagnostic is logged; credentials and child environment stay private.

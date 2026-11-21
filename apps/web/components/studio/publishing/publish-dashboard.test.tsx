@@ -55,6 +55,30 @@ it("shows why a plan cannot be approved when the thumbnail text has no base imag
   expect(screen.getByRole("button", { name: "Programma" })).toBeDisabled();
 });
 
+it("shows that a video whose QA failed cannot be published, also while the draft is being edited", () => {
+  const current = view();
+  const destination = current.destinations[0];
+  if (!destination) throw new Error("fixture destination missing");
+  destination.problems = [{ field: "render", code: "qa_failed" }];
+  const { container } = show(current);
+  const reason = "Video: il controllo qualità non è passato";
+  expect(screen.getByTestId("lint-errors")).toHaveTextContent(reason);
+  expect(screen.getByRole("button", { name: "Programma" })).toBeDisabled();
+  // An unsaved edit hides the problems of the saved draft, never the render's.
+  const title = container.querySelector("#pub-title");
+  if (!title) throw new Error("title field missing");
+  fireEvent.change(title, { target: { value: "Un altro titolo" } });
+  expect(screen.getByTestId("lint-errors")).toHaveTextContent(reason);
+  expect(screen.getByRole("button", { name: "Programma" })).toBeDisabled();
+});
+
+it("says why a plan was held when the video's QA failed", () => {
+  show(view({ state: "held", held_reason: "qa_failed" }));
+  expect(
+    screen.getByText(/controllo qualità di questo video non è passato/),
+  ).toBeInTheDocument();
+});
+
 it("lets the owner send a held plan back to draft", async () => {
   show(view({ state: "held", held_reason: "thumbnail_missing" }));
   expect(screen.getByText(/manca l'immagine di base/)).toBeInTheDocument();

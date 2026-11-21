@@ -1455,8 +1455,9 @@ polyglot payloads), then stored. Anything else is rejected.
 - Aggregation: per criterion, the mean across valid judges for text juries (as today) and the
   median for vision juries; a jury passes when every criterion reaches its threshold and no
   must-fix item is open.
-- **Availability:** the existing lyric jury stays fail-open in the human-approved Copilot flow,
-  and the Console shows "jury unavailable" when it happens. In Autopilot, and for every new jury,
+- **Availability:** the existing lyric jury, including the criteria M2a adds for remakes, stays
+  fail-open in the human-approved Copilot flow, and the Console shows "jury unavailable" when it
+  happens. In Autopilot, and for every new jury (visual and thumbnail juries),
   "jury unavailable" is a failure: the run stops with `jury_unavailable`.
 - Judge model ids are pinned in `config/gates/` and recorded in every `jury_reports` row with the
   rubric version.

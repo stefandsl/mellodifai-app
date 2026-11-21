@@ -1501,3 +1501,229 @@ it("the approval hash covers each cover's content, and a plan without covers kee
     expect(await hashOf()).not.toBe(frame);
   });
 });
+
+// Render QA gate (migration 20261121000001, PIANO-UNIFICATO R29 M3).
+
+// A QA result as the worker's QA stage writes it (apps/worker/src/stages/qa.ts): four gates and
+// the contact sheet. The measured loudness decides whether it passes.
+const qaResult = (lufs: number) => ({
+  gates: [
+    {
+      name: "integrated_loudness",
+      pass: lufs >= -15 && lufs <= -13,
+      value: lufs,
+    },
+    { name: "true_peak", pass: true, value: -1.4 },
+    { name: "crushed_words", pass: true, value: 0 },
+    { name: "duration", pass: true, value: 181.2, expected: 181 },
+  ],
+  informational: [
+    { name: "contact_sheet", path: "previews/qa/contact-sheet.jpg" },
+  ],
+});
+const setQa = (tx: Tx, render: string, result: object) =>
+  tx`update public.renders set qa_results=${tx.json(result as never)} where id=${render}`;
+const cards = async (tx: Tx, schedule: string) =>
+  Number(
+    (
+      await tx`select count(*)::int n from public.approval_requests where schedule_id=${schedule}`
+    )[0].n,
+  );
+// The owner's worker runs one tick of the real dispatcher against a YouTube that records calls.
+async function tick(tx: Tx, owner: string) {
+  const youtube = new FakeYouTubeClient();
+  youtube.meta.set("vid-1", {
+    title: "Canzone di prova",
+    description: "Descrizione",
+    tags: ["musica", "ai"],
+    thumbnailText: "",
+    thumbnail: null,
+  });
+  const result = await dispatchTick({
+    db: txDispatchDb(tx),
+    providers: new Map([["native:youtube", new YouTubeProvider(youtube)]]),
+    workerId: `wpub-${owner}`,
+    exists: async () => true,
+  });
+  return { result, calls: youtube.calls.map((c) => c.op) };
+}
+
+it("a render whose QA failed gets no approval card: not from the owner, an agent or a standing rule", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const { version, render } = await video(tx, owner.user_id, "video_review");
+    // The QA stage measured a master that is too loud; the owner approves it with the override.
+    await tx`update public.renders set approved_at=null where id=${render}`;
+    await setQa(tx, render, qaResult(-9.8));
+    expect(
+      await op(
+        tx,
+        "admin_video_approve_override",
+        owner,
+        version,
+        "Controllato a mano",
+      ),
+    ).toMatchObject({ ok: true });
+    const [approved] =
+      await tx`select approved_at is not null as approved,override_reason from public.renders where id=${render}`;
+    expect(approved).toMatchObject({
+      approved: true,
+      override_reason: "Controllato a mano",
+    });
+    // A standing rule that would say yes to an agent for a video that passed.
+    expect(
+      await op(tx, "publish_rule_save", owner, {
+        platform: "youtube",
+        max_price_eur: 0,
+        require_veto_hours: 24,
+        active: true,
+      }),
+    ).toMatchObject({ ok: true });
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const id = await plan(tx, pat, version);
+    // The owner and the agent read the reason before anyone asks.
+    const preview = await op(tx, "publish_preview", pat, id);
+    expect(preview.data.destinations[0].problems).toEqual([
+      { field: "render", code: "qa_failed" },
+    ]);
+    for (const who of [pat, owner])
+      expect(
+        await op(tx, "publish_request_approval", who, id),
+        String(who.actor_kind),
+      ).toMatchObject({ ok: false, code: "validation" });
+    expect(await state(tx, id)).toBe("draft");
+    expect(await cards(tx, id)).toBe(0);
+    expect(await publishJobs(tx, render)).toBe(0);
+    expect(await claim(tx)).toEqual([]);
+  });
+});
+
+it("a render whose QA fails after the yes is held before the intent: no handoff, no YouTube call", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const { version, render } = await video(tx, owner.user_id);
+    await setQa(tx, render, qaResult(-14));
+    const id = await plan(tx, owner, version, inHours(2));
+    expect(await op(tx, "publish_request_approval", owner, id)).toMatchObject({
+      data: { state: "scheduled" },
+    });
+    await due(tx, id, render, owner.user_id);
+    // The card exists (made before this gate, or before the QA result changed); the render's QA
+    // result now says failed, as for a render the owner approved with the override.
+    await setQa(tx, render, qaResult(-9.8));
+    await tx`update public.renders set override_reason='Controllato a mano' where id=${render}`;
+    const { result, calls } = await tick(tx, owner.user_id);
+    expect(result).toMatchObject({ published: 0, skipped: 1 });
+    expect(calls).toEqual([]);
+    const held = await op(tx, "publish_preview", owner, id);
+    expect(held).toMatchObject({
+      data: {
+        state: "held",
+        held_reason: "qa_failed",
+        destinations: [{ state: "scheduled" }],
+      },
+    });
+    const kinds = held.data.events.map((e: { kind: string }) => e.kind);
+    expect(kinds).toContain("held");
+    expect(kinds).not.toContain("intent_recorded");
+    expect(kinds).not.toContain("handoff_started");
+    // Nothing is retried, and the video is still private.
+    expect((await tick(tx, owner.user_id)).calls).toEqual([]);
+    const [publication] =
+      await tx`select privacy,privacy_applied from public.publications where render_id=${render}`;
+    expect(publication).toMatchObject({
+      privacy: "private",
+      privacy_applied: "private",
+    });
+    // Back in draft the owner reads why, and no new card is made.
+    expect(await op(tx, "publish_reopen", owner, id)).toMatchObject({
+      data: {
+        state: "draft",
+        destinations: [{ problems: [{ field: "render", code: "qa_failed" }] }],
+      },
+    });
+    expect(
+      await op(tx, "publish_schedule", owner, id, inHours(3)),
+    ).toMatchObject({ ok: true });
+    const before = await cards(tx, id);
+    expect(await op(tx, "publish_request_approval", owner, id)).toMatchObject({
+      ok: false,
+      code: "validation",
+    });
+    expect(await cards(tx, id)).toBe(before);
+  });
+});
+
+it("a render whose QA passed gets its card and goes public at the slot", async () => {
+  await fixture(async (tx) => {
+    const owner = await actor(tx);
+    const pat = await agent(tx, owner, ["read", "create", "spend"]);
+    const { version, render } = await video(tx, owner.user_id);
+    await setQa(tx, render, qaResult(-14));
+    const id = await plan(tx, pat, version, inHours(2));
+    const asked = await op(tx, "publish_request_approval", pat, id);
+    expect(asked).toMatchObject({
+      ok: true,
+      data: {
+        state: "awaiting_approval",
+        approval: { state: "pending" },
+        destinations: [{ problems: [] }],
+      },
+    });
+    expect(
+      await op(
+        tx,
+        "publish_approval_decide",
+        owner,
+        asked.data.approval.approval_id,
+        "approve",
+      ),
+    ).toMatchObject({ data: { state: "scheduled" } });
+    await due(tx, id, render, owner.user_id);
+    const { result, calls } = await tick(tx, owner.user_id);
+    expect(result.published).toBe(1);
+    expect(calls).toEqual(["update", "setPublic"]);
+    expect(await state(tx, id)).toBe("published");
+  });
+});
+
+it("an old approved render without a QA result keeps its approval: its card still publishes and a new card is allowed", async () => {
+  await fixture(async (tx) => {
+    // Two shapes exist in old data: no QA result at all (the column default), and a legacy
+    // import (apps/worker/src/legacy-import.ts), which stores an empty gate list.
+    for (const old of [{}, { gates: [], imported: true }]) {
+      const owner = await actor(tx);
+      const pat = await agent(tx, owner, ["read", "create", "spend"]);
+      const { version, render } = await video(tx, owner.user_id);
+      await setQa(tx, render, old);
+      await tx`update public.renders set approved_at=now()-interval '30 days' where id=${render}`;
+      const id = await plan(tx, pat, version, inHours(2));
+      const asked = await op(tx, "publish_request_approval", pat, id);
+      expect(asked, JSON.stringify(old)).toMatchObject({
+        ok: true,
+        data: {
+          state: "awaiting_approval",
+          destinations: [{ problems: [] }],
+        },
+      });
+      expect(
+        await op(
+          tx,
+          "publish_approval_decide",
+          owner,
+          asked.data.approval.approval_id,
+          "approve",
+        ),
+      ).toMatchObject({ data: { state: "scheduled" } });
+      await due(tx, id, render, owner.user_id);
+      const [claimed] = await claim(tx);
+      expect(await intent(tx, claimed), JSON.stringify(old)).toBe(true);
+      expect(await handoff(tx, claimed)).toBe(true);
+      await finish(tx, claimed, "published");
+      expect(await state(tx, id)).toBe("published");
+      const [kept] =
+        await tx`select approved_at is not null as approved from public.renders where id=${render}`;
+      expect(kept.approved).toBe(true);
+    }
+  });
+});

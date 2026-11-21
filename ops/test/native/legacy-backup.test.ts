@@ -5,7 +5,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { readBackup, restoreNativeData } from "../../lib/native/backup.js";
 import { saveJournal } from "../../lib/native/journal.js";
 import { nativeLayout } from "../../lib/native/layout.js";
+import { maintenanceDatabase } from "../../lib/native/maintenance.js";
 import { nativeBackup } from "../../native-backup.js";
+import { nativeImport } from "../../native-import.js";
 import { fixture } from "./fixtures.js";
 
 vi.mock("../../lib/native/lease.js", () => ({
@@ -13,10 +15,10 @@ vi.mock("../../lib/native/lease.js", () => ({
   assertStackLease: () => {},
 }));
 vi.mock("../../lib/native/maintenance.js", () => ({
-  maintenanceDatabase: async () => ({
+  maintenanceDatabase: vi.fn(async () => ({
     db: { dump: async () => "" },
     stop: async () => {},
-  }),
+  })),
 }));
 vi.mock("../../lib/native/backup.js", async (original) => ({
   ...(await original<typeof import("../../lib/native/backup.js")>()),
@@ -89,4 +91,53 @@ it("refuses a format-1 bundle in recover-import driven by a current journal", as
     nativeBackup(["recover-import", "--env", "e2e", bundle]),
   ).rejects.toThrow(/source identity/);
   expect(vi.mocked(restoreNativeData)).not.toHaveBeenCalled();
+});
+
+/** A bootstrapped native e2e target, so only the source checks can stop an import. */
+function bootstrappedTarget() {
+  vi.stubEnv("MELLODIFAI_RUNTIME", "native");
+  const layout = nativeLayout("e2e");
+  mkdirSync(layout.root, { recursive: true });
+  writeFileSync(join(layout.root, "first-boot.done"), "");
+  return layout;
+}
+
+it("refuses a format-1 bundle as native-import source before it opens the database", async () => {
+  const layout = bootstrappedTarget();
+  const bundle = formatOneBundle(join(layout.root, "old-source"));
+  for (const apply of [false, true])
+    await expect(
+      nativeImport({
+        from: bundle,
+        env: "e2e",
+        apply,
+        replaceEmptyOnly: true,
+        confirmProduction: false,
+      }),
+    ).rejects.toThrow(/source identity/);
+  expect(vi.mocked(maintenanceDatabase)).not.toHaveBeenCalled();
+  expect(vi.mocked(restoreNativeData)).not.toHaveBeenCalled();
+});
+
+it("refuses native-import while a legacy import journal is unrecovered", async () => {
+  const layout = bootstrappedTarget();
+  const source = join(layout.root, "recovery");
+  mkdirSync(source, { recursive: true });
+  writeFileSync(
+    join(layout.root, "import-journal.json"),
+    JSON.stringify({
+      phase: "applying",
+      backup: join(layout.root, "before-import-old"),
+    }),
+  );
+  await expect(
+    nativeImport({
+      from: source,
+      env: "e2e",
+      apply: true,
+      replaceEmptyOnly: true,
+      confirmProduction: false,
+    }),
+  ).rejects.toThrow(/Legacy import maintenance is pending/);
+  expect(vi.mocked(maintenanceDatabase)).not.toHaveBeenCalled();
 });

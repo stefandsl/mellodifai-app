@@ -24,9 +24,11 @@ it.skipIf(process.platform !== "win32")(
     mkdirSync(join(root, "logs"));
     mkdirSync(join(root, "config"));
     writeFileSync(join(root, "config/worker.env"), "WORKER_FAKE=1\n");
+    // The child crashes 100 ms after start, sooner than a WMI query answers under load: the
+    // host must read what it needs before the child runs, or it dies with its child.
     writeFileSync(
       entry,
-      `require('node:fs').appendFileSync(${JSON.stringify(witness)}, 'attempt\\n'); setTimeout(() => process.exit(7), 1500);`,
+      `require('node:fs').appendFileSync(${JSON.stringify(witness)}, Date.now() + '\\n'); setTimeout(() => process.exit(7), ${lifeMs});`,
     );
     try {
       await launchHostedService({
@@ -36,20 +38,24 @@ it.skipIf(process.platform !== "win32")(
         args: [entry],
         cwd: root,
         stateFile,
+        backoffMs,
       });
-      expect(
-        await waitFor(
-          async () =>
-            existsSync(witness) &&
-            readFileSync(witness, "utf8").split("attempt").length === 7 &&
-            !existsSync(stateFile),
-          // Backoff alone is 1+2+4+8+16 s; six hosted launches through PowerShell and CIM add
-          // about 30 s more, and over 80 s under full-suite load.
-          150_000,
-          300,
-        ),
-      ).toBe(true);
-      expect(readFileSync(witness, "utf8").match(/attempt/g)).toHaveLength(6);
+      const state = readFileSync(stateFile, "utf8").replace(/^\uFEFF/, "");
+      const host = JSON.parse(state).supervisorPid as number;
+      // Wait for the host itself to end, so a crashed host fails at once instead of after a
+      // guessed budget. The budget only guards against a hung host.
+      expect(await waitFor(async () => !alive(host), 120_000, 200)).toBe(true);
+      const starts = existsSync(witness)
+        ? readFileSync(witness, "utf8").trim().split("\n").map(Number)
+        : [];
+      expect(starts, "one start and five restarts").toHaveLength(6);
+      expect(existsSync(stateFile), "state removed at the restart limit").toBe(
+        false,
+      );
+      for (let restart = 0; restart < 5; restart++)
+        expect(
+          (starts[restart + 1] ?? 0) - (starts[restart] ?? 0),
+        ).toBeGreaterThanOrEqual(lifeMs + backoffMs * 2 ** restart);
     } finally {
       await managedService("stop", "worker", root);
       rmSync(root, { recursive: true, force: true });
@@ -57,3 +63,15 @@ it.skipIf(process.platform !== "win32")(
   },
   180_000,
 );
+
+const lifeMs = 100;
+const backoffMs = 500;
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
