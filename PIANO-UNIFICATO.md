@@ -156,10 +156,10 @@ Rilievi aperti delle revisioni del 03/11, da chiudere prima di costruire le part
 | Rilievo | Correzione | Giudice |
 |---|---|---|
 | M2a:346 la giuria testi estesa e fail-closed, il design 10.1 la vuole com'e | Chiuso 20/11 (T13): piano e design dicono fail-open in Copilot una sola volta, fail-closed solo in Autopilot (M5); il codice e gia fail-open | `lyric-jury.test.ts` "passes through when no judge answered" |
-| M2a:406 `web_tool_begin` accetta `p_items` dal chiamante senza prompt, durata e intento validati | Obsoleto 20/11 (T13): `web_tool_begin` non esiste in codice ne in migrazioni, solo testo di piano; chi lo costruisce valida l'intento lato server | Test db quando la funzione esiste |
+| M2a:406 `web_tool_begin` accetta `p_items` dal chiamante senza prompt, durata e intento validati | Obsoleto 20/11 (T13): `web_tool_begin` non esiste in codice ne in migrazioni, solo testo di piano; chi lo costruisce valida l'intento lato server (regola scritta nel piano M2a, Task 12) | Test db quando la funzione esiste |
 | M2a:23 caratteri rovinati nel titolo | Chiuso 20/11 (T13): BOM e virgolette rovinate tolti | Lettura |
-| M3:87 invio Midjourney scaduto: il router non vieta di ritentare | Obsoleto 20/11 (T13): nessun codice Midjourney; regola resta nel piano M3 | Test con invio scaduto quando il router esiste |
-| M3:134 si salvano tutte e quattro le uscite Midjourney oltre il limite di R6 | Obsoleto 20/11 (T13): nessun codice Midjourney; regola resta nel piano M3 | Test sul numero di asset quando il router esiste |
+| M3:87 invio Midjourney scaduto: il router non vieta di ritentare | Obsoleto 20/11 (T13): nessun codice Midjourney; regola scritta nel piano M3, Task 3 (`ambiguous_spend` terminale, nessuna rotta successiva) | Test con invio scaduto quando il router esiste |
+| M3:134 si salvano tutte e quattro le uscite Midjourney oltre il limite di R6 | Obsoleto 20/11 (T13): nessun codice Midjourney; regola scritta nel piano M3, Task 3 e 6 (ogni candidato generato conta nel limite di otto) | Test sul numero di asset quando il router esiste |
 | M4:96 il veto entra in conflitto appena la pubblicazione prende il lock | Definire l'ordine veto/lock e il recupero dopo crash | Test: veto un istante dopo il lock e crash a meta |
 
 ## F5. Debian VPS e installer Windows (R03, R04, R23)
