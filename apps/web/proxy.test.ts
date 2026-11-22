@@ -84,3 +84,33 @@ it.each(["/login", "/create", "/auth/confirm", "/api/v10"])(
     );
   },
 );
+
+it("sends a signed-in user from the public home page on to /create", async () => {
+  getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  const response = await proxy(
+    new NextRequest(new URL("/", "http://127.0.0.1:3000"), {
+      headers: { host: "127.0.0.1:3000" },
+    }),
+  );
+  expect(new URL(response.headers.get("location") ?? "x:").pathname).toBe(
+    "/create",
+  );
+});
+
+it.each(["/", "/login"])(
+  "shows %s to a visitor without a session",
+  async (path) => {
+    const response = await proxy(
+      new NextRequest(new URL(path, "http://127.0.0.1:3000")),
+    );
+    expect(response.headers.get("location")).toBeNull();
+  },
+);
+
+it("keeps a signed-in user on pages other than the home page", async () => {
+  getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  const response = await proxy(
+    new NextRequest(new URL("/library", "http://127.0.0.1:3000")),
+  );
+  expect(response.headers.get("location")).toBeNull();
+});
