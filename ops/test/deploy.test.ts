@@ -10,6 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,8 +108,18 @@ function fixture(applied = false) {
 }
 const input = { target: "m1-test", hasAuth: true, skipMigrations: false };
 
-it("loads pinned set-owner and deploy tools with only standalone dependencies", async () => {
-  const root = temp();
+it("loads pinned set-owner and deploy tools with only standalone dependencies", async ({
+  onTestFinished,
+}) => {
+  // This root holds a full pnpm install. Removing it under load takes longer than the 10 s
+  // limit of the shared afterEach, so the test removes it itself, inside its own budget.
+  const base = process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp";
+  mkdirSync(base, { recursive: true });
+  const root = mkdtempSync(join(base, "deploy-test-"));
+  onTestFinished(
+    () => rm(root, { recursive: true, force: true, maxRetries: 5 }),
+    120_000,
+  );
   const pnpm = process.env.npm_execpath;
   if (!pnpm) throw new Error("Run the package tests through pnpm");
   const runner: Runner = (cmd, args, opts) => {

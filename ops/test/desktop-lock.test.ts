@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { oneAtATime, StartBusy } from "../lib/desktop-lock.js";
 
-const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 it.skipIf(process.platform !== "win32")(
   "runs two starts of the same install one after the other and tells the second it waits",
@@ -13,18 +13,28 @@ it.skipIf(process.platform !== "win32")(
     );
     const lock = join(root, "start.lease");
     const events: string[] = [];
-    const start = (name: string) =>
+    // Every try starts a PowerShell helper, which under load takes longer than any fixed
+    // sleep: the logon start holds the lock until the icon start says it waits.
+    const iconWaits = async () => {
+      const deadline = Date.now() + 40_000;
+      while (!events.includes("icon waits") && Date.now() < deadline)
+        await sleep(50);
+    };
+    const start = (name: string, hold: () => Promise<void>) =>
       oneAtATime(
         lock,
         async () => {
           events.push(`${name} in`);
-          await sleep(1500);
+          await hold();
           events.push(`${name} out`);
         },
         { onWait: () => events.push(`${name} waits`) },
       );
     try {
-      await Promise.all([start("logon"), sleep(300).then(() => start("icon"))]);
+      await Promise.all([
+        start("logon", iconWaits),
+        sleep(300).then(() => start("icon", () => sleep(100))),
+      ]);
       // The icon click came second: it said it waits, then ran after the logon start left.
       expect(events).toEqual([
         "logon in",

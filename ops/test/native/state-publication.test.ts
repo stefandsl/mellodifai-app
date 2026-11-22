@@ -10,8 +10,11 @@ it.skipIf(process.platform !== "win32")(
   async () => {
     const file = join(fixture(), "state.json");
     writeFileSync(file, "{}");
+    // The reader opens the file again 1 ms after each read: sharing conflicts stay frequent,
+    // but under load a loop with no pause at all held the file through every one of the 21
+    // rename tries, which no real status reader does.
     const reader = new Worker(
-      `const {parentPort,workerData}=require('node:worker_threads'); const fs=require('node:fs');parentPort.postMessage('ready');for(;;){try{JSON.parse(fs.readFileSync(workerData,'utf8'))}catch{}}`,
+      `const {parentPort,workerData}=require('node:worker_threads'); const fs=require('node:fs');const pause=new Int32Array(new SharedArrayBuffer(4));parentPort.postMessage('ready');for(;;){try{JSON.parse(fs.readFileSync(workerData,'utf8'))}catch{}Atomics.wait(pause,0,0,1)}`,
       { eval: true, workerData: file },
     );
     try {
