@@ -341,6 +341,13 @@
     --site-lift: -0.25rem;
     --site-pixel: 1px;
     --site-scroll-margin: 6rem;
+    --site-page-top: 10.5625rem;
+    --site-page-top-sm: 7rem;
+    --site-page-head-end: 1.5rem;
+    --site-page-head-end-sm: 1.25rem;
+    --site-plans-end: 7.5rem;
+    --site-faq-turn: 45deg;
+    --site-compare-min: 40rem;
     --motion-step: 100ms;
     --motion-rise: 0.75rem;
     --layer-raised: 1;
