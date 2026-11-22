@@ -156,7 +156,7 @@ const en: SiteCopy = {
     nowPlaying: "Playing",
     ready: "Same voice, same band. Only the word changes.",
     missing:
-      "The sample clip is not here yet. It comes with the first song the owner picks.",
+      "The sample clip is not online yet. Start a song to hear your own line.",
     status: "Line 3 sung again in the same voice",
     lanes: ["Words", "Voice", "Band"],
     kindsLabel: "Recipes",
@@ -457,7 +457,7 @@ const it: SiteCopy = {
     nowPlaying: "In ascolto",
     ready: "Stessa voce, stessa band. Cambia solo la parola.",
     missing:
-      "Il campione audio non c'è ancora. Arriva con la prima canzone scelta dal titolare.",
+      "Il campione audio non è ancora online. Inizia una canzone per ascoltare il tuo verso.",
     status: "Verso 3 cantato di nuovo con la stessa voce",
     lanes: ["Parole", "Voce", "Band"],
     kindsLabel: "Ricette",
