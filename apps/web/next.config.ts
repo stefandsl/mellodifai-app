@@ -34,6 +34,13 @@ const nextConfig: NextConfig = {
 
       "./ops/index.js": "../../packages/shared/src/ops/index.ts",
       "../ops/errors.js": "../../packages/shared/src/ops/errors.ts",
+      "../ops/inputs.js": "../../packages/shared/src/ops/inputs.ts",
+      "../remake/workflow.js": "../../packages/shared/src/remake/workflow.ts",
+      "../song-source.js": "../../packages/shared/src/song-source.ts",
+      "./recipes/index.js": "../../packages/shared/src/recipes/index.ts",
+      "./schema.js": "../../packages/shared/src/recipes/schema.ts",
+      "./search.js": "../../packages/shared/src/recipes/search.ts",
+      "./start.js": "../../packages/shared/src/recipes/start.ts",
       "./i18n.js": "../../packages/shared/src/i18n.ts",
       "./lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
       "./publication-defaults.js":
