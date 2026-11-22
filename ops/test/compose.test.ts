@@ -185,6 +185,9 @@ it("serves configured email templates on an internal-only endpoint", () => {
   expect(
     output.services.auth?.environment?.GOTRUE_MAILER_TEMPLATES_MAGIC_LINK,
   ).toBe("http://templates:8080/magic_link.html");
+  expect(
+    output.services.auth?.environment?.GOTRUE_MAILER_SUBJECTS_MAGIC_LINK,
+  ).toBe("Il tuo codice di accesso a MellodifAI");
 });
 
 it("adopts existing production volumes without creating replacements and retains the mapping on render", () => {
