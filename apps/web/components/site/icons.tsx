@@ -1,0 +1,61 @@
+"use client";
+
+import type { SVGProps } from "react";
+
+// Line icons of the site, drawn on a 16 unit grid; Astryx Icon sizes them.
+const base = {
+  viewBox: "0 0 16 16",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.5,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+} as const;
+
+export function MenuGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M3 5.5h10M3 10.5h10" />
+    </svg>
+  );
+}
+
+export function CloseGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </svg>
+  );
+}
+
+export function PlayGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function PauseGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M5.5 3.5v9M10.5 3.5v9" />
+    </svg>
+  );
+}
+
+export function ArrowGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M3 8h10M9.25 4.25 13 8l-3.75 3.75" />
+    </svg>
+  );
+}
+
+export function CheckGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M3.5 8.5l3 3 6-7" />
+    </svg>
+  );
+}

@@ -42,7 +42,15 @@ export async function proxy(request: NextRequest) {
       },
     },
   );
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // The public home page is for visitors; a signed-in user goes on to the studio.
+  if (user && pathname === "/" && request.method === "GET") {
+    const studio = NextResponse.redirect(redirectUrl(request, "/create"));
+    for (const cookie of response.cookies.getAll()) studio.cookies.set(cookie);
+    return studio;
+  }
   return response;
 }
 
