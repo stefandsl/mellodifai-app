@@ -16,11 +16,16 @@ pnpm install
 
 ## Run the worker
 
-In Windows PowerShell, run the worker by hand after creating `apps/worker/.env.local` from the example:
+In Windows PowerShell, run the worker by hand after creating `apps/worker/.env.local` from the example.
+`WORKER_ENV_FILES` is a `;`-separated list of env files; later files override earlier ones:
 
 ```powershell
-$env:WORKER_ENV_FILES='C:\Users\Asus\Documents\Claude\Projects\ita\.env;C:\Users\Asus\Documents\suno-remake\publish\.env;C:\Users\Asus\Documents\mellodifai\apps\worker\.env.local'; pnpm --filter @mellodifai/worker start
+$env:WORKER_ENV_FILES='<path to your keys>.env;<repo>\apps\worker\.env.local'; pnpm --filter @mellodifai/worker start
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
 
 ## apps/worker/.env.example
 
@@ -52,9 +57,8 @@ the worker, Docker API or the development server (`127.0.0.1:3001`).
 
 ### Owner prerequisites
 
-Complete the applicable [owner actions in design section 22](docs/superpowers/specs/2026-11-01-agentic-studio-design.md#22-owner-actions-and-open-questions)
-before enabling remote access. [HANDOFF.md](docs/HANDOFF.md#6-waiting-on-the-owner)
-records what has actually been completed and what remains pending.
+Before enabling remote access, set up the Cloudflare tunnel, the service accounts and the
+secrets under the runtime root described below.
 
 - Move the `mellodifai.com` nameservers to Cloudflare. Run `cloudflared tunnel login`
   and `cloudflared tunnel create mellodifai` as the owner. Keep credentials and the
@@ -86,9 +90,7 @@ records what has actually been completed and what remains pending.
 
 These are owner operations. Run deploy, cutover and restore through `pnpm ops`
 from the operator checkout; restore must not run from the deploy clone it changes.
-Do not rerun the one-time cutover on an already adopted stack. Task 33 completed
-the current installation's cutover; see [the Deploy log](docs/superpowers/plans/2026-11-02-m1-agent-access.md)
-and handoff for evidence and the exact recovery command.
+Do not rerun the one-time cutover on an already adopted stack.
 
 For a legacy installation, `pnpm ops cutover.ts` stops writers, records every
 `public`, `auth` and `storage` table count, takes a private data backup, stops the
@@ -203,7 +205,6 @@ pnpm typecheck
 pnpm test
 ```
 
-Follow [HANDOFF.md](docs/HANDOFF.md#2-rules-you-must-follow-owners-standing-instructions)
-for the complete commit gates and off-C validation setup. Database and browser
+Run lint, typecheck and the tests before every commit, with temporary files off C:. Database and browser
 tests use the isolated e2e stack at API 45621, never live API 44321. Set
 `E2E_PORT=3219` while the owner's launcher holds 3210. Never spend paid credits in tests.
