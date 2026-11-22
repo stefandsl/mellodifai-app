@@ -1,0 +1,672 @@
+{
+  "slug": "home",
+  "route": "/",
+  "sections": [
+    "Hero: rotating title, composer, chip row, agent links, 5 tilted media cards, ruler strip",
+    "Showcase: title, two moving rows of video cards, button",
+    "Three steps: title block, 3 step cards",
+    "Feature list: title block",
+    "Feature 01: number, title, bullet list, panel carousel",
+    "Feature 02: same pattern",
+    "Feature 03: same pattern",
+    "Platform panel: title, link, app screenshot, 3 notes",
+    "Category stage: sticky block with a list of 7 names and a media stage",
+    "Plans block: title, switch, 4 plan cards, compare link",
+    "FAQ: title left, 5 questions right",
+    "Closing band: media mosaic, title, button, note",
+    "Footer"
+  ],
+  "widths": {
+    "390": {
+      "pageHeight": 13869,
+      "sections": [
+        {
+          "name": "Hero: rotating title, composer, chip row, agent links, 5 tilted media cards, ruler strip",
+          "present": true,
+          "y": 0,
+          "h": 828,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Showcase: title, two moving rows of video cards, button",
+          "present": true,
+          "y": 628,
+          "h": 1135,
+          "blocks": 1,
+          "contentLeft": 24,
+          "contentRight": 24,
+          "topInset": 80,
+          "bottomInset": 80,
+          "grid": null
+        },
+        {
+          "name": "Three steps: title block, 3 step cards",
+          "present": true,
+          "y": 1859,
+          "h": 1545,
+          "blocks": 4,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Feature list: title block",
+          "present": true,
+          "y": 3644,
+          "h": 127,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Feature 01: number, title, bullet list, panel carousel",
+          "present": true,
+          "y": 3819,
+          "h": 816,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 1,
+            "colGap": 32,
+            "rowGap": 32,
+            "itemW": 140,
+            "x": 16,
+            "w": 358
+          }
+        },
+        {
+          "name": "Feature 02: same pattern",
+          "present": true,
+          "y": 4636,
+          "h": 723,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 1,
+            "colGap": 32,
+            "rowGap": 32,
+            "itemW": 140,
+            "x": 16,
+            "w": 358
+          }
+        },
+        {
+          "name": "Feature 03: same pattern",
+          "present": true,
+          "y": 5359,
+          "h": 746,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 1,
+            "colGap": 32,
+            "rowGap": 32,
+            "itemW": 140,
+            "x": 16,
+            "w": 358
+          }
+        },
+        {
+          "name": "Platform panel: title, link, app screenshot, 3 notes",
+          "present": true,
+          "y": 6201,
+          "h": 1018,
+          "blocks": 1,
+          "contentLeft": 41,
+          "contentRight": 41,
+          "topInset": 16,
+          "bottomInset": 16,
+          "grid": null
+        },
+        {
+          "name": "Category stage: sticky block with a list of 7 names and a media stage",
+          "present": true,
+          "y": 7219,
+          "h": 977,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 128,
+          "bottomInset": 96,
+          "grid": null
+        },
+        {
+          "name": "Plans block: title, switch, 4 plan cards, compare link",
+          "present": true,
+          "y": 8292,
+          "h": 2626,
+          "blocks": 5,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 22,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 5 questions right",
+          "present": true,
+          "y": 11080,
+          "h": 703,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 40,
+            "rowGap": 40,
+            "itemW": 358,
+            "x": 0,
+            "w": 390
+          }
+        },
+        {
+          "name": "Closing band: media mosaic, title, button, note",
+          "present": true,
+          "y": 11782,
+          "h": 812,
+          "blocks": 1,
+          "contentLeft": 32,
+          "contentRight": 32,
+          "topInset": 16,
+          "bottomInset": 16,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 12594,
+          "h": 1275,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 42,
+            "rowGap": 42,
+            "itemW": 348,
+            "x": 21,
+            "w": 348
+          }
+        }
+      ]
+    },
+    "1024": {
+      "pageHeight": 13128,
+      "sections": [
+        {
+          "name": "Hero: rotating title, composer, chip row, agent links, 5 tilted media cards, ruler strip",
+          "present": true,
+          "y": 0,
+          "h": 968,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Showcase: title, two moving rows of video cards, button",
+          "present": true,
+          "y": 768,
+          "h": 1083,
+          "blocks": 1,
+          "contentLeft": 68,
+          "contentRight": 68,
+          "topInset": 80,
+          "bottomInset": 80,
+          "grid": null
+        },
+        {
+          "name": "Three steps: title block, 3 step cards",
+          "present": true,
+          "y": 1851,
+          "h": 778,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 8,
+            "rowGap": 8,
+            "itemW": 283,
+            "x": 80,
+            "w": 864
+          }
+        },
+        {
+          "name": "Feature list: title block",
+          "present": true,
+          "y": 2805,
+          "h": 84,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Feature 01: number, title, bullet list, panel carousel",
+          "present": true,
+          "y": 2937,
+          "h": 630,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 140,
+            "x": 80,
+            "w": 864
+          }
+        },
+        {
+          "name": "Feature 02: same pattern",
+          "present": true,
+          "y": 3567,
+          "h": 631,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 140,
+            "x": 80,
+            "w": 864
+          }
+        },
+        {
+          "name": "Feature 03: same pattern",
+          "present": true,
+          "y": 4198,
+          "h": 631,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 140,
+            "x": 80,
+            "w": 864
+          }
+        },
+        {
+          "name": "Platform panel: title, link, app screenshot, 3 notes",
+          "present": true,
+          "y": 4925,
+          "h": 976,
+          "blocks": 1,
+          "contentLeft": 81,
+          "contentRight": 81,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 720,
+            "x": 152,
+            "w": 720
+          }
+        },
+        {
+          "name": "Category stage: sticky block with a list of 7 names and a media stage",
+          "present": true,
+          "y": 5901,
+          "h": 3095,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 80,
+          "bottomInset": 16,
+          "grid": null
+        },
+        {
+          "name": "Plans block: title, switch, 4 plan cards, compare link",
+          "present": true,
+          "y": 9092,
+          "h": 1513,
+          "blocks": 2,
+          "contentLeft": 40,
+          "contentRight": 40,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 4,
+            "perRow": 2,
+            "colGap": 16,
+            "rowGap": 16,
+            "itemW": 464,
+            "x": 40,
+            "w": 944
+          }
+        },
+        {
+          "name": "FAQ: title left, 5 questions right",
+          "present": true,
+          "y": 10767,
+          "h": 602,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 96,
+            "rowGap": 96,
+            "itemW": 354,
+            "x": 0,
+            "w": 1024
+          }
+        },
+        {
+          "name": "Closing band: media mosaic, title, button, note",
+          "present": true,
+          "y": 11369,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 292,
+          "contentRight": 292,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 12189,
+          "h": 939,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 324,
+            "x": 35,
+            "w": 954
+          }
+        }
+      ]
+    },
+    "1440": {
+      "pageHeight": 13320,
+      "sections": [
+        {
+          "name": "Hero: rotating title, composer, chip row, agent links, 5 tilted media cards, ruler strip",
+          "present": true,
+          "y": 0,
+          "h": 1100,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Showcase: title, two moving rows of video cards, button",
+          "present": true,
+          "y": 900,
+          "h": 1083,
+          "blocks": 1,
+          "contentLeft": 68,
+          "contentRight": 68,
+          "topInset": 80,
+          "bottomInset": 80,
+          "grid": null
+        },
+        {
+          "name": "Three steps: title block, 3 step cards",
+          "present": true,
+          "y": 1983,
+          "h": 754,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 8,
+            "rowGap": 8,
+            "itemW": 421,
+            "x": 80,
+            "w": 1280
+          }
+        },
+        {
+          "name": "Feature list: title block",
+          "present": true,
+          "y": 2913,
+          "h": 84,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Feature 01: number, title, bullet list, panel carousel",
+          "present": true,
+          "y": 3045,
+          "h": 630,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 140,
+            "x": 80,
+            "w": 1280
+          }
+        },
+        {
+          "name": "Feature 02: same pattern",
+          "present": true,
+          "y": 3675,
+          "h": 631,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 140,
+            "x": 80,
+            "w": 1280
+          }
+        },
+        {
+          "name": "Feature 03: same pattern",
+          "present": true,
+          "y": 4306,
+          "h": 631,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 140,
+            "x": 80,
+            "w": 1280
+          }
+        },
+        {
+          "name": "Platform panel: title, link, app screenshot, 3 notes",
+          "present": true,
+          "y": 5033,
+          "h": 1148,
+          "blocks": 1,
+          "contentLeft": 81,
+          "contentRight": 81,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 783,
+            "x": 186,
+            "w": 1067
+          }
+        },
+        {
+          "name": "Category stage: sticky block with a list of 7 names and a media stage",
+          "present": true,
+          "y": 6181,
+          "h": 3623,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 80,
+          "bottomInset": 16,
+          "grid": null
+        },
+        {
+          "name": "Plans block: title, switch, 4 plan cards, compare link",
+          "present": true,
+          "y": 9804,
+          "h": 1186,
+          "blocks": 1,
+          "contentLeft": 40,
+          "contentRight": 40,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 4,
+            "perRow": 4,
+            "colGap": 16,
+            "rowGap": 16,
+            "itemW": 328,
+            "x": 40,
+            "w": 1360
+          }
+        },
+        {
+          "name": "FAQ: title left, 5 questions right",
+          "present": true,
+          "y": 10990,
+          "h": 553,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 216,
+            "rowGap": 216,
+            "itemW": 354,
+            "x": 0,
+            "w": 1440
+          }
+        },
+        {
+          "name": "Closing band: media mosaic, title, button, note",
+          "present": true,
+          "y": 11543,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 500,
+          "contentRight": 500,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 12363,
+          "h": 957,
+          "blocks": 1,
+          "contentLeft": 115,
+          "contentRight": 115,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 411,
+            "x": 115,
+            "w": 1210
+          }
+        }
+      ]
+    }
+  }
+}

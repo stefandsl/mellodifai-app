@@ -40,6 +40,8 @@ assertTestWebStack({
 
 export default defineConfig({
   testDir: "./e2e",
+  // The public site has its own three-engine config (playwright.site.config.ts).
+  testIgnore: ["site/**"],
   outputDir: join(
     process.env.RUNNER_TEMP ?? process.env.MELLODIFAI_ROOT ?? "E:/mellodifai",
     "test-results/web",

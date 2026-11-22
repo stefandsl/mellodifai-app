@@ -42,7 +42,12 @@ export type LikenessResult = {
   worstSteps: number;
 };
 
-const INSETS = ["contentLeft", "contentRight", "topInset", "bottomInset"] as const;
+const INSETS = [
+  "contentLeft",
+  "contentRight",
+  "topInset",
+  "bottomInset",
+] as const;
 const GRID = ["colGap", "rowGap", "itemW", "x", "w"] as const;
 
 export function compareLayout(
@@ -51,7 +56,8 @@ export function compareLayout(
   options: { stepPx: number; steps?: number },
 ): LikenessResult {
   const steps = options.steps ?? 1;
-  if (!(options.stepPx > 0)) throw new Error("stepPx must be a positive number");
+  if (!(options.stepPx > 0))
+    throw new Error("stepPx must be a positive number");
   const tolerancePx = steps * options.stepPx;
   const failures: string[] = [];
   let checked = 0;
@@ -62,7 +68,9 @@ export function compareLayout(
     const inSteps = Math.ceil(off / options.stepPx - 1e-9);
     worstSteps = Math.max(worstSteps, inSteps);
     if (off > tolerancePx)
-      failures.push(`${id}: ${field} ${got}, reference ${want} (${inSteps} steps off)`);
+      failures.push(
+        `${id}: ${field} ${got}, reference ${want} (${inSteps} steps off)`,
+      );
   };
   for (const width of Object.keys(reference.widths)) {
     const want = reference.widths[width].sections;
@@ -72,7 +80,9 @@ export function compareLayout(
       continue;
     }
     if (want.length !== got.length) {
-      failures.push(`${width}: ${got.length} sections, reference has ${want.length}`);
+      failures.push(
+        `${width}: ${got.length} sections, reference has ${want.length}`,
+      );
       continue;
     }
     let lastY = Number.NEGATIVE_INFINITY;
@@ -80,27 +90,43 @@ export function compareLayout(
       const cand = got[i];
       const id = `${width} #${i} ${ref.name.slice(0, 40)}`;
       if (ref.present !== cand.present) {
-        failures.push(`${id}: present ${cand.present}, reference ${ref.present}`);
+        failures.push(
+          `${id}: present ${cand.present}, reference ${ref.present}`,
+        );
         return;
       }
       if (!ref.present) return;
       if (typeof cand.y === "number") {
-        if (cand.y < lastY) failures.push(`${id}: out of order (y ${cand.y} above the section before it)`);
+        if (cand.y < lastY)
+          failures.push(
+            `${id}: out of order (y ${cand.y} above the section before it)`,
+          );
         lastY = cand.y;
       }
       for (const field of INSETS) value(id, field, ref[field], cand[field]);
       if (!!ref.grid !== !!cand.grid) {
-        failures.push(`${id}: grid ${cand.grid ? "present" : "missing"}, reference ${ref.grid ? "present" : "missing"}`);
+        failures.push(
+          `${id}: grid ${cand.grid ? "present" : "missing"}, reference ${ref.grid ? "present" : "missing"}`,
+        );
         return;
       }
       if (!ref.grid || !cand.grid) return;
       checked++;
       if (ref.grid.perRow !== cand.grid.perRow)
-        failures.push(`${id}: ${cand.grid.perRow} items per row, reference ${ref.grid.perRow}`);
-      for (const field of GRID) value(id, `grid.${field}`, ref.grid[field], cand.grid[field]);
+        failures.push(
+          `${id}: ${cand.grid.perRow} items per row, reference ${ref.grid.perRow}`,
+        );
+      for (const field of GRID)
+        value(id, `grid.${field}`, ref.grid[field], cand.grid[field]);
     });
   }
-  return { pass: failures.length === 0, tolerancePx, checked, failures, worstSteps };
+  return {
+    pass: failures.length === 0,
+    tolerancePx,
+    checked,
+    failures,
+    worstSteps,
+  };
 }
 
 /**
@@ -121,16 +147,27 @@ export function measureLayoutInPage(input: { names: string[]; width: number }) {
   const sy = window.scrollY;
   const visible = (el: Element) => {
     const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
+    return (
+      r.width > 0 &&
+      r.height > 0 &&
+      getComputedStyle(el).visibility !== "hidden"
+    );
   };
   const sections = input.names.map((name, i) => {
-    const blocks = [...document.querySelectorAll(`[data-ref-section="${i}"]`)].filter(visible);
+    // The shared footer carries data-ref-footer and stands for the section named "Footer".
+    const selector = name.startsWith("Footer")
+      ? `[data-ref-section="${i}"], [data-ref-footer]`
+      : `[data-ref-section="${i}"]`;
+    const blocks = [...document.querySelectorAll(selector)].filter(visible);
     if (!blocks.length) return { name, present: false };
     const rects = blocks.map((b) => b.getBoundingClientRect());
     const top = Math.min(...rects.map((r) => r.top)) + sy;
     const bottom = Math.max(...rects.map((r) => r.bottom)) + sy;
     const cols = blocks.map((b) => {
-      const c = (b.matches("[data-ref-content]") ? b : b.querySelector("[data-ref-content]")) ?? b;
+      const c =
+        (b.matches("[data-ref-content]")
+          ? b
+          : b.querySelector("[data-ref-content]")) ?? b;
       const r = c.getBoundingClientRect();
       const s = getComputedStyle(c);
       return [r.left + px(s.paddingLeft), r.right - px(s.paddingRight)];
@@ -139,7 +176,9 @@ export function measureLayoutInPage(input: { names: string[]; width: number }) {
     const right = Math.min(input.width, Math.max(...cols.map((c) => c[1])));
     let grid = null;
     for (const b of blocks) {
-      const g = b.matches("[data-ref-grid]") ? b : b.querySelector("[data-ref-grid]");
+      const g = b.matches("[data-ref-grid]")
+        ? b
+        : b.querySelector("[data-ref-grid]");
       if (!g || !visible(g)) continue;
       const only = g.getAttribute("data-ref-grid-widths");
       if (only && !only.split(",").map(Number).includes(input.width)) continue;
