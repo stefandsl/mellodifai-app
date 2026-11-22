@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { chromium, expect, type Page, test } from "@playwright/test";
 import { SITE_COPY } from "../../lib/site/copy";
 import { cleanRoom } from "../../lib/site/judge/clean-room";
 import {
@@ -95,6 +95,84 @@ for (const [width, height] of SIZES) {
       );
     });
     expect(band).toBeLessThanOrEqual(1);
+  });
+}
+
+// C19: the first load stays light. The home page fetches only the site's own font files (the
+// studio face is not preloaded and not drawn here) and no image heavier than its drawn size needs.
+// A phone context in full Chromium (new headless), as Lighthouse mobile loads the page: the
+// headless shell of the default project does not fetch a block's first font for its metrics.
+test("first load on a phone: only the site's own fonts, no image over 16 KB", async ({
+  browserName,
+  baseURL,
+}) => {
+  test.skip(browserName !== "chromium", "phone emulation is Chromium only");
+  const browser = await chromium.launch({ channel: "chromium" });
+  const context = await browser.newContext({
+    baseURL,
+    viewport: { width: 412, height: 823 },
+    deviceScaleFactor: 1.75,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  const fonts: string[] = [];
+  const images: { url: string; size: Promise<number> }[] = [];
+  page.on("response", (r) => {
+    const type = r.request().resourceType();
+    if (type === "font") fonts.push(new URL(r.url()).pathname);
+    if (type === "image")
+      images.push({
+        url: new URL(r.url()).pathname,
+        size: r.body().then(
+          (b) => b.length,
+          () => 0,
+        ),
+      });
+  });
+  await open(page);
+  await page.waitForLoadState("networkidle");
+  const heavy = [];
+  for (const i of images)
+    if ((await i.size) > 16 * 1024) heavy.push(`${i.url} ${await i.size}`);
+  await browser.close();
+  expect(fonts.length).toBeGreaterThan(0);
+  expect(fonts.filter((f) => !f.startsWith("/site/fonts/"))).toEqual([]);
+  expect(heavy).toEqual([]);
+});
+
+// C19 council: one order and one look for the main action. On a phone the hero reads title,
+// line, main action, as on a wide window, and the main action looks like the header's.
+for (const [width, height] of [
+  [390, 844],
+  [1440, 900],
+] as const) {
+  test(`hero at ${width}x${height}: title, line, then the main action in the header's look`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+    const top = (selector: string) =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((el) => el.getBoundingClientRect().top);
+    const title = await top(".site-hero__title");
+    const lede = await top(".site-hero__lede");
+    const action = await top(".site-hero__primary");
+    expect(title).toBeLessThan(lede);
+    expect(lede).toBeLessThan(action);
+    const look = (selector: string) =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((el) => {
+          const s = getComputedStyle(el);
+          return [s.backgroundColor, s.color, s.borderRadius].join(" | ");
+        });
+    expect(await look(".site-hero__primary")).toBe(
+      await look(".site-header__cta"),
+    );
   });
 }
 
