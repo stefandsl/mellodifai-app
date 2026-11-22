@@ -1,0 +1,188 @@
+/* Shared parts of the public pages: period switch, plan card, compare table, questions, and the
+   pricing page that uses them first. A page that uses a part imports this file. Every value
+   comes from a token (the token judge, lib/site/judge/tokens.ts). */
+
+/* ---------- Pricing: head (reference section 0) ---------- */
+.site-price-head {
+  gap: var(--site-block-gap);
+  padding: var(--site-page-top) var(--site-gutter-inset)
+    var(--site-page-head-end);
+  text-align: center;
+}
+.site-price-head__title {
+  max-width: var(--site-hero-measure);
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--text-display-2-leading);
+  letter-spacing: var(--type-tracking-display);
+  text-wrap: balance;
+}
+.site-price-head__line {
+  max-width: var(--site-measure);
+  text-wrap: pretty;
+}
+
+/* ---------- Pricing: plan grid (reference section 1) ---------- */
+.site-price-plans {
+  padding: 0 var(--site-gutter-wide) var(--site-plans-end);
+}
+.site-price-plans__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--site-plan-gap);
+}
+
+/* ---------- Plan card ---------- */
+.site-plan-card__body {
+  height: 100%;
+}
+/* Every period's unit sits in the same cell: the cell is as tall as the tallest, always. */
+.site-plan-card__units {
+  display: grid;
+}
+.site-plan-card__unit {
+  grid-area: 1 / 1;
+}
+.site-plan-card__unit[data-shown="false"] {
+  visibility: hidden;
+}
+.site-plan-card__units[data-animate="true"]
+  .site-plan-card__unit[data-shown="true"] {
+  animation: site-unit-in var(--duration-medium) var(--ease-entrance);
+}
+@keyframes site-unit-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
+}
+
+/* ---------- Pricing: compare table (reference section 2) ---------- */
+.site-price-compare {
+  padding: 0 var(--site-gutter-wide);
+}
+.site-price-compare__title {
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--text-display-2-leading);
+}
+
+.site-compare {
+  width: 100%;
+  min-width: var(--site-compare-min);
+  table-layout: fixed;
+}
+/* One hairline under every row, the same in the row-header column and in the plan columns. */
+.site .site-compare :is(th, td) {
+  /* Words wrap in their cell; the narrow table scrolls instead of cutting them. */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+.site-compare__corner {
+  width: 28%;
+}
+.site-compare__plan,
+.site-compare__cell {
+  text-align: center;
+}
+.site-compare__cell > * {
+  margin-inline: auto;
+}
+.site-compare__plan > * {
+  display: block;
+}
+.site-compare__plan-name {
+  font-size: var(--text-heading-3-size);
+}
+.site .site-compare .site-compare__group {
+  border-bottom-color: transparent;
+  padding-top: var(--spacing-8);
+  font-family: var(--font-family-code);
+  font-size: var(--text-code-size);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  text-align: start;
+  color: var(--color-text-secondary);
+}
+.site-compare__feature {
+  font-weight: var(--font-weight-normal);
+  text-align: start;
+  color: var(--color-text-primary);
+}
+
+/* ---------- Questions (a part of any FAQ section) ---------- */
+.site-faq__heading {
+  margin: 0;
+  font: inherit;
+}
+.site .site-faq__trigger {
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  height: auto;
+  min-height: var(--size-element-lg);
+  padding-block: var(--spacing-3);
+  padding-inline: 0;
+  text-align: start;
+  white-space: normal;
+}
+.site-faq__icon {
+  flex: none;
+  transition: transform var(--duration-medium) var(--ease-standard);
+}
+.site-faq__item[data-open="true"] .site-faq__icon {
+  transform: rotate(var(--site-faq-turn));
+}
+/* The answer folds to zero height; it stays hidden until the fold has closed. */
+.site .site-faq__panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--duration-medium) var(--ease-standard),
+    visibility 0s linear var(--duration-medium);
+}
+.site .site-faq__item[data-open="true"] > .site-faq__panel {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition:
+    grid-template-rows var(--duration-medium) var(--ease-standard),
+    visibility 0s;
+}
+.site-faq__fold {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------- Under 80em (1024 to 1279 px) ---------- */
+@media (max-width: 79.9375em) {
+  .site-price-plans__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Under 48em (phones) ---------- */
+@media (max-width: 47.9375em) {
+  .site-price-head {
+    gap: var(--spacing-8);
+    padding: var(--site-page-top-sm) var(--site-gutter-inset)
+      var(--site-page-head-end-sm);
+  }
+  .site-price-head__title {
+    font-size: var(--font-size-3xl);
+  }
+  .site-price-plans {
+    padding: var(--site-plans-end-sm) var(--site-gutter-inset) 0;
+  }
+  .site-price-plans__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .site-price-compare {
+    margin-top: var(--spacing-4);
+    padding: 0 var(--site-gutter-inset);
+  }
+}
