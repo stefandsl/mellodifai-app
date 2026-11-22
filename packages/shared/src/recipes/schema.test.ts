@@ -272,22 +272,29 @@ describe("RecipeSchema", () => {
 
   it("fails on unknown bindsTo, mismatched input kind, or duplicate input ids", () => {
     const unknownBind = sampleSatireRecipe();
-    unknownBind.inputs[1] = {
-      ...unknownBind.inputs[1],
-      bindsTo: "nonexistent.arg" as never,
-    };
-    expect(RecipeSchema.safeParse(unknownBind).success).toBe(false);
+    const unknownInputs: unknown[] = [...unknownBind.inputs];
+    unknownInputs[1] = { ...unknownBind.inputs[1], bindsTo: "nonexistent.arg" };
+    expect(
+      RecipeSchema.safeParse({ ...unknownBind, inputs: unknownInputs }).success,
+    ).toBe(false);
 
     const mismatchedBind = sampleSatireRecipe();
-    mismatchedBind.inputs[1] = {
+    const mismatchedInputs: unknown[] = [...mismatchedBind.inputs];
+    mismatchedInputs[1] = {
       ...mismatchedBind.inputs[1],
-      bindsTo: "remake_start.url" as never,
+      bindsTo: "remake_start.url",
     };
-    expect(RecipeSchema.safeParse(mismatchedBind).success).toBe(false);
+    expect(
+      RecipeSchema.safeParse({ ...mismatchedBind, inputs: mismatchedInputs })
+        .success,
+    ).toBe(false);
 
     const dupIds = sampleSatireRecipe();
-    dupIds.inputs[2] = { ...dupIds.inputs[2], id: dupIds.inputs[1].id };
-    expect(RecipeSchema.safeParse(dupIds).success).toBe(false);
+    const dupInputs: unknown[] = [...dupIds.inputs];
+    dupInputs[2] = { ...dupIds.inputs[2], id: "target" };
+    expect(
+      RecipeSchema.safeParse({ ...dupIds, inputs: dupInputs }).success,
+    ).toBe(false);
   });
 
   it("enforces select option enum subsets and default membership", () => {
@@ -355,16 +362,18 @@ describe("RecipeSchema", () => {
 });
 
 describe("targets, local search and scoring", () => {
-  const recipes = [sampleSatireRecipe(), sampleCoverRecipe()];
+  const satire = sampleSatireRecipe();
+  const cover = sampleCoverRecipe();
+  const recipes = [satire, cover];
 
   it("derives platform targets from output and format", () => {
-    expect(targetsForRecipe(recipes[0])).toEqual([
+    expect(targetsForRecipe(satire)).toEqual([
       "tiktok",
       "reels",
       "shorts",
       "instagram",
     ]);
-    expect(targetsForRecipe(recipes[1])).toEqual(["spotify", "apple-music"]);
+    expect(targetsForRecipe(cover)).toEqual(["spotify", "apple-music"]);
   });
 
   it("filters platform words locally with no network", () => {
@@ -387,7 +396,7 @@ describe("targets, local search and scoring", () => {
 
     const scores = scoreRecipes(recipes, "piano ballad", "en");
     expect(Object.keys(scores).sort()).toEqual(recipes.map((r) => r.id).sort());
-    expect(scores[recipes[1].id]).toBeGreaterThan(scores[recipes[0].id]);
+    expect(scores[cover.id] ?? 0).toBeGreaterThan(scores[satire.id] ?? 0);
   });
 });
 
