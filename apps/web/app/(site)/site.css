@@ -355,6 +355,13 @@ html:has(.site) {
   box-shadow: none;
 }
 
+/* ---------- Page ---------- */
+/* The root layout gives <body> the studio face (Geist). The site draws no text in it, but Chrome
+   still downloads a block's first font for its line metrics, so the site body names a local face. */
+body:has(.site) {
+  font-family: "Figtree Fallback", system-ui, sans-serif;
+}
+
 /* ---------- Brand ---------- */
 .site-brand {
   text-decoration: none;
@@ -366,8 +373,9 @@ html:has(.site) {
   width: var(--art-logo-size);
   height: var(--art-logo-size);
   background: var(--brand-ember);
-  -webkit-mask: url("/brand/mellodifai-logo.png") center / contain no-repeat;
-  mask: url("/brand/mellodifai-logo.png") center / contain no-repeat;
+  /* A 96 px copy of the 512 px studio logo: three times the drawn size, a tenth of the bytes. */
+  -webkit-mask: url("/site/brand-mark.png") center / contain no-repeat;
+  mask: url("/site/brand-mark.png") center / contain no-repeat;
 }
 
 .site-brand__name {
@@ -1179,17 +1187,12 @@ html.site-menu-open {
     --site-hero-top: var(--site-hero-top-sm);
   }
 
-  /* Phones: the main action comes right under the title, so it stays in the first screen
-     at any text size; the line under the title follows it. */
-  .site-hero__title {
-    order: 1;
-  }
+  /* Phones keep the order of the wide layout (title, line, main action); the header keeps the
+     same main action in the first screen at any text size. */
   .site-hero__actions {
-    order: 2;
     margin-top: var(--spacing-6);
   }
   .site-hero__lede {
-    order: 3;
     margin-top: var(--spacing-4);
     font-size: var(--text-body-size);
   }

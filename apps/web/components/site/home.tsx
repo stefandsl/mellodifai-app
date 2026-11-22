@@ -74,9 +74,9 @@ export function Home({ copy }: { copy: SiteCopy }) {
             <Button
               label={h.primary}
               href={href("start")}
-              variant="primary"
+              variant="secondary"
               size="lg"
-              className="site-hero__primary"
+              className="site-hero__primary site-button--inverted"
             />
           </HStack>
         </VStack>
