@@ -77,7 +77,7 @@ export function renderCompose(env: StackEnv, toml: string): Compose {
           admin_email?: string;
           sender_name?: string;
         };
-        template?: Record<string, { content_path: string }>;
+        template?: Record<string, { content_path: string; subject?: string }>;
       };
     };
   };
@@ -211,6 +211,9 @@ export function renderCompose(env: StackEnv, toml: string): Compose {
     const authEnvironment = required("auth").environment ?? {};
     authEnvironment[`GOTRUE_MAILER_TEMPLATES_${kind.toUpperCase()}`] =
       `http://templates:8080/${kind}.html`;
+    if (template.subject)
+      authEnvironment[`GOTRUE_MAILER_SUBJECTS_${kind.toUpperCase()}`] =
+        template.subject;
   }
   if (Object.keys(templates).length) {
     // The pinned Kong image includes nginx, but its BusyBox has no httpd applet.
