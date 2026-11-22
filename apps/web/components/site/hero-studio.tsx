@@ -22,6 +22,19 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
   const [state, setState] = useState<State>("idle");
   const edited = word !== HERO_SAMPLE.first;
 
+  // Say at once when the clips are not online, instead of after a press of play.
+  useEffect(() => {
+    let live = true;
+    fetch(HERO_SAMPLE.clips[HERO_SAMPLE.first], { method: "HEAD" })
+      .then((r) => {
+        if (live && !r.ok) setState("missing");
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
   useEffect(() => {
     const a = audio.current;
     if (!a) return;

@@ -47,25 +47,27 @@
   unicode-range:
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+/* The UI face is "optional": on a slow first visit the metric-matched fallback stays, so the
+   largest text block paints once and does not repaint when the file arrives. */
 @font-face {
   font-family: "Figtree";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url("/site/fonts/figtree-latin-400-normal.woff2") format("woff2");
 }
 @font-face {
   font-family: "Figtree";
   font-style: normal;
   font-weight: 500;
-  font-display: swap;
+  font-display: optional;
   src: url("/site/fonts/figtree-latin-500-normal.woff2") format("woff2");
 }
 @font-face {
   font-family: "Figtree";
   font-style: normal;
   font-weight: 600;
-  font-display: swap;
+  font-display: optional;
   src: url("/site/fonts/figtree-latin-600-normal.woff2") format("woff2");
 }
 @font-face {
@@ -298,7 +300,8 @@ html:has(.site) {
 }
 .site-accent {
   font-style: italic;
-  color: var(--color-text-accent);
+  /* The same ember token as the logo mark: one red family in the first screen. */
+  color: var(--brand-ember);
 }
 
 .site-link {
@@ -406,7 +409,8 @@ html:has(.site) {
 }
 
 .site-header__bar {
-  min-height: var(--site-header-height);
+  /* 73 px with the header's own bottom line. */
+  min-height: calc(var(--site-header-height) - var(--border-width));
   padding-inline: var(--site-header-inset);
   background: transparent;
   border: 0;
@@ -414,6 +418,10 @@ html:has(.site) {
 
 .site-nav {
   gap: var(--spacing-2);
+}
+
+.site-nav > * {
+  white-space: nowrap;
 }
 .site-header__signin {
   display: none;
@@ -1273,6 +1281,9 @@ html.site-menu-open {
 }
 
 @media (forced-colors: active) {
+  .site-chip {
+    forced-color-adjust: auto;
+  }
   .site-brand__mark {
     background: CanvasText;
   }

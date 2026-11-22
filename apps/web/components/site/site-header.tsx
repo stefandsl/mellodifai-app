@@ -64,8 +64,8 @@ export function SiteHeader({ copy }: { copy: SiteCopy }) {
             <Button
               label={copy.nav.start}
               href={href("start")}
-              variant="primary"
-              className="site-header__cta"
+              variant="secondary"
+              className="site-header__cta site-button--inverted"
             />
             <SiteMenu copy={copy} />
           </HStack>
