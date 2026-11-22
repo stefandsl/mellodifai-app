@@ -1,0 +1,106 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000006",
+  "slug": "indie-duet-take",
+  "schemaVersion": 1,
+  "kind": "cover",
+  "title": {
+    "it": "Duetto indie in studio",
+    "en": "Indie studio duet"
+  },
+  "summary": {
+    "it": "Trasforma una traccia solista in una cover indie con chitarre brillanti e clip quadrata.",
+    "en": "Recast a solo track as a jangly indie studio cover paired with a square 1:1 visualizer."
+  },
+  "highlights": [
+    {
+      "it": "Chitarre elettriche pulite e cori",
+      "en": "Clean electric guitars and harmonies"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceAudio",
+      "kind": "audio",
+      "label": {
+        "it": "Brano da reinterpretare",
+        "en": "Track to reinterpret"
+      },
+      "hint": null,
+      "optional": false,
+      "accept": ["audio"],
+      "min": 1,
+      "max": 1,
+      "bindsTo": "song_create.settings.source"
+    },
+    {
+      "id": "songLang",
+      "kind": "select",
+      "label": {
+        "it": "Lingua del cantato",
+        "en": "Singing language"
+      },
+      "hint": null,
+      "optional": true,
+      "options": [
+        {
+          "value": "it",
+          "label": {
+            "it": "Italiano",
+            "en": "Italian"
+          }
+        },
+        {
+          "value": "en",
+          "label": {
+            "it": "Inglese",
+            "en": "English"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "it": "Spagnolo",
+            "en": "Spanish"
+          }
+        }
+      ],
+      "default": "en",
+      "bindsTo": "song_create.languages"
+    }
+  ],
+  "languages": ["en", "it", "es"],
+  "genre": "indie rock",
+  "tempo": {
+    "bpm": 108,
+    "feel": "bright indie"
+  },
+  "form": "hook",
+  "output": "visualizer",
+  "format": "1:1",
+  "featured": false,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "styles": "indie rock studio cover, jangly clean electric guitar, tight live drums",
+    "sourceMode": "cover",
+    "bpm": 108,
+    "video": "visualizer"
+  },
+  "fixture": "indie-duet-take",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 70
+  },
+  "status": "published"
+}

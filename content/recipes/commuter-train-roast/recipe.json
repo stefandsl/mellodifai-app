@@ -1,0 +1,118 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000011",
+  "slug": "commuter-train-roast",
+  "schemaVersion": 1,
+  "kind": "satire",
+  "title": {
+    "it": "Cronaca ironica del treno",
+    "en": "Commuter train roast"
+  },
+  "summary": {
+    "it": "Racconta ritardi, binari cambiati e corse al volo sulle note di una canzone che tutti conoscono.",
+    "en": "Roast platform swaps and morning delays over a familiar melody built for short vertical clips."
+  },
+  "highlights": [
+    {
+      "it": "Taglio breve pensato per i social",
+      "en": "Short hook format built for vertical clips"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceLink",
+      "kind": "link",
+      "label": {
+        "it": "Link YouTube del brano",
+        "en": "YouTube song link"
+      },
+      "hint": null,
+      "optional": false,
+      "maxLength": 500,
+      "bindsTo": "remake_start.url"
+    },
+    {
+      "id": "target",
+      "kind": "text",
+      "label": {
+        "it": "Linea o abitudine",
+        "en": "Route or habit"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "il regionale delle 7:42",
+        "en": "the 7:42 express train"
+      },
+      "optional": false,
+      "maxLength": 120,
+      "bindsTo": "rewrite.target"
+    },
+    {
+      "id": "country",
+      "kind": "select",
+      "label": {
+        "it": "Paese",
+        "en": "Country"
+      },
+      "hint": null,
+      "optional": true,
+      "options": [
+        {
+          "value": "IT",
+          "label": {
+            "it": "Italia",
+            "en": "Italy"
+          }
+        },
+        {
+          "value": "CH",
+          "label": {
+            "it": "Svizzera",
+            "en": "Switzerland"
+          }
+        },
+        {
+          "value": "GB",
+          "label": {
+            "it": "Regno Unito",
+            "en": "United Kingdom"
+          }
+        }
+      ],
+      "default": "IT",
+      "bindsTo": "remake_start.country"
+    }
+  ],
+  "languages": ["it", "en"],
+  "genre": "indie pop",
+  "tempo": {
+    "bpm": 102,
+    "feel": "brisk narrative"
+  },
+  "form": "hook",
+  "output": "lyric-video",
+  "format": "9:16",
+  "featured": false,
+  "surfaces": ["web", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "rewriteMode": "satire",
+    "video": "lyric"
+  },
+  "fixture": "commuter-train-roast",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 75
+  },
+  "status": "published"
+}

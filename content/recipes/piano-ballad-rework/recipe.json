@@ -1,0 +1,117 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000005",
+  "slug": "piano-ballad-rework",
+  "schemaVersion": 1,
+  "kind": "cover",
+  "title": {
+    "it": "Ballata piano e voce",
+    "en": "Piano ballad rework"
+  },
+  "summary": {
+    "it": "Spoglia il brano fino al solo pianoforte e alla voce per una traccia audio da streaming.",
+    "en": "Strip the arrangement back to grand piano and lead vocal for a clean streaming audio master."
+  },
+  "highlights": [
+    {
+      "it": "Esportazione solo audio ad alta qualita",
+      "en": "Audio-only master ready for streaming"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceAudio",
+      "kind": "audio",
+      "label": {
+        "it": "Traccia audio sorgente",
+        "en": "Source audio track"
+      },
+      "hint": {
+        "it": "MP3, WAV o FLAC fino a 8 minuti",
+        "en": "MP3, WAV or FLAC up to 8 minutes"
+      },
+      "optional": false,
+      "accept": ["audio"],
+      "min": 1,
+      "max": 1,
+      "bindsTo": "song_create.settings.source"
+    },
+    {
+      "id": "voice",
+      "kind": "select",
+      "label": {
+        "it": "Voce solista",
+        "en": "Lead singer"
+      },
+      "hint": null,
+      "optional": true,
+      "options": [
+        {
+          "value": "f",
+          "label": {
+            "it": "Voce femminile",
+            "en": "Female voice"
+          }
+        },
+        {
+          "value": "m",
+          "label": {
+            "it": "Voce maschile",
+            "en": "Male voice"
+          }
+        }
+      ],
+      "default": "m",
+      "bindsTo": "song_create.vocalGender"
+    },
+    {
+      "id": "lyricsOverride",
+      "kind": "lyrics",
+      "label": {
+        "it": "Testo pulito",
+        "en": "Clean lyrics"
+      },
+      "hint": {
+        "it": "Opzionale: correggi eventuali parole",
+        "en": "Optional: fix any lyric words"
+      },
+      "optional": true,
+      "maxLength": 5000,
+      "bindsTo": "song_create.lyrics"
+    }
+  ],
+  "languages": ["it", "en", "fr"],
+  "genre": "piano ballad",
+  "tempo": {
+    "bpm": 72,
+    "feel": "intimate slow"
+  },
+  "form": "full",
+  "output": "audio",
+  "featured": false,
+  "surfaces": ["web", "desktop"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.wav",
+    "example": "example.wav",
+    "startAt": 0
+  },
+  "preset": {
+    "styles": "grand piano ballad, solo vocal, soft studio sustain, minimal strings",
+    "sourceMode": "cover",
+    "vocalGender": "m",
+    "bpm": 72,
+    "video": "off"
+  },
+  "fixture": "piano-ballad-rework",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 1,
+    "seconds": 60
+  },
+  "status": "published"
+}
