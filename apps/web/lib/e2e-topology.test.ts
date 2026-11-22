@@ -24,7 +24,7 @@ function environment(ci = false) {
   // the shell that runs the unit suite.
   vi.stubEnv("WORKER_FAKE", "1");
   for (const name of ["TEMP", "TMP", "TMPDIR"])
-    vi.stubEnv(name, "C:/Users/Asus/AppData/Local/Temp");
+    vi.stubEnv(name, "C:/Users/someone/AppData/Local/Temp");
 }
 
 it.each([false, true])(

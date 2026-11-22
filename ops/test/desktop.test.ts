@@ -486,7 +486,7 @@ describe("desktop engine and publishing", () => {
     expect(
       engineSettings(
         {
-          MELLODIFAI_ENGINE_ROOT: "c:/users/asus/documents/SUNO-REMAKE/",
+          MELLODIFAI_ENGINE_ROOT: "c:/users/someone/documents/SUNO-REMAKE/",
           MELLODIFAI_PUBLISHING: "on",
         },
         data,
