@@ -12,7 +12,9 @@
       "!apps/web/components/ui",
       "!apps/web/public",
       "!**/*.md",
-      "!ops/compose"
+      "!ops/compose",
+      "!apps/web/src/astryx-themes.ts",
+      "!apps/web/src/themes/*/mesh.*"
     ]
   },
   "formatter": {
@@ -26,5 +28,17 @@
   },
   "linter": {
     "enabled": true
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["supabase/templates/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnknownProperty": "off"
+          }
+        }
+      }
+    }
+  ]
 }
