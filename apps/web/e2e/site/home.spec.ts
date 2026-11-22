@@ -9,6 +9,7 @@ import {
   type LayoutRef,
   measureLayoutInPage,
 } from "../../lib/site/judge/likeness";
+import { collectPageText } from "../../lib/site/judge/page-text";
 import { HEADER_LINKS } from "../../lib/site/nav";
 import { HERO_SAMPLE } from "../../lib/site/sample";
 
@@ -567,35 +568,8 @@ test("clean-room judge: no shared sentence and no equal string with the referenc
         await page
           .getByRole("button", { name: SITE_COPY[lang].agentsMenu })
           .hover();
-      ours.push(
-        ...(await page.evaluate(() => {
-          const out: string[] = [];
-          for (const el of document.querySelectorAll("body *")) {
-            const own = [...el.childNodes]
-              .filter((n) => n.nodeType === 3)
-              .map((n) => n.textContent ?? "")
-              .join(" ")
-              .trim();
-            if (own) out.push(own);
-            // biome-ignore lint/performance/useDomNodeTextContent: the judge wants the text a reader sees.
-            const t = (el as HTMLElement).innerText
-              ?.replace(/\s+/gu, " ")
-              .trim();
-            if (t && t.length < 400) out.push(t);
-            for (const a of ["aria-label", "alt", "title", "placeholder"]) {
-              const v = el.getAttribute(a);
-              if (v) out.push(v);
-            }
-          }
-          out.push(
-            document.title,
-            document
-              .querySelector('meta[name="description"]')
-              ?.getAttribute("content") ?? "",
-          );
-          return out;
-        })),
-      );
+      // The function runs in the page; with no argument it reads the whole document.
+      ours.push(...(await page.evaluate(collectPageText, undefined)));
     }
   }
   const header = (lang: "en" | "it") => [
