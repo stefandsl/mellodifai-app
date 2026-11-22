@@ -734,7 +734,10 @@ it.skipIf(process.platform !== "win32")(
       rmSync(root, { recursive: true, force: true });
     }
   },
-  60000,
+  // About 15 CLI and PowerShell launches. Measured on 2026-11-21: 27 to 33 s on a quiet PC, more
+  // than 60 s in 2 of 20 suite runs with the PC at 96% CPU, and at most 144 s for this whole file
+  // under the heaviest load tried. The limit is that maximum plus a quarter.
+  180000,
 );
 
 it.skipIf(process.platform !== "win32")(
