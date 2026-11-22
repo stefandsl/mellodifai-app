@@ -274,6 +274,9 @@ for (const [width, height, perRow] of WIDTHS) {
     await expect(first.first()).toContainText(en.pricing.included);
     // A narrow window: the table scrolls inside its own box, the box stays in the window and
     // the last plan column can be scrolled into view. A wide window: nothing to scroll.
+    // The wrapper turns its scrolling on after it has measured the table: wait for that.
+    if (width === 390)
+      await expect.poll(async () => (await tableBox(page)).scrolls).toBe(true);
     const box = await tableBox(page);
     expect(box.right).toBeLessThanOrEqual(width + 0.5);
     expect(box.left).toBeGreaterThanOrEqual(-0.5);
