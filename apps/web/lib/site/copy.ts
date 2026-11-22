@@ -403,7 +403,7 @@ const en: SiteCopy = {
         "Four MellodifAI plans side by side: what each one holds, and answers about paying, credits and privacy.",
     },
     title: "Pick a plan for the songs you make",
-    line: "The prices come later. Every plan opens the same studio, and you can move between plans at any time.",
+    line: "The prices come later. Every plan opens the same studio. How plans change and end is set together with the prices.",
     compareTitle: "Every plan, side by side",
     featureColumn: "What you get",
     included: "Included",
@@ -441,8 +441,8 @@ const en: SiteCopy = {
     faqTitle: "Plans, asked and answered",
     faq: [
       {
-        q: "Can I stop my plan when I want?",
-        a: "Yes. A plan ends at the close of the period it is paid for, and your songs stay yours.",
+        q: "How does a plan end, and can I change it?",
+        a: "When a plan ends and how you change plans is set together with the prices. Your songs stay yours.",
       },
       {
         q: "Is there a plan that costs nothing?",
@@ -783,7 +783,7 @@ const it: SiteCopy = {
         "I quattro piani di MellodifAI fianco a fianco: cosa contiene ciascuno, e risposte su pagamenti, crediti e privacy.",
     },
     title: "Scegli un piano per le canzoni che fai",
-    line: "I prezzi arrivano più avanti. Ogni piano apre lo stesso studio, e puoi cambiare piano quando vuoi.",
+    line: "I prezzi arrivano più avanti. Ogni piano apre lo stesso studio. Come si cambia e come finisce un piano si decide insieme ai prezzi.",
     compareTitle: "Tutti i piani, fianco a fianco",
     featureColumn: "Cosa ottieni",
     included: "Incluso",
@@ -821,8 +821,8 @@ const it: SiteCopy = {
     faqTitle: "Piani, domande e risposte",
     faq: [
       {
-        q: "Posso fermare il piano quando voglio?",
-        a: "Sì. Un piano finisce alla chiusura del periodo pagato, e le tue canzoni restano tue.",
+        q: "Come finisce un piano, e posso cambiarlo?",
+        a: "Quando finisce un piano e come si cambia piano si decide insieme ai prezzi. Le tue canzoni restano tue.",
       },
       {
         q: "C'è un piano che non costa nulla?",

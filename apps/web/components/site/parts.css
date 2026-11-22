@@ -186,3 +186,18 @@
     padding: 0 var(--site-gutter-inset);
   }
 }
+
+/* ---------- Reduced motion ---------- */
+/* The site rule (.site *, site.css) is weaker than the rules above, so the parts turn their
+   own motion off: the answer opens and the unit changes at once. */
+@media (prefers-reduced-motion: reduce) {
+  .site .site-faq__icon,
+  .site .site-faq__panel,
+  .site .site-faq__item[data-open="true"] > .site-faq__panel {
+    transition: none;
+  }
+  .site-plan-card__units[data-animate="true"]
+    .site-plan-card__unit[data-shown="true"] {
+    animation: none;
+  }
+}
