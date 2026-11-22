@@ -137,7 +137,12 @@ test("first load on a phone: only the site's own fonts, no image over 16 KB", as
     if ((await i.size) > 16 * 1024) heavy.push(`${i.url} ${await i.size}`);
   await browser.close();
   expect(fonts.length).toBeGreaterThan(0);
-  expect(fonts.filter((f) => !f.startsWith("/site/fonts/"))).toEqual([]);
+  // The dev server's own overlay draws in Geist from /__nextjs_font/; a build has no overlay.
+  expect(
+    fonts.filter(
+      (f) => !f.startsWith("/site/fonts/") && !f.startsWith("/__nextjs_font/"),
+    ),
+  ).toEqual([]);
   expect(heavy).toEqual([]);
 });
 
