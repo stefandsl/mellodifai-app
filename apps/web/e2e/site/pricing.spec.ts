@@ -37,6 +37,56 @@ const radios = (page: Page) =>
     .getByRole("radiogroup", { name: en.plans.switchLabel })
     .getByRole("radio");
 
+// `.site` clips sideways overflow, so the document never looks wider than the window. Measure
+// below the clip: every section of the page must lie inside the window, and the main column
+// must not hold anything wider than itself.
+async function noSideways(page: Page) {
+  const out = await page.evaluate(() => {
+    const main = document.querySelector("main") as HTMLElement;
+    const parts = [
+      ...document.querySelectorAll<HTMLElement>("[data-ref-section]"),
+    ].map((s) => {
+      const r = s.getBoundingClientRect();
+      return {
+        left: r.left,
+        right: r.right,
+        inner: s.scrollWidth - s.clientWidth,
+      };
+    });
+    return {
+      width: window.innerWidth,
+      main: main.scrollWidth - main.clientWidth,
+      parts,
+    };
+  });
+  expect(out.main).toBeLessThanOrEqual(0);
+  for (const p of out.parts) {
+    expect(p.left).toBeGreaterThanOrEqual(-0.5);
+    expect(p.right).toBeLessThanOrEqual(out.width + 0.5);
+    expect(p.inner).toBeLessThanOrEqual(0);
+  }
+}
+
+// The compare table's own scroll box (the Astryx scroll wrapper around the table).
+async function tableBox(page: Page) {
+  return page.locator(".site-compare").evaluate((table) => {
+    const box = table.closest(".astryx-table-scroll-wrapper") as HTMLElement;
+    const r = box.getBoundingClientRect();
+    box.scrollLeft = box.scrollWidth;
+    const heads = table.querySelectorAll('thead th[scope="col"]');
+    const last = heads[heads.length - 1].getBoundingClientRect().right;
+    box.scrollLeft = 0;
+    return {
+      left: r.left,
+      right: r.right,
+      scrollWidth: box.scrollWidth,
+      clientWidth: box.clientWidth,
+      lastRightAfterScroll: last,
+      scrolls: /(auto|scroll)/u.test(getComputedStyle(box).overflowX),
+    };
+  });
+}
+
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([
     {
@@ -66,11 +116,7 @@ for (const [width, height, perRow] of WIDTHS) {
       .locator(".site-price-plans, .site-price-compare")
       .allInnerTexts();
     expect(text.join(" ")).not.toMatch(/[$€£]|\d+[.,]\d{2}/u);
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true);
+    await noSideways(page);
     await expect(page.locator("h1")).toHaveCount(1);
     await expect(page.locator("h1")).toHaveText(en.pricing.title);
   });
@@ -226,12 +272,17 @@ for (const [width, height, perRow] of WIDTHS) {
     const first = table.locator("tbody tr").nth(1).locator("td");
     await expect(first).toHaveCount(PLAN_COUNT);
     await expect(first.first()).toContainText(en.pricing.included);
-    // The page never scrolls sideways; a narrow table scrolls inside its own box.
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true);
+    // A narrow window: the table scrolls inside its own box, the box stays in the window and
+    // the last plan column can be scrolled into view. A wide window: nothing to scroll.
+    const box = await tableBox(page);
+    expect(box.right).toBeLessThanOrEqual(width + 0.5);
+    expect(box.left).toBeGreaterThanOrEqual(-0.5);
+    if (width === 390) {
+      expect(box.scrolls).toBe(true);
+      expect(box.scrollWidth).toBeGreaterThan(box.clientWidth);
+      expect(box.lastRightAfterScroll).toBeLessThanOrEqual(box.right + 0.5);
+    } else expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth);
+    await noSideways(page);
   });
 }
 
@@ -259,6 +310,41 @@ for (const width of [1440, 390]) {
     expect(await bad()).toEqual([]);
   });
 }
+
+test("reduced motion: the answer fold, the plus and the unit rise do not move", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page);
+  const faq = page.locator("#faq");
+  await faq.getByRole("button", { name: en.pricing.faq[1].q }).click();
+  await radios(page).nth(1).click();
+  // Read at once, no wait: every duration of the moving parts is zero.
+  const durations = await page.evaluate(() => {
+    const all = (sel: string) => [...document.querySelectorAll(sel)];
+    const zero = (v: string) =>
+      v.split(",").every((d) => Number.parseFloat(d) === 0);
+    const bad: string[] = [];
+    for (const el of all(".site-faq__panel, .site-faq__icon")) {
+      const s = getComputedStyle(el);
+      if (!zero(s.transitionDuration))
+        bad.push(`${el.className}: transition ${s.transitionDuration}`);
+    }
+    for (const el of all(".site-plan-card__unit")) {
+      const s = getComputedStyle(el);
+      if (s.animationName !== "none" && !zero(s.animationDuration))
+        bad.push(`${el.className}: animation ${s.animationDuration}`);
+    }
+    return {
+      bad,
+      units: all('.site-plan-card__units[data-animate="true"]').length,
+    };
+  });
+  // The period did change, so the unit rule is live, not skipped.
+  expect(durations.units).toBe(4);
+  expect(durations.bad).toEqual([]);
+});
 
 test("Italian page: same structure, Italian words", async ({
   page,

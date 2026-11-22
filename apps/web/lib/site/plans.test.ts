@@ -28,4 +28,20 @@ describe("plans of the public site", () => {
       }
       expect(copy.pricing.faq.length).toBeGreaterThanOrEqual(7);
     });
+
+  // Plan terms (when a plan ends, when you can change it) are the owner's decision with the
+  // prices (D1). Until then the page promises none of them.
+  it("promises no plan term before the owner sets the prices", () => {
+    const promises = [
+      /any time/iu,
+      /close of the period/iu,
+      /quando vuoi/iu,
+      /chiusura del periodo/iu,
+    ];
+    for (const lang of ["en", "it"] as const) {
+      const p = SITE_COPY[lang].pricing;
+      const text = [p.line, ...p.faq.flatMap((f) => [f.q, f.a])].join("\n");
+      for (const re of promises) expect(text, `${lang} ${re}`).not.toMatch(re);
+    }
+  });
 });
