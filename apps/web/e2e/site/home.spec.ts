@@ -283,7 +283,7 @@ test("a missing sample says so and turns the play button off", async ({
     route.fulfill({ status: 404, body: "" }),
   );
   await open(page);
-  await page.getByRole("button", { name: en.hero.play }).click();
+  // The page checks for the clip when it loads, before any press of play.
   await expect(
     page.getByRole("status").filter({ hasText: en.hero.missing }),
   ).toBeVisible();
