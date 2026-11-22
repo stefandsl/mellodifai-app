@@ -97,6 +97,24 @@
         }
       }
     },
+    "ffmpeg": {
+      "version": "9.1",
+      "kind": "binary",
+      "licence": "GPL-3.0",
+      "project": "https://github.com/GyanD/codexffmpeg/releases/tag/9.1",
+      "entry": { "win32-x64": "bin/ffmpeg.exe" },
+      "downloads": {
+        "win32-x64": {
+          "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.1/ffmpeg-9.1-essentials_build.zip",
+          "file": "ffmpeg-9.1-essentials_build.zip",
+          "sha256": "b9bbbb3acece000cbeec994f856649354e52c773807841e78908374b24d658fd",
+          "size": 119467219,
+          "strip": 1,
+          "include": ["bin/", "LICENSE"],
+          "notices": ["LICENSE"]
+        }
+      }
+    },
     "auth": {
       "version": "2.197.0",
       "kind": "source",

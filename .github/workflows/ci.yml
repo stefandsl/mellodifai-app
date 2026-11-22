@@ -52,19 +52,6 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm --filter @mellodifai/web exec tsc --noEmit
-      - name: Check installed media prerequisite
-        run: |
-          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
-            throw 'Native tests require ffmpeg on PATH. No pinned FFmpeg publisher artifact is in manifest.json yet; refusing an unpinned download.'
-          }
-      # pnpm e2e also runs the site suite (playwright.site.config.ts) on Firefox and WebKit.
-      - run: pnpm --filter @mellodifai/web exec playwright install chromium firefox webkit
-      - run: pnpm test
-      - name: Reserve isolated browser ports
-        run: |
-          'E2E_PORT=3234' >> $env:GITHUB_ENV
-          'E2E_AUTH_PORT=3235' >> $env:GITHUB_ENV
-          'E2E_EDGE_PORT=3236' >> $env:GITHUB_ENV
       - uses: actions/cache@v4
         with:
           path: ${{ env.MELLODIFAI_ROOT }}/cache/native/downloads
@@ -76,6 +63,24 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw 'Native artifact installation failed. Only manifest-pinned publisher URLs are allowed. Local spike archives are unavailable on hosted CI; no substitute download is permitted.'
           }
+          $ffmpegBin = (pnpm --dir ops exec node --import tsx --input-type=module -e "import { dirname } from 'node:path'; import { requireArtifact } from './lib/native/artifacts.js'; process.stdout.write(dirname(requireArtifact('ffmpeg').entry))" | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $ffmpegBin 'ffmpeg.exe'))) {
+            throw 'Pinned FFmpeg artifact was not installed into the native cache.'
+          }
+          $ffmpegBin >> $env:GITHUB_PATH
+      - name: Check installed media prerequisite
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            throw 'Native tests require ffmpeg on PATH. The pinned FFmpeg artifact from ops/lib/native/manifest.json was not found on PATH.'
+          }
+      # pnpm e2e also runs the site suite (playwright.site.config.ts) on Firefox and WebKit.
+      - run: pnpm --filter @mellodifai/web exec playwright install chromium firefox webkit
+      - run: pnpm test
+      - name: Reserve isolated browser ports
+        run: |
+          'E2E_PORT=3234' >> $env:GITHUB_ENV
+          'E2E_AUTH_PORT=3235' >> $env:GITHUB_ENV
+          'E2E_EDGE_PORT=3236' >> $env:GITHUB_ENV
       - run: pnpm ops stack.ts start --env e2e --runtime native
       - name: Export private lab environment
         shell: bash
