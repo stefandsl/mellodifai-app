@@ -43,30 +43,52 @@ export type LoadRecipesOptions = {
 };
 
 function findRepoRoot(): string {
+  const cwd = process.cwd();
   const candidates = [
-    resolve(process.cwd()),
-    resolve(process.cwd(), "../.."),
-    resolve(import.meta.dirname, "../../../.."),
+    resolve(/*turbopackIgnore: true*/ cwd),
+    resolve(/*turbopackIgnore: true*/ cwd, "../.."),
+    resolve(/*turbopackIgnore: true*/ import.meta.dirname, "../../../.."),
   ];
   for (const dir of candidates) {
     if (
-      existsSync(join(dir, "content", "recipes")) &&
-      existsSync(join(dir, "apps", "web", "public", "site"))
+      existsSync(
+        /*turbopackIgnore: true*/ join(
+          /*turbopackIgnore: true*/ dir,
+          "content",
+          "recipes",
+        ),
+      ) &&
+      existsSync(
+        /*turbopackIgnore: true*/ join(
+          /*turbopackIgnore: true*/ dir,
+          "apps",
+          "web",
+          "public",
+          "site",
+        ),
+      )
     ) {
       return dir;
     }
   }
-  return resolve(import.meta.dirname, "../../../..");
+  return resolve(/*turbopackIgnore: true*/ import.meta.dirname, "../../../..");
 }
 
 export function defaultRecipePaths() {
   const root = findRepoRoot();
   return {
     root,
-    contentDir: join(root, "content", "recipes"),
-    mediaDir: join(root, "apps", "web", "public", "site", "recipes"),
+    contentDir: join(/*turbopackIgnore: true*/ root, "content", "recipes"),
+    mediaDir: join(
+      /*turbopackIgnore: true*/ root,
+      "apps",
+      "web",
+      "public",
+      "site",
+      "recipes",
+    ),
     manifestPath: join(
-      root,
+      /*turbopackIgnore: true*/ root,
       "apps",
       "web",
       "public",
@@ -79,10 +101,12 @@ export function defaultRecipePaths() {
 export function loadAssetsManifest(
   manifestPath = defaultRecipePaths().manifestPath,
 ): AssetsManifest {
-  if (!existsSync(manifestPath)) {
+  if (!existsSync(/*turbopackIgnore: true*/ manifestPath)) {
     throw new Error(`Missing assets manifest at ${manifestPath}`);
   }
-  const raw: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const raw: unknown = JSON.parse(
+    readFileSync(/*turbopackIgnore: true*/ manifestPath, "utf8"),
+  );
   return AssetsManifestSchema.parse(raw);
 }
 
@@ -94,7 +118,7 @@ export function loadRecipes(options: LoadRecipesOptions = {}): LoadedRecipe[] {
   const includeDrafts = options.includeDrafts ?? false;
   const checkManifest = options.checkManifest ?? true;
 
-  if (!existsSync(contentDir)) {
+  if (!existsSync(/*turbopackIgnore: true*/ contentDir)) {
     throw new Error(`Recipes content directory not found: ${contentDir}`);
   }
 
@@ -104,7 +128,9 @@ export function loadRecipes(options: LoadRecipesOptions = {}): LoadedRecipe[] {
     manifestPaths = new Set(manifest.assets.map((entry) => entry.path));
   }
 
-  const dirs = readdirSync(contentDir, { withFileTypes: true })
+  const dirs = readdirSync(/*turbopackIgnore: true*/ contentDir, {
+    withFileTypes: true,
+  })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
@@ -114,14 +140,20 @@ export function loadRecipes(options: LoadRecipesOptions = {}): LoadedRecipe[] {
   const loaded: LoadedRecipe[] = [];
 
   for (const dirName of dirs) {
-    const jsonPath = join(contentDir, dirName, "recipe.json");
-    if (!existsSync(jsonPath)) {
+    const jsonPath = join(
+      /*turbopackIgnore: true*/ contentDir,
+      dirName,
+      "recipe.json",
+    );
+    if (!existsSync(/*turbopackIgnore: true*/ jsonPath)) {
       throw new Error(`Recipe folder "${dirName}" is missing recipe.json`);
     }
 
     let raw: unknown;
     try {
-      raw = JSON.parse(readFileSync(jsonPath, "utf8"));
+      raw = JSON.parse(
+        readFileSync(/*turbopackIgnore: true*/ jsonPath, "utf8"),
+      );
     } catch (err) {
       throw new Error(
         `Invalid JSON in ${jsonPath}: ${err instanceof Error ? err.message : String(err)}`,
@@ -153,13 +185,17 @@ export function loadRecipes(options: LoadRecipesOptions = {}): LoadedRecipe[] {
 
     for (const key of ["cover", "preview", "example"] as const) {
       const fileName = recipe.media[key];
-      const filePath = join(mediaDir, recipe.slug, fileName);
-      if (!existsSync(filePath)) {
+      const filePath = join(
+        /*turbopackIgnore: true*/ mediaDir,
+        recipe.slug,
+        fileName,
+      );
+      if (!existsSync(/*turbopackIgnore: true*/ filePath)) {
         throw new Error(
           `Recipe "${recipe.slug}" is missing media.${key} file "${fileName}" at ${filePath}`,
         );
       }
-      const stat = statSync(filePath);
+      const stat = statSync(/*turbopackIgnore: true*/ filePath);
       if (stat.size <= 0) {
         throw new Error(
           `Recipe "${recipe.slug}" has empty media.${key} file "${fileName}"`,
