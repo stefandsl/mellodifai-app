@@ -57,7 +57,8 @@ jobs:
           if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
             throw 'Native tests require ffmpeg on PATH. No pinned FFmpeg publisher artifact is in manifest.json yet; refusing an unpinned download.'
           }
-      - run: pnpm --filter @mellodifai/web exec playwright install chromium
+      # pnpm e2e also runs the site suite (playwright.site.config.ts) on Firefox and WebKit.
+      - run: pnpm --filter @mellodifai/web exec playwright install chromium firefox webkit
       - run: pnpm test
       - name: Reserve isolated browser ports
         run: |
