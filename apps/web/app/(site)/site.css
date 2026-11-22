@@ -456,8 +456,8 @@ body:has(.site) {
   }
 }
 
-/* Very large text on a phone: the brand name and the menu button keep the row; the main action
-   stays in the first screen in the hero, under the title. */
+/* Narrow phone or large text (23rem or less): the brand name and the menu button keep the
+   header row; the main action stays in the first screen in the hero. */
 @container site-header (max-width: 23rem) {
   .site-header__cta {
     display: none;
@@ -554,6 +554,7 @@ html.site-menu-open {
 /* ---------- 0. Hero ---------- */
 .site-hero {
   position: relative;
+  container: site-hero / inline-size;
   padding: 0;
   overflow: clip;
 }
@@ -1187,8 +1188,7 @@ html.site-menu-open {
     --site-hero-top: var(--site-hero-top-sm);
   }
 
-  /* Phones keep the order of the wide layout (title, line, main action); the header keeps the
-     same main action in the first screen at any text size. */
+  /* Phones keep the order of the wide layout (title, line, main action). */
   .site-hero__actions {
     margin-top: var(--spacing-6);
   }
@@ -1270,6 +1270,20 @@ html.site-menu-open {
   .site-footer__wordmark,
   .site-footer__bottom {
     margin-inline: var(--site-footer-inset-sm);
+  }
+}
+
+/* Very large text on a phone (where the header hides its CTA at 23rem or less): tighten the
+   hero title and gaps so the hero CTA stays inside the first screen in both languages. */
+@container site-hero (max-width: 15rem) {
+  .site-hero__title {
+    font-size: var(--font-size-xl);
+  }
+  .site-hero__lede {
+    margin-top: var(--spacing-3);
+  }
+  .site-hero__actions {
+    margin-top: var(--spacing-4);
   }
 }
 
