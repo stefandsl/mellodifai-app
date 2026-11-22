@@ -1,8 +1,9 @@
 // Clean-room judge: our visible strings against the text captured from the reference site.
 // Two rules:
 // 1. No run of `minWords` or more words (default 6) that also stands in a reference string.
-// 2. No whole string of ours equal to a whole reference string, unless it is an interface word
-//    on the allow list (short words every site uses, such as "Menu").
+// 2. No whole string of ours of two or more words equal to a whole reference string, unless it
+//    is on the allow list. One plain word ("Monthly", "love") is a word of the language, not a
+//    copy; strings that must differ even as one word (the header) go in `strict`.
 // The captured text never enters the repo: the CLI reads it from the research folder.
 
 export type CleanRoomHit = { ours: string; reference: string; match: string };
@@ -31,8 +32,10 @@ export function cleanRoom(input: {
   ours: string[];
   reference: string[];
   allow?: string[];
+  strict?: string[];
   minWords?: number;
 }): CleanRoomResult {
+  const strict = new Set((input.strict ?? []).map(key));
   const n = input.minWords ?? 6;
   const allow = new Set((input.allow ?? []).map(key));
   const runs = new Map<string, string>();
@@ -55,7 +58,9 @@ export function cleanRoom(input: {
     if (!k || seen.has(k)) continue;
     seen.add(k);
     const same = whole.get(k);
-    if (same !== undefined && !allow.has(k)) equalStrings.push({ ours, reference: same, match: k });
+    const counts = w.length >= 2 || strict.has(k);
+    if (same !== undefined && counts && !allow.has(k))
+      equalStrings.push({ ours, reference: same, match: k });
     for (let i = 0; i + n <= w.length; i++) {
       const run = w.slice(i, i + n).join(" ");
       const ref = runs.get(run);
