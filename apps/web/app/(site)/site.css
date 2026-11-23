@@ -201,12 +201,14 @@
 
 /* ---------- Page ---------- */
 html:has(.site) {
+  height: 100%;
   scroll-padding-top: var(--site-header-height);
   background: var(--color-background-body);
 }
 
 .site {
   position: relative;
+  flex: 1 0 auto;
   min-height: 100%;
   overflow-x: clip;
   background: var(--color-background-body);
@@ -356,9 +358,12 @@ html:has(.site) {
 }
 
 /* ---------- Page ---------- */
-/* The root layout gives <body> the studio face (Geist). The site draws no text in it, but Chrome
-   still downloads a block's first font for its line metrics, so the site body names a local face. */
+/* The site root body stays on the local fallback face so Chrome only fetches /site/fonts/ faces
+   where text actually draws, and fills the viewport height as a column. */
 body:has(.site) {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
   font-family: "Figtree Fallback", system-ui, sans-serif;
 }
 
