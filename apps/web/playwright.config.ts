@@ -36,10 +36,7 @@ const authRoot =
   stack === "ci"
     ? process.env.RUNNER_TEMP || ""
     : process.env.MELLODIFAI_ROOT || "E:/mellodifai";
-const authSecrets = join(authRoot, "secrets/auth", stack).replaceAll(
-  "\\",
-  "/",
-);
+const authSecrets = join(authRoot, "secrets/auth", stack).replaceAll("\\", "/");
 // Both service roles must target the same guarded stack before any server starts.
 assertTestWebStack(process.env);
 assertTestWebStack({
