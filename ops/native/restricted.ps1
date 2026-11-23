@@ -17,6 +17,7 @@ $source = @'
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 
@@ -46,13 +47,17 @@ public static class MdfRestricted {
   static extern bool CreateProcessAsUser(IntPtr token, string application, StringBuilder commandLine,
     IntPtr processAttributes, IntPtr threadAttributes, bool inheritHandles, uint flags,
     IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation info);
+  [DllImport("advapi32.dll", SetLastError = true)]
+  static extern bool SetTokenInformation(IntPtr token, int infoClass, ref IntPtr info, int length);
   [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
   [DllImport("kernel32.dll")] static extern IntPtr GetStdHandle(int which);
   [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint ms);
   [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
 
-  const uint TOKEN_ASSIGN_PRIMARY = 0x1, TOKEN_DUPLICATE = 0x2, TOKEN_QUERY = 0x8;
+  const uint TOKEN_ASSIGN_PRIMARY = 0x1, TOKEN_DUPLICATE = 0x2, TOKEN_QUERY = 0x8, TOKEN_ADJUST_DEFAULT = 0x80;
+  const int TokenDefaultDacl = 6;
+  const int GENERIC_ALL = 0x10000000;
   const uint DISABLE_MAX_PRIVILEGE = 0x1;
   const int STARTF_USESTDHANDLES = 0x100;
   const uint DETACHED_PROCESS = 0x8, CREATE_NEW_PROCESS_GROUP = 0x200;
@@ -67,7 +72,7 @@ public static class MdfRestricted {
 
   public static int Run(string commandLine) {
     IntPtr token, restricted;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_QUERY, out token))
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ADJUST_DEFAULT, out token))
       throw new Win32Exception();
     GCHandle admins, powerUsers;
     var disable = new[] {
@@ -79,6 +84,26 @@ public static class MdfRestricted {
         throw new Win32Exception();
     } finally {
       admins.Free(); powerUsers.Free(); CloseHandle(token);
+    }
+    // An elevated token's default DACL grants only Administrators and SYSTEM. With
+    // Administrators deny-only, the command could not open the pipes and events it
+    // creates (pg_ctl adds the user for the same reason). Grant the user and SYSTEM.
+    var dacl = new RawAcl(GenericAcl.AclRevision, 2);
+    dacl.InsertAce(0, new CommonAce(AceFlags.None, AceQualifier.AccessAllowed, GENERIC_ALL,
+      WindowsIdentity.GetCurrent().User, false, null));
+    dacl.InsertAce(1, new CommonAce(AceFlags.None, AceQualifier.AccessAllowed, GENERIC_ALL,
+      new SecurityIdentifier("S-1-5-18"), false, null));
+    var bytes = new byte[dacl.BinaryLength];
+    dacl.GetBinaryForm(bytes, 0);
+    var pin = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+    try {
+      var pointer = pin.AddrOfPinnedObject();
+      if (!SetTokenInformation(restricted, TokenDefaultDacl, ref pointer, IntPtr.Size)) {
+        CloseHandle(restricted);
+        throw new Win32Exception();
+      }
+    } finally {
+      pin.Free();
     }
     var startup = new StartupInfo {
       cb = Marshal.SizeOf(typeof(StartupInfo)),

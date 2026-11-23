@@ -1,6 +1,7 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   closeSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
@@ -55,6 +56,63 @@ it("leaves other platforms unchanged", () => {
     detached: true,
   });
 });
+
+it.runIf(process.platform === "win32")(
+  "gives the command a default DACL of the user and SYSTEM, so it can open the pipes it creates",
+  async () => {
+    // An elevated token's default DACL grants Administrators, which the restricted
+    // token denies: tsx's esbuild pipe then breaks with EPIPE. A file created in a
+    // folder that passes no rules down takes the token's default DACL.
+    const root = mkdtempSync(
+      join(process.env.TEMP ?? tmpdir(), "mdf-restricted-dacl-"),
+    );
+    try {
+      const whoami = join(
+        process.env.SystemRoot ?? "C:\\Windows",
+        "System32",
+        "whoami.exe",
+      );
+      const user = spawnSync(whoami, ["/user", "/fo", "csv", "/nh"], {
+        encoding: "utf8",
+      })
+        .stdout.trim()
+        .split(",")[1]
+        ?.replaceAll('"', "");
+      expect(user).toMatch(/^S-1-5-/u);
+      const folder = join(root, "plain");
+      mkdirSync(folder);
+      const grant = spawnSync(
+        "icacls",
+        [folder, "/inheritance:r", "/grant:r", `*${user}:(F)`],
+        { encoding: "utf8" },
+      );
+      expect(grant.status, grant.stderr).toBe(0);
+      const file = join(folder, "made.txt");
+      const made = await run(process.execPath, [
+        "-e",
+        `require("node:fs").writeFileSync(${JSON.stringify(file)}, "x")`,
+      ]);
+      expect(made.code, made.stderr).toBe(0);
+      const acl = spawnSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "[System.IO.File]::GetAccessControl($env:MDF_FILE).GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object { $_.IdentityReference.Value }",
+        ],
+        { encoding: "utf8", env: { ...process.env, MDF_FILE: file } },
+      );
+      expect(acl.status, acl.stderr).toBe(0);
+      expect(acl.stdout.split(/\s+/u).filter(Boolean).sort()).toEqual(
+        ["S-1-5-18", user].sort(),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
 
 it.runIf(process.platform === "win32")(
   "runs a command that writes to a log file, spawned the way the stack starts its supervisor",
