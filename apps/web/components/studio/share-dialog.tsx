@@ -1,7 +1,7 @@
 "use client";
 
 import { Copy, Mail, Share2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useLocale } from "@/components/locale-provider";
@@ -40,6 +40,11 @@ export function ShareDialog({
 }) {
   const lang = useLocale();
   const [copied, setCopied] = useState(false);
+  // A dialog that unmounts before the "copied" mark resets must not update it.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
   const url = open ? absoluteUrl(href, window.location.origin) : "";
   const links = open ? shareLinks(url, title) : [];
   const canShare = open && typeof navigator.share === "function";
@@ -49,7 +54,8 @@ export function ShareDialog({
       await navigator.clipboard.writeText(url);
       toast.success(st(lang, "clip.copied"));
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error(st(lang, "share.copyFailed"));
     }
