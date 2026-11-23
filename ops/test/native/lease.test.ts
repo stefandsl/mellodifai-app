@@ -92,3 +92,15 @@ it("serializes simultaneous stale-state takeovers and releases ownership after a
         child.kill("SIGKILL");
   }
 }, 30_000);
+
+it.runIf(process.platform === "win32")(
+  "reports the helper's own error when it cannot take the lease",
+  async () => {
+    // A folder at the lease path makes File.Open fail inside the helper.
+    const path = fixture();
+    await expect(acquireLease(path, "supervisor", 1000)).rejects.toThrow(
+      /^Stack lease helper exited before acquisition: .*UnauthorizedAccessException/,
+    );
+  },
+  30_000,
+);
