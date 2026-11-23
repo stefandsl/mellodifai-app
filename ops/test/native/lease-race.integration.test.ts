@@ -18,16 +18,10 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
     const entry = fileURLToPath(
       new URL("./fixtures/maintenance-child.ts", import.meta.url),
     );
+    const backup = join(layout.root, `race-${randomUUID()}`);
     const child = fork(
       entry,
-      [
-        "backup",
-        "during-backup",
-        "backup",
-        "--env",
-        "e2e",
-        join(layout.root, `race-${randomUUID()}`),
-      ],
+      ["backup", "during-backup", "backup", "--env", "e2e", backup],
       {
         execArgv: typescriptArgs(entry).slice(0, -1),
         stdio: ["ignore", "ignore", "ignore", "ipc"],
@@ -72,6 +66,8 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
       child.kill("SIGKILL");
       await exited;
       await runStack("stop", "e2e", { runtime: "native" });
+      // The killed backup is incomplete. Do not leave it in the shared lab.
+      rmSync(backup, { recursive: true, force: true });
     }
   },
   300_000,

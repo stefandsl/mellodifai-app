@@ -4,6 +4,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -28,7 +29,12 @@ const operator = join(scratch, "operator");
 const deploy = join(root, "deploy");
 const native = join(root, "stacks/prod/native");
 const origin = join(scratch, "origin");
-const lockdown = "20261103080001_ops_alignment_lockdown.sql";
+// The older release is this source without its newest migration. Nothing here
+// names a migration or a count: both change with every new migration.
+const migrations = readdirSync(join(source, "supabase/migrations"))
+  .filter((name) => name.endsWith(".sql"))
+  .sort();
+const newest = migrations.at(-1) as string;
 let stage = "setup";
 let deployedStack: typeof import("../../../stack.js") | undefined;
 const fetchActual = globalThis.fetch;
@@ -70,7 +76,7 @@ try {
     "node_modules/\ndist/\n*.tsbuildinfo\n",
   );
   writeFileSync(join(origin, ".gitattributes"), "* -text\n");
-  rmSync(join(origin, "supabase/migrations", lockdown)); // Task-created source copy only.
+  rmSync(join(origin, "supabase/migrations", newest)); // Task-created source copy only.
   await git(origin, "init", "-b", "main");
   await git(
     origin,
@@ -96,10 +102,10 @@ try {
   await git(origin, "tag", "m1-floor");
   await git(origin, "tag", "run8-old");
   cpSync(
-    join(source, "supabase/migrations", lockdown),
-    join(origin, "supabase/migrations", lockdown),
+    join(source, "supabase/migrations", newest),
+    join(origin, "supabase/migrations", newest),
   );
-  await git(origin, "add", "--", `supabase/migrations/${lockdown}`);
+  await git(origin, "add", "--", `supabase/migrations/${newest}`);
   await git(
     origin,
     "-c",
@@ -108,7 +114,7 @@ try {
     "user.email=native@example.invalid",
     "commit",
     "-m",
-    "Add the lockdown migration to the test release",
+    "Add the newest migration to the test release",
   );
   await git(origin, "tag", "run8-new");
   await git(
@@ -161,7 +167,7 @@ try {
         "select count(*) from supabase_migrations.schema_migrations",
       )
     ).trim(),
-    "53",
+    String(migrations.length - 1),
   );
   // App build/process dispatch and app health are simulated. Native stack,
   // backup, migration, credentials, probes, Git tags and cold starts are real.
@@ -194,7 +200,7 @@ try {
         "select count(*) from supabase_migrations.schema_migrations",
       )
     ).trim(),
-    "54",
+    String(migrations.length),
   );
   stage = "deploy older tag with skip-migrations";
   await deployment.productionDeploy(
@@ -211,7 +217,7 @@ try {
   );
   assert.equal((await nativeStatus("prod")).healthy, true);
   console.log(
-    "S9 verified: 53 migrations -> deploy new tag -> 54 migrations -> skip-migrations rollback -> stop -> cold start -> status green",
+    `S9 verified: ${migrations.length - 1} migrations -> deploy new tag -> ${migrations.length} migrations -> skip-migrations rollback -> stop -> cold start -> status green`,
   );
 } catch (error) {
   console.error(

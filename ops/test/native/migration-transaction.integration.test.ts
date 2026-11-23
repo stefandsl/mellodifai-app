@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { expect, it } from "vitest";
 import { nativeDatabase } from "../../lib/native/backup.js";
 import { withStackLease } from "../../lib/native/lease.js";
-import { applyAppMigrations } from "../../lib/native/migrate.js";
+import {
+  applyAppMigrations,
+  readMigrations,
+} from "../../lib/native/migrate.js";
 import {
   roleConnection,
   superuserConnection,
@@ -18,6 +22,11 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
   "rolls back failed real migrations, refuses a lockdown replay and checks the lockdown after a new migration",
   async () => {
     assertNativeTestRoot();
+    // The started stack has applied every migration in the repository. Count
+    // them here: a fixed number goes stale with the next migration.
+    const applied = readMigrations(
+      fileURLToPath(new URL("../../../supabase/migrations", import.meta.url)),
+    ).length;
     await runStack("start", "e2e", { runtime: "native" });
     try {
       await withStackLease("e2e", "migrate", async () => {
@@ -96,7 +105,7 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
               (
                 await live`select count(*)::int as n from supabase_migrations.schema_migrations`
               )[0]?.n,
-            ).toBe(54);
+            ).toBe(applied);
             const inserted = fixture();
             cpSync(
               new URL("../../../supabase/migrations", import.meta.url),
@@ -119,7 +128,7 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
               (
                 await live`select count(*)::int as n from supabase_migrations.schema_migrations`
               )[0]?.n,
-            ).toBe(54);
+            ).toBe(applied);
             // A new migration after the lockdown applies; one that undoes a
             // lockdown guarantee is rolled back with no ledger row.
             const forward = fixture();
@@ -167,7 +176,7 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
                 (
                   await live`select count(*)::int as n from supabase_migrations.schema_migrations`
                 )[0]?.n,
-              ).toBe(55);
+              ).toBe(applied + 1);
             } finally {
               await live.begin(async (tx) => {
                 await tx`drop table if exists public.run11_additive, public.run11_regrant`;
