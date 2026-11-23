@@ -44,11 +44,15 @@ export type LoadRecipesOptions = {
 
 function findRepoRoot(): string {
   const cwd = process.cwd();
-  const candidates = [
+  const candidates: string[] = [
     resolve(/*turbopackIgnore: true*/ cwd),
     resolve(/*turbopackIgnore: true*/ cwd, "../.."),
-    resolve(/*turbopackIgnore: true*/ import.meta.dirname, "../../../.."),
   ];
+  const metaDir =
+    typeof import.meta.dirname === "string" ? import.meta.dirname : undefined;
+  if (metaDir) {
+    candidates.push(resolve(/*turbopackIgnore: true*/ metaDir, "../../../.."));
+  }
   for (const dir of candidates) {
     if (
       existsSync(
@@ -71,7 +75,7 @@ function findRepoRoot(): string {
       return dir;
     }
   }
-  return resolve(/*turbopackIgnore: true*/ import.meta.dirname, "../../../..");
+  return candidates[1] ?? candidates[0] ?? cwd;
 }
 
 export function defaultRecipePaths() {
