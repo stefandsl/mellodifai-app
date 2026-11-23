@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,7 +115,9 @@ it.each([
     expect(plan.bounds[2]).toBeLessThanOrEqual(1216);
     expect(plan.bounds[3]).toBeLessThanOrEqual(684);
     if (title === "Tokyo 東京 😀") {
-      expect(plan.fonts).toContain("meiryob.ttc");
+      // Windows images without the Japanese fonts (hosted runners) fall back to Microsoft YaHei.
+      const meiryo = existsSync("C:/Windows/Fonts/meiryob.ttc");
+      expect(plan.fonts).toContain(meiryo ? "meiryob.ttc" : "msyhbd.ttc");
       expect(plan.fonts).toContain("seguiemj.ttf");
     }
     if (title === "Voice 👩‍🎤") expect(plan.fonts).toContain("seguiemj.ttf");
