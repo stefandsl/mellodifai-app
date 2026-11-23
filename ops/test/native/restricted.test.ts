@@ -1,4 +1,13 @@
 import { spawn } from "node:child_process";
+import {
+  closeSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, it } from "vitest";
 import {
   restrictedLaunch,
@@ -43,8 +52,42 @@ it("leaves other platforms unchanged", () => {
     command: "node",
     args: ["a b"],
     env: {},
+    detached: true,
   });
 });
+
+it.runIf(process.platform === "win32")(
+  "runs a command that writes to a log file, spawned the way the stack starts its supervisor",
+  async () => {
+    // A detached Windows PowerShell has no console and exits 0 before the script runs.
+    const root = mkdtempSync(
+      join(process.env.TEMP ?? tmpdir(), "mdf-restricted-"),
+    );
+    try {
+      const log = join(root, "out.log");
+      const out = openSync(log, "w");
+      const launch = restrictedLaunch(process.execPath, [
+        "-e",
+        "console.log('child ran'); console.error('child error'); process.exit(5)",
+      ]);
+      const child = spawn(launch.command, launch.args, {
+        detached: launch.detached,
+        stdio: ["ignore", out, out],
+        windowsHide: true,
+        env: { ...process.env, ...launch.env },
+      });
+      closeSync(out);
+      const code = await new Promise<number | null>((resolve) =>
+        child.once("exit", resolve),
+      );
+      expect(readFileSync(log, "utf8")).toMatch(/child ran\r?\nchild error/u);
+      expect(code).toBe(5);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
 
 it.runIf(process.platform === "win32")(
   "runs the command with every privilege dropped, its arguments intact and its exit code",

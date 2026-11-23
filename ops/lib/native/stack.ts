@@ -297,7 +297,7 @@ async function startNative(
     ]);
     const child = spawn(launch.command, launch.args, {
       cwd: dirname(supervisorEntry),
-      detached: true,
+      detached: launch.detached,
       stdio: ["ignore", out, out],
       windowsHide: true,
       env: {
