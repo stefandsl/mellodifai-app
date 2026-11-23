@@ -355,6 +355,13 @@ html:has(.site) {
   box-shadow: none;
 }
 
+/* ---------- Page ---------- */
+/* The root layout gives <body> the studio face (Geist). The site draws no text in it, but Chrome
+   still downloads a block's first font for its line metrics, so the site body names a local face. */
+body:has(.site) {
+  font-family: "Figtree Fallback", system-ui, sans-serif;
+}
+
 /* ---------- Brand ---------- */
 .site-brand {
   text-decoration: none;
@@ -366,8 +373,9 @@ html:has(.site) {
   width: var(--art-logo-size);
   height: var(--art-logo-size);
   background: var(--brand-ember);
-  -webkit-mask: url("/brand/mellodifai-logo.png") center / contain no-repeat;
-  mask: url("/brand/mellodifai-logo.png") center / contain no-repeat;
+  /* A 96 px copy of the 512 px studio logo: three times the drawn size, a tenth of the bytes. */
+  -webkit-mask: url("/site/brand-mark.png") center / contain no-repeat;
+  mask: url("/site/brand-mark.png") center / contain no-repeat;
 }
 
 .site-brand__name {
@@ -448,8 +456,8 @@ html:has(.site) {
   }
 }
 
-/* Very large text on a phone: the brand name and the menu button keep the row; the main action
-   stays in the first screen in the hero, under the title. */
+/* Narrow phone or large text (23rem or less): the brand name and the menu button keep the
+   header row; the main action stays in the first screen in the hero. */
 @container site-header (max-width: 23rem) {
   .site-header__cta {
     display: none;
@@ -546,6 +554,7 @@ html.site-menu-open {
 /* ---------- 0. Hero ---------- */
 .site-hero {
   position: relative;
+  container: site-hero / inline-size;
   padding: 0;
   overflow: clip;
 }
@@ -1179,17 +1188,11 @@ html.site-menu-open {
     --site-hero-top: var(--site-hero-top-sm);
   }
 
-  /* Phones: the main action comes right under the title, so it stays in the first screen
-     at any text size; the line under the title follows it. */
-  .site-hero__title {
-    order: 1;
-  }
+  /* Phones keep the order of the wide layout (title, line, main action). */
   .site-hero__actions {
-    order: 2;
     margin-top: var(--spacing-6);
   }
   .site-hero__lede {
-    order: 3;
     margin-top: var(--spacing-4);
     font-size: var(--text-body-size);
   }
@@ -1267,6 +1270,20 @@ html.site-menu-open {
   .site-footer__wordmark,
   .site-footer__bottom {
     margin-inline: var(--site-footer-inset-sm);
+  }
+}
+
+/* Very large text on a phone (where the header hides its CTA at 23rem or less): tighten the
+   hero title and gaps so the hero CTA stays inside the first screen in both languages. */
+@container site-hero (max-width: 15rem) {
+  .site-hero__title {
+    font-size: var(--font-size-xl);
+  }
+  .site-hero__lede {
+    margin-top: var(--spacing-3);
+  }
+  .site-hero__actions {
+    margin-top: var(--spacing-4);
   }
 }
 

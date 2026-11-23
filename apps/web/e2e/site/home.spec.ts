@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { chromium, expect, type Page, test } from "@playwright/test";
 import { SITE_COPY } from "../../lib/site/copy";
 import { cleanRoom } from "../../lib/site/judge/clean-room";
 import {
@@ -53,6 +53,13 @@ async function inView(page: Page, selector: string) {
     });
 }
 
+async function mainActionInView(page: Page) {
+  return (
+    (await inView(page, ".site-header__cta")) ||
+    (await inView(page, ".site-hero__primary"))
+  );
+}
+
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([
     {
@@ -95,6 +102,119 @@ for (const [width, height] of SIZES) {
       );
     });
     expect(band).toBeLessThanOrEqual(1);
+  });
+}
+
+for (const [width, height] of [
+  [320, 568],
+  [390, 844],
+] as const) {
+  test(`first screen at ${width}x${height} (it): brand and main action fully inside the first screen`, async ({
+    page,
+    baseURL,
+  }) => {
+    await page.context().addCookies([
+      {
+        name: "mellodifai_lang",
+        value: "it",
+        url: baseURL ?? "http://127.0.0.1",
+      },
+    ]);
+    await page.setViewportSize({ width, height });
+    await open(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    expect(await inView(page, ".site-header .site-brand__name")).toBe(true);
+    expect(await mainActionInView(page)).toBe(true);
+  });
+}
+
+// C19: the first load stays light. The home page fetches only the site's own font files (the
+// studio face is not preloaded and not drawn here) and no image heavier than its drawn size needs.
+// A phone context in full Chromium (new headless), as Lighthouse mobile loads the page: the
+// headless shell of the default project does not fetch a block's first font for its metrics.
+test("first load on a phone: only the site's own fonts, no image over 16 KB", async ({
+  browserName,
+  baseURL,
+}) => {
+  test.skip(browserName !== "chromium", "phone emulation is Chromium only");
+  const browser = await chromium.launch({ channel: "chromium" });
+  const fonts: string[] = [];
+  const heavy: string[] = [];
+  try {
+    const context = await browser.newContext({
+      baseURL,
+      viewport: { width: 412, height: 823 },
+      deviceScaleFactor: 1.75,
+      isMobile: true,
+      hasTouch: true,
+    });
+    const page = await context.newPage();
+    const images: { url: string; size: Promise<number> }[] = [];
+    page.on("response", (r) => {
+      const type = r.request().resourceType();
+      if (type === "font") fonts.push(new URL(r.url()).pathname);
+      if (type === "image")
+        images.push({
+          url: new URL(r.url()).pathname,
+          size: r.body().then(
+            (b) => b.length,
+            () => 0,
+          ),
+        });
+    });
+    await open(page);
+    await page.waitForLoadState("networkidle");
+    for (const i of images)
+      if ((await i.size) > 16 * 1024) heavy.push(`${i.url} ${await i.size}`);
+  } finally {
+    await browser.close();
+  }
+  expect(fonts.length).toBeGreaterThan(0);
+  // The dev server's own overlay draws in Geist from /__nextjs_font/; a build has no overlay.
+  expect(
+    fonts.filter(
+      (f) => !f.startsWith("/site/fonts/") && !f.startsWith("/__nextjs_font/"),
+    ),
+  ).toEqual([]);
+  expect(heavy).toEqual([]);
+});
+
+// C19 council: one order and one look for the main action. On a phone the hero reads title,
+// line, main action, as on a wide window, and the main action looks like the header's.
+for (const [width, height] of [
+  [390, 844],
+  [1440, 900],
+] as const) {
+  test(`hero at ${width}x${height}: title, line, then the main action in the header's look`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+    const top = (selector: string) =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((el) => el.getBoundingClientRect().top);
+    const title = await top(".site-hero__title");
+    const lede = await top(".site-hero__lede");
+    const action = await top(".site-hero__primary");
+    expect(title).toBeLessThan(lede);
+    expect(lede).toBeLessThan(action);
+    const look = (selector: string) =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((el) => {
+          const s = getComputedStyle(el);
+          return [s.backgroundColor, s.color, s.borderRadius].join(" | ");
+        });
+    expect(await look(".site-hero__primary")).toBe(
+      await look(".site-header__cta"),
+    );
   });
 }
 
@@ -294,14 +414,24 @@ test("a missing sample says so and turns the play button off", async ({
   );
 });
 
-for (const [scale, width] of [
-  [150, 390],
-  [200, 390],
-  [200, 1440],
+for (const [scale, width, lang] of [
+  [150, 390, "en"],
+  [150, 390, "it"],
+  [200, 390, "en"],
+  [200, 390, "it"],
+  [200, 1440, "en"],
 ] as const) {
-  test(`text at ${scale}% on ${width}: brand name and main action in the first screen, nothing cut`, async ({
+  test(`text at ${scale}% on ${width} (${lang}): brand name and main action in the first screen, nothing cut`, async ({
     page,
+    baseURL,
   }) => {
+    await page.context().addCookies([
+      {
+        name: "mellodifai_lang",
+        value: lang,
+        url: baseURL ?? "http://127.0.0.1",
+      },
+    ]);
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.addInitScript((s) => {
       document.addEventListener("DOMContentLoaded", () => {
@@ -315,15 +445,7 @@ for (const [scale, width] of [
       ),
     ).toBe(true);
     expect(await inView(page, ".site-header .site-brand__name")).toBe(true);
-    const actions = await page
-      .locator(".site-header__cta:visible, .site-hero__primary")
-      .evaluateAll((els) =>
-        els.some((el) => {
-          const r = el.getBoundingClientRect();
-          return r.height > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
-        }),
-      );
-    expect(actions).toBe(true);
+    expect(await mainActionInView(page)).toBe(true);
     // Brand and header actions do not overlap.
     const overlap = await page.evaluate(() => {
       const brand = document

@@ -8,10 +8,17 @@ import { getLocale } from "@/lib/locale";
 import { GLASS_SCRIPT } from "@/lib/studio/ambient";
 import { THEME_SCRIPT } from "@/lib/theme";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
+// The studio faces are not preloaded: a preload here is on every route, and the public site
+// (app/(site)) never draws them. The studio gets them from its stylesheet with a matched fallback.
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  preload: false,
+});
 const geistMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-geist-mono-face",
+  preload: false,
 });
 
 export async function generateMetadata(): Promise<Metadata> {

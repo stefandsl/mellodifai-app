@@ -1,6 +1,7 @@
 // Words of the public site, in Italian and English. All of it is ours (clean room: no text of the
 // reference site; the clean-room judge checks it). Agent names are product names and stay as is.
 import type { AgentName, RouteName } from "./nav";
+import type { CellText, CompareGroup, CompareRow } from "./plans";
 
 export type SiteLang = "it" | "en";
 
@@ -90,6 +91,20 @@ export type SiteCopy = {
     items: Plan[];
   };
   faq: { title: string; items: Question[] };
+  pricing: {
+    meta: { title: string; description: string };
+    title: string;
+    line: string;
+    compareTitle: string;
+    featureColumn: string;
+    included: string;
+    notIncluded: string;
+    groups: Record<CompareGroup, string>;
+    rows: Record<CompareRow, string>;
+    cells: Record<CellText, string>;
+    faqTitle: string;
+    faq: Question[];
+  };
   closing: { title: string; action: string; note: string; label: string };
   footer: {
     tagline: string;
@@ -313,7 +328,7 @@ const en: SiteCopy = {
     monthly: "Monthly",
     yearly: "Yearly",
     switchLabel: "How often you pay",
-    price: "Price to be set",
+    price: "Owner decides prices",
     period: { monthly: "per month", yearly: "per year" },
     compare: "Compare the plans",
     recommended: "Most chosen",
@@ -378,6 +393,80 @@ const en: SiteCopy = {
       {
         q: "How do I take a song out?",
         a: "Export the audio, the stems, a karaoke track or a lyric video from the editor.",
+      },
+    ],
+  },
+  pricing: {
+    meta: {
+      title: "Plans - MellodifAI",
+      description:
+        "Four MellodifAI plans side by side: what each one holds, and answers about paying, credits and privacy.",
+    },
+    title: "Pick a plan for the songs you make",
+    line: "The prices come later. Every plan opens the same studio. How plans change and end is set together with the prices.",
+    compareTitle: "Every plan, side by side",
+    featureColumn: "What you get",
+    included: "Included",
+    notIncluded: "Not in this plan",
+    groups: {
+      songs: "Songs",
+      editing: "Editing",
+      voice: "Voice",
+      publishing: "Publishing",
+      agents: "Agents and help",
+    },
+    rows: {
+      prompt: "A song from a prompt",
+      link: "A remake from a link",
+      recipes: "Remix and cover recipes",
+      word: "Change a word or a line",
+      section: "Rewrite a whole section",
+      takes: "Choose between takes",
+      stems: "Voice and band as separate tracks",
+      translate: "The song in another language",
+      karaoke: "Karaoke track",
+      mp3: "MP3 export",
+      video: "Lyric video",
+      channels: "Publish to your channels",
+      desktop: "Desktop app",
+      agentAccess: "Claude, ChatGPT, Gemini, Codex and Cursor",
+      songbook: "One songbook for the team",
+      help: "Help",
+    },
+    cells: {
+      guides: "Guides",
+      email: "By email",
+      faster: "First in line",
+    },
+    faqTitle: "Plans, asked and answered",
+    faq: [
+      {
+        q: "How does a plan end, and can I change it?",
+        a: "When a plan ends and how you change plans is set together with the prices. Your songs stay yours.",
+      },
+      {
+        q: "Is there a plan that costs nothing?",
+        a: "The first plan is there to try the studio with one song. What it holds and what it costs is decided together with the other prices.",
+      },
+      {
+        q: "What does a credit pay for?",
+        a: "Work that runs on a paid engine, such as a new take of a song. Work that runs on your own computer uses no credits.",
+      },
+      {
+        q: "What happens when my credits run out?",
+        a: "What happens when credits run out, and whether you can add more, is published together with the prices.",
+      },
+      {
+        q: "How do I pay?",
+        a: "Payment opens when the prices are set. Until then nothing is charged.",
+      },
+      {
+        q: "Who can hear my songs?",
+        a: "Only you, until you publish a song or share its link. Your plan does not change that.",
+      },
+      {
+        q: "Can I work on my own computer?",
+        a: "Yes. Work that runs on your own computer uses no credits.",
       },
     ],
   },
@@ -615,7 +704,7 @@ const it: SiteCopy = {
     monthly: "Mensile",
     yearly: "Annuale",
     switchLabel: "Periodo di pagamento",
-    price: "Prezzo da definire",
+    price: "Prezzi decisi dal titolare",
     period: { monthly: "al mese", yearly: "all'anno" },
     compare: "Confronta i piani",
     recommended: "Il più scelto",
@@ -684,6 +773,80 @@ const it: SiteCopy = {
       {
         q: "Come porto fuori una canzone?",
         a: "Dall'editor esporti l'audio, le tracce separate, una base karaoke o un video del testo.",
+      },
+    ],
+  },
+  pricing: {
+    meta: {
+      title: "Piani - MellodifAI",
+      description:
+        "I quattro piani di MellodifAI fianco a fianco: cosa contiene ciascuno, e risposte su pagamenti, crediti e privacy.",
+    },
+    title: "Scegli un piano per le canzoni che fai",
+    line: "I prezzi arrivano più avanti. Ogni piano apre lo stesso studio. Come si cambia e come finisce un piano si decide insieme ai prezzi.",
+    compareTitle: "Tutti i piani, fianco a fianco",
+    featureColumn: "Cosa ottieni",
+    included: "Incluso",
+    notIncluded: "Non in questo piano",
+    groups: {
+      songs: "Canzoni",
+      editing: "Modifica",
+      voice: "Voce",
+      publishing: "Pubblicazione",
+      agents: "Agenti e aiuto",
+    },
+    rows: {
+      prompt: "Una canzone da un prompt",
+      link: "Un rifacimento da un link",
+      recipes: "Ricette remix e cover",
+      word: "Cambia una parola o un verso",
+      section: "Riscrivi una sezione intera",
+      takes: "Scegli tra più take",
+      stems: "Voce e band su tracce separate",
+      translate: "La canzone in un'altra lingua",
+      karaoke: "Base karaoke",
+      mp3: "Esportazione MP3",
+      video: "Video del testo",
+      channels: "Pubblica sui tuoi canali",
+      desktop: "App desktop",
+      agentAccess: "Claude, ChatGPT, Gemini, Codex e Cursor",
+      songbook: "Un canzoniere per il gruppo",
+      help: "Aiuto",
+    },
+    cells: {
+      guides: "Guide",
+      email: "Per email",
+      faster: "Prima in coda",
+    },
+    faqTitle: "Piani, domande e risposte",
+    faq: [
+      {
+        q: "Come finisce un piano, e posso cambiarlo?",
+        a: "Quando finisce un piano e come si cambia piano si decide insieme ai prezzi. Le tue canzoni restano tue.",
+      },
+      {
+        q: "C'è un piano che non costa nulla?",
+        a: "Il primo piano serve a provare lo studio con una canzone. Cosa contiene e quanto costa si decide insieme agli altri prezzi.",
+      },
+      {
+        q: "Cosa paga un credito?",
+        a: "Il lavoro che gira su un motore a pagamento, come una nuova take di una canzone. Il lavoro che gira sul tuo computer non usa crediti.",
+      },
+      {
+        q: "Cosa succede quando finiscono i crediti?",
+        a: "Cosa succede quando finiscono i crediti, e se puoi aggiungerne altri, viene pubblicato insieme ai prezzi.",
+      },
+      {
+        q: "Come pago?",
+        a: "I pagamenti si aprono quando i prezzi sono decisi. Fino ad allora non si paga nulla.",
+      },
+      {
+        q: "Chi può ascoltare le mie canzoni?",
+        a: "Solo tu, finché non pubblichi una canzone o ne condividi il link. Il piano non cambia questo.",
+      },
+      {
+        q: "Posso lavorare sul mio computer?",
+        a: "Sì. Il lavoro che gira sul tuo computer non usa crediti.",
       },
     ],
   },

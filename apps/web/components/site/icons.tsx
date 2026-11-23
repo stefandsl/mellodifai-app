@@ -59,3 +59,19 @@ export function CheckGlyph(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function PlusGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  );
+}
+
+export function DashGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M4.5 8h7" />
+    </svg>
+  );
+}
