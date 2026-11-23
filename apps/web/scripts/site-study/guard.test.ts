@@ -1,11 +1,15 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { runGuard } from "./guard.mjs";
 
-const TMP_ROOT = "E:/mellodifai/tmp/c14-guard-tests";
+const TMP_ROOT = join(
+  process.env.RUNNER_TEMP || process.env.TEMP || tmpdir(),
+  "c14-guard-tests",
+);
 const tempDirs: string[] = [];
 
 function makeFixtureRepo() {
