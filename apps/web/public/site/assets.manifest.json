@@ -2,6 +2,12 @@
   "schemaVersion": 1,
   "assets": [
     {
+      "path": "brand-mark.png",
+      "origin": "own (96 px copy of apps/web/public/brand/mellodifai-logo.png)",
+      "sha256": "28bbf541fba3118b194ef956afc07aeb63decc9c93393835ef9b2fa15a2fbb3f",
+      "bytes": 7120
+    },
+    {
       "path": "fonts/figtree-latin-400-normal.woff2",
       "origin": "SIL OFL 1.1 (fonts/figtree.LICENSE.txt)",
       "sha256": "8f98dd642986f1fa39c45b89665a57372897c235b36028e0e4a136e43dc5f8ab",
