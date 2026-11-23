@@ -48,6 +48,10 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
+      - name: Diagnose the lease helper (temporary)
+        run: |
+          node .github/diag/lease-diag.mjs
+          exit 1
       - run: pnpm ops check-no-keys.ts
       - run: pnpm lint
       - run: pnpm typecheck
@@ -73,8 +77,6 @@ jobs:
           if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
             throw 'Native tests require ffmpeg on PATH. The pinned FFmpeg artifact from ops/lib/native/manifest.json was not found on PATH.'
           }
-      - name: Diagnose the lease helper (temporary)
-        run: node .github/diag/lease-diag.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
