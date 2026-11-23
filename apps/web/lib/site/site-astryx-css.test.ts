@@ -10,6 +10,7 @@ describe("public site loads only the Astryx CSS it uses", () => {
   it("does not import the full 304 KB @astryxdesign/core/astryx.css in the site layout", () => {
     const layout = readFileSync(join(WEB, "app/(site)/layout.tsx"), "utf8");
     expect(layout).not.toContain("@astryxdesign/core/astryx.css");
+    expect(layout).not.toContain("@astryxdesign/core/reset.css");
     expect(layout).toContain("site-astryx.css");
   });
 
@@ -24,6 +25,7 @@ describe("public site loads only the Astryx CSS it uses", () => {
     const { sharedCss, tableCss } = computeSiteAstryxCss();
     expect(readFileSync(sharedPath, "utf8")).toBe(sharedCss);
     expect(readFileSync(tablePath, "utf8")).toBe(tableCss);
+    expect(sharedCss).toContain("@layer reset");
     expect(Buffer.byteLength(sharedCss)).toBeLessThan(fullSize * 0.45);
   });
 });

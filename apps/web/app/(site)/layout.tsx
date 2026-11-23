@@ -1,4 +1,3 @@
-import "@astryxdesign/core/reset.css";
 import "@/src/site-astryx.css";
 import "@/src/themes/mesh/mesh.css";
 import "./site.css";
@@ -12,11 +11,16 @@ import { getLocale } from "@/lib/locale";
 import { SITE_COPY } from "@/lib/site/copy";
 import { SiteLink } from "@/src/site-primitives";
 
-// The two faces of the first screen load first; the fallback faces in site.css have their
-// width and height, so the page does not move when they arrive.
+// The two primary faces load first; the secondary faces are preloaded at low fetch priority so
+// they never starve render-blocking CSS on HTTP/1.1 yet are not discovered late after layout.
 const FIRST_FONTS = [
   "/site/fonts/instrument-serif-latin-400-normal.woff2",
   "/site/fonts/figtree-latin-400-normal.woff2",
+];
+const SECONDARY_FONTS = [
+  "/site/fonts/figtree-latin-500-normal.woff2",
+  "/site/fonts/figtree-latin-600-normal.woff2",
+  "/site/fonts/ibm-plex-mono-latin-500-normal.woff2",
 ];
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -31,6 +35,13 @@ export default async function SiteLayout({
 }) {
   for (const font of FIRST_FONTS)
     preload(font, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
+  for (const font of SECONDARY_FONTS)
+    preload(font, {
+      as: "font",
+      type: "font/woff2",
+      crossOrigin: "anonymous",
+      fetchPriority: "low",
+    });
   const lang = await getLocale();
   const copy = SITE_COPY[lang];
   return (
