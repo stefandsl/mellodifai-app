@@ -111,6 +111,14 @@ export function orderDefinitions<T extends { id: string; dependsOn: string[] }>(
   return ordered;
 }
 
+/** How long one publication waits for other processes to close the state
+ * file. Windows refuses the replacement while any process has the old file
+ * open, a status reader included. On a PC at 100% CPU one reader kept it open
+ * for up to 0.7 s (7,353 reads), and the one hold that used up the earlier
+ * 1 s limit ended in less than 4.8 s. 10 s is twice that. Every command that
+ * waits for the supervisor waits 30 s or longer. */
+export const STATE_PUBLICATION_MS = 10_000;
+
 export function writeState(
   path: string,
   state: StackState,
@@ -119,12 +127,15 @@ export function writeState(
   mkdirSync(dirname(path), { recursive: true });
   const temp = `${path}.${randomUUID()}.tmp`;
   writeFileSync(temp, JSON.stringify(state, null, 2));
+  const started = Date.now();
   try {
     for (let attempt = 0; ; attempt++) {
       try {
         renameSync(temp, path);
         if (attempt)
-          log(`state: published after ${attempt} Windows sharing retries`);
+          log(
+            `state: published after ${attempt} Windows sharing retries (${Date.now() - started}ms)`,
+          );
         return;
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
@@ -134,12 +145,12 @@ export function writeState(
         if (
           process.platform !== "win32" ||
           !["EPERM", "EACCES", "EBUSY"].includes(code ?? "") ||
-          attempt >= 20
+          Date.now() - started >= STATE_PUBLICATION_MS
         )
           throw error;
         if (!attempt)
           log(
-            `state: Windows sharing conflict (${code}); retrying publication for at most 1000ms`,
+            `state: Windows sharing conflict (${code}); retrying publication for at most ${STATE_PUBLICATION_MS}ms`,
           );
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
       }

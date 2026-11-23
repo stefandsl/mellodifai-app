@@ -1,4 +1,4 @@
-import { type ChildProcess, fork, spawnSync } from "node:child_process";
+import { type ChildProcess, fork, spawn, spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +35,72 @@ it.runIf(process.platform === "win32")(
     await notified;
   },
   30_000,
+);
+
+it.runIf(process.platform === "win32")(
+  "says that the last holder of a locked lease is gone and whether its helper still runs",
+  async () => {
+    const path = join(fixture(), "stack.lease");
+    // A process id that is not in use: this process has just ended.
+    const gone = spawnSync(process.execPath, ["-e", ""]).pid;
+    const holding = async (args: string[]) => {
+      const child = spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          ...args,
+        ],
+        { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] },
+      );
+      await new Promise<void>((resolve) =>
+        child.stdout.once("data", () => resolve()),
+      );
+      return {
+        pid: child.pid,
+        async release() {
+          const exited = new Promise((resolve) => child.once("close", resolve));
+          child.stdin.end();
+          await exited;
+        },
+      };
+    };
+    // The helper of a dead owner that still has the lease: its input stays open here.
+    const helper = await holding([
+      "-File",
+      fileURLToPath(new URL("../../native/lease.ps1", import.meta.url)),
+      "-Path",
+      path,
+      "-Command",
+      "import",
+      "-OwnerPid",
+      String(gone),
+      "-TimeoutMs",
+      "5000",
+    ]);
+    try {
+      await expect(acquireLease(path, "start", 50)).rejects.toThrow(
+        `Stack lease held by import (pid ${gone}); timed out after 50ms (process ${gone} is no longer running; its lease helper, pid ${helper.pid}, is still running)`,
+      );
+    } finally {
+      await helper.release();
+    }
+    // The same record, but a process that is not a lease helper has the file.
+    const other = await holding([
+      "-Command",
+      `$f=[IO.File]::Open('${path}',[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite); [Console]::Out.WriteLine('held'); $null=[Console]::In.ReadLine(); $f.Dispose()`,
+    ]);
+    try {
+      await expect(acquireLease(path, "start", 50)).rejects.toThrow(
+        `Stack lease held by import (pid ${gone}); timed out after 50ms (process ${gone} is no longer running and none of its lease helpers is running)`,
+      );
+    } finally {
+      await other.release();
+    }
+  },
+  120_000,
 );
 
 it("serializes simultaneous stale-state takeovers and releases ownership after a real kill", async () => {

@@ -278,48 +278,75 @@ export function postmasterPid(layout: NativeLayout): number | null {
   }
 }
 
+/** PostgreSQL records its start time after Windows has loaded it, so the
+ * postmaster is created before that time: by the load time, which grows with
+ * the load on the PC. A process that took over the pid of a dead postmaster
+ * is created after it. On a PC at 100% CPU postgres.exe loaded in up to
+ * 1.2 s (480 runs) and wrote postmaster.pid up to 10 s after its creation
+ * (30 starts); 30 s is three times the longer delay. */
+const POSTMASTER_LOAD_SECONDS = 30;
+/** The recorded start time has whole seconds, and the two clocks may differ. */
+const POSTMASTER_CLOCK_SECONDS = 2;
+
+export type PostmasterCheck =
+  | { identity: ProcessIdentity }
+  | { identity: null; reason: string };
+
 /** A pid file alone is not authority to stop an arbitrary process. PostgreSQL
- * records its data directory and start epoch beside the pid. Check both. */
+ * records its data directory and start epoch beside the pid. Check both.
+ * A process table that cannot be read is an error, never "no postmaster". */
+export async function checkPostmaster(
+  layout: NativeLayout,
+): Promise<PostmasterCheck> {
+  const refuse = (reason: string) => ({ identity: null, reason });
+  let record: string[];
+  try {
+    record = readFileSync(join(layout.pgdata, "postmaster.pid"), "utf8").split(
+      /\r?\n/,
+    );
+  } catch {
+    return refuse("there is no postmaster.pid");
+  }
+  const [pidText, directory, epochText] = record;
+  const pid = Number(pidText);
+  const epoch = Number(epochText);
+  if (
+    !Number.isInteger(pid) ||
+    pid < 1 ||
+    !Number.isFinite(epoch) ||
+    epoch <= 0
+  )
+    return refuse("postmaster.pid is incomplete");
+  if (!directory || resolve(directory) !== resolve(layout.pgdata))
+    return refuse("postmaster.pid names another data directory");
+  const live = (await processIdentities([pid])).get(pid);
+  if (!live) return refuse(`process ${pid} of postmaster.pid is not running`);
+  const lead = epoch - Date.parse(live.startedAt) / 1000;
+  if (!Number.isFinite(lead))
+    return refuse(`process ${pid} has no readable creation time`);
+  if (lead < -POSTMASTER_CLOCK_SECONDS || lead > POSTMASTER_LOAD_SECONDS)
+    return refuse(
+      `process ${pid} was created ${Math.abs(lead).toFixed(1)} s ${lead < 0 ? "after" : "before"} the start time in postmaster.pid`,
+    );
+  return { identity: live };
+}
+
 export async function verifiedPostmaster(
   layout: NativeLayout,
 ): Promise<ProcessIdentity | null> {
-  try {
-    const [pidText, directory, epochText] = readFileSync(
-      join(layout.pgdata, "postmaster.pid"),
-      "utf8",
-    ).split(/\r?\n/);
-    const pid = Number(pidText);
-    const epoch = Number(epochText);
-    if (
-      !Number.isInteger(pid) ||
-      pid < 1 ||
-      !directory ||
-      resolve(directory) !== resolve(layout.pgdata) ||
-      !Number.isFinite(epoch) ||
-      epoch <= 0
-    )
-      return null;
-    const live = (await processIdentities([pid])).get(pid);
-    if (
-      !live ||
-      Math.abs(Date.parse(live.startedAt) / 1000 - epoch) > 2 ||
-      !Number.isFinite(Date.parse(live.startedAt))
-    )
-      return null;
-    return live;
-  } catch {
-    return null;
-  }
+  return (await checkPostmaster(layout)).identity;
 }
 
 /** Fast shutdown: sessions are ended and a checkpoint is written, so the
  * next start needs no recovery. A timeout is an error, never a kill.
+ * Returns the reason when PostgreSQL was not asked to stop.
  */
 export async function stopPostgres(
   layout: NativeLayout,
   tools: NativeTools,
-): Promise<void> {
-  if (!(await verifiedPostmaster(layout))) return;
+): Promise<string | undefined> {
+  const check = await checkPostmaster(layout);
+  if (check.identity === null) return check.reason;
   const code = await pgCtl(tools, layout, [
     "stop",
     "-D",
@@ -333,6 +360,7 @@ export async function stopPostgres(
   const pid = postmasterPid(layout);
   if (code !== 0 && pid !== null && pidAlive(pid))
     throw new Error("PostgreSQL did not shut down cleanly within 120 seconds");
+  return undefined;
 }
 
 export function postgresService(
@@ -418,22 +446,22 @@ export function postgresService(
             `${reason}; postmaster pid ${pid}, host pid ${child.pid}, sharedConsole=${launch.ipc}, windowsHide=true`,
           ),
         async stop() {
-          await stopPostgres(layout, tools);
+          const notAsked = await stopPostgres(layout, tools);
+          const hostGone = () =>
+            child.exitCode !== null || child.signalCode !== null;
           // pg_ctl observes the postmaster; the console host may need one more
           // event-loop turn to forward that exit and release its own handles.
-          if (initialized)
-            await waitFor(
-              async () => child.exitCode !== null || child.signalCode !== null,
-              2000,
-              25,
-            );
-          if (child.exitCode === null && child.signalCode === null) {
-            if (initialized)
+          if (initialized) await waitFor(async () => hostGone(), 2000, 25);
+          if (!hostGone()) {
+            // Ending the host ends every process it started. That is a hard
+            // stop only while the postmaster lives. On a busy PC the host can
+            // need longer to follow a postmaster that has already gone.
+            if (initialized && pidAlive(pid))
               throw new Error(
-                "PostgreSQL shutdown could not be verified; refusing a hard stop of an initialized server",
+                `PostgreSQL shutdown could not be verified; refusing a hard stop of an initialized server${notAsked ? ` (${notAsked})` : ""}`,
               );
-            // No postmaster.pid means this owned child failed before the
-            // server initialized. It still must not outlive a failed start.
+            // No live postmaster: this owned child failed before the server
+            // initialized, or outlived it. It must not outlive the stop.
             child.kill();
             await observed.exited;
           }

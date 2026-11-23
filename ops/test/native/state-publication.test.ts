@@ -2,7 +2,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { expect, it } from "vitest";
-import { type StackState, writeState } from "../../lib/native/processes.js";
+import {
+  STATE_PUBLICATION_MS,
+  type StackState,
+  writeState,
+} from "../../lib/native/processes.js";
 import { fixture } from "./fixtures.js";
 
 it.skipIf(process.platform !== "win32")(
@@ -40,48 +44,85 @@ it.skipIf(process.platform !== "win32")(
   30_000,
 );
 
+/** A second process that has the state file open without delete sharing,
+ * as a status reader that is slow to close it. It closes the file after
+ * `holdMs`, or when the returned function is called. */
+async function holdOpen(file: string, holdMs?: number) {
+  const wait =
+    holdMs === undefined
+      ? "[Console]::ReadLine() | Out-Null"
+      : `[Threading.Thread]::Sleep(${holdMs})`;
+  const holder = spawn(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$f=[IO.File]::Open($env:MDF_TEST_STATE,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite); try { [Console]::WriteLine('ready'); ${wait} } finally { $f.Dispose() }`,
+    ],
+    {
+      env: { ...process.env, MDF_TEST_STATE: file },
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
+  const exited = new Promise<void>((done) => holder.once("exit", () => done()));
+  // A holder with a timed hold has ended before it is told to release.
+  holder.stdin.on("error", () => {});
+  await new Promise<void>((done, fail) => {
+    holder.stdout.once("data", () => done());
+    holder.once("error", fail);
+  });
+  return async () => {
+    holder.stdin.end("\n");
+    await exited;
+  };
+}
+const next: StackState = {
+  supervisor: { pid: 1, startedAt: "test" },
+  phase: "ready",
+  updatedAt: "test",
+  services: {},
+};
+
+it.skipIf(process.platform !== "win32")(
+  "publishes when another process keeps the state file open for seconds",
+  async () => {
+    const file = join(fixture(), "state.json");
+    writeFileSync(file, JSON.stringify({ previous: true }));
+    // Longer than the 1 s that used to be the limit, shorter than the limit.
+    const release = await holdOpen(file, 2500);
+    try {
+      const messages: string[] = [];
+      const start = Date.now();
+      writeState(file, next, (m) => messages.push(m));
+      expect(Date.now() - start).toBeGreaterThan(1000);
+      expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(next);
+      expect(messages.map((m) => m.replace(/\d+/g, "N"))).toEqual([
+        "state: Windows sharing conflict (EPERM); retrying publication for at most Nms",
+        "state: published after N Windows sharing retries (Nms)",
+      ]);
+    } finally {
+      await release();
+    }
+  },
+  30_000,
+);
+
 it.skipIf(process.platform !== "win32")(
   "bounds a persistent sharing denial and keeps the previous complete state",
   async () => {
     const file = join(fixture(), "state.json");
     writeFileSync(file, JSON.stringify({ previous: true }));
-    const holder = spawn(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        "$f=[IO.File]::Open($env:MDF_TEST_STATE,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite); try { [Console]::WriteLine('ready'); [Console]::ReadLine() | Out-Null } finally { $f.Dispose() }",
-      ],
-      {
-        env: { ...process.env, MDF_TEST_STATE: file },
-        windowsHide: true,
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    );
-    const exited = new Promise<void>((done) =>
-      holder.once("exit", () => done()),
-    );
+    const release = await holdOpen(file);
     try {
-      await new Promise<void>((done, fail) => {
-        holder.stdout.once("data", () => done());
-        holder.once("error", fail);
-      });
       const messages: string[] = [];
       const start = Date.now();
-      expect(() =>
-        writeState(
-          file,
-          {
-            supervisor: { pid: 1, startedAt: "test" },
-            phase: "ready",
-            updatedAt: "test",
-            services: {},
-          },
-          (m) => messages.push(m),
-        ),
-      ).toThrow(/EPERM|EACCES|EBUSY/);
-      expect(Date.now() - start).toBeLessThan(5000);
+      expect(() => writeState(file, next, (m) => messages.push(m))).toThrow(
+        /EPERM|EACCES|EBUSY/,
+      );
+      expect(Date.now() - start).toBeGreaterThanOrEqual(STATE_PUBLICATION_MS);
+      expect(Date.now() - start).toBeLessThan(STATE_PUBLICATION_MS + 5000);
       expect(messages.some((m) => m.includes("retrying publication"))).toBe(
         true,
       );
@@ -89,11 +130,10 @@ it.skipIf(process.platform !== "win32")(
         previous: true,
       });
     } finally {
-      holder.stdin.end("\n");
-      await exited;
+      await release();
     }
   },
-  15_000,
+  30_000,
 );
 
 import { spawn } from "node:child_process";
