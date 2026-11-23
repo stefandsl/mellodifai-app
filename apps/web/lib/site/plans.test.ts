@@ -29,18 +29,40 @@ describe("plans of the public site", () => {
       expect(copy.pricing.faq.length).toBeGreaterThanOrEqual(7);
     });
 
-  // Plan terms (when a plan ends, when you can change it) are the owner's decision with the
-  // prices (D1). Until then the page promises none of them.
+  // Plan terms (when a plan ends, how you change it, credit periods and top-ups) are the owner's
+  // decision with the prices (D1). Until then the page promises none of them.
   it("promises no plan term before the owner sets the prices", () => {
     const promises = [
       /any time/iu,
       /close of the period/iu,
       /quando vuoi/iu,
       /chiusura del periodo/iu,
+      /next period|top-up|periodo successivo|ricarica/iu,
     ];
     for (const lang of ["en", "it"] as const) {
-      const p = SITE_COPY[lang].pricing;
-      const text = [p.line, ...p.faq.flatMap((f) => [f.q, f.a])].join("\n");
+      const { pricing, plans, faq } = SITE_COPY[lang];
+      const text = [
+        pricing.meta.title,
+        pricing.meta.description,
+        pricing.title,
+        pricing.line,
+        pricing.compareTitle,
+        pricing.featureColumn,
+        pricing.included,
+        pricing.notIncluded,
+        ...Object.values(pricing.groups),
+        ...Object.values(pricing.rows),
+        ...Object.values(pricing.cells),
+        pricing.faqTitle,
+        ...pricing.faq.flatMap((f) => [f.q, f.a]),
+        plans.title,
+        plans.price,
+        plans.compare,
+        plans.recommended,
+        ...plans.items.flatMap((i) => [i.name, i.line, ...i.items, i.action]),
+        faq.title,
+        ...faq.items.flatMap((f) => [f.q, f.a]),
+      ].join("\n");
       for (const re of promises) expect(text, `${lang} ${re}`).not.toMatch(re);
     }
   });

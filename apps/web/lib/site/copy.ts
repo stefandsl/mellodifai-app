@@ -454,7 +454,7 @@ const en: SiteCopy = {
       },
       {
         q: "What happens when my credits run out?",
-        a: "You wait for the next period or add a top-up. What a top-up costs is set together with the other prices.",
+        a: "What happens when credits run out, and whether you can add more, is published together with the prices.",
       },
       {
         q: "How do I pay?",
@@ -834,7 +834,7 @@ const it: SiteCopy = {
       },
       {
         q: "Cosa succede quando finiscono i crediti?",
-        a: "Aspetti il periodo successivo o aggiungi una ricarica. Il costo di una ricarica si decide insieme agli altri prezzi.",
+        a: "Cosa succede quando finiscono i crediti, e se puoi aggiungerne altri, viene pubblicato insieme ai prezzi.",
       },
       {
         q: "Come pago?",
