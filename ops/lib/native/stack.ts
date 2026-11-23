@@ -37,6 +37,7 @@ import { supervisorEnvironment, typescriptArgs } from "./plan.js";
 import { postmasterPid, stopPostgres, witness } from "./postgres.js";
 import { readState, type StackState, waitFor } from "./processes.js";
 import { assertProductionSecrets } from "./production-secrets.js";
+import { restrictedLaunch } from "./restricted.js";
 import { clearRollback } from "./rollback.js";
 import { nativeSourceRoot, prepareNativeSource } from "./source.js";
 import {
@@ -288,12 +289,21 @@ async function startNative(
   const out = openSync(join(layout.logs, "supervisor.log"), "a");
   let exitCode: number | null = null;
   try {
-    const child = spawn(tsx.node, [...typescriptArgs(supervisorEntry), env], {
+    // PostgreSQL refuses an administrator token: the supervisor and all its
+    // services run under a restricted one, also from an elevated terminal.
+    const launch = restrictedLaunch(tsx.node, [
+      ...typescriptArgs(supervisorEntry),
+      env,
+    ]);
+    const child = spawn(launch.command, launch.args, {
       cwd: dirname(supervisorEntry),
       detached: true,
       stdio: ["ignore", out, out],
       windowsHide: true,
-      env: supervisorEnvironment(layout) as NodeJS.ProcessEnv,
+      env: {
+        ...supervisorEnvironment(layout),
+        ...launch.env,
+      } as NodeJS.ProcessEnv,
     });
     child.once("exit", (code) => {
       exitCode = code ?? 1;
