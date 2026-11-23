@@ -1,0 +1,110 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000010",
+  "slug": "office-monday-satire",
+  "schemaVersion": 1,
+  "kind": "satire",
+  "title": {
+    "it": "Satira sul lunedi d'ufficio",
+    "en": "Monday office satire"
+  },
+  "summary": {
+    "it": "Stessa melodia del brano scelto, parole ironiche su riunioni infinite e caffe del lunedi.",
+    "en": "Keep the original melody and swap in sharp satirical lines about endless Monday meetings."
+  },
+  "highlights": [
+    {
+      "it": "Bersaglio e taglio ironico scelti da te",
+      "en": "Choose your satire target and point of view"
+    },
+    {
+      "it": "Controllo originalita sempre attivo",
+      "en": "Originality gate active before singing"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceLink",
+      "kind": "link",
+      "label": {
+        "it": "Il link del brano",
+        "en": "Song link"
+      },
+      "hint": {
+        "it": "Incolla un link YouTube pubblico",
+        "en": "Paste a public YouTube link"
+      },
+      "placeholder": {
+        "it": "https://www.youtube.com/watch?v=...",
+        "en": "https://www.youtube.com/watch?v=..."
+      },
+      "optional": false,
+      "maxLength": 500,
+      "bindsTo": "remake_start.url"
+    },
+    {
+      "id": "target",
+      "kind": "text",
+      "label": {
+        "it": "Il bersaglio",
+        "en": "Satire target"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "riunioni che potevano essere una mail",
+        "en": "meetings that could be an email"
+      },
+      "optional": false,
+      "maxLength": 120,
+      "bindsTo": "rewrite.target"
+    },
+    {
+      "id": "angle",
+      "kind": "text",
+      "label": {
+        "it": "Il punto di vista",
+        "en": "Point of view"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "ironico e garbato",
+        "en": "dry and deadpan"
+      },
+      "optional": true,
+      "maxLength": 200,
+      "bindsTo": "rewrite.angle"
+    }
+  ],
+  "languages": ["it", "en"],
+  "genre": "pop",
+  "tempo": {
+    "bpm": 116,
+    "feel": "upbeat pop"
+  },
+  "form": "full",
+  "output": "lyric-video",
+  "format": "9:16",
+  "featured": true,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "rewriteMode": "satire",
+    "video": "lyric"
+  },
+  "fixture": "office-monday-satire",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 90
+  },
+  "status": "published"
+}

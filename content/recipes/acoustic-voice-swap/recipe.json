@@ -1,0 +1,123 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000004",
+  "slug": "acoustic-voice-swap",
+  "schemaVersion": 1,
+  "kind": "cover",
+  "title": {
+    "it": "Cover acustica nuova voce",
+    "en": "Acoustic voice swap"
+  },
+  "summary": {
+    "it": "Mantieni parole e melodia della tua canzone ma cambia voce e chitarra acustica in studio.",
+    "en": "Keep your lyrics and melody intact while switching to a fresh singer and studio acoustic guitar."
+  },
+  "highlights": [
+    {
+      "it": "Scelta libera tra voce femminile o maschile",
+      "en": "Pick a female or male vocal colour"
+    },
+    {
+      "it": "Arrangiamento acustico pulito in 16:9",
+      "en": "Clean studio acoustic mix in 16:9"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceAudio",
+      "kind": "audio",
+      "label": {
+        "it": "La tua canzone",
+        "en": "Your song audio"
+      },
+      "hint": {
+        "it": "Traccia completa o demo vocale",
+        "en": "Full take or vocal demo"
+      },
+      "optional": false,
+      "accept": ["audio"],
+      "min": 1,
+      "max": 1,
+      "bindsTo": "song_create.settings.source"
+    },
+    {
+      "id": "voice",
+      "kind": "select",
+      "label": {
+        "it": "Timbro vocale",
+        "en": "Vocal timbre"
+      },
+      "hint": null,
+      "optional": true,
+      "options": [
+        {
+          "value": "f",
+          "label": {
+            "it": "Voce femminile",
+            "en": "Female voice"
+          }
+        },
+        {
+          "value": "m",
+          "label": {
+            "it": "Voce maschile",
+            "en": "Male voice"
+          }
+        }
+      ],
+      "default": "f",
+      "bindsTo": "song_create.vocalGender"
+    },
+    {
+      "id": "customTitle",
+      "kind": "text",
+      "label": {
+        "it": "Titolo della cover",
+        "en": "Cover title"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "Versione acustica",
+        "en": "Unplugged session"
+      },
+      "optional": true,
+      "maxLength": 80,
+      "bindsTo": "song_create.settings.title"
+    }
+  ],
+  "languages": ["it", "en", "es"],
+  "genre": "acoustic folk",
+  "tempo": {
+    "bpm": 96,
+    "feel": "warm unplugged"
+  },
+  "form": "full",
+  "output": "lyric-video",
+  "format": "16:9",
+  "featured": true,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "styles": "unplugged acoustic guitar cover, close studio mic, warm natural room",
+    "sourceMode": "cover",
+    "vocalGender": "f",
+    "bpm": 96,
+    "video": "lyric"
+  },
+  "fixture": "acoustic-voice-swap",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 85
+  },
+  "status": "published"
+}

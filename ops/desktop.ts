@@ -29,6 +29,7 @@ import {
   DESKTOP,
   type DesktopProcess,
   desktopBaseEnv,
+  desktopBuildSteps,
   desktopPaths,
   engineSettings,
   folderBytes,
@@ -40,6 +41,7 @@ import {
   MSG,
   parseEnvFile,
   pruneUpdateBackups,
+  runDesktopBuild,
   SIGN_IN_WAIT_MS,
   SITE_URL,
   signInBeacon,
@@ -325,23 +327,36 @@ async function ensureBuild() {
   const saved = existsSync(STAMP) ? readFileSync(STAMP, "utf8").trim() : "";
   if (existsSync(join(webDir, ".next", "BUILD_ID")) && saved === stamp) return;
   say(MSG.building);
+  const tsx = createRequire(join(app, "ops", "package.json")).resolve(
+    "tsx/cli",
+  );
   const next = createRequire(join(webDir, "package.json")).resolve(
     "next/dist/bin/next",
   );
   const out = logFile("build");
-  const built = await new Promise<number>((done) => {
-    const child = spawn(process.execPath, [next, "build"], {
-      cwd: webDir,
-      env: { ...env, MDF_UNATTENDED_BUILD: "1" },
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    const file = createWriteStream(out, { flags: "a" });
-    child.stdout.pipe(file);
-    child.stderr.pipe(file);
-    child.on("error", () => done(-1));
-    child.on("close", (code) => done(code ?? -1));
-  });
+  const buildEnv = { ...env, MDF_UNATTENDED_BUILD: "1" };
+  const file = createWriteStream(out, { flags: "a" });
+  let built: number;
+  try {
+    built = await runDesktopBuild(
+      desktopBuildSteps({ tsx, webDir, next }),
+      (step) =>
+        new Promise<number>((done) => {
+          const child = spawn(process.execPath, step.args, {
+            cwd: webDir,
+            env: buildEnv,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+          child.stdout.pipe(file, { end: false });
+          child.stderr.pipe(file, { end: false });
+          child.on("error", () => done(-1));
+          child.on("close", (code) => done(code ?? -1));
+        }),
+    );
+  } finally {
+    await new Promise<void>((done) => file.end(done));
+  }
   if (built !== 0) fail(`${MSG.buildFailed}\n${MSG.log(out)}`);
   writeFileSync(join(webDir, ".next", "mdf-version"), `${appVersion()}\n`);
   writeFileSync(STAMP, stamp);

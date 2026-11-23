@@ -1,0 +1,272 @@
+{
+  "slug": "pricing",
+  "route": "/pricing",
+  "sections": [
+    "Head: title, switch, one line",
+    "Plan cards: 4 columns",
+    "Compare table: 5 groups, 4 plan columns",
+    "FAQ: title left, 10 questions right",
+    "Footer"
+  ],
+  "widths": {
+    "390": {
+      "pageHeight": 6641,
+      "sections": [
+        {
+          "name": "Head: title, switch, one line",
+          "present": true,
+          "y": 0,
+          "h": 331,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 112,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "Plan cards: 4 columns",
+          "present": true,
+          "y": 331,
+          "h": 2475,
+          "blocks": 5,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 22,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Compare table: 5 groups, 4 plan columns",
+          "present": true,
+          "y": 2822,
+          "h": 1367,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 10 questions right",
+          "present": true,
+          "y": 4190,
+          "h": 1134,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 40,
+            "rowGap": 40,
+            "itemW": 358,
+            "x": 0,
+            "w": 390
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 5366,
+          "h": 1275,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 42,
+            "rowGap": 42,
+            "itemW": 348,
+            "x": 21,
+            "w": 348
+          }
+        }
+      ]
+    },
+    "1024": {
+      "pageHeight": 5281,
+      "sections": [
+        {
+          "name": "Head: title, switch, one line",
+          "present": true,
+          "y": 0,
+          "h": 399,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 169,
+          "bottomInset": 24,
+          "grid": null
+        },
+        {
+          "name": "Plan cards: 4 columns",
+          "present": true,
+          "y": 399,
+          "h": 1381,
+          "blocks": 1,
+          "contentLeft": 40,
+          "contentRight": 40,
+          "topInset": 0,
+          "bottomInset": 120,
+          "grid": {
+            "items": 4,
+            "perRow": 2,
+            "colGap": 16,
+            "rowGap": 16,
+            "itemW": 464,
+            "x": 40,
+            "w": 944
+          }
+        },
+        {
+          "name": "Compare table: 5 groups, 4 plan columns",
+          "present": true,
+          "y": 1779,
+          "h": 1586,
+          "blocks": 1,
+          "contentLeft": 40,
+          "contentRight": 40,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 10 questions right",
+          "present": true,
+          "y": 3366,
+          "h": 934,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 96,
+            "rowGap": 96,
+            "itemW": 354,
+            "x": 0,
+            "w": 1024
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 4342,
+          "h": 939,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 324,
+            "x": 35,
+            "w": 954
+          }
+        }
+      ]
+    },
+    "1440": {
+      "pageHeight": 4639,
+      "sections": [
+        {
+          "name": "Head: title, switch, one line",
+          "present": true,
+          "y": 0,
+          "h": 399,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 169,
+          "bottomInset": 24,
+          "grid": null
+        },
+        {
+          "name": "Plan cards: 4 columns",
+          "present": true,
+          "y": 399,
+          "h": 795,
+          "blocks": 1,
+          "contentLeft": 40,
+          "contentRight": 40,
+          "topInset": 0,
+          "bottomInset": 120,
+          "grid": {
+            "items": 4,
+            "perRow": 4,
+            "colGap": 16,
+            "rowGap": 16,
+            "itemW": 328,
+            "x": 40,
+            "w": 1360
+          }
+        },
+        {
+          "name": "Compare table: 5 groups, 4 plan columns",
+          "present": true,
+          "y": 1194,
+          "h": 1586,
+          "blocks": 1,
+          "contentLeft": 40,
+          "contentRight": 40,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 10 questions right",
+          "present": true,
+          "y": 2780,
+          "h": 860,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 216,
+            "rowGap": 216,
+            "itemW": 354,
+            "x": 0,
+            "w": 1440
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 3682,
+          "h": 957,
+          "blocks": 1,
+          "contentLeft": 115,
+          "contentRight": 115,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 411,
+            "x": 115,
+            "w": 1210
+          }
+        }
+      ]
+    }
+  }
+}

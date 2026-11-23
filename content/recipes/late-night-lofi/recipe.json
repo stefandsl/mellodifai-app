@@ -1,0 +1,95 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000002",
+  "slug": "late-night-lofi",
+  "schemaVersion": 1,
+  "kind": "remix",
+  "title": {
+    "it": "Versione notturna lo-fi",
+    "en": "Late-night lo-fi flip"
+  },
+  "summary": {
+    "it": "Rallenta la canzone in un arrangiamento caldo su nastro con visualizzatore orizzontale.",
+    "en": "Slow your song into a warm tape-saturated arrangement paired with a widescreen visualizer."
+  },
+  "highlights": [
+    {
+      "it": "Groove morbido a 82 BPM",
+      "en": "Laid-back 82 BPM pocket"
+    },
+    {
+      "it": "Sfondo audio-reattivo in 16:9",
+      "en": "Widescreen 16:9 audio-reactive visual"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceAudio",
+      "kind": "audio",
+      "label": {
+        "it": "Traccia originale",
+        "en": "Original audio"
+      },
+      "hint": {
+        "it": "Take di studio o file locale",
+        "en": "Library take or local audio file"
+      },
+      "optional": false,
+      "accept": ["audio"],
+      "min": 1,
+      "max": 1,
+      "bindsTo": "song_create.settings.source"
+    },
+    {
+      "id": "excludeSounds",
+      "kind": "text",
+      "label": {
+        "it": "Suoni da evitare",
+        "en": "Sounds to exclude"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "niente distorsioni aggressive",
+        "en": "no harsh distortion"
+      },
+      "optional": true,
+      "maxLength": 200,
+      "bindsTo": "song_create.settings.exclude"
+    }
+  ],
+  "languages": ["it", "en", "ja"],
+  "genre": "lo-fi hip hop",
+  "tempo": {
+    "bpm": 82,
+    "feel": "dusty chill"
+  },
+  "form": "full",
+  "output": "visualizer",
+  "format": "16:9",
+  "featured": false,
+  "surfaces": ["web", "desktop"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 1
+  },
+  "preset": {
+    "styles": "late night lo-fi hip hop, Rhodes keys, soft vinyl dust, mellow sub",
+    "sourceMode": "cover",
+    "audioWeight": 0.7,
+    "bpm": 82,
+    "video": "visualizer"
+  },
+  "fixture": "late-night-lofi",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 90
+  },
+  "status": "published"
+}
