@@ -8,7 +8,7 @@ export const ROUTES = {
   home: { route: "/", built: true, fallback: "/" },
   start: { route: "/create", built: true, fallback: "/create" },
   signIn: { route: "/login", built: true, fallback: "/login" },
-  songbook: { route: "/recipes", built: false, fallback: "/#kinds" },
+  songbook: { route: "/recipes", built: true, fallback: "/#kinds" },
   desktop: { route: "/desktop", built: false, fallback: "/#studio" },
   agents: { route: "/agents", built: false, fallback: "/#agents" },
   plans: { route: "/pricing", built: true, fallback: "/#plans" },
@@ -39,6 +39,19 @@ export function agentHref(agent: AgentName): string {
   return ROUTES.agents.built
     ? `${ROUTES.agents.route}?agent=${agent}`
     : ROUTES.agents.fallback;
+}
+
+// Recipe detail page (C06) is not built yet; fall back to opening the recipe in the studio
+// so every link on the recipes index answers 200 (after the studio sign-in redirect).
+const RECIPE_DETAIL_BUILT = false;
+
+export function recipeHref(slug: string): string {
+  const safe = encodeURIComponent(slug);
+  return RECIPE_DETAIL_BUILT ? `/recipes/${safe}` : `/create?recipe=${safe}`;
+}
+
+export function recipeStartHref(slug: string): string {
+  return `/create?recipe=${encodeURIComponent(slug)}`;
 }
 
 // Header order: songbook, desktop, agents (menu), plans, what's new.
