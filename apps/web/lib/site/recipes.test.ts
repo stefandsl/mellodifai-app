@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   buildRecipeStartPayload,
@@ -33,7 +34,10 @@ const CAPTURE_DIR =
   process.env.SITE_TEXT_CAPTURE ??
   "E:/mellodifai/research/2026-11-20/cardboard/text-capture";
 
-const TMP_ROOT = "E:/mellodifai/tmp/c14-tests";
+const TMP_ROOT = join(
+  process.env.RUNNER_TEMP || process.env.TEMP || tmpdir(),
+  "c14-tests",
+);
 const tempDirs: string[] = [];
 
 function makeTempDir(prefix: string): string {

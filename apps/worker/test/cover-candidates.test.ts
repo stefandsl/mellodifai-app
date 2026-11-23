@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -199,7 +200,9 @@ it("renders Japanese and Cyrillic titles with fonts that have their glyphs", asy
   const ja = covers(dir, "夜明けの港で君を待つ", "ja", "ja").covers[0];
   const ru = covers(dir, "Пепел и снег", "ru", "ru").covers[0];
   if (process.platform === "win32") {
-    expect(ja?.fonts).toEqual(["meiryob.ttc"]);
+    // Windows images without the Japanese fonts (hosted runners) fall back to Microsoft YaHei.
+    const meiryo = existsSync("C:/Windows/Fonts/meiryob.ttc");
+    expect(ja?.fonts).toEqual([meiryo ? "meiryob.ttc" : "msyhbd.ttc"]);
     expect(ru?.fonts).toEqual(["arialbd.ttf"]);
   } else {
     expect(ja?.fonts).not.toContain("DejaVuSans-Bold.ttf");

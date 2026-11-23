@@ -51,12 +51,29 @@ it.skipIf(process.platform !== "win32")(
       ).rejects.toThrow("boom");
       expect(await oneAtATime(lock, async () => "next")).toBe("next");
       // Still held at the deadline: a StartBusy, never a generic error.
-      const holder = oneAtATime(lock, () => sleep(3000));
-      await sleep(500);
-      await expect(
-        oneAtATime(lock, async () => "late", { timeoutMs: 500 }),
-      ).rejects.toBeInstanceOf(StartBusy);
-      await holder;
+      // The holder takes the lock through a PowerShell helper too, so wait until it is
+      // inside, and keep it there until the late start was refused.
+      let entered = () => {};
+      const inside = new Promise<void>((done) => {
+        entered = done;
+      });
+      let release = () => {};
+      const released = new Promise<void>((done) => {
+        release = done;
+      });
+      const holder = oneAtATime(lock, async () => {
+        entered();
+        await released;
+      });
+      await inside;
+      try {
+        await expect(
+          oneAtATime(lock, async () => "late", { timeoutMs: 500 }),
+        ).rejects.toBeInstanceOf(StartBusy);
+      } finally {
+        release();
+        await holder;
+      }
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

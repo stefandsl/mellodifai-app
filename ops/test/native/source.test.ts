@@ -8,9 +8,10 @@ import {
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { prepareNativeSource } from "../../lib/native/source.js";
+import { testTempBase } from "../temp-base.js";
 
 it("stages native templates without replacing existing CLI source entries", () => {
-  const root = mkdtempSync("E:/mellodifai/tmp/native-source-test-");
+  const root = mkdtempSync(join(testTempBase(), "native-source-test-"));
   try {
     const target = join(root, "stack");
     const source = join(root, "release");

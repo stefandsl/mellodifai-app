@@ -1,5 +1,9 @@
 param([string]$Path, [string]$Command, [int]$OwnerPid, [int]$TimeoutMs = 5000)
 $ErrorActionPreference = 'Stop'
+# .NET calls only: a cmdlet that auto-loads a module makes Windows PowerShell scan
+# every installed module when LOCALAPPDATA is a fresh folder, which takes 20 s or
+# more on a machine with many modules.
+$PSModuleAutoLoadingPreference = 'None'
 $handle = $null
 $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
 try {
@@ -11,12 +15,12 @@ try {
         [Console]::Out.WriteLine('busy')
         exit 2
       }
-      Start-Sleep -Milliseconds 50
+      [Threading.Thread]::Sleep(50)
     }
   }
   # Informational only. Exclusion comes exclusively from the open OS handle.
-  $holder = @{ command = $Command; pid = $OwnerPid } | ConvertTo-Json -Compress
-  [IO.File]::WriteAllText("$Path.holder.json", $holder)
+  # The caller allows only [a-z][a-z0-9-]* commands, so no JSON escaping is needed.
+  [IO.File]::WriteAllText("$Path.holder.json", '{"command":"' + $Command + '","pid":' + $OwnerPid + '}')
   [Console]::Out.WriteLine('acquired')
   [Console]::Out.Flush()
   # EOF means the owning Node process died. No age or PID guessing and no unlink.

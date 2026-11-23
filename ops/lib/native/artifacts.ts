@@ -55,6 +55,7 @@ export type ArtifactId =
   | "mailpit"
   | "go"
   | "node"
+  | "ffmpeg"
   | "auth"
   | "storage";
 

@@ -64,8 +64,18 @@ export async function acquireLease(
       "-TimeoutMs",
       String(timeoutMs),
     ],
-    { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] },
+    { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] },
   );
+  // The helper gets no secrets, so its error text is safe to report. Keep the
+  // start of it for a failed acquisition and drain the rest.
+  let errors = "";
+  child.stderr.on("data", (chunk: Buffer) => {
+    if (errors.length < 2000) errors += chunk.toString();
+  });
+  const detail = () => {
+    const text = errors.replace(/\s+/g, " ").trim().slice(0, 2000);
+    return text ? `: ${text}` : "";
+  };
   const exited = new Promise<void>((done) => child.once("close", () => done()));
   child.stdin.on("error", () => {});
   let active = false;
@@ -77,7 +87,7 @@ export async function acquireLease(
     await new Promise<void>((done, fail) => {
       let output = "";
       const timer = setTimeout(
-        () => fail(new Error("Stack lease helper timed out")),
+        () => fail(new Error(`Stack lease helper timed out${detail()}`)),
         timeoutMs + 15_000,
       );
       child.once("error", (error) => {
@@ -87,7 +97,11 @@ export async function acquireLease(
       child.once("exit", () => {
         clearTimeout(timer);
         if (!active)
-          fail(new Error("Stack lease helper exited before acquisition"));
+          fail(
+            new Error(
+              `Stack lease helper exited before acquisition${detail()}`,
+            ),
+          );
       });
       child.stdout.on("data", (chunk: Buffer) => {
         output += chunk.toString();

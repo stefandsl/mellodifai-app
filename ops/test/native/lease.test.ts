@@ -1,10 +1,12 @@
 import { type ChildProcess, fork, spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
+import { processIdentities } from "../../lib/native/host.js";
 import { acquireLease } from "../../lib/native/lease.js";
 import { typescriptArgs } from "../../lib/native/plan.js";
+import { type Runner, realRunner } from "../../lib/run.js";
 import { fixture } from "./fixtures.js";
 
 it.runIf(process.platform === "win32")(
@@ -92,3 +94,39 @@ it("serializes simultaneous stale-state takeovers and releases ownership after a
         child.kill("SIGKILL");
   }
 }, 30_000);
+
+it.runIf(process.platform === "win32")(
+  "reports the helper's own error when it cannot take the lease",
+  async () => {
+    // A folder at the lease path makes File.Open fail inside the helper.
+    const path = fixture();
+    await expect(acquireLease(path, "supervisor", 1000)).rejects.toThrow(
+      /^Stack lease helper exited before acquisition: .*UnauthorizedAccessException/,
+    );
+  },
+  30_000,
+);
+
+it.runIf(process.platform === "win32")(
+  "starts Windows PowerShell helpers without module auto-loading and still reads the process table",
+  async () => {
+    // Auto-loading a module under a fresh LOCALAPPDATA makes PowerShell scan every
+    // installed module: 20 s or more on CI images, past the lease deadline.
+    const script = readFileSync(
+      fileURLToPath(new URL("../../native/lease.ps1", import.meta.url)),
+      "utf8",
+    );
+    expect(script).toMatch(/^\$PSModuleAutoLoadingPreference = 'None'\r?$/m);
+    const calls: string[][] = [];
+    const runner: Runner = async (command, args, options) => {
+      calls.push(args);
+      return realRunner(command, args, options);
+    };
+    const self = await processIdentities([process.pid], runner);
+    expect(calls[0]?.join(" ")).toContain(
+      "$PSModuleAutoLoadingPreference='None'",
+    );
+    expect(self.get(process.pid)?.startedAt).toMatch(/^\d{4}-\d\d-\d\dT.*Z$/);
+  },
+  30_000,
+);

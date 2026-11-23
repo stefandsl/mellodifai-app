@@ -319,7 +319,7 @@ export async function installNative(
     fetchImpl: options.fetchImpl,
   };
   const dirs: Record<string, string> = {};
-  for (const id of ["postgres", "postgrest", "mailpit", "go", "node"])
+  for (const id of ["postgres", "postgrest", "mailpit", "go", "node", "ffmpeg"])
     dirs[id] = await installArtifact(id, shared);
   const ids = recipeIds(manifest);
   await installArtifact("auth", {

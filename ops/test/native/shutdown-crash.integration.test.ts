@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { expect, it } from "vitest";
 import { portOpen, processIdentities } from "../../lib/native/host.js";
 import { nativeLayout } from "../../lib/native/layout.js";
-import { readState } from "../../lib/native/processes.js";
+import { readState, waitFor } from "../../lib/native/processes.js";
 import { nativeStatus } from "../../lib/native/stack.js";
 import { statePath } from "../../lib/native/supervisor.js";
 import { realRunner } from "../../lib/run.js";
@@ -96,9 +96,17 @@ it.skipIf(!enabled)(
           await processIdentities(pids),
           `kill ${kill}: survivors`,
         ).toEqual(new Map());
-        expect(await portOpen(layout.ports.db), `kill ${kill}: db port`).toBe(
-          false,
-        );
+        // Each backend holds a copy of the listening socket. One the postmaster was
+        // creating while taskkill walked the tree escapes it; it sees the dead
+        // postmaster and exits on its own, so the port closes soon after.
+        expect(
+          await waitFor(
+            async () => !(await portOpen(layout.ports.db)),
+            15_000,
+            100,
+          ),
+          `kill ${kill}: db port`,
+        ).toBe(true);
         timings.push(
           `kill ${kill}: start ${startMs} ms, ${acknowledged.size - before} commits after the sample, ${acknowledged.size} acknowledged in total`,
         );

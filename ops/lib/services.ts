@@ -478,13 +478,14 @@ export function aclCommands(root: string): string[][] {
       `${userInfo().username}:(OI)(CI)F`,
       "SYSTEM:(OI)(CI)F",
     ],
-    // /grant:r replaces only named grants, so remove other explicit grants too.
+    // /grant:r replaces only named grants, so replace the full DACL and owner
+    // atomically so elevated sessions leave only the current user and SYSTEM.
     [
       "powershell.exe",
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      `$ErrorActionPreference='Stop'; $path='${path.replaceAll("'", "''")}'; $acl=Get-Acl -LiteralPath $path; $owner=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; foreach ($rule in @($acl.Access)) { $sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; if ($sid -ne $owner -and $sid -ne 'S-1-5-18') { & icacls $path /remove ([string]::Concat('*', $sid)) | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'ACL removal failed' } } }`,
+      `$ErrorActionPreference='Stop'; $path='${path.replaceAll("'", "''")}'; $owner=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $system=New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18'); $sec=New-Object System.Security.AccessControl.DirectorySecurity; $sec.SetOwner($owner); $sec.SetAccessRuleProtection($true,$false); $sec.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($owner,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))); $sec.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))); [System.IO.Directory]::SetAccessControl($path,$sec)`,
     ],
   ];
 }

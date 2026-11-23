@@ -35,7 +35,7 @@ export async function loadSmtpEnvironment(
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$ErrorActionPreference='Stop'; $acl=Get-Acl -LiteralPath $env:MDF_SMTP_FILE; $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $owner -or -not $acl.AreAccessRulesProtected) { exit 1 }; foreach ($rule in $acl.Access) { $sid=$rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; if ($rule.AccessControlType -eq 'Allow' -and $sid -ne $owner -and $sid -ne 'S-1-5-18') { exit 1 } }",
+          "$ErrorActionPreference='Stop'; $acl=[System.IO.File]::GetAccessControl($env:MDF_SMTP_FILE); $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $owner -or -not $acl.AreAccessRulesProtected) { exit 1 }; foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) { $sid=$rule.IdentityReference.Value; if ($rule.AccessControlType -eq 'Allow' -and $sid -ne $owner -and $sid -ne 'S-1-5-18') { exit 1 } }",
         ],
         { env: { MDF_SMTP_FILE: path, MDF_SMTP_PASS: "" } },
       );

@@ -358,7 +358,10 @@ export function postgresService(
         layout.pgdata,
       ]);
       const child = spawn(launch.command, launch.args, {
-        env: toolEnvironment(layout) as NodeJS.ProcessEnv,
+        env: {
+          ...toolEnvironment(layout),
+          ...launch.env,
+        } as NodeJS.ProcessEnv,
         // The server and every backend inherit this pipe; the supervisor
         // reads it for their whole lifetime.
         stdio: [
@@ -396,9 +399,11 @@ export function postgresService(
               observed.failure("exited before identifying the postmaster"),
             ),
           );
+          // The restricted-token launcher compiles its helper before it starts
+          // the postmaster: about a second, several under load.
           timer = setTimeout(
             () => reject(observed.failure("console host identity timed out")),
-            5000,
+            30_000,
           );
         });
       } catch (error) {
@@ -623,16 +628,33 @@ export async function applyLogins(
     await admin.end();
   }
   if (!probe) return;
-  for (const role of roles) {
-    const attempt = roleConnection(layout, role, "postgres");
+  for (const role of roles)
+    await expectRefusedLogin(() => {
+      const attempt = roleConnection(layout, role, "postgres");
+      return { query: () => attempt`select 1`, end: () => attempt.end() };
+    });
+}
+
+/** The login must be refused with 28P01. On Windows the server's close right
+ * after the refusal can reach the client as a reset before the refusal itself,
+ * so a reset is tried again; anything else, and an accepted login, fails. */
+export async function expectRefusedLogin(
+  open: () => { query: () => Promise<unknown>; end: () => Promise<unknown> },
+  attempts = 3,
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    const connection = open();
     try {
-      await attempt`select 1`;
+      await connection.query();
       throw new Error("Default database password remains accepted");
     } catch (error) {
-      if ((error as { code?: string }).code !== "28P01") throw error;
+      const code = (error as { code?: string }).code;
+      if (code === "28P01") return;
+      if (code !== "ECONNRESET" || attempt >= attempts) throw error;
     } finally {
-      await attempt.end();
+      await connection.end();
     }
+    await new Promise((done) => setTimeout(done, attempt * 250));
   }
 }
 

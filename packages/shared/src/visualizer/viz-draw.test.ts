@@ -819,4 +819,29 @@ describe("subject focus", () => {
     });
     expect(withFocus(base, tainted)).toBe(base);
   });
+
+  it("reads the focus from the picture drawn 1:1, never from a browser-scaled copy", () => {
+    const draws: number[][] = [];
+    const sizes: number[][] = [];
+    const read = (w: number, h: number) => {
+      sizes.push([w, h]);
+      return {
+        width: w,
+        height: h,
+        getContext: () => ({
+          drawImage: (_: never, ...box: number[]) => draws.push(box),
+          getImageData: (_x: number, _y: number, gw: number, gh: number) => ({
+            data: blockAt(1500, gw, gh),
+          }),
+        }),
+      };
+    };
+    const focus = withFocus(
+      { source: {}, width: 1920, height: 1080 },
+      read,
+    ).focus;
+    expect(sizes).toEqual([[1920, 1080]]);
+    expect(draws).toEqual([[0, 0, 1920, 1080]]);
+    expect(focus?.x).toBeGreaterThan(0.65);
+  });
 });

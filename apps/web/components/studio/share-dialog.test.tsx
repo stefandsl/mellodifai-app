@@ -14,7 +14,7 @@ const URL_OF_SONG = () => `${window.location.origin}/projects/p1?lang=it`;
 
 function show(props: Partial<Parameters<typeof ShareDialog>[0]> = {}) {
   const onOpenChange = vi.fn();
-  render(
+  const { unmount } = render(
     <LocaleProvider value="it">
       <ShareDialog
         open
@@ -25,7 +25,7 @@ function show(props: Partial<Parameters<typeof ShareDialog>[0]> = {}) {
       />
     </LocaleProvider>,
   );
-  return { onOpenChange };
+  return { onOpenChange, unmount };
 }
 const dialog = () => screen.getByRole("dialog", { name: "Condividi" });
 
@@ -123,6 +123,22 @@ describe("share window", () => {
     expect(
       within(dialog()).getByRole("button", { name: "Copiato" }),
     ).toBeInTheDocument();
+  });
+
+  it("drops the copied mark's reset when the dialog unmounts first", async () => {
+    setClipboard(async () => {});
+    const set = vi.spyOn(globalThis, "setTimeout");
+    const clear = vi.spyOn(globalThis, "clearTimeout");
+    const { unmount } = show();
+    await userEvent.click(
+      within(dialog()).getByRole("button", { name: "Copia il link" }),
+    );
+    const reset = set.mock.calls.findIndex(([, ms]) => ms === 2000);
+    expect(reset).toBeGreaterThanOrEqual(0);
+    unmount();
+    expect(clear).toHaveBeenCalledWith(set.mock.results[reset]?.value);
+    set.mockRestore();
+    clear.mockRestore();
   });
 
   it("tells the user when the clipboard refuses", async () => {

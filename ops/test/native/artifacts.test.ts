@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import {
   type ArtifactDownload,
+  loadManifest,
   obtainArchive,
 } from "../../lib/native/artifacts.js";
 import { fixture, zip } from "./fixtures.js";
@@ -74,4 +75,19 @@ it("discards interrupted downloads and retries with complete bytes", async () =>
   expect(
     readFileSync(await obtainArchive(expected, root, { fetchImpl })),
   ).toEqual(bytes);
+});
+it("pins ffmpeg for win32-x64 from GyanD/codexffmpeg with its bin folder and licence", () => {
+  const manifest = loadManifest();
+  const ffmpeg = manifest.artifacts.ffmpeg;
+  const win = ffmpeg?.downloads["win32-x64"];
+  expect(ffmpeg?.kind).toBe("binary");
+  expect(ffmpeg?.licence).toBe("GPL-3.0");
+  expect(ffmpeg?.entry["win32-x64"]).toBe("bin/ffmpeg.exe");
+  expect(win?.url).toMatch(
+    /^https:\/\/github\.com\/GyanD\/codexffmpeg\/releases\/download\/[\d.]+\/ffmpeg-[\d.]+-essentials_build\.zip$/,
+  );
+  expect(win?.sha256).toMatch(/^[0-9a-f]{64}$/);
+  expect(win?.strip).toBe(1);
+  expect(win?.include).toEqual(["bin/", "LICENSE"]);
+  expect(win?.notices).toEqual(["LICENSE"]);
 });

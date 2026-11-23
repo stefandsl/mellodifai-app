@@ -7,7 +7,6 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDb, type Take, type Version } from "../src/db.js";
@@ -25,6 +24,7 @@ import {
 } from "../src/stages/stems.js";
 import { stemPaths, upload } from "../src/stages/utils.js";
 import { recordingLedger } from "./support/ledger.js";
+import { testTempBase } from "./support/temp-base.js";
 import { workerWithTestStages } from "./support/worker-loop.js";
 
 const roots: string[] = [];
@@ -43,10 +43,7 @@ async function setup({
   demucsCode = 0,
   files = ["take-1.flac", "take-1.mp3"],
 } = {}) {
-  const scratch =
-    process.platform === "win32" ? "E:/mellodifai/runtime/tmp" : tmpdir();
-  await mkdir(scratch, { recursive: true });
-  const root = await mkdtemp(join(scratch, "stems-tests-"));
+  const root = await mkdtemp(join(await testTempBase(), "stems-tests-"));
   roots.push(root);
   const ws = {
     root,

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cpSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
 import { expect, it } from "vitest";
@@ -13,6 +13,11 @@ import {
 import { runStack } from "../../stack.js";
 import { fixture } from "./fixtures.js";
 import { assertNativeTestRoot } from "./integration-env.js";
+
+// Every repository migration is applied once, whatever their number.
+const MIGRATIONS = readdirSync(
+  new URL("../../../supabase/migrations/", import.meta.url),
+).filter((name) => name.endsWith(".sql")).length;
 
 it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
   "rolls back failed real migrations, refuses a lockdown replay and checks the lockdown after a new migration",
@@ -96,7 +101,7 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
               (
                 await live`select count(*)::int as n from supabase_migrations.schema_migrations`
               )[0]?.n,
-            ).toBe(54);
+            ).toBe(MIGRATIONS);
             const inserted = fixture();
             cpSync(
               new URL("../../../supabase/migrations", import.meta.url),
@@ -119,7 +124,7 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
               (
                 await live`select count(*)::int as n from supabase_migrations.schema_migrations`
               )[0]?.n,
-            ).toBe(54);
+            ).toBe(MIGRATIONS);
             // A new migration after the lockdown applies; one that undoes a
             // lockdown guarantee is rolled back with no ledger row.
             const forward = fixture();
@@ -167,7 +172,7 @@ it.skipIf(process.env.MDF_NATIVE_INTEGRATION !== "1")(
                 (
                   await live`select count(*)::int as n from supabase_migrations.schema_migrations`
                 )[0]?.n,
-              ).toBe(55);
+              ).toBe(MIGRATIONS + 1);
             } finally {
               await live.begin(async (tx) => {
                 await tx`drop table if exists public.run11_additive, public.run11_regrant`;
