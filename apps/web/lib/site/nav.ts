@@ -11,7 +11,7 @@ export const ROUTES = {
   songbook: { route: "/recipes", built: false, fallback: "/#kinds" },
   desktop: { route: "/desktop", built: false, fallback: "/#studio" },
   agents: { route: "/agents", built: false, fallback: "/#agents" },
-  plans: { route: "/pricing", built: false, fallback: "/#plans" },
+  plans: { route: "/pricing", built: true, fallback: "/#plans" },
   changelog: { route: "/changelog", built: false, fallback: "/#steps" },
   guides: { route: "/learn", built: false, fallback: "/#features" },
   support: { route: "/support", built: false, fallback: "/#faq" },

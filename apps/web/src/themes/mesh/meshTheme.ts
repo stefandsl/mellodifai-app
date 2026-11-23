@@ -338,6 +338,13 @@ export const meshTheme = defineTheme({
     "--site-lift": "-0.25rem",
     "--site-pixel": "1px",
     "--site-scroll-margin": "6rem",
+    "--site-page-top": "10.5625rem", // 169: header 73 + 96, page head (pricing)
+    "--site-page-top-sm": "7rem", // 112
+    "--site-page-head-end": "1.5rem", // 24
+    "--site-page-head-end-sm": "1.25rem", // 20
+    "--site-plans-end": "7.5rem", // 120, under the plan grid
+    "--site-faq-turn": "45deg", // the plus of an open question becomes a cross
+    "--site-compare-min": "40rem", // 640: under this width the compare table scrolls inside its box
     "--motion-step": "100ms",
     "--motion-rise": "0.75rem",
     "--layer-raised": "1",
