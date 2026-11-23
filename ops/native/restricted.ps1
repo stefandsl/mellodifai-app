@@ -4,7 +4,8 @@
 # to start under an administrator token (elevated terminals, CI runners).
 # The command inherits this process's standard handles and folder, and gets its own
 # hidden console.
-# This process waits for it and exits with its exit code.
+# This process waits for it and exits with its exit code. The command and all its
+# descendants run in a job that is closed, and so ended, when this process ends.
 # With MDF_RESTRICTED_REPORT_PID=1 the command writes its stdout to this process's
 # stderr, and this process writes the command's pid as the one line of its stdout.
 $ErrorActionPreference = 'Stop'
@@ -54,6 +55,32 @@ public static class MdfRestricted {
     IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation info);
   [DllImport("advapi32.dll", SetLastError = true)]
   static extern bool SetTokenInformation(IntPtr token, int infoClass, ref IntPtr info, int length);
+  [StructLayout(LayoutKind.Sequential)]
+  struct BasicLimit {
+    public long PerProcessUserTimeLimit; public long PerJobUserTimeLimit; public uint LimitFlags;
+    public UIntPtr MinimumWorkingSetSize; public UIntPtr MaximumWorkingSetSize; public uint ActiveProcessLimit;
+    public UIntPtr Affinity; public uint PriorityClass; public uint SchedulingClass;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  struct IoCounters {
+    public ulong ReadOperationCount; public ulong WriteOperationCount; public ulong OtherOperationCount;
+    public ulong ReadTransferCount; public ulong WriteTransferCount; public ulong OtherTransferCount;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  struct ExtendedLimit {
+    public BasicLimit BasicLimitInformation; public IoCounters IoInfo;
+    public UIntPtr ProcessMemoryLimit; public UIntPtr JobMemoryLimit;
+    public UIntPtr PeakProcessMemoryUsed; public UIntPtr PeakJobMemoryUsed;
+  }
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimit info, int length);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern uint ResumeThread(IntPtr thread);
+  [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr process, uint code);
   [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
   [DllImport("kernel32.dll")] static extern IntPtr GetStdHandle(int which);
   [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint ms);
@@ -66,7 +93,9 @@ public static class MdfRestricted {
   const uint DISABLE_MAX_PRIVILEGE = 0x1;
   const int STARTF_USESHOWWINDOW = 0x1, STARTF_USESTDHANDLES = 0x100;
   const short SW_HIDE = 0;
-  const uint CREATE_NEW_CONSOLE = 0x10;
+  const uint CREATE_NEW_CONSOLE = 0x10, CREATE_SUSPENDED = 0x4;
+  const int JobObjectExtendedLimitInformation = 9;
+  const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000;
 
   static IntPtr Sid(string value, out GCHandle pin) {
     var sid = new SecurityIdentifier(value);
@@ -119,16 +148,34 @@ public static class MdfRestricted {
       hStdOutput = GetStdHandle(reportPid ? -12 : -11),
       hStdError = GetStdHandle(-12),
     };
+    // The command and everything it starts live in a job that ends with this process.
+    // PostgreSQL creates each backend suspended and resumes it after writing its
+    // parameters; a postmaster killed in between leaves a backend that never runs,
+    // never exits and keeps the listening socket. Closing the job ends it.
+    var job = CreateJobObject(IntPtr.Zero, null);
+    if (job == IntPtr.Zero) throw new Win32Exception();
+    var limit = new ExtendedLimit();
+    limit.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref limit,
+        Marshal.SizeOf(typeof(ExtendedLimit))))
+      throw new Win32Exception();
     ProcessInformation info;
     try {
       // The command owns one hidden console, which its own children share.
       if (!CreateProcessAsUser(restricted, null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero,
-          true, CREATE_NEW_CONSOLE, IntPtr.Zero, null, ref startup, out info))
+          true, CREATE_NEW_CONSOLE | CREATE_SUSPENDED, IntPtr.Zero, null, ref startup, out info))
         throw new Win32Exception();
     } finally {
       CloseHandle(restricted);
     }
+    if (!AssignProcessToJobObject(job, info.hProcess)) {
+      var error = new Win32Exception();
+      TerminateProcess(info.hProcess, 1);
+      throw error;
+    }
+    ResumeThread(info.hThread);
     CloseHandle(info.hThread);
+    // The job handle stays open for this process's lifetime on purpose.
     if (reportPid) {
       Console.Out.WriteLine(info.dwProcessId);
       Console.Out.Flush();

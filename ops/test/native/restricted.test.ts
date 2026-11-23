@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { pidAlive } from "../../lib/native/host.js";
+import { waitFor } from "../../lib/native/processes.js";
 import {
   restrictedLaunch,
   windowsArgument,
@@ -163,6 +165,68 @@ it.runIf(process.platform === "win32")(
     expect(echo.stderr).toBe("");
     expect(JSON.parse(echo.stdout)).toEqual(args);
     expect(echo.code).toBe(7);
+  },
+  60_000,
+);
+
+it.runIf(process.platform === "win32")(
+  "ends the command and its children when the launcher is killed",
+  async () => {
+    // A killed postmaster can leave a suspended backend holding the port; the job
+    // around the command ends every process in it once the launcher is gone.
+    const launch = restrictedLaunch(
+      process.execPath,
+      [
+        "-e",
+        "const c = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: true }); console.log('grandchild ' + c.pid); setInterval(() => {}, 1000)",
+      ],
+      { reportPid: true },
+    );
+    const launcher = spawn(launch.command, launch.args, {
+      env: { ...process.env, ...launch.env },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    launcher.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    launcher.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    const exited = new Promise<void>((resolve) =>
+      launcher.once("exit", () => resolve()),
+    );
+    const pids = await waitFor(
+      async () => /^\d+\s/u.test(stdout) && /grandchild \d+/u.test(stderr),
+      30_000,
+      50,
+    ).then(() => [
+      Number(stdout.trim()),
+      Number(/grandchild (\d+)/u.exec(stderr)?.[1]),
+    ]);
+    try {
+      expect(pids.every((pid) => pidAlive(pid))).toBe(true);
+      spawnSync("taskkill", ["/PID", String(launcher.pid), "/F"], {
+        windowsHide: true,
+      });
+      await exited;
+      expect(
+        await waitFor(
+          async () => pids.every((pid) => !pidAlive(pid)),
+          10_000,
+          50,
+        ),
+        `still alive: ${pids.filter((pid) => pidAlive(pid)).join(", ")}`,
+      ).toBe(true);
+    } finally {
+      for (const pid of pids)
+        if (pid && pidAlive(pid))
+          spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+            windowsHide: true,
+          });
+    }
   },
   60_000,
 );
