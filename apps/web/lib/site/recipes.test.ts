@@ -9,6 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import {
   buildRecipeStartPayload,
@@ -320,7 +321,7 @@ describe("loader validation failure modes", () => {
     ).toHaveLength(1);
   });
 
-  it("refuses a broken recipe.json during the web build step", () => {
+  it("refuses a broken recipe.json in the build validation script", () => {
     const base = makeTempDir("broken-build-fixture");
     const contentDir = join(base, "content");
     const mediaDir = join(base, "media");
@@ -340,36 +341,38 @@ describe("loader validation failure modes", () => {
     );
 
     const webDir = resolve(import.meta.dirname, "../..");
-    const npmExec = process.env.npm_execpath;
-    const run = npmExec
-      ? spawnSync(process.execPath, [npmExec, "run", "build"], {
-          cwd: webDir,
-          env: {
-            ...process.env,
-            MDF_UNATTENDED_BUILD: "1",
-            MDF_RECIPES_CONTENT_DIR: contentDir,
-            MDF_RECIPES_MEDIA_DIR: mediaDir,
-            MDF_RECIPES_MANIFEST: manifestPath,
-          },
-          encoding: "utf8",
-          windowsHide: true,
-        })
-      : spawnSync("pnpm", ["run", "build"], {
-          cwd: webDir,
-          shell: process.platform === "win32",
-          env: {
-            ...process.env,
-            MDF_UNATTENDED_BUILD: "1",
-            MDF_RECIPES_CONTENT_DIR: contentDir,
-            MDF_RECIPES_MEDIA_DIR: mediaDir,
-            MDF_RECIPES_MANIFEST: manifestPath,
-          },
-          encoding: "utf8",
-          windowsHide: true,
-        });
+    const pkg = JSON.parse(
+      readFileSync(join(webDir, "package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    expect(pkg.scripts?.["validate:recipes"]).toBe(
+      "tsx scripts/validate-recipes.ts",
+    );
+    expect(pkg.scripts?.build?.startsWith("pnpm run validate:recipes &&")).toBe(
+      true,
+    );
 
+    const tsx = createRequire(resolve(webDir, "../../package.json")).resolve(
+      "tsx/cli",
+    );
+    const run = spawnSync(
+      process.execPath,
+      [tsx, join(webDir, "scripts", "validate-recipes.ts")],
+      {
+        cwd: webDir,
+        env: {
+          ...process.env,
+          MDF_RECIPES_CONTENT_DIR: contentDir,
+          MDF_RECIPES_MEDIA_DIR: mediaDir,
+          MDF_RECIPES_MANIFEST: manifestPath,
+        },
+        encoding: "utf8",
+        windowsHide: true,
+      },
+    );
+
+    expect(run.error).toBeUndefined();
     expect(run.status).not.toBe(0);
     const combined = `${run.stdout ?? ""}\n${run.stderr ?? ""}`;
     expect(combined).toMatch(/broken-recipe/u);
-  }, 120_000);
+  });
 });
