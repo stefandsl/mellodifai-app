@@ -1,3 +1,4 @@
+import "@/src/site-astryx-table.css";
 import "@/components/site/parts.css";
 import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";

@@ -1,5 +1,5 @@
 import "@astryxdesign/core/reset.css";
-import "@astryxdesign/core/astryx.css";
+import "@/src/site-astryx.css";
 import "./site.css";
 import { Link } from "@astryxdesign/core/Link";
 import { VStack } from "@astryxdesign/core/VStack";

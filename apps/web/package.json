@@ -10,6 +10,7 @@
     "test": "vitest run --passWithNoTests",
     "e2e": "playwright test && playwright test -c playwright.site.config.ts",
     "e2e:site": "playwright test -c playwright.site.config.ts",
+    "site:css": "node scripts/build-site-astryx-css.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
