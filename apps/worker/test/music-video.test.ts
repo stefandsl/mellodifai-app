@@ -1,7 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   CutPlanSchema,
@@ -27,6 +26,7 @@ import {
   withReplacements,
   writeMusicVideoPlan,
 } from "../src/stages/music-video.js";
+import { testTempBase } from "./support/temp-base.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -36,10 +36,7 @@ afterEach(async () => {
 });
 
 async function scratch() {
-  const base =
-    process.platform === "win32" ? "E:/mellodifai/runtime/tmp" : tmpdir();
-  await mkdir(base, { recursive: true });
-  const root = await mkdtemp(join(base, "music-video-tests-"));
+  const root = await mkdtemp(join(await testTempBase(), "music-video-tests-"));
   roots.push(root);
   return root;
 }

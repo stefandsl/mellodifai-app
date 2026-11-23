@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -26,6 +25,7 @@ import {
 import { isCapRefusal } from "../src/providers/ledger.js";
 import { paidCall } from "../src/providers/paid.js";
 import { generatePaid, RunStopped } from "../src/providers/paid-generate.js";
+import { testTempBase } from "./support/temp-base.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -35,10 +35,7 @@ afterEach(async () => {
 });
 
 async function scratch() {
-  const base =
-    process.platform === "win32" ? "E:/mellodifai/runtime/tmp" : tmpdir();
-  await mkdir(base, { recursive: true });
-  const root = await mkdtemp(join(base, "kie-media-tests-"));
+  const root = await mkdtemp(join(await testTempBase(), "kie-media-tests-"));
   roots.push(root);
   return root;
 }

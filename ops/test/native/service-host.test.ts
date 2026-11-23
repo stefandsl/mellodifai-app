@@ -10,12 +10,13 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { waitFor } from "../../lib/native/processes.js";
 import { launchHostedService, managedService } from "../../services.js";
+import { testTempBase } from "../temp-base.js";
 
 afterEach(() => vi.unstubAllEnvs());
 it.skipIf(process.platform !== "win32")(
   "restarts a crashing hosted process five times and then stops",
   async () => {
-    const root = mkdtempSync("E:/mellodifai/tmp/native-host-test-");
+    const root = mkdtempSync(join(testTempBase(), "native-host-test-"));
     vi.stubEnv("MELLODIFAI_ROOT", root);
     vi.stubEnv("MELLODIFAI_RUNTIME", "native");
     const witness = join(root, "attempts.txt");

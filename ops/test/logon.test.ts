@@ -1,20 +1,15 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { realRunner } from "../lib/run.js";
 import { SMTP_SETUP_NOTICE } from "../lib/smtp.js";
+import { testTempBase } from "./temp-base.js";
 
 it.skipIf(process.platform !== "win32")(
   "native logon never consults Docker",
   async () => {
-    const root = mkdtempSync("E:/mellodifai/tmp/native-logon-test-");
+    const root = mkdtempSync(join(testTempBase(), "native-logon-test-"));
     try {
       const fake = join(root, "pnpm.ps1");
       writeFileSync(fake, "$global:LASTEXITCODE=0\n");
@@ -42,8 +37,7 @@ it.skipIf(process.platform !== "win32")(
 it.skipIf(process.platform !== "win32")(
   "logon waits for Docker and a fresh heartbeat, suppressing raw child output",
   async () => {
-    mkdirSync("G:/claude-data", { recursive: true });
-    const root = mkdtempSync("G:/claude-data/logon-test-");
+    const root = mkdtempSync(join(testTempBase(), "logon-test-"));
     const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
     try {
       const fakePnpm = join(root, "pnpm.ps1");
@@ -80,8 +74,7 @@ it.skipIf(process.platform !== "win32")(
 it.skipIf(process.platform !== "win32")(
   "logon fails closed when Docker never becomes ready",
   async () => {
-    mkdirSync("G:/claude-data", { recursive: true });
-    const root = mkdtempSync("G:/claude-data/logon-timeout-");
+    const root = mkdtempSync(join(testTempBase(), "logon-timeout-"));
     try {
       const script = fileURLToPath(new URL("../logon.ps1", import.meta.url));
       const result = await realRunner(

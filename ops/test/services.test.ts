@@ -39,6 +39,7 @@ import {
   presentServices,
   SERVICE_ACCOUNTS,
 } from "../services.js";
+import { testTempBase } from "./temp-base.js";
 
 vi.mock("../rotate-db-passwords.js", () => ({ reapplyDbPasswords: vi.fn() }));
 vi.mock("../probe.js", () => ({ probe: vi.fn() }));
@@ -592,9 +593,7 @@ describe("services", () => {
 it.skipIf(process.platform !== "win32")(
   "manages a detached fake service and applies an owner-only ACL",
   async () => {
-    const base = "G:/claude-data";
-    mkdirSync(base, { recursive: true });
-    const root = mkdtempSync(join(base, "services-test-"));
+    const root = mkdtempSync(join(testTempBase(), "services-test-"));
     const cli = (args: string[]) =>
       realRunner(
         process.execPath,
@@ -743,7 +742,7 @@ it.skipIf(process.platform !== "win32")(
 it.skipIf(process.platform !== "win32")(
   "removes unrelated explicit grants from nested protected paths before service grants",
   async () => {
-    const root = mkdtempSync(join(runtimeRoot(), "tmp", "acl-reset-"));
+    const root = mkdtempSync(join(testTempBase(), "acl-reset-"));
     try {
       for (const app of ["auth", "worker"])
         mkdirSync(join(root, "deploy/apps", app), { recursive: true });
@@ -771,7 +770,11 @@ it.skipIf(process.platform !== "win32")(
       // Execute only the pre-account ACL hardening, never account creation or firewall changes.
       for (const [cmd, ...args] of commands.slice(1)) {
         if (args.some((arg) => arg.includes("New-LocalUser"))) break;
-        expect((await realRunner(cmd as string, args)).code).toBe(0);
+        const result = await realRunner(cmd as string, args);
+        expect(
+          result.code,
+          `${cmd} ${args.join(" ")}\n${result.stdout}\n${result.stderr}`,
+        ).toBe(0);
       }
       for (const file of files) {
         const result = await realRunner("powershell.exe", [

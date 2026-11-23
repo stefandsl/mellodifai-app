@@ -519,8 +519,7 @@ describe("desktop engine and publishing", () => {
     );
     // What baseEnv in desktop.ts adds for every process of the app.
     const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      MELLODIFAI_ROOT: data,
+      ...desktopBaseEnv(process.env, data),
       ...settings,
     };
     const module = (...parts: string[]) =>
