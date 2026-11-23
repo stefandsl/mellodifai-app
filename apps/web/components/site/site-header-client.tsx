@@ -4,7 +4,7 @@ import { TopNavMenu } from "@astryxdesign/core/TopNav";
 import { type ReactNode, useEffect, useState } from "react";
 
 export function SiteHeaderScroll({ children }: { children: ReactNode }) {
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState<boolean | null>(null);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -12,7 +12,12 @@ export function SiteHeaderScroll({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   return (
-    <header className="site-header" data-scrolled={scrolled ? "true" : "false"}>
+    <header
+      className="site-header"
+      data-scrolled={
+        scrolled === null ? undefined : scrolled ? "true" : "false"
+      }
+    >
       {children}
     </header>
   );
