@@ -119,6 +119,18 @@ jobs:
       - run: pnpm test:db
       - run: pnpm ops rotate-auth-keys.ts --env e2e
       - run: pnpm e2e
+      # Postgres logs no statements and the supervisor redacts its own lines; the
+      # other service logs can hold tokens and are never printed.
+      - name: Show native lab startup logs
+        if: failure()
+        run: |
+          foreach ($name in 'supervisor.log', 'postgres.log') {
+            $file = Join-Path $env:MELLODIFAI_ROOT "stacks/e2e/native/logs/$name"
+            if (Test-Path -LiteralPath $file) {
+              "===== $name ====="
+              Get-Content -LiteralPath $file -Tail 60
+            }
+          }
       - name: Stop native lab even after failure
         if: always()
         run: pnpm ops stack.ts stop --env e2e --runtime native
