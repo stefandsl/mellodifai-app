@@ -718,11 +718,11 @@ it.skipIf(process.platform !== "win32")(
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$a=Get-Acl -LiteralPath $env:MDF_ACL_ROOT; $a.AreAccessRulesProtected; $a.Access | ForEach-Object { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value }",
+          "$ErrorActionPreference='Stop'; $a=[System.IO.Directory]::GetAccessControl($env:MDF_ACL_ROOT); $a.AreAccessRulesProtected; $a.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object { $_.IdentityReference.Value }",
         ],
         { env: { MDF_ACL_ROOT: root } },
       );
-      expect(acl.code).toBe(0);
+      expect(acl.code, acl.stderr).toBe(0);
       const lines = acl.stdout.trim().split(/\r?\n/);
       expect(lines[0]).toBe("True");
       expect(lines.slice(1)).toHaveLength(2);

@@ -521,6 +521,8 @@ describe("desktop engine and publishing", () => {
     const env: NodeJS.ProcessEnv = {
       ...desktopBaseEnv(process.env, data),
       ...settings,
+      // The fake data folder does not exist; keep tsx from writing its cache in it.
+      TSX_DISABLE_CACHE: "1",
     };
     const module = (...parts: string[]) =>
       JSON.stringify(pathToFileURL(join(repo, ...parts)).href);
