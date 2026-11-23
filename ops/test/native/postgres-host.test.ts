@@ -13,15 +13,17 @@ it.skipIf(process.platform !== "win32")(
   async () => {
     const directory = fixture();
     const stop = join(directory, "stop");
+    // The server runs under the restricted token: only SeChangeNotifyPrivilege is
+    // left, or it exits 9 at once.
     const launch = postgresLaunch(process.execPath, [
       "-e",
-      "setInterval(() => { if(require('node:fs').existsSync(process.env.MDF_HOST_STOP))process.exit(7); }, 50)",
+      "const privileges = require('node:child_process').execFileSync(require('node:path').join(process.env.SystemRoot, 'System32', 'whoami.exe'), ['/priv', '/fo', 'csv', '/nh'], { encoding: 'utf8' }).trim().split(/\\r?\\n/); if (privileges.length !== 1) process.exit(9); setInterval(() => { if(require('node:fs').existsSync(process.env.MDF_HOST_STOP))process.exit(7); }, 50)",
     ]);
     const out = openSync(join(directory, "host.log"), "w");
     const host = spawn(launch.command, launch.args, {
       detached: true,
       windowsHide: true,
-      env: { ...process.env, MDF_HOST_STOP: stop },
+      env: { ...process.env, ...launch.env, MDF_HOST_STOP: stop },
       stdio: ["ignore", out, out, "ipc"],
     });
     closeSync(out);
@@ -63,7 +65,7 @@ it.skipIf(process.platform !== "win32")(
       await exited;
     }
   },
-  10_000,
+  60_000,
 );
 
 it("keeps the direct server launch on non-Windows hosts", () => {
@@ -71,5 +73,6 @@ it("keeps the direct server launch on non-Windows hosts", () => {
     command: "postgres",
     args: ["-D", "fixture"],
     ipc: false,
+    env: {},
   });
 });

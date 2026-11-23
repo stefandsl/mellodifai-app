@@ -2,17 +2,22 @@
 # process's token, the way pg_ctl starts PostgreSQL: the Administrators and Power
 # Users groups become deny-only and every privilege is dropped. PostgreSQL refuses
 # to start under an administrator token (elevated terminals, CI runners).
-# The command inherits this process's standard handles, console state and folder.
+# The command inherits this process's standard handles and folder, and gets its own
+# hidden console.
 # This process waits for it and exits with its exit code.
+# With MDF_RESTRICTED_REPORT_PID=1 the command writes its stdout to this process's
+# stderr, and this process writes the command's pid as the one line of its stdout.
 $ErrorActionPreference = 'Stop'
 # .NET calls only: module auto-loading is slow under a fresh LOCALAPPDATA.
 $PSModuleAutoLoadingPreference = 'None'
 $commandLine = $env:MDF_RESTRICTED_COMMAND
+$reportPid = $env:MDF_RESTRICTED_REPORT_PID -eq '1'
 if (-not $commandLine) {
   [Console]::Error.WriteLine('MDF_RESTRICTED_COMMAND is empty')
   exit 2
 }
 [Environment]::SetEnvironmentVariable('MDF_RESTRICTED_COMMAND', $null)
+[Environment]::SetEnvironmentVariable('MDF_RESTRICTED_REPORT_PID', $null)
 $source = @'
 using System;
 using System.ComponentModel;
@@ -59,8 +64,9 @@ public static class MdfRestricted {
   const int TokenDefaultDacl = 6;
   const int GENERIC_ALL = 0x10000000;
   const uint DISABLE_MAX_PRIVILEGE = 0x1;
-  const int STARTF_USESTDHANDLES = 0x100;
-  const uint DETACHED_PROCESS = 0x8, CREATE_NEW_PROCESS_GROUP = 0x200;
+  const int STARTF_USESHOWWINDOW = 0x1, STARTF_USESTDHANDLES = 0x100;
+  const short SW_HIDE = 0;
+  const uint CREATE_NEW_CONSOLE = 0x10;
 
   static IntPtr Sid(string value, out GCHandle pin) {
     var sid = new SecurityIdentifier(value);
@@ -70,7 +76,7 @@ public static class MdfRestricted {
     return pin.AddrOfPinnedObject();
   }
 
-  public static int Run(string commandLine) {
+  public static int Run(string commandLine, bool reportPid) {
     IntPtr token, restricted;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ADJUST_DEFAULT, out token))
       throw new Win32Exception();
@@ -107,18 +113,26 @@ public static class MdfRestricted {
     }
     var startup = new StartupInfo {
       cb = Marshal.SizeOf(typeof(StartupInfo)),
-      dwFlags = STARTF_USESTDHANDLES,
-      hStdInput = GetStdHandle(-10), hStdOutput = GetStdHandle(-11), hStdError = GetStdHandle(-12),
+      dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW,
+      wShowWindow = SW_HIDE,
+      hStdInput = GetStdHandle(-10),
+      hStdOutput = GetStdHandle(reportPid ? -12 : -11),
+      hStdError = GetStdHandle(-12),
     };
     ProcessInformation info;
     try {
+      // The command owns one hidden console, which its own children share.
       if (!CreateProcessAsUser(restricted, null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero,
-          true, DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, IntPtr.Zero, null, ref startup, out info))
+          true, CREATE_NEW_CONSOLE, IntPtr.Zero, null, ref startup, out info))
         throw new Win32Exception();
     } finally {
       CloseHandle(restricted);
     }
     CloseHandle(info.hThread);
+    if (reportPid) {
+      Console.Out.WriteLine(info.dwProcessId);
+      Console.Out.Flush();
+    }
     WaitForSingleObject(info.hProcess, 0xFFFFFFFF);
     uint code;
     GetExitCodeProcess(info.hProcess, out code);
@@ -135,5 +149,5 @@ if ($compiled.Errors.HasErrors) {
   foreach ($problem in $compiled.Errors) { [Console]::Error.WriteLine($problem.ToString()) }
   exit 2
 }
-$code = $compiled.CompiledAssembly.GetType('MdfRestricted').GetMethod('Run').Invoke($null, @($commandLine))
+$code = $compiled.CompiledAssembly.GetType('MdfRestricted').GetMethod('Run').Invoke($null, @($commandLine, $reportPid))
 exit $code

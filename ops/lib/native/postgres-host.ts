@@ -1,17 +1,30 @@
+import { restrictedLaunch } from "./restricted.js";
+
 /** A detached Windows postmaster has no console. Its CreateProcess calls then
  * allocate a console for every backend. Keep one hidden console for the server
- * and its descendants, owned by a persistent detached host. The host stays
- * alive until PostgreSQL exits, independently of the supervisor's caller.
- * Inline Node code also works in the bundled/pinned ops distribution. */
+ * and its descendants, owned by the postmaster and started by a persistent
+ * detached host. The host stays alive until PostgreSQL exits, independently of
+ * the supervisor's caller. PostgreSQL refuses an administrator token, so the
+ * host starts it through the restricted-token launcher, which reports the
+ * postmaster pid on its stdout and sends the server's output to the inherited
+ * log pipe. Inline Node code also works in the bundled/pinned ops distribution. */
 export const postgresHostScript = `
 // MDF_POSTGRES_CONSOLE_HOST
 const { spawn } = require('node:child_process');
 const child = spawn(process.argv[1], process.argv.slice(2), {
-  stdio: ['ignore', 'inherit', 'inherit'],
+  stdio: ['ignore', 'pipe', 'inherit'],
   windowsHide: true,
   detached: false,
 });
-child.once('spawn', () => process.send({ pid: child.pid }));
+let reported = '';
+child.stdout.on('data', chunk => {
+  if (reported === null) return;
+  reported += chunk.toString();
+  if (!reported.includes('\\n')) return;
+  const pid = Number(reported.trim());
+  reported = null;
+  process.send({ pid });
+});
 child.once('error', error => {
   const code = /^[A-Z0-9_]+$/.test(error.code || '') ? error.code : 'UNKNOWN';
   console.error('PostgreSQL console host spawn failed: ' + code);
@@ -27,11 +40,17 @@ export function postgresLaunch(
   args: string[],
   platform: NodeJS.Platform = process.platform,
 ) {
-  return platform === "win32"
-    ? {
-        command: process.execPath,
-        args: ["-e", postgresHostScript, command, ...args],
-        ipc: true,
-      }
-    : { command, args, ipc: false };
+  if (platform !== "win32") return { command, args, ipc: false, env: {} };
+  const restricted = restrictedLaunch(
+    command,
+    args,
+    { reportPid: true },
+    platform,
+  );
+  return {
+    command: process.execPath,
+    args: ["-e", postgresHostScript, restricted.command, ...restricted.args],
+    ipc: true,
+    env: restricted.env,
+  };
 }

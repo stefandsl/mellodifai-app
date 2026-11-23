@@ -358,7 +358,10 @@ export function postgresService(
         layout.pgdata,
       ]);
       const child = spawn(launch.command, launch.args, {
-        env: toolEnvironment(layout) as NodeJS.ProcessEnv,
+        env: {
+          ...toolEnvironment(layout),
+          ...launch.env,
+        } as NodeJS.ProcessEnv,
         // The server and every backend inherit this pipe; the supervisor
         // reads it for their whole lifetime.
         stdio: [
@@ -396,9 +399,11 @@ export function postgresService(
               observed.failure("exited before identifying the postmaster"),
             ),
           );
+          // The restricted-token launcher compiles its helper before it starts
+          // the postmaster: about a second, several under load.
           timer = setTimeout(
             () => reject(observed.failure("console host identity timed out")),
-            5000,
+            30_000,
           );
         });
       } catch (error) {

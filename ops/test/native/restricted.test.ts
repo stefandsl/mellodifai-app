@@ -1,12 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import {
-  closeSync,
-  mkdirSync,
-  mkdtempSync,
-  openSync,
-  readFileSync,
-  rmSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -49,11 +42,12 @@ it("quotes arguments the way the C runtime splits them", () => {
 });
 
 it("leaves other platforms unchanged", () => {
-  expect(restrictedLaunch("node", ["a b"], "linux")).toEqual({
+  expect(
+    restrictedLaunch("node", ["a b"], { reportPid: true }, "linux"),
+  ).toEqual({
     command: "node",
     args: ["a b"],
     env: {},
-    detached: true,
   });
 });
 
@@ -115,34 +109,34 @@ it.runIf(process.platform === "win32")(
 );
 
 it.runIf(process.platform === "win32")(
-  "runs a command that writes to a log file, spawned the way the stack starts its supervisor",
+  "reports the command pid alone on stdout and moves the command output to stderr",
   async () => {
-    // A detached Windows PowerShell has no console and exits 0 before the script runs.
-    const root = mkdtempSync(
-      join(process.env.TEMP ?? tmpdir(), "mdf-restricted-"),
+    // The PostgreSQL console host forwards this pid as the postmaster identity.
+    const launch = restrictedLaunch(
+      process.execPath,
+      ["-e", "console.log(String(process.pid)); process.exit(3)"],
+      { reportPid: true },
     );
-    try {
-      const log = join(root, "out.log");
-      const out = openSync(log, "w");
-      const launch = restrictedLaunch(process.execPath, [
-        "-e",
-        "console.log('child ran'); console.error('child error'); process.exit(5)",
-      ]);
-      const child = spawn(launch.command, launch.args, {
-        detached: launch.detached,
-        stdio: ["ignore", out, out],
-        windowsHide: true,
-        env: { ...process.env, ...launch.env },
-      });
-      closeSync(out);
-      const code = await new Promise<number | null>((resolve) =>
-        child.once("exit", resolve),
-      );
-      expect(readFileSync(log, "utf8")).toMatch(/child ran\r?\nchild error/u);
-      expect(code).toBe(5);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
+    const child = spawn(launch.command, launch.args, {
+      env: { ...process.env, ...launch.env },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    const code = await new Promise<number | null>((resolve) =>
+      child.once("close", resolve),
+    );
+    expect(code).toBe(3);
+    expect(stdout.trim()).toMatch(/^\d+$/u);
+    expect(stdout.trim()).not.toBe(String(child.pid));
+    expect(stderr.trim()).toBe(stdout.trim());
   },
   60_000,
 );
