@@ -262,6 +262,11 @@ describe("songs from audio on kie", () => {
     expect(
       songSource({ source: { mode: "cover", upload: UPLOAD } })?.mode,
     ).toBe("cover");
+    expect(
+      songSource({
+        source: { mode: "cover", upload: UPLOAD, audioWeight: 0.7 },
+      })?.audioWeight,
+    ).toBe(0.7);
     expect(() => songSource({ source: { mode: "cover" } })).toThrow(
       SOURCE_TEXT.invalid,
     );
@@ -281,6 +286,18 @@ describe("songs from audio on kie", () => {
       vocal_gender: "m",
       audio_weight: KIE_AUDIO_WEIGHT.cover,
     });
+    const customCover = kieSourceTask(
+      { mode: "cover", upload: UPLOAD, audioWeight: 0.7 },
+      pack(),
+      "https://u",
+    );
+    expect(customCover.input.audio_weight).toBe(0.7);
+    const zeroWeightCover = kieSourceTask(
+      { mode: "cover", upload: UPLOAD, audioWeight: 0 },
+      pack(),
+      "https://u",
+    );
+    expect(zeroWeightCover.input.audio_weight).toBe(0);
     const reference = kieSourceTask(
       { mode: "reference", upload: UPLOAD },
       pack(),

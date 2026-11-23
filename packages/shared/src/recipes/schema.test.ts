@@ -449,6 +449,36 @@ describe("buildRecipeStartPayload", () => {
       expect(built.payload.vocalGender).toBe("m");
       expect(built.payload.settings.source?.mode).toBe("cover");
       expect(built.payload.settings.source?.takeId).toBe(takeId);
+      expect(built.payload.settings.source?.audioWeight).toBeUndefined();
+    }
+  });
+
+  it("maps preset.audioWeight onto settings.source for cover and reference recipes", () => {
+    const cover = sampleCoverRecipe();
+    cover.preset.audioWeight = 0.7;
+    const takeId = "11111111-1111-4111-8111-111111111111";
+    const built = buildRecipeStartPayload(
+      cover,
+      { sourceAudio: { takeId } },
+      "en",
+    );
+    expect(built.ok).toBe(true);
+    if (built.ok && built.op === "song_create") {
+      expect(built.payload.settings.source?.audioWeight).toBe(0.7);
+    }
+
+    const extend = sampleCoverRecipe();
+    extend.preset.sourceMode = "extend";
+    extend.preset.audioWeight = 0.7;
+    const builtExtend = buildRecipeStartPayload(
+      extend,
+      { sourceAudio: { takeId } },
+      "en",
+    );
+    expect(builtExtend.ok).toBe(true);
+    if (builtExtend.ok && builtExtend.op === "song_create") {
+      expect(builtExtend.payload.settings.source?.mode).toBe("extend");
+      expect(builtExtend.payload.settings.source?.audioWeight).toBeUndefined();
     }
   });
 

@@ -209,8 +209,12 @@ export function buildRecipeStartPayload(
     ) as SongSettings["timeSignature"];
   }
   if (rawSource) {
+    const mode = recipe.preset.sourceMode ?? "cover";
     settings.source = {
-      mode: recipe.preset.sourceMode ?? "cover",
+      mode,
+      ...(recipe.preset.audioWeight !== undefined && mode !== "extend"
+        ? { audioWeight: recipe.preset.audioWeight }
+        : {}),
       ...rawSource,
     };
   }

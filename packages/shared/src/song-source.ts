@@ -117,6 +117,8 @@ export const AudioSourceSchema = z
     versionId: z.uuid().optional(),
     // Where an extension starts, seconds into the source; absent = at its end.
     continueAt: z.number().min(0).max(KIE_SOURCE_MAX_SECONDS).optional(),
+    // Optional kie audio_weight override for cover/reference; absent = KIE_AUDIO_WEIGHT[mode].
+    audioWeight: z.number().min(0).max(1).optional(),
     // Shown in "Fonti": the source song's title or the file name.
     title: z.string().trim().max(200).optional(),
     duration: z.number().positive().max(3600).optional(),

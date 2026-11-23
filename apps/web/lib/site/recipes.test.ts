@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -8,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   buildRecipeStartPayload,
   CookieCreateSongInput,
@@ -142,12 +143,34 @@ describe("real song recipes catalog (content/recipes)", () => {
           CreateSongInput.safeParse(built.payload).success,
           `${recipe.slug} CreateSongInput`,
         ).toBe(true);
+        if (recipe.preset.audioWeight !== undefined) {
+          expect(
+            built.payload.settings.source?.audioWeight,
+            `${recipe.slug} audioWeight`,
+          ).toBe(recipe.preset.audioWeight);
+        }
       } else {
         expect(
           RemakeStartInput.safeParse(built.payload).success,
           `${recipe.slug} RemakeStartInput`,
         ).toBe(true);
       }
+    }
+  });
+
+  it("maps late-night-lofi audioWeight (0.7) into settings.source", () => {
+    const lofi = getRecipeBySlug("late-night-lofi");
+    expect(lofi).not.toBeNull();
+    if (!lofi) return;
+    const built = buildRecipeStartPayload(
+      lofi,
+      { sourceAudio: { takeId: "11111111-1111-4111-8111-111111111111" } },
+      "en",
+    );
+    expect(built.ok).toBe(true);
+    if (built.ok && built.op === "song_create") {
+      expect(built.payload.settings.source?.mode).toBe("cover");
+      expect(built.payload.settings.source?.audioWeight).toBe(0.7);
     }
   });
 
@@ -296,4 +319,57 @@ describe("loader validation failure modes", () => {
       }),
     ).toHaveLength(1);
   });
+
+  it("refuses a broken recipe.json during the web build step", () => {
+    const base = makeTempDir("broken-build-fixture");
+    const contentDir = join(base, "content");
+    const mediaDir = join(base, "media");
+    const manifestPath = join(base, "assets.manifest.json");
+    mkdirSync(join(contentDir, "broken-recipe"), { recursive: true });
+    mkdirSync(mediaDir, { recursive: true });
+    writeFileSync(
+      manifestPath,
+      JSON.stringify({ schemaVersion: 1, assets: [] }),
+    );
+    writeFileSync(
+      join(contentDir, "broken-recipe", "recipe.json"),
+      JSON.stringify({
+        slug: "broken-recipe",
+        kind: "not-a-valid-kind",
+      }),
+    );
+
+    const webDir = resolve(import.meta.dirname, "../..");
+    const npmExec = process.env.npm_execpath;
+    const run = npmExec
+      ? spawnSync(process.execPath, [npmExec, "run", "build"], {
+          cwd: webDir,
+          env: {
+            ...process.env,
+            MDF_UNATTENDED_BUILD: "1",
+            MDF_RECIPES_CONTENT_DIR: contentDir,
+            MDF_RECIPES_MEDIA_DIR: mediaDir,
+            MDF_RECIPES_MANIFEST: manifestPath,
+          },
+          encoding: "utf8",
+          windowsHide: true,
+        })
+      : spawnSync("pnpm", ["run", "build"], {
+          cwd: webDir,
+          shell: process.platform === "win32",
+          env: {
+            ...process.env,
+            MDF_UNATTENDED_BUILD: "1",
+            MDF_RECIPES_CONTENT_DIR: contentDir,
+            MDF_RECIPES_MEDIA_DIR: mediaDir,
+            MDF_RECIPES_MANIFEST: manifestPath,
+          },
+          encoding: "utf8",
+          windowsHide: true,
+        });
+
+    expect(run.status).not.toBe(0);
+    const combined = `${run.stdout ?? ""}\n${run.stderr ?? ""}`;
+    expect(combined).toMatch(/broken-recipe/u);
+  }, 120_000);
 });

@@ -68,6 +68,18 @@ describe("audio source of a new song", () => {
       AudioSourceSchema.safeParse({ mode: "extend", upload, continueAt: 500 })
         .success,
     ).toBe(false);
+    expect(
+      AudioSourceSchema.parse({ mode: "cover", upload, audioWeight: 0.7 })
+        .audioWeight,
+    ).toBe(0.7);
+    expect(
+      AudioSourceSchema.safeParse({ mode: "cover", upload, audioWeight: 1.5 })
+        .success,
+    ).toBe(false);
+    expect(
+      AudioSourceSchema.safeParse({ mode: "cover", upload, audioWeight: -0.1 })
+        .success,
+    ).toBe(false);
   });
   it("lives in the song settings", () => {
     const parsed = SongSettingsSchema.parse({
