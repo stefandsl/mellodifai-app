@@ -70,6 +70,19 @@ it.each([false, true])(
   },
 );
 
+it("reads the e2e auth secrets from the runtime root even when a CI job sets RUNNER_TEMP", async () => {
+  environment();
+  vi.stubEnv("MELLODIFAI_ROOT", "D:/a/_temp/mellodifai-native");
+  vi.stubEnv("RUNNER_TEMP", "D:/a/_temp");
+  const { default: config } = await import("../playwright.config");
+  const servers = config.webServer;
+  if (!Array.isArray(servers)) throw new Error("webServer entries required");
+  // ops/rotate-auth-keys.ts writes the e2e keys under MELLODIFAI_ROOT.
+  expect(servers[0]?.command).toContain(
+    '--env-file="D:/a/_temp/mellodifai-native/secrets/auth/e2e/auth.env"',
+  );
+});
+
 it("refuses an auth connection to the live database before starting servers", async () => {
   environment();
   vi.stubEnv(
