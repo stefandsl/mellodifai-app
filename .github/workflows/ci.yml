@@ -76,6 +76,13 @@ jobs:
       # pnpm e2e also runs the site suite (playwright.site.config.ts) on Firefox and WebKit.
       - run: pnpm --filter @mellodifai/web exec playwright install chromium firefox webkit
       - run: pnpm test
+      - name: Keep mismatched visualizer frames
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frame-match
+          path: ${{ env.E2E_SCREENSHOT_DIR }}/frame-match
+          if-no-files-found: ignore
       - name: Reserve isolated browser ports
         run: |
           'E2E_PORT=3234' >> $env:GITHUB_ENV
