@@ -465,8 +465,8 @@ const en: SiteCopy = {
         a: "Only you, until you publish a song or share its link. Your plan does not change that.",
       },
       {
-        q: "Can I use my own engine or my own key?",
-        a: "Yes. Jobs that run on your computer or on your own key do not use credits on any plan.",
+        q: "Can I work on my own computer?",
+        a: "Yes. Work that runs on your own computer uses no credits.",
       },
     ],
   },
@@ -845,8 +845,8 @@ const it: SiteCopy = {
         a: "Solo tu, finché non pubblichi una canzone o ne condividi il link. Il piano non cambia questo.",
       },
       {
-        q: "Posso usare il mio motore o la mia chiave?",
-        a: "Sì. I lavori che girano sul tuo computer o con la tua chiave non usano crediti, con ogni piano.",
+        q: "Posso lavorare sul mio computer?",
+        a: "Sì. Il lavoro che gira sul tuo computer non usa crediti.",
       },
     ],
   },

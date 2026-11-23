@@ -37,7 +37,7 @@ describe("plans of the public site", () => {
       /close of the period/iu,
       /quando vuoi/iu,
       /chiusura del periodo/iu,
-      /next period|top-up|periodo successivo|ricarica/iu,
+      /next period|top-up|periodo successivo|ricarica|on any plan|con ogni piano|own key|tua chiave/iu,
     ];
     for (const lang of ["en", "it"] as const) {
       const { pricing, plans, faq } = SITE_COPY[lang];
