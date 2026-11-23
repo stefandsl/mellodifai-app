@@ -48,10 +48,6 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
-      - name: Diagnose the lease helper (temporary)
-        run: |
-          node .github/diag/lease-diag.mjs
-          exit 1
       - run: pnpm ops check-no-keys.ts
       - run: pnpm lint
       - run: pnpm typecheck
