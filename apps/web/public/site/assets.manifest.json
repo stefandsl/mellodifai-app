@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "path": "brand-mark.png",
+      "origin": "own (96 px copy of apps/web/public/brand/mellodifai-logo.png)",
+      "sha256": "28bbf541fba3118b194ef956afc07aeb63decc9c93393835ef9b2fa15a2fbb3f",
+      "bytes": 7120
+    },
+    {
+      "path": "fonts/figtree-latin-400-normal.woff2",
+      "origin": "SIL OFL 1.1 (fonts/figtree.LICENSE.txt)",
+      "sha256": "8f98dd642986f1fa39c45b89665a57372897c235b36028e0e4a136e43dc5f8ab",
+      "bytes": 11384
+    },
+    {
+      "path": "fonts/figtree-latin-500-normal.woff2",
+      "origin": "SIL OFL 1.1 (fonts/figtree.LICENSE.txt)",
+      "sha256": "953a6a4294b1205a1b4d4b9e5529478e8c9e1c5a67a9aa24a551414cd85b6f51",
+      "bytes": 11432
+    },
+    {
+      "path": "fonts/figtree-latin-600-normal.woff2",
+      "origin": "SIL OFL 1.1 (fonts/figtree.LICENSE.txt)",
+      "sha256": "367d713287918784702563518f59239989da815c80d3c7337686b9816635a08b",
+      "bytes": 11544
+    },
+    {
+      "path": "fonts/figtree.LICENSE.txt",
+      "origin": "SIL OFL 1.1 (fonts/figtree.LICENSE.txt)",
+      "sha256": "ee23e6c84000126692e112ff067b456470493349f993ceaa8b4d3766dd6fad5d",
+      "bytes": 4498
+    },
+    {
+      "path": "fonts/ibm-plex-mono-latin-500-normal.woff2",
+      "origin": "SIL OFL 1.1 (fonts/ibm-plex-mono.LICENSE.txt)",
+      "sha256": "01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22",
+      "bytes": 14888
+    },
+    {
+      "path": "fonts/ibm-plex-mono.LICENSE.txt",
+      "origin": "SIL OFL 1.1 (fonts/ibm-plex-mono.LICENSE.txt)",
+      "sha256": "e287e46bd0d45bfb0f0bd22e598bf8a3fd8aeecd2b8049ab3ca432f68a34952e",
+      "bytes": 4358
+    },
+    {
+      "path": "fonts/instrument-serif-latin-400-italic.woff2",
+      "origin": "SIL OFL 1.1 (fonts/instrument-serif.LICENSE.txt)",
+      "sha256": "5a51946dfffa82972bc98745359c46761515641fda557c25116459a9f83da4a7",
+      "bytes": 22128
+    },
+    {
+      "path": "fonts/instrument-serif-latin-400-normal.woff2",
+      "origin": "SIL OFL 1.1 (fonts/instrument-serif.LICENSE.txt)",
+      "sha256": "5eb09b5ac0e28b67c2f041c8ba6d244604ca0c0980d65912ab2d47fed84ddc31",
+      "bytes": 21032
+    },
+    {
+      "path": "fonts/instrument-serif-latin-ext-400-italic.woff2",
+      "origin": "SIL OFL 1.1 (fonts/instrument-serif.LICENSE.txt)",
+      "sha256": "d0014821252a8a770bf7551641572f239a8ede83d75652d84fef0c3627751baf",
+      "bytes": 12384
+    },
+    {
+      "path": "fonts/instrument-serif-latin-ext-400-normal.woff2",
+      "origin": "SIL OFL 1.1 (fonts/instrument-serif.LICENSE.txt)",
+      "sha256": "290e6267dd833bf5f899eba4c29ad0a9b09dbe53f6075b18af38057159e1ff20",
+      "bytes": 11604
+    },
+    {
+      "path": "fonts/instrument-serif.LICENSE.txt",
+      "origin": "SIL OFL 1.1 (fonts/instrument-serif.LICENSE.txt)",
+      "sha256": "16efe1afb781c078d787a23791af62d32785f1b8cf108dae1d408f1f27cceaa7",
+      "bytes": 4403
+    },
+    {
+      "path": "fonts/mellodifai-serif-cyrillic-400-italic.woff2",
+      "origin": "SIL OFL 1.1 modified Noto Serif Condensed (fonts/mellodifai-serif-cyrillic.LICENSE.txt)",
+      "sha256": "f8fbce1bd31e0f4c687ff64c39e916e481d400e76439886cffb7d0082fdfa1a7",
+      "bytes": 32844
+    },
+    {
+      "path": "fonts/mellodifai-serif-cyrillic-400-normal.woff2",
+      "origin": "SIL OFL 1.1 modified Noto Serif Condensed (fonts/mellodifai-serif-cyrillic.LICENSE.txt)",
+      "sha256": "84a5e4860ebf72f19794dcb4633fee99ba34e7ff9e3e345672178b2b5846c8d9",
+      "bytes": 25928
+    },
+    {
+      "path": "fonts/mellodifai-serif-cyrillic.LICENSE.txt",
+      "origin": "SIL OFL 1.1 modified Noto Serif Condensed (fonts/mellodifai-serif-cyrillic.LICENSE.txt)",
+      "sha256": "e747620a2e1e6108a9ac28fa6b95ef41cf0b17c27e781a40a5bcc88b6f8161f4",
+      "bytes": 4668
+    },
+    {
+      "path": "recipes/acoustic-voice-swap/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "5a7a51059f9610a5d19ce5438909ad4e34a20507e764dc307d6d929fdc5d0b8e",
+      "bytes": 3938
+    },
+    {
+      "path": "recipes/acoustic-voice-swap/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "8995050e984daeca43b1f6f1b97535d97e9ddafd2b2ea8bd1dc162484492fc0d",
+      "bytes": 56499
+    },
+    {
+      "path": "recipes/acoustic-voice-swap/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "63409ba25d2a118b1e7f23ba2927771f4cd54e5e293fb98748745a6dea407c7e",
+      "bytes": 43601
+    },
+    {
+      "path": "recipes/club-tempo-lift/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "373b2cb3907af2d230fe3cab5b2798d68d04a6d2447abfcb5f54b733def6da01",
+      "bytes": 2131
+    },
+    {
+      "path": "recipes/club-tempo-lift/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "53024e9005f5166a02c5610c93345d87ff593b88aae9c72b03d16993e06b274b",
+      "bytes": 56633
+    },
+    {
+      "path": "recipes/club-tempo-lift/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "41a0ad22a78bf5351c947cf80a2b7eebc1d0876ebfa1f1fb718b9fd8ecc841e5",
+      "bytes": 43487
+    },
+    {
+      "path": "recipes/commuter-train-roast/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "cd94347ddcb0e08e39a44a9f6e1e6ab1a57407900a7b43467ee8de8f588b90d6",
+      "bytes": 2154
+    },
+    {
+      "path": "recipes/commuter-train-roast/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "237300970526f3855e98f876b5fea9c2bd31519a45a172e714089d7d27d01c22",
+      "bytes": 56535
+    },
+    {
+      "path": "recipes/commuter-train-roast/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "ab5472ada79fe17058d54f27f376a39a6177dc1f1a453edf1d1d81e6034d5ffe",
+      "bytes": 43351
+    },
+    {
+      "path": "recipes/group-chat-ballad/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "311fa998781f3ecc9bc9b0ea5b2b9f0dd1e705f294db3b659d88fbc0f5fa8b07",
+      "bytes": 3947
+    },
+    {
+      "path": "recipes/group-chat-ballad/example.wav",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "41fc39ccbba401801648ed97d45c0b8e16def85014b2e5c38cb9843482cc4ca2",
+      "bytes": 256078
+    },
+    {
+      "path": "recipes/group-chat-ballad/preview.wav",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "37cd8ab6a6ddf2ede86c50de6dbb427b74b67f51f5de1e1c72f19f02869ccd5c",
+      "bytes": 192078
+    },
+    {
+      "path": "recipes/indie-duet-take/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "27920d0354dcf1937d4e8f5be364048f1ccf6826753b18d7f171554a2806e11c",
+      "bytes": 2501
+    },
+    {
+      "path": "recipes/indie-duet-take/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "d225746499f7c1ff16c3c27f8030fbb0ca4ab48955d2825c153cd4ce8aabdd37",
+      "bytes": 56776
+    },
+    {
+      "path": "recipes/indie-duet-take/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "8ca96ad83ac4aa02dd319709b70c5f38ba3a75f2c14d928f99da91c27cbfc0bb",
+      "bytes": 43497
+    },
+    {
+      "path": "recipes/kitchen-table-pantomime/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "46b93a344ce8efb6cd117aaedeba3ff87fee57d88091235edd91a506f9033507",
+      "bytes": 2107
+    },
+    {
+      "path": "recipes/kitchen-table-pantomime/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "8ecd82d3b3299c882ed6ca6101d7a7c6338f7af84549f70f3816eee45fff1b30",
+      "bytes": 56260
+    },
+    {
+      "path": "recipes/kitchen-table-pantomime/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "005fba317c9fe1570e4ac9b108b974b9604fa80585d10b75a894ba2a06dca855",
+      "bytes": 43353
+    },
+    {
+      "path": "recipes/late-night-lofi/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "076a90d7217669d3a8b1e35e7910ccb6c7c619585f2c3fbda5da73f2bc1de446",
+      "bytes": 4189
+    },
+    {
+      "path": "recipes/late-night-lofi/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "06f3b7dd5c80b46f5a2f810a031621d8f5717af00668a49e7102be3bb4d0b5d0",
+      "bytes": 55988
+    },
+    {
+      "path": "recipes/late-night-lofi/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "2fc029bae08df2c43c58eee61059aa14f94167e14af16b2886492a03f6bd5e95",
+      "bytes": 42621
+    },
+    {
+      "path": "recipes/office-monday-satire/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "75ff0da1aa5c42c530e52cb8161df1825fa12cccbccbb2f01a587345e45ecb69",
+      "bytes": 2130
+    },
+    {
+      "path": "recipes/office-monday-satire/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "e2cab4f4b5647f30e62f0c90ed1405d6b02ab748575297e5c8fbb6ffa507abc6",
+      "bytes": 56139
+    },
+    {
+      "path": "recipes/office-monday-satire/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "1c9dc81e43c0149327b4127b825a135b9828f5019d0d9a2671007c2c94e63ba4",
+      "bytes": 43533
+    },
+    {
+      "path": "recipes/phonetic-chorus-twin/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "fb651608ec7c2458022e0344ea072ed363ffb67d789096511fc85ac07c4eb923",
+      "bytes": 2145
+    },
+    {
+      "path": "recipes/phonetic-chorus-twin/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "06245aa36d56064726671deefd9bb264d7ba7abe239fa1d00d599d48b1c9d5ec",
+      "bytes": 56539
+    },
+    {
+      "path": "recipes/phonetic-chorus-twin/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "3ec490448cc19abdf647931bfb4e6fd44e5caf218cb50095b8f44584ed185fe1",
+      "bytes": 43239
+    },
+    {
+      "path": "recipes/piano-ballad-rework/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "e60448ea34ef342bb4fd5d8e636bdb7b9141194f4348b277959157af54d4cbee",
+      "bytes": 3949
+    },
+    {
+      "path": "recipes/piano-ballad-rework/example.wav",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "6e41a87baf2fe5b4f2f30ef998036d7e9d5c14552251fa390be9183aaabefb22",
+      "bytes": 256078
+    },
+    {
+      "path": "recipes/piano-ballad-rework/preview.wav",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "13e0a331c94e2e8d944f97a67b9142bb5347a729eabd2fc40df59a6a374541e5",
+      "bytes": 192078
+    },
+    {
+      "path": "recipes/stadium-chant-echo/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "7f57a10383a7bd64b0de789f7f80705a7febf0e7a34c125aa298cf0da80f1c8c",
+      "bytes": 4155
+    },
+    {
+      "path": "recipes/stadium-chant-echo/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "dcb3e30f2d37296f6af381ecf67a6c9ccb301ba9771a60699974bc6310882236",
+      "bytes": 56667
+    },
+    {
+      "path": "recipes/stadium-chant-echo/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "0082b244e93c34f1ccfb449db8a0264b7d3bdb2aa5654bd18e0f9e029c449505",
+      "bytes": 43573
+    },
+    {
+      "path": "recipes/synthwave-chorus-cut/cover.jpg",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "ca36cf046fb1ee33ca9b013e4f0899cd21cfb0401f2e10fca968c1cd64680d72",
+      "bytes": 2760
+    },
+    {
+      "path": "recipes/synthwave-chorus-cut/example.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "5e6c9b888e43c3e41fedbf332e4494558dece8a3f44e5c3d004eae98e779ede1",
+      "bytes": 55894
+    },
+    {
+      "path": "recipes/synthwave-chorus-cut/preview.mp4",
+      "origin": "generated with ffmpeg (synthetic placeholder for D4) on 2026-11-22",
+      "sha256": "241924337908401746b18814c02b9f422c36ea52725a1b5f3eed1c27e2a35e02",
+      "bytes": 43144
+    }
+  ]
+}

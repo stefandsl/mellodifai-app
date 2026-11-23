@@ -1,0 +1,83 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000009",
+  "slug": "stadium-chant-echo",
+  "schemaVersion": 1,
+  "kind": "pantomime",
+  "title": {
+    "it": "Coro da stadio rifatto",
+    "en": "Stadium chant echo"
+  },
+  "summary": {
+    "it": "Ricostruisci un coro potente con nuove parole scandite a tempo per eventi e feste di squadra.",
+    "en": "Rebuild a big sing-along chorus with punchy new chant lines locked to every downbeat."
+  },
+  "highlights": [
+    {
+      "it": "Sillabe scandite per essere cantate in coro",
+      "en": "Punchy syllables built for crowd sing-alongs"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceLink",
+      "kind": "link",
+      "label": {
+        "it": "Link della canzone",
+        "en": "Source song link"
+      },
+      "hint": null,
+      "optional": false,
+      "maxLength": 500,
+      "bindsTo": "remake_start.url"
+    },
+    {
+      "id": "teamTopic",
+      "kind": "text",
+      "label": {
+        "it": "Squadra o occasione",
+        "en": "Team or occasion"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "torneo di calcetto del venerdi",
+        "en": "Friday five-a-side finals"
+      },
+      "optional": true,
+      "maxLength": 120,
+      "bindsTo": "rewrite.target"
+    }
+  ],
+  "languages": ["it", "en", "es"],
+  "genre": "anthem rock",
+  "tempo": {
+    "bpm": 126,
+    "feel": "big chorus"
+  },
+  "form": "hook",
+  "output": "lyric-video",
+  "format": "16:9",
+  "featured": false,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "rewriteMode": "pantomime",
+    "video": "lyric"
+  },
+  "fixture": "stadium-chant-echo",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 80
+  },
+  "status": "published"
+}

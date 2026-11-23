@@ -1,0 +1,98 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000012",
+  "slug": "group-chat-ballad",
+  "schemaVersion": 1,
+  "kind": "satire",
+  "title": {
+    "it": "Ballata della chat di gruppo",
+    "en": "Group chat ballad"
+  },
+  "summary": {
+    "it": "Dedica una ballata ironica ai messaggi vocali infiniti della chat di gruppo in solo audio.",
+    "en": "Dedicate a deadpan audio ballad to six-minute voice notes and chaotic family group chats."
+  },
+  "highlights": [
+    {
+      "it": "File audio pronto da inviare in chat",
+      "en": "Clean audio track ready to drop in chat"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceLink",
+      "kind": "link",
+      "label": {
+        "it": "Link del brano",
+        "en": "Song link"
+      },
+      "hint": null,
+      "optional": false,
+      "maxLength": 500,
+      "bindsTo": "remake_start.url"
+    },
+    {
+      "id": "target",
+      "kind": "text",
+      "label": {
+        "it": "Il gruppo o il tema",
+        "en": "Chat or topic"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "chat del calcetto o di famiglia",
+        "en": "the family group chat"
+      },
+      "optional": false,
+      "maxLength": 120,
+      "bindsTo": "rewrite.target"
+    },
+    {
+      "id": "angle",
+      "kind": "text",
+      "label": {
+        "it": "Tono del testo",
+        "en": "Lyric tone"
+      },
+      "hint": null,
+      "placeholder": {
+        "it": "melodrammatico ma affettuoso",
+        "en": "overly dramatic yet warm"
+      },
+      "optional": true,
+      "maxLength": 200,
+      "bindsTo": "rewrite.angle"
+    }
+  ],
+  "languages": ["it", "en"],
+  "genre": "acoustic pop",
+  "tempo": {
+    "bpm": 88,
+    "feel": "mock dramatic"
+  },
+  "form": "full",
+  "output": "audio",
+  "featured": false,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.wav",
+    "example": "example.wav",
+    "startAt": 0
+  },
+  "preset": {
+    "rewriteMode": "satire",
+    "video": "off"
+  },
+  "fixture": "group-chat-ballad",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 1,
+    "seconds": 65
+  },
+  "status": "published"
+}

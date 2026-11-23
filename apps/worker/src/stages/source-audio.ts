@@ -97,7 +97,7 @@ export function kieSourceTask(
     model: "ai-music-api/upload-and-cover-audio",
     input: {
       ...input,
-      audio_weight: KIE_AUDIO_WEIGHT[source.mode],
+      audio_weight: source.audioWeight ?? KIE_AUDIO_WEIGHT[source.mode],
       ...(pack.settings.duration ? { duration: pack.settings.duration } : {}),
     },
   };
