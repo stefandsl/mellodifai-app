@@ -8,7 +8,10 @@ const CORE_DIR = path.join(WEB_DIR, "node_modules/@astryxdesign/core");
 const ASTRYX_CSS_PATH = path.join(CORE_DIR, "dist/astryx.css");
 const RESET_CSS_PATH = path.join(CORE_DIR, "src/reset.css");
 
-const PRICING_ONLY_FILES = new Set(["components/site/compare-table.tsx"]);
+const PRICING_ONLY_FILES = new Set([
+  "components/site/compare-table.tsx",
+  "src/site-table-primitives.tsx",
+]);
 
 function walkFiles(relDir) {
   const full = path.join(WEB_DIR, relDir);
@@ -49,7 +52,10 @@ function collectCoreImports(relFiles) {
       if (!bySpec.has(spec)) bySpec.set(spec, new Set());
       for (const n of names) bySpec.get(spec).add(n);
     }
-    if (rel === "src/site-primitives.tsx") {
+    if (
+      rel === "src/site-primitives.tsx" ||
+      rel === "src/site-table-primitives.tsx"
+    ) {
       for (const m of src.matchAll(/\bx[0-9a-z]{5,7}\b/gu)) {
         extraClassTokens.add(m[0]);
       }
@@ -237,9 +243,9 @@ export function computeSiteAstryxCss() {
   const allSiteFiles = [
     ...walkFiles("app/(site)"),
     ...walkFiles("components/site"),
-    ...(fs.existsSync(path.join(WEB_DIR, "src/site-primitives.tsx"))
-      ? ["src/site-primitives.tsx"]
-      : []),
+    ...["src/site-primitives.tsx", "src/site-table-primitives.tsx"].filter(
+      (rel) => fs.existsSync(path.join(WEB_DIR, rel)),
+    ),
   ];
   const sharedFiles = allSiteFiles.filter((f) => !PRICING_ONLY_FILES.has(f));
   const pricingFiles = allSiteFiles.filter((f) => PRICING_ONLY_FILES.has(f));

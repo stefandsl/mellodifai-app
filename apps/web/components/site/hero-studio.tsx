@@ -2,13 +2,12 @@
 
 import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
-import { Icon } from "@astryxdesign/core/Icon";
-import { Text } from "@astryxdesign/core/Text";
 import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useEffect, useRef, useState } from "react";
 import type { SiteCopy } from "@/lib/site/copy";
 import { HERO_SAMPLE, type SampleWord } from "@/lib/site/sample";
+import { SiteIcon, SiteText } from "@/src/site-primitives";
 import { Wave } from "./art";
 import { PauseGlyph, PlayGlyph } from "./icons";
 
@@ -91,35 +90,35 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
       data-word={word}
     >
       <HStack className="site-studio__bar" gap={3} align="center" wrap="wrap">
-        <Text type="code" className="site-tag">
+        <SiteText type="code" className="site-tag">
           {copy.take}
-        </Text>
-        <Text className="site-studio__song">{copy.song}</Text>
-        <Text
+        </SiteText>
+        <SiteText className="site-studio__song">{copy.song}</SiteText>
+        <SiteText
           type="code"
           color="secondary"
           className="site-studio__meta site-eyebrow"
         >
           {copy.key}
-        </Text>
-        <Text
+        </SiteText>
+        <SiteText
           type="code"
           color="secondary"
           className="site-studio__meta site-eyebrow"
         >
           {copy.tempo}
-        </Text>
+        </SiteText>
       </HStack>
 
       <VStack className="site-studio__body" gap={4}>
         <VStack className="site-studio__line" gap={1}>
-          <Text type="code" color="secondary" className="site-eyebrow">
+          <SiteText type="code" color="secondary" className="site-eyebrow">
             {copy.lineLabel}
-          </Text>
-          <Text as="p" className="site-studio__lyric">
+          </SiteText>
+          <SiteText as="p" className="site-studio__lyric">
             <q lang="en" className="site-studio__quote">
               {copy.lineStart}{" "}
-              <Text
+              <SiteText
                 className={`site-studio__word ${edited ? "is-edited" : ""}`}
                 color="inherit"
               >
@@ -127,10 +126,10 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
                   <del className="site-studio__old">{HERO_SAMPLE.first}</del>
                 ) : null}
                 <ins className="site-studio__new">{word}</ins>
-              </Text>
+              </SiteText>
               {copy.lineEnd}
             </q>
-          </Text>
+          </SiteText>
         </VStack>
         <HStack
           className="site-studio__controls"
@@ -153,16 +152,16 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
                 onPressedChange={() => pick(w.word as SampleWord)}
                 className="site-chip"
               >
-                <Text color="inherit" className="site-chip__word">
+                <SiteText color="inherit" className="site-chip__word">
                   {w.word}
-                </Text>{" "}
-                <Text
+                </SiteText>{" "}
+                <SiteText
                   type="supporting"
                   color="inherit"
                   className="site-chip__take"
                 >
                   {w.take}
-                </Text>
+                </SiteText>
               </ToggleButton>
             ))}
           </HStack>
@@ -171,7 +170,7 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
             variant="primary"
             size="lg"
             icon={
-              <Icon
+              <SiteIcon
                 icon={state === "playing" ? PauseGlyph : PlayGlyph}
                 size="sm"
                 color="inherit"
@@ -183,7 +182,7 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
             data-state={state}
           />
         </HStack>
-        <Text
+        <SiteText
           as="p"
           id="hero-studio-label"
           type="supporting"
@@ -191,7 +190,7 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
           className="site-studio__hint"
         >
           {copy.studioLabel}
-        </Text>
+        </SiteText>
         <VStack className="site-studio__lanes" aria-hidden="true">
           {copy.lanes.map((lane, i) => (
             <HStack
@@ -200,13 +199,13 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
               align="center"
               gap={3}
             >
-              <Text
+              <SiteText
                 type="code"
                 color="secondary"
                 className="site-studio__lane-name site-eyebrow"
               >
                 {lane}
-              </Text>
+              </SiteText>
               <Wave
                 seed={11 + i * 7}
                 phrases={i === 2 ? 0 : 3}
@@ -228,9 +227,9 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
           className={`site-dot ${state === "missing" ? "site-dot--muted" : "site-dot--live"}`}
           aria-hidden="true"
         />
-        <Text type="supporting" role="status" aria-live="polite">
+        <SiteText type="supporting" role="status" aria-live="polite">
           {status}
-        </Text>
+        </SiteText>
       </HStack>
       {/* biome-ignore lint/a11y/useMediaCaption: the clip is one sung line whose words are on screen above it. */}
       <audio ref={audio} preload="none" className="site-studio__audio" />

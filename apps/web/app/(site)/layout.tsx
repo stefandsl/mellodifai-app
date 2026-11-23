@@ -1,15 +1,16 @@
 import "@astryxdesign/core/reset.css";
 import "@/src/site-astryx.css";
+import "@/src/themes/mesh/mesh.css";
 import "./site.css";
-import { Link } from "@astryxdesign/core/Link";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { Metadata } from "next";
 import { preload } from "react-dom";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
-import { SiteTheme } from "@/components/site/site-theme";
+import { SiteThemeSync } from "@/components/site/site-theme";
 import { getLocale } from "@/lib/locale";
 import { SITE_COPY } from "@/lib/site/copy";
+import { SiteLink } from "@/src/site-primitives";
 
 // The two faces of the first screen load first; the fallback faces in site.css have their
 // width and height, so the page does not move when they arrive.
@@ -41,18 +42,17 @@ export default async function SiteLayout({
     >
       {/* Browser extensions (e.g. Video Speed Controller) add classes to <body> before hydration. */}
       <body suppressHydrationWarning>
-        <SiteTheme>
-          <VStack className="site">
-            <Link href="#main" className="site-skip" color="inherit">
-              {copy.skip}
-            </Link>
-            <SiteHeader copy={copy} />
-            <VStack as="main" id="main" className="site-main" tabIndex={-1}>
-              {children}
-            </VStack>
-            <SiteFooter copy={copy} />
+        <SiteThemeSync />
+        <VStack className="site">
+          <SiteLink href="#main" className="site-skip" color="inherit">
+            {copy.skip}
+          </SiteLink>
+          <SiteHeader copy={copy} />
+          <VStack as="main" id="main" className="site-main" tabIndex={-1}>
+            {children}
           </VStack>
-        </SiteTheme>
+          <SiteFooter copy={copy} />
+        </VStack>
       </body>
     </html>
   );

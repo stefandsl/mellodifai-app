@@ -1,11 +1,9 @@
 "use client";
 
 import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Icon } from "@astryxdesign/core/Icon";
-import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useId, useState } from "react";
+import { SiteHeading, SiteIcon, SiteText } from "@/src/site-primitives";
 import { PlusGlyph } from "./icons";
 
 // Questions and answers, one open at a time (the first at load). Each question is a button in a
@@ -30,7 +28,7 @@ export function Faq({
         const a = `${base}a${i}`;
         return (
           <VStack key={item.q} className="site-faq__item" data-open={isOpen}>
-            <Heading level={headingLevel} className="site-faq__heading">
+            <SiteHeading level={headingLevel} className="site-faq__heading">
               <Button
                 id={q}
                 label={item.q}
@@ -41,14 +39,22 @@ export function Faq({
                 onClick={() => setOpen(isOpen ? null : i)}
                 className="site-faq__trigger"
                 endContent={
-                  <Icon icon={PlusGlyph} size="sm" className="site-faq__icon" />
+                  <SiteIcon
+                    icon={PlusGlyph}
+                    size="sm"
+                    className="site-faq__icon"
+                  />
                 }
               >
-                <Text weight="medium" color="inherit" className="site-faq__q">
+                <SiteText
+                  weight="medium"
+                  color="inherit"
+                  className="site-faq__q"
+                >
                   {item.q}
-                </Text>
+                </SiteText>
               </Button>
-            </Heading>
+            </SiteHeading>
             <VStack
               id={a}
               role="region"
@@ -57,9 +63,9 @@ export function Faq({
               className="site-faq__panel"
             >
               <VStack className="site-faq__fold">
-                <Text as="p" color="secondary" className="site-faq__a">
+                <SiteText as="p" color="secondary" className="site-faq__a">
                   {item.a}
-                </Text>
+                </SiteText>
               </VStack>
             </VStack>
           </VStack>

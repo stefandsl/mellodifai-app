@@ -1,5 +1,3 @@
-"use client";
-
 import type { SVGProps } from "react";
 
 // Line icons of the site, drawn on a 16 unit grid; Astryx Icon sizes them.

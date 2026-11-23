@@ -1,15 +1,14 @@
-import { Icon } from "@astryxdesign/core/Icon";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-} from "@astryxdesign/core/Table";
-import { Text } from "@astryxdesign/core/Text";
 import { VisuallyHidden } from "@astryxdesign/core/VisuallyHidden";
 import type { CompareCell } from "@/lib/site/plans";
+import { SiteIcon, SiteText } from "@/src/site-primitives";
+import {
+  SiteTable,
+  SiteTableBody,
+  SiteTableCell,
+  SiteTableHeader,
+  SiteTableHeaderCell,
+  SiteTableRow,
+} from "@/src/site-table-primitives";
 import { CheckGlyph, DashGlyph } from "./icons";
 
 export type CompareTableProps = {
@@ -39,55 +38,55 @@ export function CompareTable({
   notIncluded,
 }: CompareTableProps) {
   return (
-    <Table
-      aria-labelledby={labelledBy}
-      className="site-compare"
-      density="balanced"
-      verticalAlign="middle"
-      textOverflow="wrap"
-    >
-      <TableHeader>
-        <TableRow>
-          <TableHeaderCell scope="col" className="site-compare__corner">
+    <SiteTable aria-labelledby={labelledBy} className="site-compare">
+      <SiteTableHeader>
+        <SiteTableRow>
+          <SiteTableHeaderCell scope="col" className="site-compare__corner">
             <VisuallyHidden>{featureColumn}</VisuallyHidden>
-          </TableHeaderCell>
+          </SiteTableHeaderCell>
           {columns.map((c) => (
-            <TableHeaderCell
+            <SiteTableHeaderCell
               key={c.name}
               scope="col"
               className="site-compare__plan"
             >
-              <Text weight="medium" className="site-compare__plan-name">
+              <SiteText weight="medium" className="site-compare__plan-name">
                 {c.name}
-              </Text>
-              <Text type="supporting" color="secondary">
+              </SiteText>
+              <SiteText type="supporting" color="secondary">
                 {c.price}
-              </Text>
-            </TableHeaderCell>
+              </SiteText>
+            </SiteTableHeaderCell>
           ))}
-        </TableRow>
-      </TableHeader>
+        </SiteTableRow>
+      </SiteTableHeader>
       {groups.map((g) => (
-        <TableBody key={g.label}>
-          <TableRow className="site-compare__group-row">
-            <TableHeaderCell scope="rowgroup" className="site-compare__group">
+        <SiteTableBody key={g.label}>
+          <SiteTableRow className="site-compare__group-row">
+            <SiteTableHeaderCell
+              scope="rowgroup"
+              className="site-compare__group"
+            >
               {g.label}
-            </TableHeaderCell>
+            </SiteTableHeaderCell>
             {columns.map((c) => (
-              <TableCell
+              <SiteTableCell
                 key={c.name}
                 aria-hidden="true"
                 className="site-compare__group"
               />
             ))}
-          </TableRow>
+          </SiteTableRow>
           {g.rows.map((r) => (
-            <TableRow key={r.label}>
-              <TableHeaderCell scope="row" className="site-compare__feature">
+            <SiteTableRow key={r.label}>
+              <SiteTableHeaderCell
+                scope="row"
+                className="site-compare__feature"
+              >
                 {r.label}
-              </TableHeaderCell>
+              </SiteTableHeaderCell>
               {r.cells.map((cell, i) => (
-                <TableCell
+                <SiteTableCell
                   // The cells of a row are fixed by plan position.
                   // biome-ignore lint/suspicious/noArrayIndexKey: one cell per plan column
                   key={i}
@@ -96,7 +95,7 @@ export function CompareTable({
                 >
                   {typeof cell === "boolean" ? (
                     <>
-                      <Icon
+                      <SiteIcon
                         icon={cell ? CheckGlyph : DashGlyph}
                         size="sm"
                         color={cell ? "primary" : "secondary"}
@@ -106,14 +105,14 @@ export function CompareTable({
                       </VisuallyHidden>
                     </>
                   ) : (
-                    <Text type="supporting">{cellText(cell)}</Text>
+                    <SiteText type="supporting">{cellText(cell)}</SiteText>
                   )}
-                </TableCell>
+                </SiteTableCell>
               ))}
-            </TableRow>
+            </SiteTableRow>
           ))}
-        </TableBody>
+        </SiteTableBody>
       ))}
-    </Table>
+    </SiteTable>
   );
 }
