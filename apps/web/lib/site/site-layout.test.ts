@@ -29,4 +29,18 @@ describe("public site has its own root layout", () => {
     expect(studioLayout).toContain("THEME_SCRIPT");
     expect(studioLayout).toContain("GLASS_SCRIPT");
   });
+
+  it("defines a global 404 document with lang, the site look and a link home for unknown URLs", () => {
+    const config = readFileSync(join(WEB, "next.config.ts"), "utf8");
+    expect(config).toContain("globalNotFound: true");
+    const notFoundPath = join(WEB, "app/global-not-found.tsx");
+    expect(existsSync(notFoundPath)).toBe(true);
+    const src = readFileSync(notFoundPath, "utf8");
+    expect(src).toContain("<html");
+    expect(src).toContain("lang=");
+    expect(src).toContain('data-astryx-theme="mesh"');
+    expect(src).toContain("site-astryx.css");
+    expect(src).not.toContain("globals.css");
+    expect(src).toContain('href="/"');
+  });
 });

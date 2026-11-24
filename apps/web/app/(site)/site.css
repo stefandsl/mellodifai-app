@@ -1142,6 +1142,31 @@ html.site-menu-open {
   border-top: var(--border-width) solid var(--color-border);
 }
 
+/* ---------- 404 (global-not-found) ---------- */
+.site-not-found__bar {
+  position: relative;
+  z-index: var(--layer-raised);
+  min-height: var(--site-header-height);
+  padding-inline: var(--site-header-inset);
+  align-items: center;
+}
+
+.site-not-found {
+  position: relative;
+  justify-content: center;
+  padding: var(--site-section-y) var(--site-gutter);
+  overflow: clip;
+}
+
+.site-not-found__content {
+  position: relative;
+  z-index: var(--layer-raised);
+  width: 100%;
+  max-width: var(--layout-content-width);
+  margin-inline: auto;
+  align-items: flex-start;
+}
+
 /* ---------- Under 80em (1024 to 1279 px) ---------- */
 @media (max-width: 79.9375em) {
   .site {
