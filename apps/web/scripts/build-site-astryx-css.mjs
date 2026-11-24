@@ -29,28 +29,60 @@ function walkFiles(relDir) {
   return out;
 }
 
+function addImportSpec(bySpec, spec, binding) {
+  if (!bySpec.has(spec)) bySpec.set(spec, new Set());
+  bySpec.get(spec).add(binding);
+}
+
 function collectCoreImports(relFiles) {
   const bySpec = new Map();
   const extraClassTokens = new Set();
-  const importRe =
-    /import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+["'](@astryxdesign\/core\/[^"']+)["']/gu;
+  const statementRe =
+    /\bimport\s+([^;]+?)\s+from\s+["'](@astryxdesign\/core\/[^"']+)["']/gu;
 
   for (const rel of relFiles) {
     const full = path.join(WEB_DIR, rel);
     if (!fs.existsSync(full)) continue;
     const src = fs.readFileSync(full, "utf8");
-    for (const m of src.matchAll(importRe)) {
-      if (m[0].startsWith("import type")) continue;
+    for (const m of src.matchAll(statementRe)) {
+      const clause = m[1].trim();
       const spec = m[2];
-      const names = m[1]
-        .split(",")
-        .map((part) => part.trim())
-        .filter((part) => part && !part.startsWith("type "))
-        .map((part) => part.split(/\s+as\s+/u)[0].trim())
-        .filter(Boolean);
-      if (!names.length) continue;
-      if (!bySpec.has(spec)) bySpec.set(spec, new Set());
-      for (const n of names) bySpec.get(spec).add(n);
+      if (clause.startsWith("type ") || spec.endsWith(".css")) continue;
+
+      let matchedAny = false;
+      const braceMatch = clause.match(/\{([\s\S]*?)\}/u);
+      if (braceMatch) {
+        matchedAny = true;
+        const names = braceMatch[1]
+          .split(",")
+          .map((part) => part.trim())
+          .filter((part) => part && !part.startsWith("type "))
+          .map((part) => part.split(/\s+as\s+/u)[0].trim())
+          .filter(Boolean);
+        for (const n of names) addImportSpec(bySpec, spec, n);
+      }
+      const withoutBraces = clause
+        .replace(/\{[\s\S]*?\}/u, "")
+        .replaceAll(",", " ")
+        .trim();
+      if (withoutBraces) {
+        if (/^\*\s+as\s+\w+$/u.test(withoutBraces)) {
+          matchedAny = true;
+          addImportSpec(bySpec, spec, "*");
+        } else if (/^\w+$/u.test(withoutBraces)) {
+          matchedAny = true;
+          addImportSpec(bySpec, spec, "default");
+        } else {
+          throw new Error(
+            `build-site-astryx-css: unsupported import clause "${clause}" from "${spec}" in ${rel}`,
+          );
+        }
+      }
+      if (!matchedAny) {
+        throw new Error(
+          `build-site-astryx-css: could not parse import "${m[0]}" in ${rel}`,
+        );
+      }
     }
     if (
       rel === "src/site-primitives.tsx" ||
@@ -76,11 +108,15 @@ function bundleCoreTokens(bySpec, extraClassTokens) {
   const lines = [];
   let idx = 0;
   for (const [spec, names] of [...bySpec.entries()].sort()) {
-    const aliased = [...names]
-      .sort()
-      .map((n) => `${n} as _e${idx++}`)
-      .join(", ");
-    lines.push(`export { ${aliased} } from ${JSON.stringify(spec)};`);
+    const sorted = [...names].sort();
+    if (sorted.includes("*")) {
+      lines.push(`export * as _ns${idx++} from ${JSON.stringify(spec)};`);
+    }
+    const named = sorted.filter((n) => n !== "*");
+    if (named.length) {
+      const aliased = named.map((n) => `${n} as _e${idx++}`).join(", ");
+      lines.push(`export { ${aliased} } from ${JSON.stringify(spec)};`);
+    }
   }
   if (!lines.length) return classes;
 
@@ -156,11 +192,15 @@ function extractSubset(
     includeRootVars = true,
     includeReset = false,
     seedVars = new Set(),
+    requiredClasses = new Set(),
+    label = "site",
   },
 ) {
   const keptVars = new Set(seedVars);
   const keptKeyframes = new Set();
   const ruleLines = [];
+  const astryxRuleClasses = new Set();
+  const matchedClasses = new Set();
 
   for (const line of astryxLines) {
     const t = line.trim();
@@ -178,13 +218,34 @@ function extractSubset(
     const sel = unwrapSelector(t);
     const cls = [...sel.matchAll(/\.(x[0-9a-z]{5,7})\b/gu)].map((m) => m[1]);
     if (!cls.length) continue;
+    for (const c of cls) astryxRuleClasses.add(c);
     if (!cls.every((c) => allowedClasses.has(c))) continue;
+    for (const c of cls) matchedClasses.add(c);
     if (excludeClasses.size && cls.every((c) => excludeClasses.has(c)))
       continue;
     ruleLines.push(line);
     for (const m of line.matchAll(/--[\w-]+/gu)) keptVars.add(m[0]);
     for (const m of line.matchAll(/\bx[0-9a-z]{5,7}-B\b/gu))
       keptKeyframes.add(m[0]);
+  }
+
+  if (requiredClasses.size) {
+    const missingFromAstryx = [...requiredClasses]
+      .filter((c) => !astryxRuleClasses.has(c))
+      .sort();
+    if (missingFromAstryx.length) {
+      throw new Error(
+        `build-site-astryx-css (${label}): ${missingFromAstryx.length} class(es) not found in @astryxdesign/core/dist/astryx.css: ${missingFromAstryx.join(", ")}`,
+      );
+    }
+    const missingFromSubset = [...requiredClasses]
+      .filter((c) => !matchedClasses.has(c))
+      .sort();
+    if (missingFromSubset.length) {
+      throw new Error(
+        `build-site-astryx-css (${label}): ${missingFromSubset.length} class(es) matched no emitted rule in subset CSS: ${missingFromSubset.join(", ")}`,
+      );
+    }
   }
 
   const rootDecls = new Map();
@@ -255,25 +316,33 @@ function extractSubset(
   ].join("\n");
 }
 
-export function computeSiteAstryxCss() {
+export function computeSiteAstryxCss(options = {}) {
   const astryxLines = fs.readFileSync(ASTRYX_CSS_PATH, "utf8").split(/\r?\n/u);
   const allSiteFiles = [
     ...walkFiles("app/(site)"),
     ...walkFiles("components/site"),
-    ...["src/site-primitives.tsx", "src/site-table-primitives.tsx"].filter(
-      (rel) => fs.existsSync(path.join(WEB_DIR, rel)),
-    ),
+    ...[
+      "app/global-not-found.tsx",
+      "src/site-primitives.tsx",
+      "src/site-table-primitives.tsx",
+    ].filter((rel) => fs.existsSync(path.join(WEB_DIR, rel))),
   ];
   const sharedFiles = allSiteFiles.filter((f) => !PRICING_ONLY_FILES.has(f));
   const pricingFiles = allSiteFiles.filter((f) => PRICING_ONLY_FILES.has(f));
 
   const sharedImports = collectCoreImports(sharedFiles);
+  for (const t of options.extraTokens?.shared ?? []) {
+    sharedImports.extraClassTokens.add(t);
+  }
   const sharedClasses = bundleCoreTokens(
     sharedImports.bySpec,
     sharedImports.extraClassTokens,
   );
 
   const pricingImports = collectCoreImports(pricingFiles);
+  for (const t of options.extraTokens?.pricing ?? []) {
+    pricingImports.extraClassTokens.add(t);
+  }
   const pricingClasses = bundleCoreTokens(
     pricingImports.bySpec,
     pricingImports.extraClassTokens,
@@ -285,10 +354,14 @@ export function computeSiteAstryxCss() {
     includeRootVars: true,
     includeReset: true,
     seedVars,
+    requiredClasses: sharedImports.extraClassTokens,
+    label: "shared",
   });
   const tableCss = extractSubset(astryxLines, allPricingClasses, {
     excludeClasses: sharedClasses,
     includeRootVars: false,
+    requiredClasses: pricingImports.extraClassTokens,
+    label: "pricing-table",
   });
 
   return { sharedCss, tableCss };

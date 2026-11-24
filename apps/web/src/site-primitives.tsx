@@ -3,6 +3,8 @@ import {
   iconBoxSizeStyles,
   iconSizeStyles,
 } from "@astryxdesign/core/Icon/IconSize.stylex";
+import { touchHitAreaStyles } from "@astryxdesign/core/internal/touchHitArea.stylex";
+import { EDGE_COMP_ATTR } from "@astryxdesign/core/Layout/edgeCompensation.stylex";
 import { stableClassName } from "@astryxdesign/core/naming";
 import {
   colorStyles,
@@ -383,13 +385,6 @@ const BUTTON_STYLES = {
     k7Eaqz: "xeuugli",
     $$css: true,
   },
-  touchHitArea: {
-    k5JduY: "x1fjtqre",
-    kwXMNM: "x7b72wb",
-    kv0HGH: "x1ukc1h5",
-    kJYu5r: "x1c440c0",
-    $$css: true,
-  },
   iconWrapper: {
     k1xSpc: "x3nfvp2",
     kGNEyG: "x6s0dn4",
@@ -504,7 +499,7 @@ export function SiteButtonLink({
       : undefined;
   const contentProps = sx(
     BUTTON_STYLES.contentWrapper,
-    BUTTON_STYLES.touchHitArea,
+    touchHitAreaStyles.layer,
   );
   const iconBoxProps = sx(
     BUTTON_STYLES.iconWrapper,
@@ -516,7 +511,7 @@ export function SiteButtonLink({
       data-variant={variant}
       data-size={size}
       data-elevation="none"
-      data-astryx-edge-comp={variant === "ghost" ? "" : undefined}
+      {...(variant === "ghost" ? { [EDGE_COMP_ATTR]: "" } : null)}
       aria-label={children != null && children !== label ? label : undefined}
       className={joinClasses(
         stableClassName("button"),
@@ -639,6 +634,8 @@ export function SiteTopNav({
   const centerComputed = sx(TOP_NAV_STYLES.centerContent);
   return (
     <nav
+      // biome-ignore lint/a11y/noRedundantRoles: matches @astryxdesign/core/TopNav explicit role="navigation"
+      role="navigation"
       aria-label={label}
       className={joinClasses(
         stableClassName("top-nav"),

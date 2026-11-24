@@ -22,12 +22,18 @@ function joinClasses(...parts: (string | undefined | false | null)[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
-// Compiled StyleX maps from @astryxdesign/core/dist/Table/* (balanced, middle, wrap, rows).
+// Compiled StyleX maps from @astryxdesign/core/dist/Table/* and dist/hooks/useScrollableArea.js
+// (balanced, middle, wrap, rows).
 
 const SCROLL_WRAPPER_STYLES = {
   base: {
     kXHlph: "xw2csxc",
     kuHK5b: "x5lxg6s",
+    $$css: true,
+  },
+  overflow: {
+    kXHlph: "xyto64x",
+    kORKVm: "x4ncuvb",
     $$css: true,
   },
   containerBleed: {
@@ -74,6 +80,11 @@ const TABLE_STYLES = {
 
 const TABLE_ROW_MARKER = {
   x139im0d: "x139im0d",
+  $$css: true,
+};
+
+const TABLE_ROW_GLIDING_DIVIDER = {
+  kVAEAm: "xjsxhw0",
   $$css: true,
 };
 
@@ -144,6 +155,19 @@ const CELL_STYLES = {
     kL6WhQ: "xw8gpjh",
     $$css: true,
   },
+  glidingDivider: {
+    kL6WhQ: "xw8gpjh x1lczva8",
+    k5JduY: "xjnv0ub",
+    kwXMNM: "x1ea2at",
+    kcktkL: "x15skwfs",
+    k8Iv0R: "x1f4wvdr",
+    k4zj60: "x2euz0u",
+    kHSQhd: "x9a7to",
+    kh0EW9: "x90dban",
+    kvRJ0G: "x8qyx5",
+    kloYau: "x1uwli9g",
+    $$css: true,
+  },
 };
 
 export function SiteTable({
@@ -158,6 +182,11 @@ export function SiteTable({
     focusOutlineStyles.focusVisible,
     SCROLL_WRAPPER_STYLES.focusRingInset,
   );
+  const overflowComputed = sx(SCROLL_WRAPPER_STYLES.overflow);
+  const wrapperStyle = {
+    "--x-overflowX": "auto",
+    "--x-overflowY": "visible",
+  } as CSSProperties;
   const tableComputed = sx(
     TABLE_STYLES.table,
     TABLE_STYLES.tableAutoLayout,
@@ -174,7 +203,9 @@ export function SiteTable({
       className={joinClasses(
         stableClassName("table-scroll-wrapper"),
         wrapperComputed.className,
+        overflowComputed.className,
       )}
+      style={wrapperStyle}
     >
       <table
         aria-labelledby={ariaLabelledBy}
@@ -219,7 +250,7 @@ export function SiteTableRow({
   className,
   ...props
 }: HTMLAttributes<HTMLTableRowElement>) {
-  const computed = sx(TABLE_ROW_MARKER);
+  const computed = sx(TABLE_ROW_MARKER, TABLE_ROW_GLIDING_DIVIDER);
   return (
     <tr
       className={joinClasses(
@@ -266,6 +297,7 @@ export function SiteTableCell({
     CONTAINER_EDGE_BALANCED,
     CELL_STYLES.verticalAlignMiddle,
     CELL_STYLES.dividerRow,
+    CELL_STYLES.glidingDivider,
   );
   return (
     <td
