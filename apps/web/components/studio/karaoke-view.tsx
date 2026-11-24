@@ -17,6 +17,30 @@ import { createClient } from "@/lib/supabase/browser";
 import { formatTime, type TrackDetail, usePlayer } from "@/store/player";
 import { useGlass } from "./ambient-backdrop";
 
+const MAX_POLL_FAILURES = 5;
+
+async function findOpenAlignJob(
+  db: ReturnType<typeof createClient>,
+  versionId: string,
+  takeId: string | null,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from("jobs")
+    .select("id, payload")
+    .eq("version_id", versionId)
+    .eq("stage", "align_lyrics")
+    .in("status", ["queued", "running"]);
+  if (error || !data) return null;
+  const match = data.find((row) => {
+    const payload = row.payload as
+      | { take_id?: string; source?: string }
+      | null
+      | undefined;
+    return takeId ? payload?.take_id === takeId : payload?.source === "master";
+  });
+  return typeof match?.id === "string" ? match.id : null;
+}
+
 export function KaraokeView() {
   const track = usePlayer((state) => state.queue[state.index]);
   const detail = track?.detail;
@@ -52,11 +76,19 @@ function KaraokeSession({
   const active = activeLine(lines, p.time);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const mountedRef = useRef(true);
   const [job, setJob] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [theme, setTheme] = useState<"classic" | "glass" | "neon">("classic");
   const visibleTheme = glassEnabled ? theme : "classic";
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!p.showLyrics || active < 0) return;
@@ -84,6 +116,7 @@ function KaraokeSession({
     if (!job || !detail) return;
     const db = createClient();
     let cancelled = false;
+    let failures = 0;
     const poll = async () => {
       try {
         const [updatedResult, statusResult] = await Promise.all([
@@ -97,6 +130,7 @@ function KaraokeSession({
         if (cancelled) return;
         if (updatedResult.error || statusResult.error)
           throw new Error("Alignment polling failed");
+        failures = 0;
         const updated = updatedResult.data;
         const status = statusResult.data;
         const timing = parseLyricTiming(updated?.lyric_timing);
@@ -128,7 +162,9 @@ function KaraokeSession({
           setJob(null);
         }
       } catch {
-        if (!cancelled) {
+        if (cancelled) return;
+        failures += 1;
+        if (failures >= MAX_POLL_FAILURES) {
           setError(true);
           setJob(null);
         }
@@ -147,16 +183,33 @@ function KaraokeSession({
     setRequesting(true);
     setError(false);
     try {
-      const result = await requestLyricAlignment({
-        versionId: detail.songId,
-        takeId: take?.id ?? null,
-      });
-      if (result.ok && result.id) setJob(result.id);
+      let jobId: string | null = null;
+      try {
+        const result = await requestLyricAlignment({
+          versionId: detail.songId,
+          takeId: take?.id ?? null,
+        });
+        if (result.ok && result.id) jobId = result.id;
+      } catch {
+        // The action response may be lost after the job row was created.
+      }
+      if (!mountedRef.current) return;
+      if (!jobId) {
+        try {
+          jobId = await findOpenAlignJob(
+            createClient(),
+            detail.songId,
+            take?.id ?? null,
+          );
+        } catch {
+          jobId = null;
+        }
+      }
+      if (!mountedRef.current) return;
+      if (jobId) setJob(jobId);
       else setError(true);
-    } catch {
-      setError(true);
     } finally {
-      setRequesting(false);
+      if (mountedRef.current) setRequesting(false);
     }
   };
 
