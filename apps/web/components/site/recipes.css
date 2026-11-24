@@ -62,7 +62,7 @@ body:has(.site-recipes-canvas-root),
 
 .site-recipes-hero__panel {
   width: 100%;
-  max-width: calc(var(--site-pixel) * 440);
+  max-width: calc(var(--site-pixel) * 450);
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-5) var(--spacing-6);
@@ -156,8 +156,8 @@ body:has(.site-recipes-canvas-root),
 
 .site-recipe-card--canvas {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 50%;
+  left: 50%;
   z-index: var(--layer-raised);
   width: calc(var(--rc-w) * var(--site-pixel));
   height: calc(var(--rc-h) * var(--site-pixel));
@@ -422,6 +422,7 @@ body:has(.site-recipes-canvas-root),
   display: block;
   column-count: 5;
   column-gap: var(--spacing-4);
+  row-gap: var(--spacing-4);
   width: 100%;
 }
 

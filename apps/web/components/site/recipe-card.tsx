@@ -13,11 +13,11 @@ import {
   CANVAS_IMAGE_SIZES,
   GRID_IMAGE_SIZES,
   gridAspectClass,
+  type RecipeIndexItem,
 } from "@/lib/site/recipe-canvas-layout";
-import type { LoadedRecipe } from "@/lib/site/recipes";
 
 export type RecipeCardProps = {
-  recipe: LoadedRecipe;
+  recipe: RecipeIndexItem;
   lang: SiteLang;
   copy: SiteCopy["recipes"];
   variant: "canvas" | "grid";
@@ -26,7 +26,7 @@ export type RecipeCardProps = {
   playPreview?: boolean;
   priority?: boolean;
   cardStyle?: CSSProperties;
-  onActivate?: (recipe: LoadedRecipe | null) => void;
+  onActivate?: (recipe: RecipeIndexItem | null) => void;
 };
 
 export function RecipeCard({

@@ -15,8 +15,35 @@ import {
 import { getLocale } from "@/lib/locale";
 import { SITE_COPY } from "@/lib/site/copy";
 import { href } from "@/lib/site/nav";
-import { getPublishedRecipes } from "@/lib/site/recipes";
+import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
+import { getPublishedRecipes, type LoadedRecipe } from "@/lib/site/recipes";
 import { getRecipeTestFixture } from "@/lib/site/recipes.fixture";
+
+function toRecipeIndexItem(recipe: LoadedRecipe): RecipeIndexItem {
+  return {
+    id: recipe.id,
+    slug: recipe.slug,
+    kind: recipe.kind,
+    title: recipe.title,
+    summary: recipe.summary,
+    highlights: recipe.highlights,
+    genre: recipe.genre,
+    tempo: recipe.tempo,
+    languages: recipe.languages,
+    output: recipe.output,
+    format: recipe.format,
+    featured: recipe.featured,
+    media: {
+      preview: recipe.media.preview,
+      startAt: recipe.media.startAt,
+    },
+    mediaUrls: {
+      cover: recipe.mediaUrls.cover,
+      preview: recipe.mediaUrls.preview,
+    },
+    targets: recipe.targets,
+  };
+}
 
 const CLOSING_ART: CoverKind[] = [
   "remix",
@@ -54,7 +81,10 @@ export default async function RecipesPage({
     params.view === "grid" ? "grid" : "canvas";
   const allowFixture =
     process.env.WORKER_FAKE === "1" && params.fixture === "24";
-  const recipes = allowFixture ? getRecipeTestFixture() : getPublishedRecipes();
+  const loadedRecipes = allowFixture
+    ? getRecipeTestFixture()
+    : getPublishedRecipes();
+  const recipes = loadedRecipes.map(toRecipeIndexItem);
 
   const closingBand = (
     <VStack

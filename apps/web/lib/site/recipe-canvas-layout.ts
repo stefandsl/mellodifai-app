@@ -1,6 +1,37 @@
-import type { RecipeFormat } from "@mellodifai/shared";
+import type {
+  LocalizedText,
+  RecipeFormat,
+  RecipeKind,
+  RecipeOutput,
+  RecipeTarget,
+} from "@mellodifai/shared";
 import type { CSSProperties } from "react";
-import type { LoadedRecipe } from "./recipes";
+
+// Plain serializable projection passed from the server page to client index components.
+// Server-only validation and metadata (zod schemas, inputs, preset, rights) never ship to the browser.
+export type RecipeIndexItem = {
+  id: string;
+  slug: string;
+  kind: RecipeKind;
+  title: LocalizedText;
+  summary: LocalizedText;
+  highlights: readonly LocalizedText[];
+  genre: string;
+  tempo?: { bpm?: number | undefined; feel?: string | undefined } | undefined;
+  languages: readonly string[];
+  output: RecipeOutput;
+  format?: RecipeFormat | undefined;
+  featured: boolean;
+  media: {
+    preview: string;
+    startAt: number;
+  };
+  mediaUrls: {
+    cover: string;
+    preview: string;
+  };
+  targets: readonly RecipeTarget[];
+};
 
 export const ZOOM_STEPS = [50, 75, 100, 125, 150] as const;
 export type ZoomLevel = (typeof ZOOM_STEPS)[number];
@@ -11,6 +42,7 @@ export const MAX_ZOOM = 150;
 export const ZOOM_STEP = 25;
 export const ARROW_PAN_STEP = 120;
 export const MAX_CANVAS_DOM_CARDS = 20;
+export const WHEEL_ZOOM_SENSITIVITY = 400;
 
 export const CANVAS_IMAGE_SIZES = "260px";
 export const GRID_IMAGE_SIZES =
@@ -28,25 +60,63 @@ const CARD_SIZE_BY_FORMAT: Record<RecipeFormat, CardSize> = {
 const AUDIO_CARD_SIZE: CardSize = { width: 216, height: 216 };
 
 export function baseCardSize(
-  recipe: Pick<LoadedRecipe, "output" | "format">,
+  recipe: Pick<RecipeIndexItem, "output" | "format">,
 ): CardSize {
   if (recipe.output === "audio" || !recipe.format) return AUDIO_CARD_SIZE;
   return CARD_SIZE_BY_FORMAT[recipe.format];
 }
 
 export function clampZoom(value: number): number {
-  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(value)));
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 }
 
 export function stepZoom(current: number, deltaSteps: number): number {
-  const snapped = Math.round(current / ZOOM_STEP) * ZOOM_STEP;
-  return clampZoom(snapped + deltaSteps * ZOOM_STEP);
+  if (deltaSteps === 0) return clampZoom(current);
+  const next =
+    deltaSteps > 0
+      ? Math.floor(current / ZOOM_STEP + 1e-9) * ZOOM_STEP +
+        deltaSteps * ZOOM_STEP
+      : Math.ceil(current / ZOOM_STEP - 1e-9) * ZOOM_STEP +
+        deltaSteps * ZOOM_STEP;
+  return clampZoom(next);
+}
+
+export function applyWheelZoom(currentZoom: number, deltaY: number): number {
+  return clampZoom(currentZoom * Math.exp(-deltaY / WHEEL_ZOOM_SENSITIVITY));
+}
+
+export type CanvasViewState = {
+  panX: number;
+  panY: number;
+  zoom: number;
+};
+
+// Changes zoom while keeping the world point under (anchorRelX, anchorRelY) fixed,
+// where anchorRel* is in screen px relative to the stage centre.
+// Passing (0, 0) anchors at the viewport centre (buttons, keys, reset).
+export function zoomAroundAnchor(
+  view: CanvasViewState,
+  nextZoomRaw: number,
+  anchorRelX = 0,
+  anchorRelY = 0,
+): CanvasViewState {
+  const nextZoom = clampZoom(nextZoomRaw);
+  if (Math.abs(nextZoom - view.zoom) < 1e-9) return view;
+  const ratio = nextZoom / view.zoom;
+  return {
+    panX: anchorRelX - (anchorRelX - view.panX) * ratio,
+    panY: anchorRelY - (anchorRelY - view.panY) * ratio,
+    zoom: nextZoom,
+  };
 }
 
 // Hand-tuned organic slots around the central title/search clear zone (offsets in world px
-// from the canvas origin at viewport centre). Ring 1 (indices 0..11) surrounds the initial
-// 1440x900 viewport; Ring 2 (indices 12..23) lies outside the initial viewport so panning
-// reveals new cards and virtualization stays well below the 20-card DOM cap.
+// from the canvas origin at viewport centre).
+// - Ring 1 (indices 0..11) surrounds the initial 1440x900 viewport; slots 1, 2, 7, 8 also frame 390x844.
+// - Ring 2 (indices 12..15) lies outside the 100% viewport and enters on pan or zoom-out.
+// - Ring 3 (indices 16..23) places opposite pairs > 2880 px apart horizontally and > 1800 px
+//   apart vertically so at most 20 of 24 cards can ever intersect a 1440x900 viewport at 50% zoom
+//   under any pan, ensuring virtualization never drops an on-screen card while staying <= 20 DOM cards.
 const WORLD_SLOTS: readonly (readonly [number, number])[] = [
   // Ring 1: visible around the centred title + search box at 1440x900
   [-570, -340],
@@ -59,35 +129,36 @@ const WORLD_SLOTS: readonly (readonly [number, number])[] = [
   [-200, 290],
   [210, 285],
   [570, 260],
-  [-920, -210],
-  [920, -180],
+  [-960, -220],
+  [960, -200],
   // Ring 2: off-screen at 1440x900 (100% zoom), discovered by panning or zooming out
-  [-950, 170],
-  [940, 190],
-  [-480, -680],
-  [0, -700],
-  [490, -670],
-  [-470, 650],
-  [10, 670],
-  [480, 640],
-  [-1280, -360],
-  [1280, -340],
-  [-1260, 320],
-  [1260, 340],
+  [-980, 210],
+  [980, 220],
+  [-540, -680],
+  [540, -670],
+  // Ring 3: outer pairs spaced beyond a 50%-zoom 1440x900 window (2880x1800 world px)
+  [-460, -1180],
+  [460, -1180],
+  [-460, 1180],
+  [460, 1180],
+  [-1780, -420],
+  [-1780, 420],
+  [1780, -420],
+  [1780, 420],
 ];
 
 function slotPosition(index: number): readonly [number, number] {
   const fixed = WORLD_SLOTS[index];
   if (fixed) return fixed;
-  const ring = Math.floor((index - WORLD_SLOTS.length) / 8) + 3;
+  const ring = Math.floor((index - WORLD_SLOTS.length) / 8) + 4;
   const angle = (((index - WORLD_SLOTS.length) % 8) / 8) * Math.PI * 2 + 0.35;
-  const rx = 540 * ring;
-  const ry = 380 * ring;
+  const rx = 560 * ring;
+  const ry = 400 * ring;
   return [Math.round(Math.cos(angle) * rx), Math.round(Math.sin(angle) * ry)];
 }
 
 export type CanvasPlacement = {
-  recipe: LoadedRecipe;
+  recipe: RecipeIndexItem;
   worldX: number;
   worldY: number;
   width: number;
@@ -96,7 +167,7 @@ export type CanvasPlacement = {
 };
 
 export function placeCanvasRecipes(
-  recipes: readonly LoadedRecipe[],
+  recipes: readonly RecipeIndexItem[],
   options: {
     viewportWidth: number;
     viewportHeight: number;
@@ -129,6 +200,8 @@ export function placeCanvasRecipes(
 export type CanvasCardRect = {
   x: number;
   y: number;
+  offsetX: number;
+  offsetY: number;
   width: number;
   height: number;
   scale: number;
@@ -145,15 +218,30 @@ export function canvasCardRect(
   },
 ): CanvasCardRect {
   const scale = view.zoom / 100;
-  const x = view.viewportWidth / 2 + placement.worldX * scale + view.panX;
-  const y = view.viewportHeight / 2 + placement.worldY * scale + view.panY;
+  const offsetX = placement.worldX * scale + view.panX;
+  const offsetY = placement.worldY * scale + view.panY;
   return {
-    x,
-    y,
+    x: view.viewportWidth / 2 + offsetX,
+    y: view.viewportHeight / 2 + offsetY,
+    offsetX,
+    offsetY,
     width: placement.width * scale,
     height: placement.height * scale,
     scale,
   };
+}
+
+export function rectIntersectsViewport(
+  rect: Pick<CanvasCardRect, "x" | "y" | "width" | "height">,
+  viewportWidth: number,
+  viewportHeight: number,
+): boolean {
+  return (
+    rect.x + rect.width >= 0 &&
+    rect.x <= viewportWidth &&
+    rect.y + rect.height >= 0 &&
+    rect.y <= viewportHeight
+  );
 }
 
 export type VisibleCanvasCard = CanvasPlacement & {
@@ -191,10 +279,13 @@ export function computeVisibleCanvasCards(input: {
   const maxX = viewportWidth + overscan;
   const maxY = viewportHeight + overscan;
 
-  const candidates: Array<{
+  type Candidate = {
     card: VisibleCanvasCard;
     distSq: number;
-  }> = [];
+  };
+
+  const inViewport: Candidate[] = [];
+  const overscanOnly: Candidate[] = [];
 
   for (const placement of placements) {
     const rect = canvasCardRect(placement, {
@@ -216,27 +307,42 @@ export function computeVisibleCanvasCards(input: {
     const cardCenterY = rect.y + rect.height / 2;
     const dx = cardCenterX - centerX;
     const dy = cardCenterY - centerY;
-    candidates.push({
+    const entry: Candidate = {
       card: { ...placement, rect, matched },
       distSq: dx * dx + dy * dy,
-    });
+    };
+
+    if (rectIntersectsViewport(rect, viewportWidth, viewportHeight)) {
+      inViewport.push(entry);
+    } else {
+      overscanOnly.push(entry);
+    }
   }
 
-  candidates.sort((a, b) => {
+  const compareCandidates = (a: Candidate, b: Candidate) => {
     if (matchIds !== null && a.card.matched !== b.card.matched) {
       return a.card.matched ? -1 : 1;
     }
     return a.distSq - b.distSq;
-  });
+  };
 
-  return candidates.slice(0, maxCards).map((c) => c.card);
+  inViewport.sort(compareCandidates);
+  overscanOnly.sort(compareCandidates);
+
+  // Never drop a card that intersects the viewport. The DOM cap only limits off-screen overscan cards.
+  const overscanBudget = Math.max(0, maxCards - inViewport.length);
+  return [
+    ...inViewport.map((c) => c.card),
+    ...overscanOnly.slice(0, overscanBudget).map((c) => c.card),
+  ];
 }
 
-// Unitless custom properties consumed by recipes.css via calc(var(--rc-*) * var(--site-pixel)).
+// Unitless custom properties consumed by recipes.css. --rc-x/--rc-y are offsets from the
+// stage centre (top: 50%; left: 50%), so first paint never depends on measured viewport size.
 export function canvasCardStyle(card: VisibleCanvasCard): CSSProperties {
   return {
-    "--rc-x": card.rect.x,
-    "--rc-y": card.rect.y,
+    "--rc-x": card.rect.offsetX,
+    "--rc-y": card.rect.offsetY,
     "--rc-w": card.width,
     "--rc-h": card.height,
     "--rc-scale": card.rect.scale,
@@ -244,7 +350,7 @@ export function canvasCardStyle(card: VisibleCanvasCard): CSSProperties {
 }
 
 export function gridAspectClass(
-  recipe: Pick<LoadedRecipe, "output" | "format">,
+  recipe: Pick<RecipeIndexItem, "output" | "format">,
 ): string {
   if (recipe.output === "audio" || !recipe.format) {
     return "site-recipe-card__media--square";

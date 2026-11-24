@@ -4,7 +4,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
 import type { SiteCopy, SiteLang } from "@/lib/site/copy";
-import type { LoadedRecipe } from "@/lib/site/recipes";
+import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
 import { RecipeCard } from "./recipe-card";
 import { SearchField } from "./search-field";
 
@@ -20,7 +20,7 @@ export function RecipeGrid({
   copy,
   closingBand,
 }: {
-  recipes: readonly LoadedRecipe[];
+  recipes: readonly RecipeIndexItem[];
   matchIds: ReadonlySet<string> | null;
   query: string;
   onQueryChange: (next: string) => void;

@@ -1,0 +1,219 @@
+{
+  "slug": "recipes-grid",
+  "route": "/recipes?view=grid",
+  "sections": [
+    "Head: title, one line, search field",
+    "Multi-column recipe grid",
+    "Closing band: media mosaic, title, button, note",
+    "Footer"
+  ],
+  "widths": {
+    "390": {
+      "pageHeight": 14315,
+      "sections": [
+        {
+          "name": "Head: title, one line, search field",
+          "present": true,
+          "y": 0,
+          "h": 347,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 112,
+          "bottomInset": 32,
+          "grid": null
+        },
+        {
+          "name": "Multi-column recipe grid",
+          "present": true,
+          "y": 347,
+          "h": 11881,
+          "blocks": 1,
+          "contentLeft": 14,
+          "contentRight": 14,
+          "topInset": 0,
+          "bottomInset": 96,
+          "grid": {
+            "items": 24,
+            "perRow": 2,
+            "colGap": 18,
+            "rowGap": 18,
+            "itemW": 172,
+            "x": 14,
+            "w": 362
+          }
+        },
+        {
+          "name": "Closing band: media mosaic, title, button, note",
+          "present": true,
+          "y": 12228,
+          "h": 812,
+          "blocks": 1,
+          "contentLeft": 32,
+          "contentRight": 32,
+          "topInset": 16,
+          "bottomInset": 16,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 13040,
+          "h": 1275,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 42,
+            "rowGap": 42,
+            "itemW": 348,
+            "x": 21,
+            "w": 348
+          }
+        }
+      ]
+    },
+    "1024": {
+      "pageHeight": 9409,
+      "sections": [
+        {
+          "name": "Head: title, one line, search field",
+          "present": true,
+          "y": 0,
+          "h": 396,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 169,
+          "bottomInset": 40,
+          "grid": null
+        },
+        {
+          "name": "Multi-column recipe grid",
+          "present": true,
+          "y": 396,
+          "h": 7254,
+          "blocks": 1,
+          "contentLeft": 60,
+          "contentRight": 60,
+          "topInset": 0,
+          "bottomInset": 96,
+          "grid": {
+            "items": 24,
+            "perRow": 4,
+            "colGap": 18,
+            "rowGap": 18,
+            "itemW": 213,
+            "x": 60,
+            "w": 904
+          }
+        },
+        {
+          "name": "Closing band: media mosaic, title, button, note",
+          "present": true,
+          "y": 7650,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 292,
+          "contentRight": 292,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 8470,
+          "h": 939,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 324,
+            "x": 35,
+            "w": 954
+          }
+        }
+      ]
+    },
+    "1440": {
+      "pageHeight": 8922,
+      "sections": [
+        {
+          "name": "Head: title, one line, search field",
+          "present": true,
+          "y": 0,
+          "h": 396,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 169,
+          "bottomInset": 40,
+          "grid": null
+        },
+        {
+          "name": "Multi-column recipe grid",
+          "present": true,
+          "y": 396,
+          "h": 6749,
+          "blocks": 1,
+          "contentLeft": 60,
+          "contentRight": 60,
+          "topInset": 0,
+          "bottomInset": 96,
+          "grid": {
+            "items": 24,
+            "perRow": 5,
+            "colGap": 18,
+            "rowGap": 18,
+            "itemW": 250,
+            "x": 60,
+            "w": 1320
+          }
+        },
+        {
+          "name": "Closing band: media mosaic, title, button, note",
+          "present": true,
+          "y": 7145,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 500,
+          "contentRight": 500,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 7965,
+          "h": 957,
+          "blocks": 1,
+          "contentLeft": 115,
+          "contentRight": 115,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 411,
+            "x": 115,
+            "w": 1210
+          }
+        }
+      ]
+    }
+  }
+}

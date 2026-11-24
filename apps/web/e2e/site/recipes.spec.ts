@@ -10,6 +10,12 @@ import {
   measureLayoutInPage,
 } from "../../lib/site/judge/likeness";
 import { collectPageText } from "../../lib/site/judge/page-text";
+import {
+  canvasCardRect,
+  placeCanvasRecipes,
+  ZOOM_STEPS,
+} from "../../lib/site/recipe-canvas-layout";
+import { buildRecipeTestFixture } from "../../lib/site/recipes.fixture";
 
 // Recipes index (C05) on Chromium, Firefox and WebKit at 1440, 1024 and 390.
 // Tests both the real 12 C14 recipes and the 24-recipe test fixture (for DOM cap & dense columns).
@@ -234,6 +240,298 @@ test("at 1440: zoom buttons step 50, 75, 100, 125, 150, minus disabled at 50, pl
   await page.keyboard.up("Control");
 });
 
+test("at 1440: zoom keeps viewport centre fixed (buttons, keys) and pointer fixed (Ctrl+wheel, pinch) after a pan", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page, "/recipes");
+
+  const stage = page.locator('[data-recipes-canvas-stage="true"]');
+  const zoomBar = page.locator('[data-recipes-zoom="true"]');
+  const minus = zoomBar.getByRole("button", { name: en.recipes.zoomOut });
+  const plus = zoomBar.getByRole("button", { name: en.recipes.zoomIn });
+
+  // Pan the canvas so pan is non-zero before zooming.
+  await stage.focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
+
+  const measureAnchorDrift = (
+    beforeBoxes: Awaited<ReturnType<typeof cardBoxes>>,
+    afterBoxes: Awaited<ReturnType<typeof cardBoxes>>,
+    anchorX: number,
+    anchorY: number,
+  ) => {
+    const afterBySlug = new Map(afterBoxes.map((c) => [c.slug, c]));
+    for (const b of beforeBoxes) {
+      const a = afterBySlug.get(b.slug);
+      if (!a || b.width <= 0 || b.height <= 0) continue;
+      // Normalized position of anchor relative to this card before zoom:
+      const u = (anchorX - b.x) / b.width;
+      const v = (anchorY - b.y) / b.height;
+      // Where that exact world point landed after zoom:
+      const landedX = a.x + u * a.width;
+      const landedY = a.y + v * a.height;
+      return {
+        dx: Math.abs(landedX - anchorX),
+        dy: Math.abs(landedY - anchorY),
+      };
+    }
+    throw new Error("No shared card found before and after zoom");
+  };
+
+  // 1) Zoom buttons anchor at viewport centre (720, 450).
+  const beforeBtnOut = await cardBoxes(page);
+  await minus.click();
+  await expect(stage).toHaveAttribute("data-zoom", "75");
+  const afterBtnOut = await cardBoxes(page);
+  const btnOutDrift = measureAnchorDrift(beforeBtnOut, afterBtnOut, 720, 450);
+  expect(btnOutDrift.dx).toBeLessThanOrEqual(2);
+  expect(btnOutDrift.dy).toBeLessThanOrEqual(2);
+
+  await plus.click();
+  await expect(stage).toHaveAttribute("data-zoom", "100");
+  const afterBtnIn = await cardBoxes(page);
+  const btnInDrift = measureAnchorDrift(afterBtnOut, afterBtnIn, 720, 450);
+  expect(btnInDrift.dx).toBeLessThanOrEqual(2);
+  expect(btnInDrift.dy).toBeLessThanOrEqual(2);
+
+  // 2) Keyboard zoom anchors at viewport centre (720, 450).
+  await stage.focus();
+  await page.keyboard.press("-");
+  await expect(stage).toHaveAttribute("data-zoom", "75");
+  const afterKeyOut = await cardBoxes(page);
+  const keyOutDrift = measureAnchorDrift(afterBtnIn, afterKeyOut, 720, 450);
+  expect(keyOutDrift.dx).toBeLessThanOrEqual(2);
+  expect(keyOutDrift.dy).toBeLessThanOrEqual(2);
+
+  await page.keyboard.press("+");
+  await expect(stage).toHaveAttribute("data-zoom", "100");
+  const afterKeyIn = await cardBoxes(page);
+  const keyInDrift = measureAnchorDrift(afterKeyOut, afterKeyIn, 720, 450);
+  expect(keyInDrift.dx).toBeLessThanOrEqual(2);
+  expect(keyInDrift.dy).toBeLessThanOrEqual(2);
+
+  // 3) Ctrl+wheel anchors at the pointer (1040, 260).
+  const wheelAnchor = { x: 1040, y: 260 };
+  const beforeWheelZoom = await cardBoxes(page);
+  await page.mouse.move(wheelAnchor.x, wheelAnchor.y);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up("Control");
+  await expect
+    .poll(async () => Number(await stage.getAttribute("data-zoom")))
+    .toBeGreaterThan(100);
+  const afterWheelZoom = await cardBoxes(page);
+  const wheelDrift = measureAnchorDrift(
+    beforeWheelZoom,
+    afterWheelZoom,
+    wheelAnchor.x,
+    wheelAnchor.y,
+  );
+  expect(wheelDrift.dx).toBeLessThanOrEqual(2);
+  expect(wheelDrift.dy).toBeLessThanOrEqual(2);
+
+  // 4) Two-finger pinch anchors at pinch midpoint (900, 300).
+  const pinchAnchor = { x: 900, y: 300 };
+  const beforePinch = await cardBoxes(page);
+  await stage.evaluate((el, anchor) => {
+    const dispatch = (
+      type: string,
+      pointerId: number,
+      clientX: number,
+      clientY: number,
+    ) => {
+      el.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId,
+          pointerType: "touch",
+          clientX,
+          clientY,
+        }),
+      );
+    };
+    dispatch("pointerdown", 101, anchor.x - 60, anchor.y);
+    dispatch("pointerdown", 102, anchor.x + 60, anchor.y);
+    dispatch("pointermove", 101, anchor.x - 45, anchor.y);
+    dispatch("pointermove", 102, anchor.x + 45, anchor.y);
+    dispatch("pointerup", 101, anchor.x - 45, anchor.y);
+    dispatch("pointerup", 102, anchor.x + 45, anchor.y);
+  }, pinchAnchor);
+  const afterPinch = await cardBoxes(page);
+  const pinchDrift = measureAnchorDrift(
+    beforePinch,
+    afterPinch,
+    pinchAnchor.x,
+    pinchAnchor.y,
+  );
+  expect(pinchDrift.dx).toBeLessThanOrEqual(2);
+  expect(pinchDrift.dy).toBeLessThanOrEqual(2);
+});
+
+test("at 1440: sequence of small Ctrl+wheel pinch events zooms gradually without jumping limit to limit", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "/recipes");
+
+  const stage = page.locator('[data-recipes-canvas-stage="true"]');
+  await page.mouse.move(900, 300);
+  await page.keyboard.down("Control");
+  for (let i = 0; i < 8; i += 1) {
+    await page.mouse.wheel(0, -4);
+  }
+  await page.keyboard.up("Control");
+
+  const zoomAfterPinchIn = Number(await stage.getAttribute("data-zoom"));
+  expect(zoomAfterPinchIn).toBeGreaterThan(100);
+  expect(zoomAfterPinchIn).toBeLessThan(135);
+
+  await page.keyboard.down("Control");
+  for (let i = 0; i < 8; i += 1) {
+    await page.mouse.wheel(0, 4);
+  }
+  await page.keyboard.up("Control");
+
+  const zoomAfterPinchOut = Number(await stage.getAttribute("data-zoom"));
+  expect(zoomAfterPinchOut).toBeGreaterThan(75);
+  expect(zoomAfterPinchOut).toBeLessThan(110);
+});
+
+for (const [width, height] of [
+  [390, 844],
+  [1440, 900],
+] as const) {
+  test(`first paint at ${width}x${height}: card box matches before and after hydration (<= 1 px), works with JS off, CLS < 0.05`, async ({
+    browser,
+    baseURL,
+  }) => {
+    const noJsContext = await browser.newContext({
+      baseURL,
+      javaScriptEnabled: false,
+      viewport: { width, height },
+    });
+    await noJsContext.addCookies([
+      {
+        name: "mellodifai_lang",
+        value: "en",
+        url: baseURL ?? "http://127.0.0.1",
+      },
+    ]);
+    const noJsPage = await noJsContext.newPage();
+    let ssrFirst: {
+      slug: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    try {
+      await noJsPage.goto("/recipes");
+      const ssrBoxes = await cardBoxes(noJsPage);
+      expect(ssrBoxes.length).toBeGreaterThan(0);
+      const ssrOnScreen = ssrBoxes.filter(
+        (b) =>
+          b.x + b.width >= 0 &&
+          b.x <= width &&
+          b.y + b.height >= 0 &&
+          b.y <= height,
+      );
+      expect(ssrOnScreen.length).toBeGreaterThan(0);
+      ssrFirst = ssrBoxes[0];
+    } finally {
+      await noJsContext.close();
+    }
+
+    const jsContext = await browser.newContext({
+      baseURL,
+      viewport: { width, height },
+    });
+    await jsContext.addCookies([
+      {
+        name: "mellodifai_lang",
+        value: "en",
+        url: baseURL ?? "http://127.0.0.1",
+      },
+    ]);
+    const jsPage = await jsContext.newPage();
+    await jsPage.addInitScript(() => {
+      (window as unknown as { __c05Cls: number }).__c05Cls = 0;
+      if (typeof PerformanceObserver !== "undefined") {
+        try {
+          const obs = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries() as Array<
+              PerformanceEntry & { hadRecentInput?: boolean; value?: number }
+            >) {
+              if (!entry.hadRecentInput && typeof entry.value === "number") {
+                (window as unknown as { __c05Cls: number }).__c05Cls +=
+                  entry.value;
+              }
+            }
+          });
+          obs.observe({ type: "layout-shift", buffered: true });
+        } catch {
+          // Non-Chromium engines may not support layout-shift observer.
+        }
+      }
+    });
+    try {
+      await open(jsPage, "/recipes");
+      const hydratedBoxes = await cardBoxes(jsPage);
+      expect(hydratedBoxes.length).toBeGreaterThan(0);
+      const hydratedFirst = hydratedBoxes[0];
+      expect(hydratedFirst.slug).toBe(ssrFirst.slug);
+      expect(Math.abs(hydratedFirst.x - ssrFirst.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(hydratedFirst.y - ssrFirst.y)).toBeLessThanOrEqual(1);
+      expect(
+        Math.abs(hydratedFirst.width - ssrFirst.width),
+      ).toBeLessThanOrEqual(1);
+      expect(
+        Math.abs(hydratedFirst.height - ssrFirst.height),
+      ).toBeLessThanOrEqual(1);
+
+      const cls = await jsPage.evaluate(
+        () => (window as unknown as { __c05Cls: number }).__c05Cls,
+      );
+      expect(cls).toBeLessThan(0.05);
+    } finally {
+      await jsContext.close();
+    }
+  });
+}
+
+test("at 1440: /recipes ships zero ZodError client chunks to the browser", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const jsBodies: Array<{ url: string; body: string }> = [];
+  page.on("response", async (res) => {
+    const url = res.url();
+    if (
+      res.status() === 200 &&
+      url.includes("/_next/static/") &&
+      url.endsWith(".js")
+    ) {
+      try {
+        jsBodies.push({ url, body: await res.text() });
+      } catch {
+        // Ignore aborted bodies during teardown.
+      }
+    }
+  });
+  await open(page, "/recipes");
+  expect(jsBodies.length).toBeGreaterThan(0);
+  const offending = jsBodies
+    .filter((entry) => entry.body.includes("ZodError"))
+    .map((entry) => entry.url);
+  expect(offending).toEqual([]);
+});
+
 test("at 1440: arrow keys pan and plus/minus/0 zoom when canvas has focus", async ({
   page,
 }) => {
@@ -345,36 +643,125 @@ test("search: `/` focuses search, Ctrl+F is not taken, local filter makes zero n
   expect(apiRequests).toEqual([]);
 });
 
-test("at 1440 with 24-recipe test fixture: canvas DOM stays capped at <= 20 cards and panning mounts new cards", async ({
+test("at 1440 with 24-recipe test fixture: every intersecting card is in DOM at every zoom step and during drag, and DOM stays <= 20", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await open(page, "/recipes?fixture=24");
+
+  const fixture24 = buildRecipeTestFixture(24);
+  const placements = placeCanvasRecipes(fixture24, {
+    viewportWidth: 1440,
+    viewportHeight: 900,
+  });
+
+  const expectedIntersectingSlugs = (
+    panX: number,
+    panY: number,
+    zoom: number,
+  ) =>
+    placements
+      .filter((p) => {
+        const r = canvasCardRect(p, {
+          viewportWidth: 1440,
+          viewportHeight: 900,
+          panX,
+          panY,
+          zoom,
+        });
+        return (
+          r.x + r.width >= 0 && r.x <= 1440 && r.y + r.height >= 0 && r.y <= 900
+        );
+      })
+      .map((p) => p.recipe.slug)
+      .sort();
+
+  const assertVisibleMatchesViewport = async (
+    panX: number,
+    panY: number,
+    zoom: number,
+    label: string,
+  ) => {
+    const expected = expectedIntersectingSlugs(panX, panY, zoom);
+    await expect
+      .poll(
+        async () => {
+          const boxes = await cardBoxes(page);
+          return {
+            total: boxes.length,
+            intersecting: boxes
+              .filter(
+                (b) =>
+                  b.x + b.width >= 0 &&
+                  b.x <= 1440 &&
+                  b.y + b.height >= 0 &&
+                  b.y <= 900,
+              )
+              .map((b) => b.slug)
+              .sort(),
+          };
+        },
+        { message: `${label} intersecting slugs` },
+      )
+      .toEqual({
+        total: expect.any(Number),
+        intersecting: expected,
+      });
+    const finalCount = await page
+      .locator('[data-recipe-card="canvas"]')
+      .count();
+    expect(finalCount, `${label} count`).toBeGreaterThan(0);
+    expect(finalCount, `${label} cap`).toBeLessThanOrEqual(20);
+  };
 
   const initialSlugs = await page
     .locator('[data-recipe-card="canvas"]')
     .evaluateAll((els) =>
       els.map((el) => el.getAttribute("data-recipe-slug") ?? ""),
     );
-  expect(initialSlugs.length).toBeGreaterThan(0);
-  expect(initialSlugs.length).toBeLessThanOrEqual(20);
   expect(initialSlugs.length).toBeLessThan(24);
 
-  // Zooming out to 50% still enforces the <= 20 DOM cap.
+  const stage = page.locator('[data-recipes-canvas-stage="true"]');
   const zoomBar = page.locator('[data-recipes-zoom="true"]');
   const minus = zoomBar.getByRole("button", { name: en.recipes.zoomOut });
+  const plus = zoomBar.getByRole("button", { name: en.recipes.zoomIn });
+  const reset = zoomBar.getByRole("button", { name: en.recipes.zoomReset });
+
+  // Walk through every zoom step: 100 -> 75 -> 50 -> 75 -> 100 -> 125 -> 150.
+  await assertVisibleMatchesViewport(0, 0, 100, "initial 100%");
   await minus.click();
+  await expect(reset).toHaveText("75%");
+  await assertVisibleMatchesViewport(0, 0, 75, "zoom 75%");
   await minus.click();
-  await expect(
-    zoomBar.getByRole("button", { name: en.recipes.zoomReset }),
-  ).toHaveText("50%");
-  const countAt50 = await page.locator('[data-recipe-card="canvas"]').count();
-  expect(countAt50).toBeGreaterThan(0);
-  expect(countAt50).toBeLessThanOrEqual(20);
+  await expect(reset).toHaveText("50%");
+  await assertVisibleMatchesViewport(0, 0, 50, "zoom 50%");
+
+  // During and after a 300 px drag at 50% zoom, every intersecting card stays in DOM.
+  await page.mouse.move(1400, 150);
+  await page.mouse.down();
+  await page.mouse.move(1250, 150, { steps: 3 });
+  await assertVisibleMatchesViewport(-150, 0, 50, "mid-drag -150px at 50%");
+  await page.mouse.move(1100, 150, { steps: 3 });
+  await assertVisibleMatchesViewport(-300, 0, 50, "end-drag -300px at 50%");
+  await page.mouse.up();
+  await assertVisibleMatchesViewport(-300, 0, 50, "after-drag -300px at 50%");
+
+  // Drag back to pan (0, 0) and verify 125% and 150% zoom steps too.
+  await page.mouse.move(1100, 150);
+  await page.mouse.down();
+  await page.mouse.move(1400, 150, { steps: 4 });
+  await page.mouse.up();
+  await reset.click();
+  await expect(reset).toHaveText("100%");
+  for (const targetZoom of ZOOM_STEPS.filter((z) => z > 100)) {
+    await plus.click();
+    await expect(stage).toHaveAttribute("data-zoom", String(targetZoom));
+    await assertVisibleMatchesViewport(0, 0, targetZoom, `zoom ${targetZoom}%`);
+  }
 
   // Reset zoom and pan far right to reveal off-screen fixture cards.
-  await zoomBar.getByRole("button", { name: en.recipes.zoomReset }).click();
-  const stage = page.locator('[data-recipes-canvas-stage="true"]');
+  await reset.click();
   await stage.focus();
   for (let i = 0; i < 6; i += 1) {
     await page.keyboard.press("ArrowRight");
@@ -638,40 +1025,85 @@ test("likeness judge (J1): canvas layout matches reference within one spacing st
   const result = compareLayout(reference, candidate, { stepPx: step });
   expect(result.failures).toEqual([]);
 
-  // Grid geometry vs STUDY.md 4.3 (within 4 px):
-  // 1440: x=60, w=1320, 5 cols of 250 (+/-4), gap 17.5 (+/-4)
-  // 1024: x=60, w=904, 4 cols of 212.9 (+/-4)
-  // 390: x=14 (+/-4), w=362 (+/-4), 2 cols of 172.3 (+/-4)
-  const expectedGrid = [
-    { width: 1440, height: 900, cols: 5, x: 60, w: 1320, colW: 250 },
-    { width: 1024, height: 768, cols: 4, x: 60, w: 904, colW: 212.9 },
-    { width: 390, height: 844, cols: 2, x: 14, w: 362, colW: 172.3 },
-  ] as const;
-
-  for (const exp of expectedGrid) {
-    await page.setViewportSize({ width: exp.width, height: exp.height });
-    await open(page, "/recipes?view=grid&fixture=24");
-    const m = await page.locator(".site-recipes-grid-list").evaluate((list) => {
-      const r = list.getBoundingClientRect();
-      const cards = [...list.querySelectorAll('[data-recipe-card="grid"]')].map(
-        (c) => c.getBoundingClientRect(),
-      );
-      const colXs = [...new Set(cards.map((c) => Math.round(c.left)))];
+  // Canvas fixed chrome geometry vs STUDY.md 4.1 & pages/recipes/outline-*.json (within 4 px):
+  // Canvas has no CSS grid (layout-ref/recipes.json uses grid: null because raw auto-capture
+  // picked up header logo 116x19 at 1440 and 780x560 backdrop at 390), so verify the study's
+  // measured canvas controls directly at all 3 widths.
+  for (const [w, h] of WIDTHS) {
+    await page.setViewportSize({ width: w, height: h });
+    await open(page, "/recipes");
+    const canvasGeom = await page.evaluate(() => {
+      const sw = document
+        .querySelector('[data-recipes-switch="true"]')
+        ?.getBoundingClientRect();
+      const zoom = document
+        .querySelector('[data-recipes-zoom="true"]')
+        ?.getBoundingClientRect();
+      const search = document
+        .querySelector(".site-recipes-search")
+        ?.getBoundingClientRect();
       return {
-        x: r.left,
-        w: r.width,
-        cols: colXs.length,
-        cardW: cards[0]?.width ?? 0,
+        docH: document.documentElement.scrollHeight,
+        swCenter: sw ? sw.left + sw.width / 2 : 0,
+        swBottom: sw ? window.innerHeight - sw.bottom : 0,
+        zoomRight: zoom ? window.innerWidth - zoom.right : 0,
+        zoomBottom: zoom ? window.innerHeight - zoom.bottom : 0,
+        zoomVisible: Boolean(zoom && zoom.width > 0 && zoom.height > 0),
+        searchCenter: search ? search.left + search.width / 2 : 0,
+        searchW: search ? search.width : 0,
       };
     });
-    expect(m.cols, `cols at ${exp.width}`).toBe(exp.cols);
-    expect(Math.abs(m.x - exp.x), `x at ${exp.width}`).toBeLessThanOrEqual(4);
-    expect(Math.abs(m.w - exp.w), `w at ${exp.width}`).toBeLessThanOrEqual(4);
+    expect(canvasGeom.docH, `canvas height at ${w}`).toBeLessThanOrEqual(h + 1);
     expect(
-      Math.abs(m.cardW - exp.colW),
-      `colW at ${exp.width}`,
+      Math.abs(canvasGeom.swCenter - w / 2),
+      `view switch centre at ${w}`,
     ).toBeLessThanOrEqual(4);
+    expect(
+      Math.abs(canvasGeom.swBottom - 28),
+      `view switch bottom inset at ${w}`,
+    ).toBeLessThanOrEqual(4);
+    expect(
+      Math.abs(canvasGeom.searchCenter - w / 2),
+      `search centre at ${w}`,
+    ).toBeLessThanOrEqual(4);
+    if (w === 390) {
+      expect(canvasGeom.zoomVisible, "zoom hidden at 390").toBe(false);
+    } else {
+      expect(canvasGeom.zoomVisible, `zoom visible at ${w}`).toBe(true);
+      expect(
+        Math.abs(canvasGeom.zoomRight - 60),
+        `zoom right inset at ${w}`,
+      ).toBeLessThanOrEqual(4);
+      expect(
+        Math.abs(canvasGeom.zoomBottom - 28),
+        `zoom bottom inset at ${w}`,
+      ).toBeLessThanOrEqual(4);
+      expect(
+        Math.abs(canvasGeom.searchW - 400),
+        `search width at ${w}`,
+      ).toBeLessThanOrEqual(4);
+    }
   }
+
+  // Real J1 compareLayout check on grid view (/recipes?view=grid) with non-null study grid values
+  // measured from interactions/recipes.json, recipes-grid-1024.json and recipes-grid-390.json.
+  const gridRef = JSON.parse(
+    readFileSync(
+      join(import.meta.dirname, "layout-ref/recipes-grid.json"),
+      "utf8",
+    ),
+  ) as LayoutRef;
+  const gridCand: LayoutRef = { sections: gridRef.sections, widths: {} };
+  for (const [w, h] of WIDTHS) {
+    await page.setViewportSize({ width: w, height: h });
+    await open(page, "/recipes?view=grid&fixture=24");
+    gridCand.widths[String(w)] = await page.evaluate(measureLayoutInPage, {
+      names: gridRef.sections,
+      width: w,
+    });
+  }
+  const gridResult = compareLayout(gridRef, gridCand, { stepPx: step });
+  expect(gridResult.failures).toEqual([]);
 });
 
 const CAPTURE =

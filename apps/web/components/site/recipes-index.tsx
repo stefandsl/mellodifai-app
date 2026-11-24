@@ -2,18 +2,18 @@
 
 import { HStack } from "@astryxdesign/core/HStack";
 import { Link } from "@astryxdesign/core/Link";
-import { searchRecipesLocal } from "@mellodifai/shared";
+import { searchRecipesLocal } from "@mellodifai/shared/recipes/search";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import type { SiteCopy, SiteLang } from "@/lib/site/copy";
-import type { LoadedRecipe } from "@/lib/site/recipes";
+import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
 import { RecipeCanvas } from "./recipe-canvas";
 import { RecipeGrid } from "./recipe-grid";
 
 export type RecipesViewMode = "canvas" | "grid";
 
-// Coordinates canvas and grid views over the same server-embedded recipe list.
-// Search runs 100% locally via searchRecipesLocal (zero network requests).
+// Coordinates canvas and grid views over the same server-embedded plain recipe list.
+// Search runs 100% locally via searchRecipesLocal (zero network requests, zero zod in browser).
 // View switch links work natively without JavaScript (/recipes and /recipes?view=grid),
 // and update the URL via history.replaceState on client-side clicks so reloads keep the view.
 export function RecipesIndex({
@@ -24,7 +24,7 @@ export function RecipesIndex({
   copy,
   closingBand,
 }: {
-  recipes: readonly LoadedRecipe[];
+  recipes: readonly RecipeIndexItem[];
   initialView: RecipesViewMode;
   fixtureParam?: string;
   lang: SiteLang;

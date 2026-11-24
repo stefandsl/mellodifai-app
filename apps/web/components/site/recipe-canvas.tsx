@@ -18,6 +18,8 @@ import {
 import type { SiteCopy, SiteLang } from "@/lib/site/copy";
 import {
   ARROW_PAN_STEP,
+  applyWheelZoom,
+  type CanvasViewState,
   canvasCardStyle,
   clampZoom,
   computeVisibleCanvasCards,
@@ -26,9 +28,10 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   placeCanvasRecipes,
+  type RecipeIndexItem,
   stepZoom,
+  zoomAroundAnchor,
 } from "@/lib/site/recipe-canvas-layout";
-import type { LoadedRecipe } from "@/lib/site/recipes";
 import { DashGlyph, PlusGlyph } from "./icons";
 import { RecipeCard } from "./recipe-card";
 import { SearchField } from "./search-field";
@@ -45,13 +48,18 @@ type DragState = {
 type PinchState = {
   startDist: number;
   startZoom: number;
+  startPanX: number;
+  startPanY: number;
+  startAnchorRelX: number;
+  startAnchorRelY: number;
 };
 
 // Interactive virtualized canvas of song recipes (STUDY.md 4.1 & 4.2).
 // - 1:1 mouse and touch drag with zero inertia after release
-// - Wheel pan (document scroll stays 0) and Ctrl+wheel / two-finger pinch zoom (50..150%)
-// - Keyboard pan (Arrow keys, 120 px) and zoom (+, -, 0) when canvas has focus
-// - Virtualized viewport culling capped at <= 20 cards in the DOM at 1440
+// - Wheel pan (document scroll stays 0) and pointer-anchored Ctrl+wheel / pinch zoom (50..150%)
+// - Keyboard pan (Arrow keys, 120 px) and centre-anchored zoom (+, -, 0) when canvas has focus
+// - Viewport-centred CSS layout (no jump at hydration, works with JavaScript disabled)
+// - Virtualized culling that never drops an on-screen card and caps overscan at <= 20 DOM cards at 1440
 export function RecipeCanvas({
   recipes,
   matchIds,
@@ -60,7 +68,7 @@ export function RecipeCanvas({
   lang,
   copy,
 }: {
-  recipes: readonly LoadedRecipe[];
+  recipes: readonly RecipeIndexItem[];
   matchIds: ReadonlySet<string> | null;
   query: string;
   onQueryChange: (next: string) => void;
@@ -70,17 +78,18 @@ export function RecipeCanvas({
   const stageRef = useRef<HTMLElement>(null);
   const [viewport, setViewport] = useState({ width: 1440, height: 900 });
   const [hydrated, setHydrated] = useState(false);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState<number>(DEFAULT_ZOOM);
+  const [view, setView] = useState<CanvasViewState>({
+    panX: 0,
+    panY: 0,
+    zoom: DEFAULT_ZOOM,
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [animateLayout, setAnimateLayout] = useState(false);
-  const [activeCard, setActiveCard] = useState<LoadedRecipe | null>(null);
+  const [activeCard, setActiveCard] = useState<RecipeIndexItem | null>(null);
   const [allowVideo, setAllowVideo] = useState(false);
 
-  const panRef = useRef(pan);
-  panRef.current = pan;
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   const dragRef = useRef<DragState | null>(null);
   const pinchRef = useRef<PinchState | null>(null);
@@ -129,26 +138,41 @@ export function RecipeCanvas({
     if (prevQueryRef.current !== query) {
       prevQueryRef.current = query;
       setAnimateLayout(true);
-      setPan({ x: 0, y: 0 });
+      setView((prev) => ({ ...prev, panX: 0, panY: 0 }));
     }
   }, [query]);
 
-  // Native non-passive wheel listener: wheel pans 1:1, Ctrl+wheel zooms clamped 50..150%.
+  // Native non-passive wheel listener: wheel pans 1:1; Ctrl+wheel zooms continuously around pointer.
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       if (event.ctrlKey || event.metaKey) {
-        setAnimateLayout(true);
-        const magnitude = Math.abs(event.deltaY) >= 200 ? 2 : 1;
-        const dir = event.deltaY < 0 ? magnitude : -magnitude;
-        setZoom((z) => stepZoom(z, dir));
+        const pixelDeltaY =
+          event.deltaMode === 1
+            ? event.deltaY * 16
+            : event.deltaMode === 2
+              ? event.deltaY * 800
+              : event.deltaY;
+        const rect = stage.getBoundingClientRect();
+        const anchorRelX = event.clientX - (rect.left + rect.width / 2);
+        const anchorRelY = event.clientY - (rect.top + rect.height / 2);
+        setAnimateLayout(false);
+        setView((prev) =>
+          zoomAroundAnchor(
+            prev,
+            applyWheelZoom(prev.zoom, pixelDeltaY),
+            anchorRelX,
+            anchorRelY,
+          ),
+        );
       } else {
         setAnimateLayout(false);
-        setPan((prev) => ({
-          x: prev.x - event.deltaX,
-          y: prev.y - event.deltaY,
+        setView((prev) => ({
+          ...prev,
+          panX: prev.panX - event.deltaX,
+          panY: prev.panY - event.deltaY,
         }));
       }
     };
@@ -172,13 +196,21 @@ export function RecipeCanvas({
         placements,
         viewportWidth: viewport.width,
         viewportHeight: viewport.height,
-        panX: pan.x,
-        panY: pan.y,
-        zoom,
+        panX: view.panX,
+        panY: view.panY,
+        zoom: view.zoom,
         matchIds,
         maxCards: MAX_CANVAS_DOM_CARDS,
       }),
-    [placements, viewport.width, viewport.height, pan.x, pan.y, zoom, matchIds],
+    [
+      placements,
+      viewport.width,
+      viewport.height,
+      view.panX,
+      view.panY,
+      view.zoom,
+      matchIds,
+    ],
   );
 
   const handlePointerDown = useCallback(
@@ -197,9 +229,22 @@ export function RecipeCanvas({
         const p0 = pts[0];
         const p1 = pts[1];
         if (p0 && p1) {
+          const rect = stageRef.current?.getBoundingClientRect();
+          const midX = (p0.x + p1.x) / 2;
+          const midY = (p0.y + p1.y) / 2;
+          const startAnchorRelX = rect
+            ? midX - (rect.left + rect.width / 2)
+            : 0;
+          const startAnchorRelY = rect
+            ? midY - (rect.top + rect.height / 2)
+            : 0;
           pinchRef.current = {
             startDist: Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1,
-            startZoom: zoomRef.current,
+            startZoom: viewRef.current.zoom,
+            startPanX: viewRef.current.panX,
+            startPanY: viewRef.current.panY,
+            startAnchorRelX,
+            startAnchorRelY,
           };
         }
         dragRef.current = null;
@@ -212,8 +257,8 @@ export function RecipeCanvas({
           pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,
-          originPanX: panRef.current.x,
-          originPanY: panRef.current.y,
+          originPanX: viewRef.current.panX,
+          originPanY: viewRef.current.panY,
           moved: false,
         };
       }
@@ -234,10 +279,27 @@ export function RecipeCanvas({
         const p0 = pts[0];
         const p1 = pts[1];
         if (p0 && p1) {
+          const pinch = pinchRef.current;
+          const rect = stageRef.current?.getBoundingClientRect();
+          const midX = (p0.x + p1.x) / 2;
+          const midY = (p0.y + p1.y) / 2;
+          const curRelX = rect ? midX - (rect.left + rect.width / 2) : 0;
+          const curRelY = rect ? midY - (rect.top + rect.height / 2) : 0;
           const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-          const ratio = dist / pinchRef.current.startDist;
+          const ratio = dist / pinch.startDist;
+          const nextZoom = clampZoom(pinch.startZoom * ratio);
+          const startScale = pinch.startZoom / 100;
+          const nextScale = nextZoom / 100;
+          const worldMidX =
+            (pinch.startAnchorRelX - pinch.startPanX) / startScale;
+          const worldMidY =
+            (pinch.startAnchorRelY - pinch.startPanY) / startScale;
           setAnimateLayout(false);
-          setZoom(clampZoom(pinchRef.current.startZoom * ratio));
+          setView({
+            panX: curRelX - worldMidX * nextScale,
+            panY: curRelY - worldMidY * nextScale,
+            zoom: nextZoom,
+          });
         }
         return;
       }
@@ -260,10 +322,11 @@ export function RecipeCanvas({
       }
 
       if (drag.moved) {
-        setPan({
-          x: drag.originPanX + dx,
-          y: drag.originPanY + dy,
-        });
+        setView((prev) => ({
+          ...prev,
+          panX: drag.originPanX + dx,
+          panY: drag.originPanY + dy,
+        }));
       }
     },
     [],
@@ -320,36 +383,39 @@ export function RecipeCanvas({
       if (event.key === "ArrowRight") {
         event.preventDefault();
         setAnimateLayout(false);
-        setPan((prev) => ({ x: prev.x - ARROW_PAN_STEP, y: prev.y }));
+        setView((prev) => ({ ...prev, panX: prev.panX - ARROW_PAN_STEP }));
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
         setAnimateLayout(false);
-        setPan((prev) => ({ x: prev.x + ARROW_PAN_STEP, y: prev.y }));
+        setView((prev) => ({ ...prev, panX: prev.panX + ARROW_PAN_STEP }));
       } else if (event.key === "ArrowDown") {
         event.preventDefault();
         setAnimateLayout(false);
-        setPan((prev) => ({ x: prev.x, y: prev.y - ARROW_PAN_STEP }));
+        setView((prev) => ({ ...prev, panY: prev.panY - ARROW_PAN_STEP }));
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
         setAnimateLayout(false);
-        setPan((prev) => ({ x: prev.x, y: prev.y + ARROW_PAN_STEP }));
+        setView((prev) => ({ ...prev, panY: prev.panY + ARROW_PAN_STEP }));
       } else if (event.key === "+" || event.key === "=") {
         event.preventDefault();
         setAnimateLayout(true);
-        setZoom((z) => stepZoom(z, 1));
+        setView((prev) => zoomAroundAnchor(prev, stepZoom(prev.zoom, 1), 0, 0));
       } else if (event.key === "-" || event.key === "_") {
         event.preventDefault();
         setAnimateLayout(true);
-        setZoom((z) => stepZoom(z, -1));
+        setView((prev) =>
+          zoomAroundAnchor(prev, stepZoom(prev.zoom, -1), 0, 0),
+        );
       } else if (event.key === "0") {
         event.preventDefault();
         setAnimateLayout(true);
-        setZoom(DEFAULT_ZOOM);
+        setView((prev) => zoomAroundAnchor(prev, DEFAULT_ZOOM, 0, 0));
       }
     },
     [],
   );
 
+  const displayZoom = Math.round(view.zoom);
   const searching = matchIds !== null;
   const noMatches = searching && matchIds.size === 0;
 
@@ -375,7 +441,7 @@ export function RecipeCanvas({
         data-ready={hydrated ? "true" : "false"}
         data-dragging={isDragging ? "true" : "false"}
         data-animate-layout={animateLayout ? "true" : "false"}
-        data-zoom={String(zoom)}
+        data-zoom={String(displayZoom)}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endPointer}
@@ -479,10 +545,12 @@ export function RecipeCanvas({
           icon={<Icon icon={DashGlyph} size="sm" color="inherit" />}
           variant="ghost"
           size="sm"
-          isDisabled={zoom <= MIN_ZOOM}
+          isDisabled={view.zoom <= MIN_ZOOM + 0.01}
           onClick={() => {
             setAnimateLayout(true);
-            setZoom((z) => stepZoom(z, -1));
+            setView((prev) =>
+              zoomAroundAnchor(prev, stepZoom(prev.zoom, -1), 0, 0),
+            );
           }}
         />
         <Button
@@ -492,20 +560,22 @@ export function RecipeCanvas({
           className="site-recipes-zoom__value"
           onClick={() => {
             setAnimateLayout(true);
-            setZoom(DEFAULT_ZOOM);
+            setView((prev) => zoomAroundAnchor(prev, DEFAULT_ZOOM, 0, 0));
           }}
         >
-          {`${zoom}%`}
+          {`${displayZoom}%`}
         </Button>
         <IconButton
           label={copy.zoomIn}
           icon={<Icon icon={PlusGlyph} size="sm" color="inherit" />}
           variant="ghost"
           size="sm"
-          isDisabled={zoom >= MAX_ZOOM}
+          isDisabled={view.zoom >= MAX_ZOOM - 0.01}
           onClick={() => {
             setAnimateLayout(true);
-            setZoom((z) => stepZoom(z, 1));
+            setView((prev) =>
+              zoomAroundAnchor(prev, stepZoom(prev.zoom, 1), 0, 0),
+            );
           }}
         />
       </HStack>
