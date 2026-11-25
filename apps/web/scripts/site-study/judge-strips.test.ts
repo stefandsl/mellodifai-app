@@ -21,6 +21,7 @@ import {
   encodePng,
   renderStrip,
   STRIP_H,
+  waitForPageReady,
   writeStripsForRef,
 } from "./measure.mjs";
 
@@ -331,54 +332,206 @@ describe("site-study J1 layout-diff.mjs and J2 judge-strips.mjs", () => {
     );
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("craft-anything-cli not found");
+    expect(res.stderr).toContain("0.6.1");
+    expect(res.stderr).toContain("README.md");
   });
 
-  it("runs with the real Craft Anything CLI when CRAFT_ANYTHING_CLI is configured", {
+  it("measure.mjs warns with width and wait name when page readiness waits time out", async () => {
+    const warnings: string[] = [];
+    const timeoutErr = (name: string) =>
+      new Error(`Timeout 50ms waiting for ${name}`);
+    const fakePage = {
+      waitForLoadState: () => Promise.reject(timeoutErr("networkidle")),
+      evaluate: () => Promise.resolve(undefined),
+      locator: (selector: string) => ({
+        first: () => ({
+          count: () => Promise.resolve(1),
+          waitFor: () => Promise.reject(timeoutErr(selector)),
+        }),
+      }),
+      waitForFunction: () => Promise.reject(timeoutErr("hydration")),
+    };
+
+    await waitForPageReady(
+      fakePage as unknown as import("@playwright/test").Page,
+      1440,
+      {
+        networkIdleTimeout: 50,
+        hydrationTimeout: 50,
+        warn: (msg: string) => warnings.push(msg),
+      },
+    );
+
+    expect(warnings).toHaveLength(4);
+    expect(warnings[0]).toContain("width=1440");
+    expect(warnings[0]).toContain("networkidle");
+    expect(warnings[1]).toContain("width=1440");
+    expect(warnings[1]).toContain("header attached");
+    expect(warnings[2]).toContain("width=1440");
+    expect(warnings[2]).toContain("data-scrolled");
+    expect(warnings[3]).toContain("width=1440");
+    expect(warnings[3]).toContain("data-ready");
+  });
+
+  const REAL_CRAFT_CLI = process.env.CRAFT_ANYTHING_CLI;
+  const hasRealCraftCli = Boolean(REAL_CRAFT_CLI && existsSync(REAL_CRAFT_CLI));
+
+  it.skipIf(!hasRealCraftCli)(
+    "runs with the real Craft Anything CLI when CRAFT_ANYTHING_CLI is configured",
+    {
+      timeout: 30_000,
+    },
+    () => {
+      const realCli = REAL_CRAFT_CLI as string;
+
+      const dir = makeTempDir("real-cli-");
+      const { data } = loadLayoutRef(pricingRefPath);
+
+      const passRes = judgeStrips({
+        refPath: pricingRefPath,
+        candPath: pricingRefPath,
+        max: 0.01,
+        tolerance: 8,
+        cli: realCli,
+        tempBase: dir,
+      });
+      expect(passRes.pass).toBe(true);
+      expect(passRes.worstFraction).toBe(0);
+
+      const mutated = structuredClone(data);
+      mutated.widths["1440"].sections[1].grid.perRow = 3;
+      const mutatedJson = join(dir, "pricing-mutated.json");
+      writeFileSync(mutatedJson, JSON.stringify(mutated, null, 2));
+
+      const failRes = judgeStrips({
+        refPath: pricingRefPath,
+        candPath: mutatedJson,
+        max: 0.01,
+        tolerance: 8,
+        cli: realCli,
+        tempBase: dir,
+      });
+      expect(failRes.pass).toBe(false);
+      expect(failRes.failed).toBe(1);
+      expect(failRes.worstFraction).toBeGreaterThan(0.01);
+    },
+  );
+
+  it("always renders strips from layout-ref.json and ignores stale PNGs already in the folder", {
     timeout: 30_000,
   }, () => {
-    const realCli = process.env.CRAFT_ANYTHING_CLI;
-    if (!realCli || !existsSync(realCli)) return;
-
-    const dir = makeTempDir("real-cli-");
+    const dir = makeTempDir("stale-strips-");
+    const stubCli = writePixelCompareStub(dir);
     const { data } = loadLayoutRef(pricingRefPath);
 
-    const passRes = judgeStrips({
-      refPath: pricingRefPath,
-      candPath: pricingRefPath,
-      max: 0.01,
-      tolerance: 8,
-      cli: realCli,
-      tempBase: dir,
-    });
-    expect(passRes.pass).toBe(true);
-    expect(passRes.worstFraction).toBe(0);
-
-    const mutated = structuredClone(data);
+    const slice = {
+      slug: data.slug,
+      route: data.route,
+      sections: data.sections.slice(0, 2),
+      widths: {
+        "1440": {
+          pageHeight: data.widths["1440"].pageHeight,
+          sections: data.widths["1440"].sections.slice(0, 2),
+        },
+      },
+    };
+    const mutated = structuredClone(slice);
     mutated.widths["1440"].sections[1].grid.perRow = 3;
-    const mutatedJson = join(dir, "pricing-mutated.json");
-    writeFileSync(mutatedJson, JSON.stringify(mutated, null, 2));
 
-    const failRes = judgeStrips({
-      refPath: pricingRefPath,
-      candPath: mutatedJson,
+    // Candidate dir has MUTATED layout-ref.json, but stale PNGs drawn from UNCHANGED slice.
+    // Reusing stale PNGs would falsely pass; re-rendering from JSON must fail.
+    const stalePassDir = join(dir, "stale-pass");
+    mkdirSync(stalePassDir, { recursive: true });
+    writeFileSync(
+      join(stalePassDir, "layout-ref.json"),
+      JSON.stringify(mutated, null, 2),
+    );
+    writeStripsForRef(slice, stalePassDir);
+
+    const refJson = join(dir, "slice.json");
+    writeFileSync(refJson, JSON.stringify(slice, null, 2));
+
+    const mustFail = judgeStrips({
+      refPath: refJson,
+      candPath: stalePassDir,
       max: 0.01,
       tolerance: 8,
-      cli: realCli,
+      cli: stubCli,
       tempBase: dir,
     });
-    expect(failRes.pass).toBe(false);
-    expect(failRes.failed).toBe(1);
-    expect(failRes.worstFraction).toBeGreaterThan(0.01);
+    expect(mustFail.pass).toBe(false);
+    expect(mustFail.failed).toBe(1);
+
+    // Candidate dir has UNCHANGED layout-ref.json, but stale PNGs drawn from MUTATED slice.
+    // Reusing stale PNGs would falsely fail; re-rendering from JSON must pass.
+    const staleFailDir = join(dir, "stale-fail");
+    mkdirSync(staleFailDir, { recursive: true });
+    writeFileSync(
+      join(staleFailDir, "layout-ref.json"),
+      JSON.stringify(slice, null, 2),
+    );
+    writeStripsForRef(mutated, staleFailDir);
+
+    const mustPass = judgeStrips({
+      refPath: refJson,
+      candPath: staleFailDir,
+      max: 0.01,
+      tolerance: 8,
+      cli: stubCli,
+      tempBase: dir,
+    });
+    expect(mustPass.pass).toBe(true);
+    expect(mustPass.worstFraction).toBe(0);
   });
 
-  it("recipes layout references have no header-logo artifact and real grid values in recipes-grid", () => {
+  it("rejects .cmd and .bat CLI shims with a clear error message", () => {
+    const dir = makeTempDir("cmd-shim-");
+    const cmdPath = join(dir, "craft-anything-cli.cmd");
+    const batPath = join(dir, "craft-anything-cli.bat");
+    writeFileSync(cmdPath, "@echo off\r\n");
+    writeFileSync(batPath, "@echo off\r\n");
+
+    expect(() => resolveCraftCli(cmdPath, {})).toThrow(/\.cmd|\.bat/iu);
+    expect(() => resolveCraftCli(batPath, {})).toThrow(/\.cmd|\.bat/iu);
+
+    const res = spawnSync(
+      process.execPath,
+      [JUDGE_STRIPS_SCRIPT, pricingRefPath, pricingRefPath, `--cli=${cmdPath}`],
+      { encoding: "utf8" },
+    );
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/\.cmd|\.bat/iu);
+  });
+
+  it("exits with a usage error when --slug is combined with positional paths", () => {
+    const dir = makeTempDir("slug-pos-");
+    const stubCli = writePixelCompareStub(dir);
+    const res = spawnSync(
+      process.execPath,
+      [
+        JUDGE_STRIPS_SCRIPT,
+        "--slug",
+        "pricing",
+        pricingRefPath,
+        pricingRefPath,
+        `--cli=${stubCli}`,
+      ],
+      { encoding: "utf8" },
+    );
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("--slug");
+  });
+
+  it("recipes layout references have null grid on every canvas section and real grid values in recipes-grid", () => {
     const { data: canvasRef } = loadLayoutRef(
       join(LAYOUT_REF_DIR, "recipes.json"),
     );
     for (const w of ["1440", "1024", "390"]) {
-      const sec = canvasRef.widths[w].sections[0];
-      expect(sec.grid?.itemW).not.toBe(116);
-      expect(sec.grid?.itemW).not.toBe(780);
+      const sections = canvasRef.widths[w].sections;
+      expect(sections.length).toBeGreaterThan(0);
+      for (const sec of sections) {
+        expect(sec.grid).toBeNull();
+      }
     }
 
     const { data: gridRef } = loadLayoutRef(

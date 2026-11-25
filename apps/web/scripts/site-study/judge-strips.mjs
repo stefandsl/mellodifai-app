@@ -3,6 +3,13 @@
 // A strip draws layout numbers only (gutters, first grid row, insets and gaps as bars),
 // so colour, font, text and imagery are excluded.
 //
+// Prerequisites (local machine only; CI does not run J2):
+//   - Requires craft-anything-cli 0.6.1 (not in the repo, not installed by pnpm install).
+//   - Download v0.6.1 from https://github.com/storytold/craft-anything/releases/tag/v0.6.1
+//   - Point CRAFT_ANYTHING_CLI (or --cli <path>) at the executable, or add it to PATH.
+//   - On Windows, pass craft-anything-cli.exe directly (.cmd/.bat shims are rejected).
+//   - See apps/web/scripts/site-study/README.md for details.
+//
 // Two modes:
 //   1. Direct compare (reference and candidate dirs or layout-ref.json files):
 //      node apps/web/scripts/site-study/judge-strips.mjs <ref> <cand> [--max=0.01] [--tolerance=8] [--cli=<path>]
@@ -18,7 +25,6 @@ import {
   mkdirSync,
   mkdtempSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,9 +43,11 @@ const CLI_NAMES =
     ? ["craft-anything-cli.exe", "craft-anything-cli"]
     : ["craft-anything-cli"];
 
+const BATCH_SHIM_RE = /\.(cmd|bat)$/iu;
+
 /**
  * Resolve the Craft Anything CLI executable from --cli, CRAFT_ANYTHING_CLI, or PATH.
- * No hardcoded machine paths.
+ * No hardcoded machine paths. Rejects Windows .cmd/.bat batch shims explicitly.
  * @param {string | undefined} cliFlag
  * @param {Record<string, string | undefined>} [env]
  * @returns {string | null}
@@ -47,6 +55,11 @@ const CLI_NAMES =
 export function resolveCraftCli(cliFlag, env = process.env) {
   const direct = cliFlag || env.CRAFT_ANYTHING_CLI;
   if (direct) {
+    if (BATCH_SHIM_RE.test(direct.trim())) {
+      throw new Error(
+        `Unsupported CLI batch shim (.cmd/.bat): ${direct}. Point --cli or CRAFT_ANYTHING_CLI directly to the craft-anything-cli executable (craft-anything-cli.exe on Windows).`,
+      );
+    }
     const abs = resolve(direct);
     if (existsSync(abs)) return abs;
     return null;
@@ -80,24 +93,8 @@ function resolveTempRoot(override) {
 }
 
 /**
- * Check whether a directory already contains strips/<w>/<NN>.png for every section of ref.
- * @param {string} dir
- * @param {{ widths: Record<string, { sections: Array<unknown> }> }} ref
- */
-function hasAllStrips(dir, ref) {
-  for (const [w, data] of Object.entries(ref.widths)) {
-    const sections = data.sections ?? [];
-    for (let i = 0; i < sections.length; i += 1) {
-      const nn = String(i).padStart(2, "0");
-      if (!existsSync(join(dir, "strips", w, `${nn}.png`))) return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Prepare a directory containing strips/<w>/<NN>.png from either a layout-ref.json file
- * or a directory (reusing existing strips when present, otherwise rendering into a temp dir).
+ * Render fresh strips/<w>/<NN>.png from layout-ref.json into a temp directory.
+ * Existing PNGs on disk are never reused, so stale strips cannot cause a false verdict.
  * @param {string} targetPath
  * @param {string} label
  * @param {string} tempRoot
@@ -105,9 +102,6 @@ function hasAllStrips(dir, ref) {
 function prepareStripSource(targetPath, label, tempRoot) {
   const abs = resolve(targetPath);
   const { data } = loadLayoutRef(abs);
-  if (statSync(abs).isDirectory() && hasAllStrips(abs, data)) {
-    return { dir: abs, data, cleanup: null };
-  }
   const dir = mkdtempSync(join(tempRoot, `${label}-`));
   writeFileSync(
     join(dir, "layout-ref.json"),
@@ -138,7 +132,7 @@ export function judgeStrips(options) {
   const cliBin = resolveCraftCli(options.cli, options.env);
   if (!cliBin) {
     throw new Error(
-      "craft-anything-cli not found. Pass --cli <path>, set CRAFT_ANYTHING_CLI, or add craft-anything-cli to PATH.",
+      "craft-anything-cli not found (requires Craft Anything 0.6.1, local machine only). Set CRAFT_ANYTHING_CLI, pass --cli <path>, or add craft-anything-cli to PATH. See apps/web/scripts/site-study/README.md.",
     );
   }
 
@@ -398,6 +392,21 @@ if (isMain) {
   const px = flags.px !== undefined ? Number(flags.px) : 4;
   const cli = typeof flags.cli === "string" ? flags.cli : undefined;
 
+  if (flags.slug !== undefined && positionals.length > 0) {
+    console.error(
+      "ERROR: --slug cannot be combined with positional path arguments. Pass either <ref> <cand> for direct compare, or --slug <slug> for one-page J2.",
+    );
+    usage();
+    process.exit(1);
+  }
+  if (positionals.length > 2) {
+    console.error(
+      `ERROR: expected at most 2 positional arguments, got ${positionals.length}.`,
+    );
+    usage();
+    process.exit(1);
+  }
+
   const pageSlug =
     typeof flags.slug === "string"
       ? flags.slug
@@ -405,7 +414,7 @@ if (isMain) {
         ? positionals[0]
         : null;
 
-  if (pageSlug && positionals.length < 2) {
+  if (pageSlug) {
     const base =
       typeof flags.base === "string"
         ? flags.base

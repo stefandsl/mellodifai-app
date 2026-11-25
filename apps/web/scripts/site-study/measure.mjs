@@ -326,6 +326,76 @@ export function defaultRefPathForSlug(slug) {
 }
 
 /**
+ * Wait for a loaded page to settle (network idle, fonts, header hydration, canvas hydration).
+ * Logs a warning naming the width and wait label if any wait times out instead of failing silently.
+ * @param {import("@playwright/test").Page} page
+ * @param {number} width
+ * @param {{ networkIdleTimeout?: number, hydrationTimeout?: number, warn?: (msg: string) => void }} [options]
+ */
+export async function waitForPageReady(page, width, options = {}) {
+  const networkIdleTimeout = options.networkIdleTimeout ?? 12_000;
+  const hydrationTimeout = options.hydrationTimeout ?? 10_000;
+  const warn = options.warn ?? console.warn;
+
+  const warnTimeout = (label, err) => {
+    const detail = err instanceof Error ? err.message : String(err);
+    warn(
+      `WARN [measure width=${width}] wait timed out (${label}): ${detail.split("\n")[0]}`,
+    );
+  };
+
+  await page
+    .waitForLoadState("networkidle", { timeout: networkIdleTimeout })
+    .catch((err) => warnTimeout("networkidle", err));
+  await page.evaluate(() => document.fonts.ready);
+
+  const header = page.locator(".site-header").first();
+  if ((await header.count()) > 0) {
+    await header
+      .waitFor({ state: "attached", timeout: hydrationTimeout })
+      .catch((err) => warnTimeout("header attached (.site-header)", err));
+    await page
+      .waitForFunction(
+        () => {
+          const el = document.querySelector(".site-header");
+          return !el || el.getAttribute("data-scrolled") === "false";
+        },
+        undefined,
+        { timeout: hydrationTimeout },
+      )
+      .catch((err) =>
+        warnTimeout(
+          'header hydration (.site-header[data-scrolled="false"])',
+          err,
+        ),
+      );
+  }
+
+  const canvasStage = page
+    .locator('[data-recipes-canvas-stage="true"]')
+    .first();
+  if ((await canvasStage.count()) > 0) {
+    await page
+      .waitForFunction(
+        () => {
+          const el = document.querySelector(
+            '[data-recipes-canvas-stage="true"]',
+          );
+          return !el || el.getAttribute("data-ready") === "true";
+        },
+        undefined,
+        { timeout: hydrationTimeout },
+      )
+      .catch((err) =>
+        warnTimeout(
+          'canvas hydration ([data-recipes-canvas-stage="true"][data-ready="true"])',
+          err,
+        ),
+      );
+  }
+}
+
+/**
  * Measure a running page across widths and write layout-ref.json plus strips into outDir.
  * @param {{ base: string, route?: string, slug: string, outDir: string, refPath?: string, widths?: number[], lang?: string }} options
  */
@@ -405,45 +475,7 @@ export async function measurePage(options) {
           `HTTP ${status} when loading ${fullUrl} at width ${width}`,
         );
       }
-      await page
-        .waitForLoadState("networkidle", { timeout: 12_000 })
-        .catch(() => {});
-      await page.evaluate(() => document.fonts.ready);
-
-      const header = page.locator(".site-header").first();
-      if ((await header.count()) > 0) {
-        await header
-          .waitFor({ state: "attached", timeout: 10_000 })
-          .catch(() => {});
-        await page
-          .waitForFunction(
-            () => {
-              const el = document.querySelector(".site-header");
-              return !el || el.getAttribute("data-scrolled") === "false";
-            },
-            undefined,
-            { timeout: 10_000 },
-          )
-          .catch(() => {});
-      }
-
-      const canvasStage = page
-        .locator('[data-recipes-canvas-stage="true"]')
-        .first();
-      if ((await canvasStage.count()) > 0) {
-        await page
-          .waitForFunction(
-            () => {
-              const el = document.querySelector(
-                '[data-recipes-canvas-stage="true"]',
-              );
-              return !el || el.getAttribute("data-ready") === "true";
-            },
-            undefined,
-            { timeout: 10_000 },
-          )
-          .catch(() => {});
-      }
+      await waitForPageReady(page, width);
 
       await page.evaluate(() =>
         window.scrollTo({ top: 0, behavior: "instant" }),
