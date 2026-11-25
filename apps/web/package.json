@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests",
     "e2e": "playwright test && playwright test -c playwright.site.config.ts",
     "e2e:site": "playwright test -c playwright.site.config.ts",
+    "judge:j2": "node scripts/site-study/judge-strips.mjs",
     "site:css": "node scripts/build-site-astryx-css.mjs",
     "typecheck": "tsc --noEmit"
   },
