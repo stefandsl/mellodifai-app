@@ -51,6 +51,57 @@ function makeAliasPlugin() {
         }
         return null;
       });
+      build.onResolve({ filter: /^next\/image$/ }, () => ({
+        path: "next-image-shim",
+        namespace: "next-image-shim",
+      }));
+      build.onLoad({ filter: /.*/, namespace: "next-image-shim" }, () => ({
+        contents: `
+          import { jsx } from "react/jsx-runtime";
+          export default function NextImageShim({
+            src,
+            alt,
+            fill,
+            unoptimized: _u,
+            priority,
+            fetchPriority,
+            sizes,
+            className,
+            draggable,
+            style,
+            ...rest
+          }) {
+            const fillStyle = fill
+              ? {
+                  position: "absolute",
+                  height: "100%",
+                  width: "100%",
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  color: "transparent",
+                  ...style,
+                }
+              : style;
+            const isDataUri =
+              typeof src === "string" && src.startsWith("data:");
+            return jsx("img", {
+              src,
+              alt,
+              sizes,
+              className,
+              draggable,
+              decoding: isDataUri ? "sync" : "async",
+              fetchPriority: isDataUri ? "high" : undefined,
+              style: fillStyle,
+              ...rest,
+            });
+          }
+        `,
+        loader: "js",
+        resolveDir: WEB_DIR,
+      }));
       build.onResolve({ filter: /\.css$/ }, () => ({
         path: "empty-css",
         namespace: "empty-css",
@@ -58,6 +109,7 @@ function makeAliasPlugin() {
       build.onLoad({ filter: /.*/, namespace: "empty-css" }, () => ({
         contents: "",
         loader: "js",
+        resolveDir: WEB_DIR,
       }));
     },
   };
@@ -110,7 +162,7 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
   return {
     outDir,
     pages: Object.keys(pages),
-    islands: islandEntries.map((e) => path.basename(e, ".ts") + ".js"),
+    islands: islandEntries.map((e) => `${path.basename(e, ".ts")}.js`),
   };
 }
 

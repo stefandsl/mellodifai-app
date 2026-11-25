@@ -482,10 +482,27 @@ export function buildMinifiedPageCss(options: {
     `${prunedAstryx}\n${nonAstryxCss}\n${options.bodyHtml}`,
   );
 
+  let finalSiteCss = prunedSiteCss;
+  if (
+    options.page === "recipes" &&
+    finalSiteCss.includes("/site/brand-mark.png")
+  ) {
+    const brandPath = path.join(WEB_DIR, "public/site/brand-mark.png");
+    if (fs.existsSync(brandPath)) {
+      const b64 = fs.readFileSync(brandPath).toString("base64");
+      finalSiteCss =
+        `:root{--site-brand-mask:url("data:image/png;base64,${b64}")}\n` +
+        finalSiteCss.replaceAll(
+          /url\(["']?\/site\/brand-mark\.png["']?\)/gu,
+          "var(--site-brand-mask)",
+        );
+    }
+  }
+
   const combinedHead = [
     prunedAstryx,
     prunedMeshCss,
-    prunedSiteCss,
+    finalSiteCss,
     extraPageCss,
     AGENTS_MENU_CSS,
     pageCvCss,
