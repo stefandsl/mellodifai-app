@@ -1,6 +1,5 @@
 import { HStack } from "@astryxdesign/core/HStack";
-import { Link } from "@astryxdesign/core/Link";
-import { Text } from "@astryxdesign/core/Text";
+import { SiteLink, SiteText } from "@/src/site-primitives";
 
 // The logo file is pure red; the mark is painted through it in the brand ember token, so the
 // logo and the accent word of the hero are one red family.
@@ -12,7 +11,7 @@ export function Brand({
   size?: "header" | "footer";
 }) {
   return (
-    <Link
+    <SiteLink
       href="/"
       label={label}
       color="inherit"
@@ -20,10 +19,10 @@ export function Brand({
     >
       <HStack as="span" gap={2} align="center">
         <HStack as="span" className="site-brand__mark" aria-hidden="true" />
-        <Text className="site-brand__name" color="inherit">
+        <SiteText className="site-brand__name" color="inherit">
           MellodifAI
-        </Text>
+        </SiteText>
       </HStack>
-    </Link>
+    </SiteLink>
   );
 }

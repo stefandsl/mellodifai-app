@@ -1,12 +1,15 @@
-import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
-import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
-import { Icon } from "@astryxdesign/core/Icon";
-import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { PERIODS, type Period } from "@/lib/site/plans";
+import type { Period } from "@/lib/site/plans";
+import {
+  SiteButtonLink,
+  SiteHeading,
+  SiteIcon,
+  SiteText,
+} from "@/src/site-primitives";
 import { CheckGlyph } from "./icons";
+import { PlanUnits } from "./period-context";
 
 export type PlanCardProps = {
   name: string;
@@ -17,12 +20,9 @@ export type PlanCardProps = {
   price: string;
   /** The unit under the price for each billing period ("per month"). */
   units: Record<Period, string>;
-  period: Period;
   recommended?: string;
   /** 2 when the card titles sit right under the page title, 3 under a section title. */
   headingLevel?: 2 | 3;
-  /** The unit fades in when the period changes, not at load. */
-  animate?: boolean;
 };
 
 // One plan: name, price, unit, one line, the main action and what the plan holds.
@@ -36,10 +36,8 @@ export function PlanCard({
   href,
   price,
   units,
-  period,
   recommended,
   headingLevel = 3,
-  animate = false,
 }: PlanCardProps) {
   return (
     <Card
@@ -48,38 +46,25 @@ export function PlanCard({
     >
       <VStack gap={6} className="site-plan-card__body">
         <HStack justify="between" align="center" gap={2} wrap="wrap">
-          <Heading level={headingLevel} className="site-plan__name">
+          <SiteHeading level={headingLevel} className="site-plan__name">
             {name}
-          </Heading>
+          </SiteHeading>
           {recommended ? (
-            <Text type="code" className="site-tag site-tag--accent">
+            <SiteText type="code" className="site-tag site-tag--accent">
               {recommended}
-            </Text>
+            </SiteText>
           ) : null}
         </HStack>
         <VStack gap={1}>
-          <Text className="site-plan__price site-plan-card__price">
+          <SiteText className="site-plan__price site-plan-card__price">
             {price}
-          </Text>
-          <VStack className="site-plan-card__units" data-animate={animate}>
-            {PERIODS.map((p) => (
-              <Text
-                key={p}
-                type="supporting"
-                color="secondary"
-                className="site-plan-card__unit"
-                data-shown={p === period}
-                aria-hidden={p !== period}
-              >
-                {units[p]}
-              </Text>
-            ))}
-          </VStack>
+          </SiteText>
+          <PlanUnits units={units} />
         </VStack>
-        <Text as="p" color="secondary">
+        <SiteText as="p" color="secondary">
           {line}
-        </Text>
-        <Button
+        </SiteText>
+        <SiteButtonLink
           label={action}
           href={href}
           variant={recommended ? "primary" : "secondary"}
@@ -88,8 +73,8 @@ export function PlanCard({
         <VStack as="ul" gap={3} className="site-plan__list">
           {items.map((item) => (
             <HStack as="li" key={item} gap={2} align="start">
-              <Icon icon={CheckGlyph} size="sm" color="secondary" />
-              <Text type="supporting">{item}</Text>
+              <SiteIcon icon={CheckGlyph} size="sm" color="secondary" />
+              <SiteText type="supporting">{item}</SiteText>
             </HStack>
           ))}
         </VStack>

@@ -1,18 +1,22 @@
-import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
-import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
-import { Icon } from "@astryxdesign/core/Icon";
-import { Link } from "@astryxdesign/core/Link";
-import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { SiteCopy } from "@/lib/site/copy";
 import { AGENTS, agentHref, href } from "@/lib/site/nav";
+import {
+  SiteButtonLink,
+  SiteHeading,
+  SiteIcon,
+  SiteLink,
+  SiteText,
+} from "@/src/site-primitives";
 import { Cover, type CoverKind, Wave } from "./art";
 import { HeroStudio } from "./hero-studio";
-import { KindsStage, PlansBlock } from "./home-client";
-import { ArrowGlyph } from "./icons";
+import { KindsStage } from "./home-client";
+import { ArrowGlyph, CheckGlyph } from "./icons";
+import { PeriodProvider, PlanUnits } from "./period-context";
+import { PeriodSwitch } from "./period-switch";
 
 const AGENT_TITLES = {
   claude: "Claude",
@@ -46,22 +50,22 @@ export function Home({ copy }: { copy: SiteCopy }) {
         <VStack className="site-mesh site-mesh--sky" aria-hidden="true" />
         <VStack className="site-mesh site-mesh--stage" aria-hidden="true" />
         <VStack className="site-hero__copy" hAlign="center">
-          <Heading
+          <SiteHeading
             level={1}
             id="hero-title"
             type="display-1"
             justify="center"
             className="site-hero__title"
           >
-            <Text className="site-hero__title-line" color="inherit">
+            <SiteText className="site-hero__title-line" color="inherit">
               {h.titleA}
-            </Text>{" "}
-            <Text className="site-hero__title-line" color="inherit">
+            </SiteText>{" "}
+            <SiteText className="site-hero__title-line" color="inherit">
               {h.titleB} <em className="site-accent">{h.accent}</em>
               {h.titleEnd}
-            </Text>
-          </Heading>
-          <Text
+            </SiteText>
+          </SiteHeading>
+          <SiteText
             as="p"
             type="large"
             color="secondary"
@@ -69,9 +73,9 @@ export function Home({ copy }: { copy: SiteCopy }) {
             className="site-hero__lede"
           >
             {h.lede}
-          </Text>
+          </SiteText>
           <HStack gap={3} justify="center" className="site-hero__actions">
-            <Button
+            <SiteButtonLink
               label={h.primary}
               href={href("start")}
               variant="secondary"
@@ -89,18 +93,18 @@ export function Home({ copy }: { copy: SiteCopy }) {
             wrap="wrap"
           >
             <HStack gap={2} align="center" wrap="wrap" justify="center">
-              <Text type="supporting" color="secondary">
+              <SiteText type="supporting" color="secondary">
                 {h.kindsLabel}
-              </Text>
+              </SiteText>
               {copy.kinds.items.slice(0, 6).map((k) => (
-                <Link
+                <SiteLink
                   key={k.name}
                   href={href("songbook")}
                   color="inherit"
                   className="site-pill"
                 >
                   {k.name}
-                </Link>
+                </SiteLink>
               ))}
             </HStack>
             <HStack
@@ -110,18 +114,18 @@ export function Home({ copy }: { copy: SiteCopy }) {
               justify="center"
               id="agents"
             >
-              <Text type="supporting" color="secondary">
+              <SiteText type="supporting" color="secondary">
                 {h.agentsLabel}
-              </Text>
+              </SiteText>
               {AGENTS.map((a) => (
-                <Link
+                <SiteLink
                   key={a}
                   href={agentHref(a)}
                   color="inherit"
                   className="site-pill"
                 >
                   {AGENT_TITLES[a]}
-                </Link>
+                </SiteLink>
               ))}
             </HStack>
           </HStack>
@@ -138,15 +142,15 @@ export function Home({ copy }: { copy: SiteCopy }) {
         hAlign="center"
       >
         <VStack gap={3} hAlign="center">
-          <Heading
+          <SiteHeading
             level={2}
             id="show-title"
             justify="center"
             className="site-title"
           >
             {copy.showcase.title}
-          </Heading>
-          <Text
+          </SiteHeading>
+          <SiteText
             as="p"
             type="large"
             color="secondary"
@@ -154,7 +158,7 @@ export function Home({ copy }: { copy: SiteCopy }) {
             className="site-lede"
           >
             {copy.showcase.line}
-          </Text>
+          </SiteText>
         </VStack>
         <VStack
           className="site-show__rows"
@@ -178,17 +182,17 @@ export function Home({ copy }: { copy: SiteCopy }) {
                 >
                   <Cover kind={SHOW_ART[(i + row * 3) % SHOW_ART.length]} />
                   <VStack gap={0.5}>
-                    <Text weight="medium">{song.title}</Text>
-                    <Text type="supporting" color="secondary">
+                    <SiteText weight="medium">{song.title}</SiteText>
+                    <SiteText type="supporting" color="secondary">
                       {song.meta}
-                    </Text>
+                    </SiteText>
                   </VStack>
                 </VStack>
               ))}
             </HStack>
           ))}
         </VStack>
-        <Button
+        <SiteButtonLink
           label={copy.showcase.action}
           href={href("start")}
           variant="secondary"
@@ -205,13 +209,13 @@ export function Home({ copy }: { copy: SiteCopy }) {
         data-ref-section="2"
         aria-labelledby="steps-title"
       >
-        <Heading
+        <SiteHeading
           level={2}
           id="steps-title"
           className="site-title site-steps__title"
         >
           {copy.steps.title}
-        </Heading>
+        </SiteHeading>
         <HStack
           className="site-steps__grid"
           data-ref-grid
@@ -234,15 +238,19 @@ export function Home({ copy }: { copy: SiteCopy }) {
                   />
                 </VStack>
                 <VStack gap={1}>
-                  <Text type="code" color="secondary" className="site-eyebrow">
+                  <SiteText
+                    type="code"
+                    color="secondary"
+                    className="site-eyebrow"
+                  >
                     {String(i + 1).padStart(2, "0")}
-                  </Text>
-                  <Heading level={3} className="site-step__title">
+                  </SiteText>
+                  <SiteHeading level={3} className="site-step__title">
                     {step.title}
-                  </Heading>
-                  <Text as="p" color="secondary">
+                  </SiteHeading>
+                  <SiteText as="p" color="secondary">
                     {step.line}
-                  </Text>
+                  </SiteText>
                 </VStack>
               </VStack>
             </Card>
@@ -257,12 +265,12 @@ export function Home({ copy }: { copy: SiteCopy }) {
         data-ref-section="3"
         gap={3}
       >
-        <Heading level={2} className="site-title">
+        <SiteHeading level={2} className="site-title">
           {copy.features.title}
-        </Heading>
-        <Text as="p" type="large" color="secondary">
+        </SiteHeading>
+        <SiteText as="p" type="large" color="secondary">
           {copy.features.line}
-        </Text>
+        </SiteText>
       </VStack>
 
       {/* 4-6. Features: number, title, points, and a picture of the part */}
@@ -275,22 +283,22 @@ export function Home({ copy }: { copy: SiteCopy }) {
           aria-labelledby={`feature-${i}`}
         >
           <HStack className="site-feature__grid" data-ref-grid>
-            <Text
+            <SiteText
               as="p"
               type="code"
               color="secondary"
               className="site-feature__note site-eyebrow"
             >
               {f.label}
-            </Text>
+            </SiteText>
             <VStack className="site-feature__text" gap={6}>
-              <Heading level={3} id={`feature-${i}`} className="site-title">
+              <SiteHeading level={3} id={`feature-${i}`} className="site-title">
                 {f.title}
-              </Heading>
+              </SiteHeading>
               <VStack as="ol" className="site-feature__points">
                 {f.points.map((p) => (
                   <VStack as="li" key={p} className="site-feature__point">
-                    <Text>{p}</Text>
+                    <SiteText>{p}</SiteText>
                   </VStack>
                 ))}
               </VStack>
@@ -301,14 +309,14 @@ export function Home({ copy }: { copy: SiteCopy }) {
               gap={3}
             >
               <FeaturePicture copy={copy} index={i} />
-              <Text
+              <SiteText
                 as="p"
                 type="supporting"
                 color="secondary"
                 className="site-feature__caption"
               >
                 {f.caption}
-              </Text>
+              </SiteText>
             </VStack>
           </HStack>
         </VStack>
@@ -330,12 +338,12 @@ export function Home({ copy }: { copy: SiteCopy }) {
             wrap="wrap"
             gap={4}
           >
-            <Heading level={2} id="platform-title" className="site-title">
+            <SiteHeading level={2} id="platform-title" className="site-title">
               {copy.platform.title}
-            </Heading>
-            <Link href={href("desktop")} className="site-link">
+            </SiteHeading>
+            <SiteLink href={href("desktop")} className="site-link">
               {copy.platform.link}
-            </Link>
+            </SiteLink>
           </HStack>
           <HStack
             className="site-platform__grid"
@@ -352,10 +360,10 @@ export function Home({ copy }: { copy: SiteCopy }) {
             <VStack as="ul" className="site-platform__notes" gap={6}>
               {copy.platform.notes.map((n) => (
                 <VStack as="li" key={n.title} gap={1}>
-                  <Text weight="medium">{n.title}</Text>
-                  <Text type="supporting" color="secondary">
+                  <SiteText weight="medium">{n.title}</SiteText>
+                  <SiteText type="supporting" color="secondary">
                     {n.line}
-                  </Text>
+                  </SiteText>
                 </VStack>
               ))}
             </VStack>
@@ -373,12 +381,12 @@ export function Home({ copy }: { copy: SiteCopy }) {
         gap={10}
       >
         <VStack gap={3}>
-          <Heading level={2} id="kinds-title" className="site-title">
+          <SiteHeading level={2} id="kinds-title" className="site-title">
             {copy.kinds.title}
-          </Heading>
-          <Text as="p" type="large" color="secondary">
+          </SiteHeading>
+          <SiteText as="p" type="large" color="secondary">
             {copy.kinds.line}
-          </Text>
+          </SiteText>
         </VStack>
         <KindsStage copy={copy.kinds} />
       </VStack>
@@ -392,15 +400,15 @@ export function Home({ copy }: { copy: SiteCopy }) {
         aria-labelledby="plans-title"
         gap={8}
       >
-        <Heading
+        <SiteHeading
           level={2}
           id="plans-title"
           justify="center"
           className="site-title"
         >
           {copy.plans.title}
-        </Heading>
-        <PlansBlock copy={copy.plans} />
+        </SiteHeading>
+        <HomePlans copy={copy.plans} />
       </VStack>
 
       {/* 10. FAQ: title left, five questions right */}
@@ -412,13 +420,13 @@ export function Home({ copy }: { copy: SiteCopy }) {
         data-ref-grid
         aria-labelledby="faq-title"
       >
-        <Heading
+        <SiteHeading
           level={2}
           id="faq-title"
           className="site-title site-faq__title"
         >
           {copy.faq.title}
-        </Heading>
+        </SiteHeading>
         <VStack className="site-faq__list">
           {copy.faq.items.map((item) => (
             <Collapsible
@@ -426,14 +434,14 @@ export function Home({ copy }: { copy: SiteCopy }) {
               defaultIsOpen={false}
               className="site-faq__item"
               trigger={
-                <Text weight="medium" className="site-faq__q">
+                <SiteText weight="medium" className="site-faq__q">
                   {item.q}
-                </Text>
+                </SiteText>
               }
             >
-              <Text as="p" color="secondary" className="site-faq__a">
+              <SiteText as="p" color="secondary" className="site-faq__a">
                 {item.a}
-              </Text>
+              </SiteText>
             </Collapsible>
           ))}
         </VStack>
@@ -458,7 +466,7 @@ export function Home({ copy }: { copy: SiteCopy }) {
             gap={8}
             hAlign="center"
           >
-            <Heading
+            <SiteHeading
               level={2}
               id="close-title"
               type="display-2"
@@ -466,21 +474,87 @@ export function Home({ copy }: { copy: SiteCopy }) {
               className="site-close__title"
             >
               {copy.closing.title}
-            </Heading>
-            <Button
+            </SiteHeading>
+            <SiteButtonLink
               label={copy.closing.action}
               href={href("start")}
               variant="primary"
               size="lg"
-              icon={<Icon icon={ArrowGlyph} size="sm" color="inherit" />}
+              icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
             />
-            <Text type="supporting" color="secondary" justify="center">
+            <SiteText type="supporting" color="secondary" justify="center">
               {copy.closing.note}
-            </Text>
+            </SiteText>
           </VStack>
         </VStack>
       </VStack>
     </>
+  );
+}
+
+function HomePlans({ copy }: { copy: SiteCopy["plans"] }) {
+  return (
+    <PeriodProvider>
+      <VStack className="site-plans__body" gap={8} hAlign="center">
+        <PeriodSwitch
+          label={copy.switchLabel}
+          options={[
+            { value: "monthly", label: copy.monthly },
+            { value: "yearly", label: copy.yearly },
+          ]}
+        />
+        <HStack
+          className="site-plans__grid"
+          data-ref-grid
+          data-ref-grid-widths="1440,1024"
+        >
+          {copy.items.map((plan, i) => (
+            <Card
+              key={plan.name}
+              className={`site-plan ${i === 2 ? "site-plan--chosen" : ""}`}
+              padding={6}
+            >
+              <VStack gap={4}>
+                <HStack justify="between" align="center" gap={2} wrap="wrap">
+                  <SiteHeading level={3} className="site-plan__name">
+                    {plan.name}
+                  </SiteHeading>
+                  {i === 2 ? (
+                    <SiteText type="code" className="site-tag site-tag--accent">
+                      {copy.recommended}
+                    </SiteText>
+                  ) : null}
+                </HStack>
+                <VStack gap={1}>
+                  <SiteText className="site-plan__price">{copy.price}</SiteText>
+                  <PlanUnits units={copy.period} stacked={false} />
+                </VStack>
+                <SiteText as="p" color="secondary">
+                  {plan.line}
+                </SiteText>
+                <SiteButtonLink
+                  label={plan.action}
+                  href={href("start")}
+                  variant={i === 2 ? "primary" : "secondary"}
+                  width="100%"
+                />
+                <VStack as="ul" gap={2} className="site-plan__list">
+                  {plan.items.map((item) => (
+                    <HStack as="li" key={item} gap={2} align="start">
+                      <SiteIcon icon={CheckGlyph} size="sm" color="secondary" />
+                      <SiteText type="supporting">{item}</SiteText>
+                    </HStack>
+                  ))}
+                </VStack>
+              </VStack>
+            </Card>
+          ))}
+        </HStack>
+        <SiteLink href={href("plans")} className="site-link">
+          {copy.compare}
+        </SiteLink>
+      </VStack>
+    </PeriodProvider>
   );
 }
 
@@ -492,16 +566,16 @@ function FeaturePicture({ copy, index }: { copy: SiteCopy; index: number }) {
       <Card className="site-sheet" padding={6} aria-hidden="true">
         <VStack gap={4}>
           <HStack justify="between">
-            <Text type="code" color="secondary" className="site-eyebrow">
+            <SiteText type="code" color="secondary" className="site-eyebrow">
               {s.bar}
-            </Text>
-            <Text type="code" color="secondary" className="site-eyebrow">
+            </SiteText>
+            <SiteText type="code" color="secondary" className="site-eyebrow">
               {copy.hero.take}
-            </Text>
+            </SiteText>
           </HStack>
           <VStack as="ol" gap={2} className="site-sheet__lines">
             {s.lines.map((line, i) => (
-              <Text
+              <SiteText
                 as="p"
                 key={line}
                 className={`site-sheet__line ${i === s.editLine ? "is-editing" : ""}`}
@@ -515,12 +589,12 @@ function FeaturePicture({ copy, index }: { copy: SiteCopy; index: number }) {
                 ) : (
                   line
                 )}
-              </Text>
+              </SiteText>
             ))}
           </VStack>
-          <Text type="supporting" color="secondary">
+          <SiteText type="supporting" color="secondary">
             {s.foot}
-          </Text>
+          </SiteText>
         </VStack>
       </Card>
     );
@@ -536,13 +610,13 @@ function FeaturePicture({ copy, index }: { copy: SiteCopy; index: number }) {
               align="center"
               className="site-studio__lane"
             >
-              <Text
+              <SiteText
                 type="code"
                 color="secondary"
                 className="site-studio__lane-name site-eyebrow"
               >
                 {lane}
-              </Text>
+              </SiteText>
               <Wave
                 seed={51 + i * 3}
                 phrases={i === 1 ? 0 : 3}
@@ -556,9 +630,9 @@ function FeaturePicture({ copy, index }: { copy: SiteCopy; index: number }) {
               />
             </HStack>
           ))}
-          <Text type="supporting" color="secondary">
+          <SiteText type="supporting" color="secondary">
             {f.voice.foot}
-          </Text>
+          </SiteText>
         </VStack>
       </Card>
     );
@@ -578,16 +652,16 @@ function FeaturePicture({ copy, index }: { copy: SiteCopy; index: number }) {
               className="site-out__cover"
             />
             <VStack gap={0.5}>
-              <Text weight="medium">{row.name}</Text>
-              <Text type="supporting" color="secondary">
+              <SiteText weight="medium">{row.name}</SiteText>
+              <SiteText type="supporting" color="secondary">
                 {row.meta}
-              </Text>
+              </SiteText>
             </VStack>
           </HStack>
         ))}
-        <Text type="supporting" color="secondary">
+        <SiteText type="supporting" color="secondary">
           {f.out.foot}
-        </Text>
+        </SiteText>
       </VStack>
     </Card>
   );
@@ -605,20 +679,20 @@ function StudioPicture({ copy }: { copy: SiteCopy }) {
             className={`site-shot__song ${i === 0 ? "is-open" : ""}`}
           >
             <Cover kind={SHOW_ART[i]} className="site-shot__cover" />
-            <Text type="supporting" maxLines={1}>
+            <SiteText type="supporting" maxLines={1}>
               {s.title}
-            </Text>
+            </SiteText>
           </HStack>
         ))}
       </VStack>
       <VStack className="site-shot__main" gap={3}>
-        <Text type="code" color="secondary" className="site-eyebrow">
+        <SiteText type="code" color="secondary" className="site-eyebrow">
           {copy.features.sheet.bar}
-        </Text>
+        </SiteText>
         {copy.features.sheet.lines.map((line) => (
-          <Text key={line} className="site-shot__line">
+          <SiteText key={line} className="site-shot__line">
             {line}
-          </Text>
+          </SiteText>
         ))}
         <Wave seed={77} phrases={4} take={[0.5, 0.66]} />
       </VStack>

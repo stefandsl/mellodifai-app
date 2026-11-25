@@ -107,6 +107,13 @@ export type SiteCopy = {
     faq: Question[];
   };
   closing: { title: string; action: string; note: string; label: string };
+  notFound: {
+    meta: { title: string; description: string };
+    code: string;
+    title: string;
+    line: string;
+    home: string;
+  };
   recipes: {
     meta: { title: string; description: string };
     title: string;
@@ -498,6 +505,16 @@ const en: SiteCopy = {
     action: "Start a song",
     note: "Runs in your browser. No download needed.",
     label: "Covers of example songs",
+  },
+  notFound: {
+    meta: {
+      title: "Page not found - MellodifAI",
+      description: "This page does not exist on MellodifAI.",
+    },
+    code: "404",
+    title: "This page is not here",
+    line: "The link may be old, or the address may have a typo.",
+    home: "Back to home",
   },
   recipes: {
     meta: {
@@ -911,6 +928,16 @@ const it: SiteCopy = {
     action: "Inizia una canzone",
     note: "Funziona nel browser. Non serve scaricare nulla.",
     label: "Copertine di canzoni di esempio",
+  },
+  notFound: {
+    meta: {
+      title: "Pagina non trovata - MellodifAI",
+      description: "Questa pagina non esiste su MellodifAI.",
+    },
+    code: "404",
+    title: "Questa pagina non c'è",
+    line: "Il link potrebbe essere vecchio, oppure l'indirizzo ha un errore.",
+    home: "Torna alla home",
   },
   recipes: {
     meta: {

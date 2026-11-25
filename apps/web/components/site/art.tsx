@@ -26,9 +26,9 @@ export function wavePath(
     const envelope = phrases
       ? Math.max(0.04, Math.sin(Math.PI * ((t * phrases) % 1)) ** 0.6)
       : 0.55 + 0.25 * Math.sin(t * 9);
-    const h = Math.min(46, 4 + envelope * (28 + rnd() * 16));
-    const x = (i * step + step / 2).toFixed(1);
-    d += `M${x} ${(50 - h).toFixed(1)}V${(50 + h).toFixed(1)}`;
+    const h = Math.round(Math.min(46, 4 + envelope * (28 + rnd() * 16)));
+    const x = Math.round(i * step + step / 2);
+    d += `M${x} ${50 - h}V${50 + h}`;
   }
   return d;
 }
@@ -44,8 +44,8 @@ export function Wave({
   className?: string;
   take?: [number, number];
 }) {
-  const bars = 192;
-  const step = 5;
+  const bars = 96;
+  const step = 10;
   const all = wavePath(seed, bars, step, phrases);
   return (
     <svg
@@ -80,10 +80,10 @@ export function Rule() {
       focusable="false"
     >
       <path
-        d={wavePath(7, 400, 6, 3).replaceAll(
+        d={wavePath(7, 240, 10, 3).replaceAll(
           /M([\d.]+) ([\d.]+)V([\d.]+)/gu,
           (_m, x, a, b) =>
-            `M${x} ${(27.5 - (50 - Number(a)) * 0.5).toFixed(1)}V${(27.5 + (Number(b) - 50) * 0.5).toFixed(1)}`,
+            `M${x} ${Math.round(27.5 - (50 - Number(a)) * 0.5)}V${Math.round(27.5 + (Number(b) - 50) * 0.5)}`,
         )}
       />
     </svg>

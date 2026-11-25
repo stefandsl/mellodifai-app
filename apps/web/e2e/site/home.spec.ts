@@ -542,7 +542,8 @@ test("fonts arriving 1.2 s late move nothing; blocked fonts cut nothing", async 
       await page.evaluate(() => (window as unknown as { cls: number }).cls),
     ).toBeLessThan(0.05);
 
-  await page.unroute(/\/site\/fonts\//u);
+  // A font request can still sit in the slow handler; drop it without "Route is already handled".
+  await page.unrouteAll({ behavior: "ignoreErrors" });
   await page.route(/\/site\/fonts\//u, (route) => route.abort());
   await page.goto("/");
   expect(
@@ -648,6 +649,54 @@ test("no link of the site ends on a missing page", async ({
     expect(res.status(), h).toBeLessThan(400);
     if (hash) expect(await page.locator(`#${hash}`).count(), h).toBe(1);
   }
+});
+
+test("unknown URL returns 404 with lang, site look, link home and no axe violations", async ({
+  page,
+  baseURL,
+}) => {
+  const missingPath = "/this-url-does-not-exist-404-check";
+  const res = await page.goto(missingPath);
+  expect(res?.status()).toBe(404);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-astryx-theme",
+    "mesh",
+  );
+  await expect(page.locator(".site")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    en.notFound.title,
+  );
+  const homeLink = page.getByRole("link", { name: en.notFound.home });
+  await expect(homeLink).toHaveAttribute("href", "/");
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const result = await new AxeBuilder({ page }).analyze();
+  const bad = result.violations.filter(
+    (v) => v.impact === "serious" || v.impact === "critical",
+  );
+  expect(
+    bad.map(
+      (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
+    ),
+  ).toEqual([]);
+
+  await page.context().addCookies([
+    {
+      name: "mellodifai_lang",
+      value: "it",
+      url: baseURL ?? "http://127.0.0.1",
+    },
+  ]);
+  const itRes = await page.goto(missingPath);
+  expect(itRes?.status()).toBe(404);
+  await expect(page.locator("html")).toHaveAttribute("lang", "it");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    SITE_COPY.it.notFound.title,
+  );
+
+  await page.getByRole("link", { name: SITE_COPY.it.notFound.home }).click();
+  await expect(page).toHaveURL(/\/$/u);
 });
 
 test("likeness judge: section order and grid of the study within one spacing step", async ({

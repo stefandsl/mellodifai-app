@@ -68,7 +68,7 @@ vi.mock("@/components/project-workspace", () => ({
 vi.mock("@/components/live-timeline", () => ({ LiveTimeline: () => null }));
 vi.mock("@/components/worker-badge", () => ({ WorkerBadge: () => null }));
 
-import ProjectPage from "@/app/(app)/projects/[id]/page";
+import ProjectPage from "@/app/(studio)/(app)/projects/[id]/page";
 
 beforeEach(() => {
   vi.clearAllMocks();

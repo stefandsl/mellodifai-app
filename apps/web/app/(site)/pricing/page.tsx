@@ -1,5 +1,5 @@
+import "@/src/site-astryx-table.css";
 import "@/components/site/parts.css";
-import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { Metadata } from "next";
@@ -9,6 +9,7 @@ import { PricingPlans } from "@/components/site/pricing-plans";
 import { getLocale } from "@/lib/locale";
 import { SITE_COPY } from "@/lib/site/copy";
 import { COMPARE } from "@/lib/site/plans";
+import { SiteHeading } from "@/src/site-primitives";
 
 // The pricing page (STUDY.md "Pricing"): head with the period switch, four plan cards, the
 // compare table and the questions. Each block carries `data-ref-section` with the index of the
@@ -36,13 +37,13 @@ export default async function PricingPage() {
         aria-labelledby="compare-title"
         gap={6}
       >
-        <Heading
+        <SiteHeading
           level={2}
           id="compare-title"
           className="site-price-compare__title"
         >
           {p.compareTitle}
-        </Heading>
+        </SiteHeading>
         <CompareTable
           labelledBy="compare-title"
           featureColumn={p.featureColumn}
@@ -69,13 +70,13 @@ export default async function PricingPage() {
         data-ref-grid
         aria-labelledby="pricing-faq-title"
       >
-        <Heading
+        <SiteHeading
           level={2}
           id="pricing-faq-title"
           className="site-title site-faq__title"
         >
           {p.faqTitle}
-        </Heading>
+        </SiteHeading>
         <Faq items={p.faq} />
       </HStack>
     </>

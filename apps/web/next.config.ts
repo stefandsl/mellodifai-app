@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
+    globalNotFound: true,
     // The desktop app builds unattended on the owner's PC: Next's upgrade nudge for coding
     // agents stops `next build` with an error when the build runs under one, so turn it off there.
     ...(process.env.MDF_UNATTENDED_BUILD === "1" && {

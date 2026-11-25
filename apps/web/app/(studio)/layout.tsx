@@ -1,7 +1,7 @@
 import { t } from "@mellodifai/shared";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import { LocaleProvider } from "@/components/locale-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getLocale } from "@/lib/locale";

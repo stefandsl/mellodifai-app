@@ -26,8 +26,11 @@ test("public recipes API, search endpoint, markdown catalog and media assets ser
   const missingRes = await request.get("/api/v1/recipes/no-such-recipe");
   expect(missingRes.status()).toBe(404);
 
+  // The first hit on a dev server compiles the route; time a warm request.
+  const searchUrl = "/api/v1/recipes/search?q=piano&lang=en";
+  expect((await request.get(searchUrl)).status()).toBe(200);
   const start = performance.now();
-  const searchRes = await request.get("/api/v1/recipes/search?q=piano&lang=en");
+  const searchRes = await request.get(searchUrl);
   const elapsedMs = performance.now() - start;
   expect(searchRes.status()).toBe(200);
   expect(elapsedMs).toBeLessThan(1000);

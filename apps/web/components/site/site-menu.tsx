@@ -2,13 +2,16 @@
 
 import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
-import { Icon } from "@astryxdesign/core/Icon";
-import { Link } from "@astryxdesign/core/Link";
-import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useEffect, useRef, useState } from "react";
 import type { SiteCopy } from "@/lib/site/copy";
 import { HEADER_LINKS, href } from "@/lib/site/nav";
+import {
+  SiteButtonLink,
+  SiteIcon,
+  SiteLink,
+  SiteText,
+} from "@/src/site-primitives";
 import { Brand } from "./brand";
 import { CloseGlyph, MenuGlyph } from "./icons";
 
@@ -58,7 +61,7 @@ export function SiteMenu({ copy }: { copy: SiteCopy }) {
         ref={opener}
         label={copy.menu.open}
         isIconOnly
-        icon={<Icon icon={MenuGlyph} size="sm" color="inherit" />}
+        icon={<SiteIcon icon={MenuGlyph} size="sm" color="inherit" />}
         variant="secondary"
         size="sm"
         className="site-menu__open"
@@ -73,7 +76,7 @@ export function SiteMenu({ copy }: { copy: SiteCopy }) {
             <Button
               label={copy.menu.close}
               isIconOnly
-              icon={<Icon icon={CloseGlyph} size="sm" color="inherit" />}
+              icon={<SiteIcon icon={CloseGlyph} size="sm" color="inherit" />}
               variant="secondary"
               size="sm"
               onClick={hide}
@@ -85,34 +88,34 @@ export function SiteMenu({ copy }: { copy: SiteCopy }) {
             className="site-menu__list"
           >
             {HEADER_LINKS.map((name, i) => (
-              <Link
+              <SiteLink
                 key={name}
                 href={href(name)}
                 color="inherit"
                 className="site-menu__link"
                 onClick={hide}
               >
-                <Text
+                <SiteText
                   type="code"
                   color="secondary"
                   className="site-menu__index"
                 >
                   {String(i + 1).padStart(2, "0")}
-                </Text>
-                <Text className="site-menu__label" color="inherit">
+                </SiteText>
+                <SiteText className="site-menu__label" color="inherit">
                   {copy.nav[name]}
-                </Text>
-              </Link>
+                </SiteText>
+              </SiteLink>
             ))}
           </VStack>
           <VStack gap={2} className="site-menu__actions">
-            <Button
+            <SiteButtonLink
               label={copy.nav.signIn}
               href={href("signIn")}
               variant="secondary"
               size="lg"
             />
-            <Button
+            <SiteButtonLink
               label={copy.nav.start}
               href={href("start")}
               variant="primary"
