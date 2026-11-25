@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   defaultVisualizerParams,
@@ -23,6 +22,7 @@ import {
   upscaleImage,
   VISUALIZER_PACKAGE,
 } from "../src/stages/visualizer.js";
+import { testTempBase } from "./support/temp-base.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -39,12 +39,7 @@ async function setup(
   params: VisualizerParams,
   { renderCode = 0, cover = true, imageSize = "4000x4000" } = {},
 ) {
-  const scratch =
-    process.platform === "win32"
-      ? "E:/mellodifai/codex-streams/rerender/tmp"
-      : tmpdir();
-  await mkdir(scratch, { recursive: true });
-  const root = await mkdtemp(join(scratch, "visualizer-tests-"));
+  const root = await mkdtemp(join(await testTempBase(), "visualizer-tests-"));
   roots.push(root);
   const ws = {
     root,

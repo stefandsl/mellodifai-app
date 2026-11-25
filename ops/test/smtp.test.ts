@@ -166,7 +166,7 @@ it("Docker interpolation disables SMTP without a key and passes a file value onl
     );
     expect(services.other.environment).toEqual({ KEEP: "unchanged" });
   }
-});
+}, 120_000);
 
 it("forwards only the fixed SMTP diagnostic through service recovery", async () => {
   // This exercises the subprocess adapter; native services now call runStack

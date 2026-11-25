@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { parkOtherQueuedJobs } from "./helpers/park-queue";
 
 const requiredEnvironment = [
   "SUPABASE_URL",
@@ -75,7 +76,13 @@ beforeAll(async () => {
   versionId = version.id;
 });
 
+let restoreParked: () => Promise<void> = async () => {};
+beforeEach(async () => {
+  restoreParked = await parkOtherQueuedJobs(service, testPrefix);
+});
+
 afterEach(async () => {
+  await restoreParked();
   const { error } = await service
     .from("jobs")
     .delete()

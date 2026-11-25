@@ -1,15 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import { afterEach } from "vitest";
+import { testTempBase } from "../temp-base.js";
 
 const owned: string[] = [];
 export function fixture(): string {
-  const base = resolve(
-    process.env.RUNNER_TEMP ?? "E:/mellodifai/tmp/native-run1",
-  );
-  mkdirSync(base, { recursive: true });
-  const dir = mkdtempSync(join(base, "native-test-"));
+  const dir = mkdtempSync(join(testTempBase(), "native-test-"));
   owned.push(dir);
   return dir;
 }

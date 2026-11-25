@@ -1,0 +1,97 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000007",
+  "slug": "phonetic-chorus-twin",
+  "schemaVersion": 1,
+  "kind": "pantomime",
+  "title": {
+    "it": "Ritornello a rima gemella",
+    "en": "Phonetic chorus twin"
+  },
+  "summary": {
+    "it": "Riscrivi il ritornello con parole nuove che imitano suono, accento e sillabe riga per riga.",
+    "en": "Rewrite the chorus with new words that mirror the sound, accents and syllable count line by line."
+  },
+  "highlights": [
+    {
+      "it": "Conteggio sillabe e rime verificato",
+      "en": "Syllable count and rhymes checked per line"
+    },
+    {
+      "it": "Revisione testo prima della voce",
+      "en": "Review the rewritten lines before singing"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceLink",
+      "kind": "link",
+      "label": {
+        "it": "Link del brano",
+        "en": "Song link"
+      },
+      "hint": {
+        "it": "Incolla un indirizzo YouTube pubblico",
+        "en": "Paste a public YouTube URL"
+      },
+      "placeholder": {
+        "it": "https://www.youtube.com/watch?v=...",
+        "en": "https://www.youtube.com/watch?v=..."
+      },
+      "optional": false,
+      "maxLength": 500,
+      "bindsTo": "remake_start.url"
+    },
+    {
+      "id": "sceneIdea",
+      "kind": "text",
+      "label": {
+        "it": "Tema della pantomima",
+        "en": "Pantomime theme"
+      },
+      "hint": {
+        "it": "Cosa devono raccontare le nuove parole",
+        "en": "What the sound-alike words should describe"
+      },
+      "placeholder": {
+        "it": "una cena tra amici che finisce tardi",
+        "en": "a late-night dinner with friends"
+      },
+      "optional": true,
+      "maxLength": 180,
+      "bindsTo": "rewrite.target"
+    }
+  ],
+  "languages": ["it", "en"],
+  "genre": "pop",
+  "tempo": {
+    "bpm": 120,
+    "feel": "bouncy vocal"
+  },
+  "form": "hook",
+  "output": "lyric-video",
+  "format": "9:16",
+  "featured": true,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "rewriteMode": "pantomime",
+    "video": "lyric"
+  },
+  "fixture": "phonetic-chorus-twin",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 80
+  },
+  "status": "published"
+}

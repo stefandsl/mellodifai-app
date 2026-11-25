@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type CutPlanLine,
@@ -17,6 +16,7 @@ import {
   materializePlan,
   planOfStoryboard,
 } from "../src/music-video-store.js";
+import { testTempBase } from "./support/temp-base.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -25,10 +25,7 @@ afterEach(async () => {
   );
 });
 async function scratch() {
-  const base =
-    process.platform === "win32" ? "E:/mellodifai/runtime/tmp" : tmpdir();
-  await mkdir(base, { recursive: true });
-  const root = await mkdtemp(join(base, "mv-store-tests-"));
+  const root = await mkdtemp(join(await testTempBase(), "mv-store-tests-"));
   roots.push(root);
   return root;
 }

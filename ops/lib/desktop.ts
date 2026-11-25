@@ -278,6 +278,47 @@ export function buildStamp(version: string, web: Record<string, string>) {
     .digest("hex");
 }
 
+export type DesktopBuildStep = {
+  name: "validate-recipes" | "next-build";
+  args: string[];
+};
+
+/**
+ * The ordered Node commands desktop builds run in apps/web: recipe validation first (the same
+ * script as apps/web/package.json's validate:recipes), then `next build`.
+ */
+export function desktopBuildSteps(paths: {
+  tsx: string;
+  webDir: string;
+  next: string;
+}): DesktopBuildStep[] {
+  return [
+    {
+      name: "validate-recipes",
+      args: [paths.tsx, join(paths.webDir, "scripts", "validate-recipes.ts")],
+    },
+    {
+      name: "next-build",
+      args: [paths.next, "build"],
+    },
+  ];
+}
+
+/**
+ * Runs each desktop web build step in order and stops on the first non-zero exit code so a
+ * broken recipe never reaches `next build`.
+ */
+export async function runDesktopBuild(
+  steps: readonly DesktopBuildStep[],
+  runStep: (step: DesktopBuildStep) => Promise<number>,
+): Promise<number> {
+  for (const step of steps) {
+    const code = await runStep(step);
+    if (code !== 0) return code;
+  }
+  return 0;
+}
+
 export type DesktopProcess = "web" | "worker";
 
 /** True only for this install's own web or worker process. */

@@ -250,7 +250,7 @@ async function compareFrame(
       },
     ] as const,
   );
-  return page.evaluate(
+  const diff = await page.evaluate(
     ([a, b]) =>
       (
         window as unknown as {
@@ -265,6 +265,27 @@ async function compareFrame(
       preview,
     ] as const,
   );
+  return { ...diff, render: out, preview };
+}
+
+// Assert a matching frame; on a mismatch keep both frames for the CI artifact.
+async function expectSameFrame(
+  name: string,
+  diff: Awaited<ReturnType<typeof compareFrame>>,
+) {
+  const keep = process.env.E2E_SCREENSHOT_DIR;
+  if (keep && (diff.mean >= 4 || diff.far >= 0.02)) {
+    const target = join(keep, "frame-match");
+    await mkdir(target, { recursive: true });
+    const stem = name.replace(/[^\w-]+/g, "_");
+    await copyFile(diff.render, join(target, `${stem}-render.png`));
+    await writeFile(
+      join(target, `${stem}-preview.png`),
+      Buffer.from(diff.preview.split(",")[1] ?? "", "base64"),
+    );
+  }
+  expect(diff.mean).toBeLessThan(4);
+  expect(diff.far).toBeLessThan(0.02);
 }
 
 describe("preview and render draw the same frame", () => {
@@ -337,9 +358,7 @@ describe("preview and render draw the same frame", () => {
   ];
   for (const [name, params] of cases)
     it(name, async () => {
-      const diff = await compareFrame(params);
-      expect(diff.mean).toBeLessThan(4);
-      expect(diff.far).toBeLessThan(0.02);
+      await expectSameFrame(name, await compareFrame(params));
     });
 
   // Task 26: the presets with a round or square cover, fed a 16:9 picture whose subject sits
@@ -387,9 +406,10 @@ describe("preview and render draw the same frame", () => {
   ];
   for (const [name, params] of polished)
     it(name, async () => {
-      const diff = await compareFrame(params, params, "center169.png");
-      expect(diff.mean).toBeLessThan(4);
-      expect(diff.far).toBeLessThan(0.02);
+      await expectSameFrame(
+        name,
+        await compareFrame(params, params, "center169.png"),
+      );
     });
 
   // Task 28: the user's logos, one corner each, in both aspects, over presets with text near
@@ -442,9 +462,7 @@ describe("preview and render draw the same frame", () => {
   ];
   for (const [name, params] of withLogos)
     it(name, async () => {
-      const diff = await compareFrame(params);
-      expect(diff.mean).toBeLessThan(4);
-      expect(diff.far).toBeLessThan(0.02);
+      await expectSameFrame(name, await compareFrame(params));
     });
 
   it("notices a frame that differs", async () => {

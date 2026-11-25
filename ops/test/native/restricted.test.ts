@@ -1,0 +1,232 @@
+import { spawn, spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { expect, it } from "vitest";
+import { pidAlive } from "../../lib/native/host.js";
+import { waitFor } from "../../lib/native/processes.js";
+import {
+  restrictedLaunch,
+  windowsArgument,
+} from "../../lib/native/restricted.js";
+
+function run(command: string, args: string[]) {
+  const launch = restrictedLaunch(command, args);
+  return new Promise<{ code: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      const child = spawn(launch.command, launch.args, {
+        env: { ...process.env, ...launch.env },
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      child.once("error", reject);
+      child.once("close", (code) => resolve({ code, stdout, stderr }));
+    },
+  );
+}
+
+it("quotes arguments the way the C runtime splits them", () => {
+  expect(windowsArgument("plain")).toBe("plain");
+  expect(windowsArgument("")).toBe('""');
+  expect(windowsArgument("C:\\Program Files\\node.exe")).toBe(
+    '"C:\\Program Files\\node.exe"',
+  );
+  expect(windowsArgument('say "hi"')).toBe('"say \\"hi\\""');
+  expect(windowsArgument("dir with space\\")).toBe('"dir with space\\\\"');
+});
+
+it("leaves other platforms unchanged", () => {
+  expect(
+    restrictedLaunch("node", ["a b"], { reportPid: true }, "linux"),
+  ).toEqual({
+    command: "node",
+    args: ["a b"],
+    env: {},
+  });
+});
+
+it.runIf(process.platform === "win32")(
+  "gives the command a default DACL of the user and SYSTEM, so it can open the pipes it creates",
+  async () => {
+    // An elevated token's default DACL grants Administrators, which the restricted
+    // token denies: tsx's esbuild pipe then breaks with EPIPE. A file created in a
+    // folder that passes no rules down takes the token's default DACL.
+    const root = mkdtempSync(
+      join(process.env.TEMP ?? tmpdir(), "mdf-restricted-dacl-"),
+    );
+    try {
+      const whoami = join(
+        process.env.SystemRoot ?? "C:\\Windows",
+        "System32",
+        "whoami.exe",
+      );
+      const user = spawnSync(whoami, ["/user", "/fo", "csv", "/nh"], {
+        encoding: "utf8",
+      })
+        .stdout.trim()
+        .split(",")[1]
+        ?.replaceAll('"', "");
+      expect(user).toMatch(/^S-1-5-/u);
+      const folder = join(root, "plain");
+      mkdirSync(folder);
+      const grant = spawnSync(
+        "icacls",
+        [folder, "/inheritance:r", "/grant:r", `*${user}:(F)`],
+        { encoding: "utf8" },
+      );
+      expect(grant.status, grant.stderr).toBe(0);
+      const file = join(folder, "made.txt");
+      const made = await run(process.execPath, [
+        "-e",
+        `require("node:fs").writeFileSync(${JSON.stringify(file)}, "x")`,
+      ]);
+      expect(made.code, made.stderr).toBe(0);
+      const acl = spawnSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "[System.IO.File]::GetAccessControl($env:MDF_FILE).GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object { $_.IdentityReference.Value }",
+        ],
+        { encoding: "utf8", env: { ...process.env, MDF_FILE: file } },
+      );
+      expect(acl.status, acl.stderr).toBe(0);
+      expect(acl.stdout.split(/\s+/u).filter(Boolean).sort()).toEqual(
+        ["S-1-5-18", user].sort(),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+it.runIf(process.platform === "win32")(
+  "reports the command pid alone on stdout and moves the command output to stderr",
+  async () => {
+    // The PostgreSQL console host forwards this pid as the postmaster identity.
+    const launch = restrictedLaunch(
+      process.execPath,
+      ["-e", "console.log(String(process.pid)); process.exit(3)"],
+      { reportPid: true },
+    );
+    const child = spawn(launch.command, launch.args, {
+      env: { ...process.env, ...launch.env },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    const code = await new Promise<number | null>((resolve) =>
+      child.once("close", resolve),
+    );
+    expect(code).toBe(3);
+    expect(stdout.trim()).toMatch(/^\d+$/u);
+    expect(stdout.trim()).not.toBe(String(child.pid));
+    expect(stderr.trim()).toBe(stdout.trim());
+  },
+  60_000,
+);
+
+it.runIf(process.platform === "win32")(
+  "runs the command with every privilege dropped, its arguments intact and its exit code",
+  async () => {
+    // Privilege names are not translated: SeChangeNotifyPrivilege is the only one
+    // a restricted token keeps. An unrestricted token always holds more.
+    const privileges = await run("whoami", ["/priv", "/fo", "csv", "/nh"]);
+    expect(privileges.code, privileges.stderr).toBe(0);
+    const names = privileges.stdout
+      .split(/\r?\n/u)
+      .map((line) => line.split(",")[0]?.replaceAll('"', ""))
+      .filter(Boolean);
+    expect(names).toEqual(["SeChangeNotifyPrivilege"]);
+
+    const args = ["a b", 'q"uote', "trail\\", "", "-flag"];
+    const echo = await run(process.execPath, [
+      "-e",
+      "process.stdout.write(JSON.stringify(process.argv.slice(1))); process.exit(7)",
+      ...args,
+    ]);
+    expect(echo.stderr).toBe("");
+    expect(JSON.parse(echo.stdout)).toEqual(args);
+    expect(echo.code).toBe(7);
+  },
+  60_000,
+);
+
+it.runIf(process.platform === "win32")(
+  "ends the command and its children when the launcher is killed",
+  async () => {
+    // A killed postmaster can leave a suspended backend holding the port; the job
+    // around the command ends every process in it once the launcher is gone.
+    const launch = restrictedLaunch(
+      process.execPath,
+      [
+        "-e",
+        "const c = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: true }); console.log('grandchild ' + c.pid); setInterval(() => {}, 1000)",
+      ],
+      { reportPid: true },
+    );
+    const launcher = spawn(launch.command, launch.args, {
+      env: { ...process.env, ...launch.env },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    launcher.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    launcher.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    const exited = new Promise<void>((resolve) =>
+      launcher.once("exit", () => resolve()),
+    );
+    const pids = await waitFor(
+      async () => /^\d+\s/u.test(stdout) && /grandchild \d+/u.test(stderr),
+      30_000,
+      50,
+    ).then(() => [
+      Number(stdout.trim()),
+      Number(/grandchild (\d+)/u.exec(stderr)?.[1]),
+    ]);
+    try {
+      expect(pids.every((pid) => pidAlive(pid))).toBe(true);
+      spawnSync("taskkill", ["/PID", String(launcher.pid), "/F"], {
+        windowsHide: true,
+      });
+      await exited;
+      expect(
+        await waitFor(
+          async () => pids.every((pid) => !pidAlive(pid)),
+          10_000,
+          50,
+        ),
+        `still alive: ${pids.filter((pid) => pidAlive(pid)).join(", ")}`,
+      ).toBe(true);
+    } finally {
+      for (const pid of pids)
+        if (pid && pidAlive(pid))
+          spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+            windowsHide: true,
+          });
+    }
+  },
+  60_000,
+);

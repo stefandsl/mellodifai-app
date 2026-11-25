@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -8,6 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -28,6 +29,7 @@ import {
   buildStamp,
   DESKTOP,
   desktopBaseEnv,
+  desktopBuildSteps,
   desktopEnvValues,
   desktopPaths,
   engineSettings,
@@ -40,6 +42,7 @@ import {
   listeningPorts,
   parseEnvFile,
   pruneUpdateBackups,
+  runDesktopBuild,
   SIGN_IN_PORTS,
   SIGN_IN_WAIT_MS,
   SITE_URL,
@@ -519,9 +522,10 @@ describe("desktop engine and publishing", () => {
     );
     // What baseEnv in desktop.ts adds for every process of the app.
     const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      MELLODIFAI_ROOT: data,
+      ...desktopBaseEnv(process.env, data),
       ...settings,
+      // The fake data folder does not exist; keep tsx from writing its cache in it.
+      TSX_DISABLE_CACHE: "1",
     };
     const module = (...parts: string[]) =>
       JSON.stringify(pathToFileURL(join(repo, ...parts)).href);
@@ -742,6 +746,129 @@ describe("desktop sign-in check port", () => {
       expect(await beacon.loaded).toBe(false);
     } finally {
       await new Promise((done) => blocker.close(done));
+    }
+  });
+});
+
+describe("desktop web build", () => {
+  it("runs recipe validation before next build in ops/desktop.ts", () => {
+    const source = readFileSync(
+      new URL("../desktop.ts", import.meta.url),
+      "utf8",
+    ).replaceAll(/^\s*(\/\/|\*).*$/gm, "");
+    expect(source).toContain("runDesktopBuild(");
+    expect(source).toContain("desktopBuildSteps(");
+    expect(source).not.toMatch(/\[\s*next\s*,\s*["']build["']\s*\]/);
+
+    const steps = desktopBuildSteps({
+      tsx: "/tsx/cli",
+      webDir: "/app/apps/web",
+      next: "/next/bin",
+    });
+    expect(steps).toEqual([
+      {
+        name: "validate-recipes",
+        args: [
+          "/tsx/cli",
+          join("/app/apps/web", "scripts", "validate-recipes.ts"),
+        ],
+      },
+      {
+        name: "next-build",
+        args: ["/next/bin", "build"],
+      },
+    ]);
+
+    const webPkg = JSON.parse(
+      readFileSync(join(repo, "apps", "web", "package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    expect(webPkg.scripts?.["validate:recipes"]).toBe(
+      "tsx scripts/validate-recipes.ts",
+    );
+    expect(
+      webPkg.scripts?.build?.startsWith("pnpm run validate:recipes &&"),
+    ).toBe(true);
+  });
+
+  it("stops before next build when recipe validation fails, and proceeds when valid", async () => {
+    const webDir = join(repo, "apps", "web");
+    const tsx = createRequire(join(repo, "ops", "package.json")).resolve(
+      "tsx/cli",
+    );
+    const next = createRequire(join(webDir, "package.json")).resolve(
+      "next/dist/bin/next",
+    );
+    const steps = desktopBuildSteps({ tsx, webDir, next });
+
+    const base = mkdtempSync(join(tmpdir(), "mdf-desktop-build-"));
+    try {
+      const contentDir = join(base, "content");
+      const mediaDir = join(base, "media");
+      const manifestPath = join(base, "assets.manifest.json");
+      mkdirSync(join(contentDir, "desktop-broken-recipe"), { recursive: true });
+      mkdirSync(mediaDir, { recursive: true });
+      writeFileSync(
+        manifestPath,
+        JSON.stringify({ schemaVersion: 1, assets: [] }),
+      );
+      writeFileSync(
+        join(contentDir, "desktop-broken-recipe", "recipe.json"),
+        JSON.stringify({
+          slug: "desktop-broken-recipe",
+          kind: "not-a-valid-kind",
+        }),
+      );
+
+      let nextBuildCalled = false;
+      let brokenOutput = "";
+      const brokenCode = await runDesktopBuild(steps, async (step) => {
+        if (step.name === "next-build") {
+          nextBuildCalled = true;
+          return 0;
+        }
+        const res = spawnSync(process.execPath, step.args, {
+          cwd: webDir,
+          env: {
+            ...process.env,
+            MDF_RECIPES_CONTENT_DIR: contentDir,
+            MDF_RECIPES_MEDIA_DIR: mediaDir,
+            MDF_RECIPES_MANIFEST: manifestPath,
+          },
+          encoding: "utf8",
+          windowsHide: true,
+        });
+        brokenOutput += `${res.stdout ?? ""}\n${res.stderr ?? ""}`;
+        return res.status ?? -1;
+      });
+      expect(brokenCode).not.toBe(0);
+      expect(brokenOutput).toMatch(/desktop-broken-recipe/u);
+      expect(nextBuildCalled).toBe(false);
+
+      let validOutput = "";
+      const validCode = await runDesktopBuild(steps, async (step) => {
+        if (step.name === "next-build") {
+          nextBuildCalled = true;
+          return 0;
+        }
+        const res = spawnSync(process.execPath, step.args, {
+          cwd: webDir,
+          env: {
+            ...process.env,
+            MDF_RECIPES_CONTENT_DIR: "",
+            MDF_RECIPES_MEDIA_DIR: "",
+            MDF_RECIPES_MANIFEST: "",
+          },
+          encoding: "utf8",
+          windowsHide: true,
+        });
+        validOutput += `${res.stdout ?? ""}\n${res.stderr ?? ""}`;
+        return res.status ?? -1;
+      });
+      expect(validCode).toBe(0);
+      expect(validOutput).toContain("Validated ");
+      expect(nextBuildCalled).toBe(true);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
     }
   });
 });

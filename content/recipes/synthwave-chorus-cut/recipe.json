@@ -1,0 +1,107 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000003",
+  "slug": "synthwave-chorus-cut",
+  "schemaVersion": 1,
+  "kind": "remix",
+  "title": {
+    "it": "Ritornello synthwave",
+    "en": "Synthwave chorus cut"
+  },
+  "summary": {
+    "it": "Rivesti il ritornello con arpeggi analogici anni Ottanta e formato 4:5 per il feed.",
+    "en": "Dress the chorus in analog 1980s arpeggios and gated drums framed in 4:5 for feeds."
+  },
+  "highlights": [
+    {
+      "it": "Synth analogici e rullante anni 80",
+      "en": "Analog synths and gated snare"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceAudio",
+      "kind": "audio",
+      "label": {
+        "it": "Audio di partenza",
+        "en": "Starting audio"
+      },
+      "hint": null,
+      "optional": false,
+      "accept": ["audio"],
+      "min": 1,
+      "max": 1,
+      "bindsTo": "song_create.settings.source"
+    },
+    {
+      "id": "keyChoice",
+      "kind": "select",
+      "label": {
+        "it": "Tonalita",
+        "en": "Musical key"
+      },
+      "hint": null,
+      "optional": true,
+      "options": [
+        {
+          "value": "A minor",
+          "label": {
+            "it": "La minore",
+            "en": "A minor"
+          }
+        },
+        {
+          "value": "C minor",
+          "label": {
+            "it": "Do minore",
+            "en": "C minor"
+          }
+        },
+        {
+          "value": "F# minor",
+          "label": {
+            "it": "Fa diesis minore",
+            "en": "F# minor"
+          }
+        }
+      ],
+      "default": "A minor",
+      "bindsTo": "song_create.settings.keyscale"
+    }
+  ],
+  "languages": ["en", "it"],
+  "genre": "synthwave",
+  "tempo": {
+    "bpm": 114,
+    "feel": "retro neon"
+  },
+  "form": "hook",
+  "output": "lyric-video",
+  "format": "4:5",
+  "featured": false,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "styles": "retro synthwave, analog Juno arpeggio, gated reverb snare, glossy lead",
+    "sourceMode": "reference",
+    "bpm": 114,
+    "keyscale": "A minor",
+    "video": "lyric"
+  },
+  "fixture": "synthwave-chorus-cut",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 70
+  },
+  "status": "published"
+}

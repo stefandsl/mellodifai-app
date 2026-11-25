@@ -1,5 +1,6 @@
 // Words of the public site, in Italian and English. All of it is ours (clean room: no text of the
 // reference site; the clean-room judge checks it). Agent names are product names and stay as is.
+import type { RecipeKind } from "@mellodifai/shared";
 import type { AgentName, RouteName } from "./nav";
 import type { CellText, CompareGroup, CompareRow } from "./plans";
 
@@ -112,6 +113,28 @@ export type SiteCopy = {
     title: string;
     line: string;
     home: string;
+  };
+  recipes: {
+    meta: { title: string; description: string };
+    title: string;
+    line: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    clearSearch: string;
+    empty: string;
+    emptyHint: string;
+    resetSearch: string;
+    viewLabel: string;
+    viewCanvas: string;
+    viewGrid: string;
+    zoomLabel: string;
+    zoomOut: string;
+    zoomIn: string;
+    zoomReset: string;
+    canvasLabel: string;
+    gridLabel: string;
+    openAction: string;
+    kinds: Record<RecipeKind, string>;
   };
   footer: {
     tagline: string;
@@ -492,6 +515,39 @@ const en: SiteCopy = {
     title: "This page is not here",
     line: "The link may be old, or the address may have a typo.",
     home: "Back to home",
+  },
+  recipes: {
+    meta: {
+      title: "Songbook - MellodifAI",
+      description:
+        "Browse song recipes for remixes, covers, pantomimes and musical satire. Pick one and open it in MellodifAI.",
+    },
+    title: "Songbook",
+    line: "Pick a finished song recipe and shape it with your own track or lyrics.",
+    searchLabel: "Filter songbook",
+    searchPlaceholder: "Search songs, genres, or formats...",
+    clearSearch: "Clear filter",
+    empty: "No song recipes match that query.",
+    emptyHint:
+      "Try a kind like remix, cover, satire, or a destination like YouTube.",
+    resetSearch: "Show every song recipe",
+    viewLabel: "Display mode",
+    viewCanvas: "Canvas",
+    viewGrid: "Grid",
+    zoomLabel: "Canvas magnification",
+    zoomOut: "Decrease zoom",
+    zoomIn: "Increase zoom",
+    zoomReset: "Return magnification to 100%",
+    canvasLabel:
+      "Interactive songbook canvas. Drag or use arrow keys to pan; use plus and minus to zoom.",
+    gridLabel: "Songbook grid",
+    openAction: "Open in studio",
+    kinds: {
+      remix: "Remix",
+      cover: "Cover",
+      pantomime: "Pantomime",
+      satire: "Satire",
+    },
   },
   footer: {
     tagline: "Every song is a draft.",
@@ -882,6 +938,39 @@ const it: SiteCopy = {
     title: "Questa pagina non c'è",
     line: "Il link potrebbe essere vecchio, oppure l'indirizzo ha un errore.",
     home: "Torna alla home",
+  },
+  recipes: {
+    meta: {
+      title: "Canzoniere - MellodifAI",
+      description:
+        "Esplora le ricette musicali per remix, cover, pantomime e satira. Scegline una e aprila in MellodifAI.",
+    },
+    title: "Canzoniere",
+    line: "Scegli una ricetta pronta e modellala con la tua traccia o le tue parole.",
+    searchLabel: "Filtra il canzoniere",
+    searchPlaceholder: "Cerca brani, generi o formati...",
+    clearSearch: "Pulisci filtro",
+    empty: "Nessuna ricetta musicale corrisponde alla ricerca.",
+    emptyHint:
+      "Prova un tipo come remix, cover, satira, oppure una destinazione come YouTube.",
+    resetSearch: "Mostra tutte le ricette",
+    viewLabel: "Vista del catalogo",
+    viewCanvas: "Lavagna",
+    viewGrid: "Griglia",
+    zoomLabel: "Ingrandimento lavagna",
+    zoomOut: "Riduci ingrandimento",
+    zoomIn: "Aumenta ingrandimento",
+    zoomReset: "Riporta ingrandimento al 100%",
+    canvasLabel:
+      "Lavagna interattiva del canzoniere. Trascina o usa le frecce per spostarti; più e meno per lo zoom.",
+    gridLabel: "Griglia del canzoniere",
+    openAction: "Apri nello studio",
+    kinds: {
+      remix: "Remix",
+      cover: "Cover",
+      pantomime: "Pantomima",
+      satire: "Satira",
+    },
   },
   footer: {
     tagline: "Ogni canzone è una bozza.",

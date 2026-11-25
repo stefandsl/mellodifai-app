@@ -675,10 +675,9 @@ export function withFocus(
   if (!pic.width || !pic.height || Math.abs(pic.width - pic.height) < 2)
     return pic;
   try {
-    const k = 64 / Math.max(pic.width, pic.height);
-    const w = Math.max(2, Math.round(pic.width * k));
-    const h = Math.max(2, Math.round(pic.height * k));
-    const g = make(w, h).getContext("2d") as {
+    const sw = pic.width;
+    const sh = pic.height;
+    const g = make(sw, sh).getContext("2d") as {
       drawImage(image: never, x: number, y: number, w: number, h: number): void;
       getImageData(
         x: number,
@@ -688,11 +687,31 @@ export function withFocus(
       ): { data: ArrayLike<number> };
     } | null;
     if (!g) return pic;
-    g.drawImage(pic.source as never, 0, 0, w, h);
-    return {
-      ...pic,
-      focus: focusOfPixels(g.getImageData(0, 0, w, h).data, w, h),
-    };
+    // Draw 1:1 and average in code: browsers scale images differently on the GPU and the
+    // CPU, so a scaled draw could give the preview and the render different crops.
+    g.drawImage(pic.source as never, 0, 0, sw, sh);
+    const full = g.getImageData(0, 0, sw, sh).data;
+    const k = 64 / Math.max(sw, sh);
+    const w = Math.max(2, Math.round(sw * k));
+    const h = Math.max(2, Math.round(sh * k));
+    const sums = new Float64Array(w * h * 3);
+    const counts = new Float64Array(w * h);
+    for (let y = 0; y < sh; y++) {
+      const row = Math.min(h - 1, Math.floor((y * h) / sh)) * w;
+      for (let x = 0; x < sw; x++) {
+        const t = row + Math.min(w - 1, Math.floor((x * w) / sw));
+        const i = (y * sw + x) * 4;
+        for (let c = 0; c < 3; c++)
+          sums[t * 3 + c] =
+            (sums[t * 3 + c] as number) + (full[i + c] as number);
+        counts[t] = (counts[t] as number) + 1;
+      }
+    }
+    const thumb = new Float64Array(w * h * 4);
+    for (let t = 0; t < w * h; t++)
+      for (let c = 0; c < 3; c++)
+        thumb[t * 4 + c] = (sums[t * 3 + c] as number) / (counts[t] as number);
+    return { ...pic, focus: focusOfPixels(thumb, w, h) };
   } catch {
     return pic;
   }

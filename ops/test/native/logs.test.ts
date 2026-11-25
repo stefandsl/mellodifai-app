@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import {
@@ -159,11 +165,18 @@ it("cuts a line that never ends instead of holding it in memory", () => {
 it.runIf(process.platform === "win32")(
   "makes the log folder and the files in it private to their owner",
   async () => {
-    const dir = join(fixture(), "logs");
+    const base = fixture();
+    const dir = join(base, "logs");
     await securePrivateDirectory(dir);
+    const preExisting = join(base, "logs-elevated");
+    mkdirSync(preExisting, { recursive: true });
+    expect(
+      spawnSync("icacls", [preExisting, "/grant", "*S-1-5-32-544:F"]).status,
+    ).toBe(0);
+    await securePrivateDirectory(preExisting);
     const file = join(dir, "postgres.log");
     writeFileSync(file, "x");
-    for (const target of [dir, file]) {
+    for (const target of [dir, preExisting, file]) {
       const acl = spawnSync("icacls", [target], { encoding: "utf8" }).stdout;
       const entries = acl
         .split(/\r?\n/)
@@ -174,7 +187,9 @@ it.runIf(process.platform === "win32")(
         expect(entry.toLowerCase(), acl).toContain(
           (process.env.USERNAME as string).toLowerCase(),
         );
-      expect(acl).not.toMatch(/Everyone|Users|Authenticated|SYSTEM/i);
+      expect(acl).not.toMatch(
+        /Everyone|Users|Authenticated|SYSTEM|Administrators/i,
+      );
     }
   },
 );

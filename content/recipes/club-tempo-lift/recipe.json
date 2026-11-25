@@ -1,0 +1,103 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000001",
+  "slug": "club-tempo-lift",
+  "schemaVersion": 1,
+  "kind": "remix",
+  "title": {
+    "it": "Rilancio da club",
+    "en": "Club tempo lift"
+  },
+  "summary": {
+    "it": "Porta il tuo brano a 128 BPM con cassa dritta e ritornello verticale pronto per i reel.",
+    "en": "Lift your track to 128 BPM with four-on-the-floor drums and a vertical chorus cut."
+  },
+  "highlights": [
+    {
+      "it": "Stesso cantato, ritmo da pista",
+      "en": "Same vocal hook, club-ready pulse"
+    },
+    {
+      "it": "Taglio verticale 9:16 con testi",
+      "en": "Vertical 9:16 cut with lyric timing"
+    }
+  ],
+  "body": {
+    "it": "Carica un brano o scegli una take dalla libreria per spostare il groove verso una cassa elettronica pulita.",
+    "en": "Bring a take from your library or upload an audio track to move the groove into a punchy club pulse."
+  },
+  "inputs": [
+    {
+      "id": "sourceAudio",
+      "kind": "audio",
+      "label": {
+        "it": "Brano di partenza",
+        "en": "Source track"
+      },
+      "hint": {
+        "it": "MP3, WAV o FLAC fino a 8 minuti",
+        "en": "MP3, WAV or FLAC up to 8 minutes"
+      },
+      "optional": false,
+      "accept": ["audio"],
+      "min": 1,
+      "max": 1,
+      "bindsTo": "song_create.settings.source"
+    },
+    {
+      "id": "energyNote",
+      "kind": "text",
+      "label": {
+        "it": "Colore del drop",
+        "en": "Drop texture"
+      },
+      "hint": {
+        "it": "Descrivi synth o basso preferiti",
+        "en": "Name preferred synths or bass tone"
+      },
+      "placeholder": {
+        "it": "basso house caldo, clap nitido",
+        "en": "warm house bass, crisp clap"
+      },
+      "optional": true,
+      "maxLength": 200,
+      "bindsTo": "song_create.styles"
+    }
+  ],
+  "languages": ["it", "en"],
+  "genre": "house remix",
+  "tempo": {
+    "bpm": 128,
+    "feel": "driving club"
+  },
+  "form": "hook",
+  "output": "lyric-video",
+  "format": "9:16",
+  "featured": true,
+  "surfaces": ["web", "desktop", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "styles": "melodic house remix, crisp 128 bpm kick, sidechained synth pads",
+    "sourceMode": "cover",
+    "audioWeight": 0.75,
+    "styleWeight": 0.7,
+    "bpm": 128,
+    "video": "lyric"
+  },
+  "fixture": "club-tempo-lift",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 75
+  },
+  "status": "published"
+}

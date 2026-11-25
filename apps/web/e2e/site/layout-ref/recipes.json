@@ -1,0 +1,60 @@
+{
+  "slug": "recipes",
+  "route": "/recipes",
+  "sections": [
+    "Canvas page: fixed canvas of cards, centred title, one line, search field, view switch, zoom control"
+  ],
+  "widths": {
+    "390": {
+      "pageHeight": 844,
+      "sections": [
+        {
+          "name": "Canvas page: fixed canvas of cards, centred title, one line, search field, view switch, zoom control",
+          "present": true,
+          "y": 0,
+          "h": 844,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        }
+      ]
+    },
+    "1024": {
+      "pageHeight": 768,
+      "sections": [
+        {
+          "name": "Canvas page: fixed canvas of cards, centred title, one line, search field, view switch, zoom control",
+          "present": true,
+          "y": 0,
+          "h": 768,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        }
+      ]
+    },
+    "1440": {
+      "pageHeight": 900,
+      "sections": [
+        {
+          "name": "Canvas page: fixed canvas of cards, centred title, one line, search field, view switch, zoom control",
+          "present": true,
+          "y": 0,
+          "h": 900,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        }
+      ]
+    }
+  }
+}

@@ -13,6 +13,40 @@ import { dirname } from "node:path";
 import { runtimePath } from "./envs.js";
 import { realRunner } from "./run.js";
 
+/** Replace the DACL and owner on Windows with the current user only.
+ * Runs atomically via .NET SetAccessControl so elevated sessions (which default
+ * new-object ownership to BUILTIN\Administrators and materialize explicit
+ * CREATOR OWNER grants) never leave extra grants or a non-user owner behind. */
+export async function secureWindowsOwnerOnly(
+  path: string,
+  directory: boolean,
+): Promise<void> {
+  const secType = directory
+    ? "System.Security.AccessControl.DirectorySecurity"
+    : "System.Security.AccessControl.FileSecurity";
+  const ioType = directory ? "System.IO.Directory" : "System.IO.File";
+  const inherit = directory ? "ContainerInherit,ObjectInherit" : "None";
+  const script =
+    `$ErrorActionPreference='Stop'; ` +
+    `$user=[Security.Principal.WindowsIdentity]::GetCurrent().User; ` +
+    `$sec=New-Object ${secType}; ` +
+    `$sec.SetOwner($user); ` +
+    `$sec.SetAccessRuleProtection($true,$false); ` +
+    `$sec.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($user,'FullControl','${inherit}','None','Allow'))); ` +
+    `[${ioType}]::SetAccessControl($env:MDF_PRIVATE_PATH,$sec)`;
+  const result = await realRunner(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { env: { MDF_PRIVATE_PATH: path } },
+  );
+  if (result.code !== 0)
+    throw new Error(
+      directory
+        ? "Cannot secure the log folder ACL"
+        : "Cannot secure private file ACL",
+    );
+}
+
 /** Establish permissions before placing secret bytes in a file. */
 export async function writePrivate(
   path: string,
@@ -22,15 +56,7 @@ export async function writePrivate(
   mkdirSync(dirname(path), { recursive: true });
   if (!existsSync(path)) closeSync(openSync(path, "wx", 0o600));
   if (process.platform === "win32") {
-    const user = process.env.USERNAME;
-    if (!user) throw new Error("USERNAME is required for private file ACLs");
-    const result = await realRunner("icacls", [
-      path,
-      "/inheritance:r",
-      "/grant:r",
-      `${user}:F`,
-    ]);
-    if (result.code !== 0) throw new Error("Cannot secure private file ACL");
+    await secureWindowsOwnerOnly(path, false);
   } else chmodSync(path, 0o600);
   writeFileSync(path, content, { encoding: "utf8", mode: 0o600 });
 }

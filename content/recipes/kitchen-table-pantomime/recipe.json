@@ -1,0 +1,102 @@
+{
+  "id": "11000001-4a14-4c14-9a14-000000000008",
+  "slug": "kitchen-table-pantomime",
+  "schemaVersion": 1,
+  "kind": "pantomime",
+  "title": {
+    "it": "Pantomima da cucina",
+    "en": "Kitchen table pantomime"
+  },
+  "summary": {
+    "it": "Trasforma un ritornello famoso in una storia domestica mantenendo cadenza e vocali identiche.",
+    "en": "Turn a catchy vocal hook into an everyday kitchen story while preserving every vowel and beat."
+  },
+  "highlights": [
+    {
+      "it": "Cadenza fedele al cantato originale",
+      "en": "Cadence locked to the original delivery"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceLink",
+      "kind": "link",
+      "label": {
+        "it": "Indirizzo del brano",
+        "en": "Track link"
+      },
+      "hint": null,
+      "optional": false,
+      "maxLength": 500,
+      "bindsTo": "remake_start.url"
+    },
+    {
+      "id": "country",
+      "kind": "select",
+      "label": {
+        "it": "Contesto linguistico",
+        "en": "Regional idiom"
+      },
+      "hint": null,
+      "optional": true,
+      "options": [
+        {
+          "value": "IT",
+          "label": {
+            "it": "Italia",
+            "en": "Italy"
+          }
+        },
+        {
+          "value": "GB",
+          "label": {
+            "it": "Regno Unito",
+            "en": "United Kingdom"
+          }
+        },
+        {
+          "value": "US",
+          "label": {
+            "it": "Stati Uniti",
+            "en": "United States"
+          }
+        }
+      ],
+      "default": "IT",
+      "bindsTo": "remake_start.country"
+    }
+  ],
+  "languages": ["it", "en"],
+  "genre": "funk pop",
+  "tempo": {
+    "bpm": 104,
+    "feel": "playful groove"
+  },
+  "form": "full",
+  "output": "lyric-video",
+  "format": "9:16",
+  "featured": false,
+  "surfaces": ["web", "agent"],
+  "media": {
+    "cover": "cover.jpg",
+    "preview": "preview.mp4",
+    "example": "example.mp4",
+    "startAt": 2
+  },
+  "preset": {
+    "rewriteMode": "pantomime",
+    "video": "lyric"
+  },
+  "fixture": "kitchen-table-pantomime",
+  "rights": {
+    "owner": "MellodifAI",
+    "clearedOn": "2026-11-22",
+    "licence": "own",
+    "note": "Placeholder synthetic clip generated locally with ffmpeg for C14; replace with owner-cleared song clip (D4)"
+  },
+  "estimate": {
+    "credits": 2,
+    "seconds": 95
+  },
+  "status": "published"
+}

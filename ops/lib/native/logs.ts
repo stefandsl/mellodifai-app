@@ -11,7 +11,7 @@ import {
 import { dirname } from "node:path";
 import type { Readable } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
-import { realRunner } from "../run.js";
+import { secureWindowsOwnerOnly } from "../private-file.js";
 import {
   NativeDiagnosticError,
   SENSITIVE_LINE_MARK,
@@ -90,15 +90,7 @@ export async function securePrivateDirectory(directory: string): Promise<void> {
   mkdirSync(directory, { recursive: true });
   if (secured.has(directory)) return;
   if (process.platform === "win32") {
-    const user = process.env.USERNAME;
-    if (!user) throw new Error("USERNAME is required for private log ACLs");
-    const result = await realRunner("icacls", [
-      directory,
-      "/inheritance:r",
-      "/grant:r",
-      `${user}:(OI)(CI)F`,
-    ]);
-    if (result.code !== 0) throw new Error("Cannot secure the log folder ACL");
+    await secureWindowsOwnerOnly(directory, true);
   } else chmodSync(directory, 0o700);
   secured.add(directory);
 }

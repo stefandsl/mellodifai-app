@@ -13,8 +13,11 @@ export interface ProcessIdentity {
   startedAt: string;
 }
 
+// .NET WMI only: a cmdlet that auto-loads a module (Get-CimInstance) makes Windows
+// PowerShell scan every installed module under the services' fresh LOCALAPPDATA,
+// which takes 20 s or more on a machine with many modules.
 const WINDOWS_QUERY =
-  "$ErrorActionPreference='Stop'; $ids=$env:MDF_PIDS -split ',' | ForEach-Object { [int]$_ }; Get-CimInstance Win32_Process | Where-Object { $ids -contains $_.ProcessId } | ForEach-Object { '{0} {1}' -f $_.ProcessId, $_.CreationDate.ToUniversalTime().ToString('o') }";
+  "$ErrorActionPreference='Stop'; $PSModuleAutoLoadingPreference='None'; $ids=@($env:MDF_PIDS -split ',' | ForEach-Object { [int]$_ }); $query='SELECT ProcessId, CreationDate FROM Win32_Process WHERE ' + (($ids | ForEach-Object { 'ProcessId=' + $_ }) -join ' OR '); foreach ($p in [Management.ManagementObjectSearcher]::new($query).Get()) { '{0} {1}' -f $p['ProcessId'], [Management.ManagementDateTimeConverter]::ToDateTime($p['CreationDate']).ToUniversalTime().ToString('o') }";
 
 /** Identity of each live pid in the list. A pid that is gone is absent. */
 export async function processIdentities(

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { opsRpc } from "./helpers/ops-call";
+import { parkOtherQueuedJobs } from "./helpers/park-queue";
 
 // Library RPCs (migration 20261101000018): reactions, play count, rename, trash, queue position.
 let service: SupabaseClient;
@@ -312,16 +313,25 @@ describe("trash", () => {
       .select("id")
       .single();
     expect(job.error).toBeNull();
+    const restoreParked = await parkOtherQueuedJobs(service, prefix);
+    try {
+      await claimTrashedThenRestored(id, job.data?.id);
+    } finally {
+      await restoreParked();
+    }
+  });
+
+  async function claimTrashedThenRestored(id: string, jobId?: string) {
     await opsRpc(client, "trash_versions", { p_versions: [id] });
     const claimed = await service.rpc("claim_job", { p_worker: `${prefix}-w` });
     expect(claimed.error).toBeNull();
     expect((claimed.data as { id: string }[]).map((j) => j.id)).not.toContain(
-      job.data?.id,
+      jobId,
     );
     const still = await service
       .from("jobs")
       .select("status")
-      .eq("id", job.data?.id)
+      .eq("id", jobId)
       .single();
     expect(still.data?.status).toBe("queued");
 
@@ -331,13 +341,13 @@ describe("trash", () => {
     const after = await service
       .from("jobs")
       .select("status,worker_id")
-      .eq("id", job.data?.id)
+      .eq("id", jobId)
       .single();
     // Either this claim took it, or the live render PC did first; it is claimable again.
-    if ((again.data as { id: string }[]).some((j) => j.id === job.data?.id))
+    if ((again.data as { id: string }[]).some((j) => j.id === jobId))
       expect(after.data?.worker_id).toBe(`${prefix}-w`);
     else expect(after.data?.status).not.toBe("queued");
-  });
+  }
 });
 
 describe("queue position", () => {
