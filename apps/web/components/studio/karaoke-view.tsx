@@ -17,6 +17,27 @@ import { createClient } from "@/lib/supabase/browser";
 import { formatTime, type TrackDetail, usePlayer } from "@/store/player";
 import { useGlass } from "./ambient-backdrop";
 
+const MAX_POLL_FAILURES = 5;
+
+async function findAlignJob(
+  db: ReturnType<typeof createClient>,
+  versionId: string,
+  takeId: string | null,
+): Promise<string | null> {
+  // One job per take or master (unique idempotency key), in any status: poll() decides.
+  const query = db
+    .from("jobs")
+    .select("id")
+    .eq("version_id", versionId)
+    .eq("stage", "align_lyrics");
+  const { data, error } = await (takeId
+    ? query.eq("payload->>take_id", takeId)
+    : query.eq("payload->>source", "master")
+  ).maybeSingle();
+  if (error || !data) return null;
+  return typeof data.id === "string" ? data.id : null;
+}
+
 export function KaraokeView() {
   const track = usePlayer((state) => state.queue[state.index]);
   const detail = track?.detail;
@@ -52,11 +73,19 @@ function KaraokeSession({
   const active = activeLine(lines, p.time);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const mountedRef = useRef(true);
   const [job, setJob] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [theme, setTheme] = useState<"classic" | "glass" | "neon">("classic");
   const visibleTheme = glassEnabled ? theme : "classic";
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!p.showLyrics || active < 0) return;
@@ -84,19 +113,26 @@ function KaraokeSession({
     if (!job || !detail) return;
     const db = createClient();
     let cancelled = false;
+    let failures = 0;
     const poll = async () => {
       try {
-        const [updatedResult, statusResult] = await Promise.all([
-          db
-            .from(take ? "takes" : "versions")
-            .select("lyric_timing")
-            .eq("id", take?.id ?? detail.songId)
-            .single(),
-          db.from("jobs").select("status").eq("id", job).single(),
-        ]);
+        // The worker writes the timing before it marks the job done, so read the status
+        // first: a terminal status read before the timing read means the timing is final.
+        const statusResult = await db
+          .from("jobs")
+          .select("status")
+          .eq("id", job)
+          .single();
         if (cancelled) return;
-        if (updatedResult.error || statusResult.error)
-          throw new Error("Alignment polling failed");
+        if (statusResult.error) throw new Error("Alignment polling failed");
+        const updatedResult = await db
+          .from(take ? "takes" : "versions")
+          .select("lyric_timing")
+          .eq("id", take?.id ?? detail.songId)
+          .single();
+        if (cancelled) return;
+        if (updatedResult.error) throw new Error("Alignment polling failed");
+        failures = 0;
         const updated = updatedResult.data;
         const status = statusResult.data;
         const timing = parseLyricTiming(updated?.lyric_timing);
@@ -128,7 +164,9 @@ function KaraokeSession({
           setJob(null);
         }
       } catch {
-        if (!cancelled) {
+        if (cancelled) return;
+        failures += 1;
+        if (failures >= MAX_POLL_FAILURES) {
           setError(true);
           setJob(null);
         }
@@ -147,16 +185,33 @@ function KaraokeSession({
     setRequesting(true);
     setError(false);
     try {
-      const result = await requestLyricAlignment({
-        versionId: detail.songId,
-        takeId: take?.id ?? null,
-      });
-      if (result.ok && result.id) setJob(result.id);
+      let jobId: string | null = null;
+      try {
+        const result = await requestLyricAlignment({
+          versionId: detail.songId,
+          takeId: take?.id ?? null,
+        });
+        if (result.ok && result.id) jobId = result.id;
+      } catch {
+        // The action response may be lost after the job row was created.
+      }
+      if (!mountedRef.current) return;
+      if (!jobId) {
+        try {
+          jobId = await findAlignJob(
+            createClient(),
+            detail.songId,
+            take?.id ?? null,
+          );
+        } catch {
+          jobId = null;
+        }
+      }
+      if (!mountedRef.current) return;
+      if (jobId) setJob(jobId);
       else setError(true);
-    } catch {
-      setError(true);
     } finally {
-      setRequesting(false);
+      if (mountedRef.current) setRequesting(false);
     }
   };
 
