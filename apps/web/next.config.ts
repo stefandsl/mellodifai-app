@@ -1,14 +1,25 @@
-import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   compiler: {
     runAfterProductionCompile: async ({ projectDir }) => {
-      execFileSync(
-        process.execPath,
-        [path.join(projectDir, "scripts", "build-site-static.mjs")],
-        { cwd: projectDir, stdio: "inherit" },
+      const mod = (await import(
+        pathToFileURL(path.join(projectDir, "scripts", "build-site-static.mjs"))
+          .href
+      )) as {
+        buildSiteStatic: (outDir: string) => Promise<{
+          outDir: string;
+          pages: string[];
+          islands: string[];
+        }>;
+      };
+      const res = await mod.buildSiteStatic(
+        path.join(projectDir, ".next", "site-static"),
+      );
+      console.log(
+        `build-site-static: wrote ${res.pages.length} pages and ${res.islands.length} islands to ${res.outDir}`,
       );
     },
   },

@@ -289,13 +289,25 @@ export function onAfterFirstPaint(cb: () => void): void {
   }
 }
 
+declare const __SITE_FONTS_URL__: string | undefined;
+
+function resolveFontsUrl(): string | null {
+  if (typeof __SITE_FONTS_URL__ === "string" && __SITE_FONTS_URL__) {
+    return __SITE_FONTS_URL__;
+  }
+  const fromAttr = document.documentElement.getAttribute("data-site-fonts-url");
+  return fromAttr || null;
+}
+
 function initDeferredFonts(): void {
   if (document.querySelector('link[data-site-fonts="true"]')) return;
+  const href = resolveFontsUrl();
+  if (!href) return;
   onAfterFirstPaint(() => {
     if (document.querySelector('link[data-site-fonts="true"]')) return;
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/site/fonts.css";
+    link.href = href;
     link.setAttribute("data-site-fonts", "true");
     document.head.appendChild(link);
   });

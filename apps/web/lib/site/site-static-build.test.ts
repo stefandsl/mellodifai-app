@@ -1,9 +1,20 @@
 // @vitest-environment node
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildSiteStatic } from "../../scripts/build-site-static.mjs";
+import {
+  buildSiteStatic,
+  verifySiteStaticOutput,
+} from "../../scripts/build-site-static.mjs";
 import {
   normalizeMeshLightDarkShadows,
   pruneAstryxCssForHtml,
@@ -11,6 +22,14 @@ import {
   pruneUnusedSiteCss,
   splitSiteFontsCss,
 } from "./site-static-css";
+
+const WEB_DIR = resolve(import.meta.dirname, "../..");
+const TEST_TMP_PARENT = join(WEB_DIR, ".tmp-site-static-tests");
+
+function makeRepoTmpDir(prefix: string): string {
+  mkdirSync(TEST_TMP_PARENT, { recursive: true });
+  return mkdtempSync(join(TEST_TMP_PARENT, prefix));
+}
 
 describe("static site CSS helpers", () => {
   it("splits /site/fonts/ @font-face rules while keeping metric-matched fallback faces inline", () => {
@@ -108,10 +127,17 @@ describe("static site CSS helpers", () => {
 });
 
 describe("buildSiteStatic prerender pipeline", () => {
-  it("generates all static public HTML documents and tiny React-free, Zod-free island bundles", async () => {
-    const outDir = mkdtempSync(join(tmpdir(), "mellodifai-site-static-"));
+  it("generates hashed assets, cleans stale files, keeps favicon.ico, and fails verification on missing output", async () => {
+    const outDir = makeRepoTmpDir("build-");
+    const staleFile = join(outDir, "stale-old-page.html");
+    writeFileSync(staleFile, "stale", "utf8");
+
     try {
       const result = await buildSiteStatic(outDir);
+
+      // Old files from previous builds must be removed.
+      expect(existsSync(staleFile)).toBe(false);
+
       expect(result.pages).toEqual(
         expect.arrayContaining([
           "home-en.html",
@@ -128,13 +154,20 @@ describe("buildSiteStatic prerender pipeline", () => {
           "recipes-grid-24-it.html",
         ]),
       );
-      expect(result.islands.sort()).toEqual([
-        "home.js",
-        "pricing.js",
-        "recipes.js",
-      ]);
 
-      const fontsCss = readFileSync(join(outDir, "fonts.css"), "utf8");
+      // Island and fonts filenames are content-hashed.
+      expect(result.fontsFile).toMatch(/^fonts\.[0-9a-f]{12}\.css$/u);
+      expect(result.fontsUrl).toBe(`/site/styles/${result.fontsFile}`);
+      expect(result.islands).toHaveLength(3);
+      for (const base of ["home", "pricing", "recipes"] as const) {
+        const hashed = result.islandFiles[base];
+        expect(hashed).toMatch(
+          new RegExp(`^${base}\\.[0-9a-f]{12}\\.js$`, "u"),
+        );
+        expect(result.islandUrls[base]).toBe(`/site/islands/${hashed}`);
+      }
+
+      const fontsCss = readFileSync(join(outDir, result.fontsFile), "utf8");
       expect(fontsCss).toContain("/site/fonts/");
 
       for (const page of result.pages) {
@@ -145,9 +178,22 @@ describe("buildSiteStatic prerender pipeline", () => {
         expect(html, page).toContain('data-astryx-theme="mesh"');
         expect(html, page).toContain("<style>");
         expect(html, page).toContain(
-          '<noscript><link rel="stylesheet" href="/site/fonts.css"/></noscript>',
+          `<noscript><link rel="stylesheet" href="${result.fontsUrl}"/></noscript>`,
         );
+        expect(html, page).toContain(
+          `data-site-fonts-url="${result.fontsUrl}"`,
+        );
+        // Restore favicon.ico rather than replacing it with an inline SVG icon.
+        expect(html, page).toContain('href="/favicon.ico"');
+        expect(html, page).not.toContain("data:image/svg+xml");
         expect(html, page).not.toContain("/_next/static/chunks/");
+
+        const expectedIsland = page.startsWith("home-")
+          ? result.islandUrls.home
+          : page.startsWith("pricing-")
+            ? result.islandUrls.pricing
+            : result.islandUrls.recipes;
+        expect(html, page).toContain(expectedIsland);
       }
 
       const recipesCanvas = readFileSync(
@@ -168,9 +214,51 @@ describe("buildSiteStatic prerender pipeline", () => {
         expect(js, `${island} must not bundle React DOM`).not.toContain(
           "react-dom",
         );
+        expect(js, `${island} embeds hashed fonts URL`).toContain(
+          result.fontsUrl,
+        );
       }
+
+      // Verification passes on complete output, and throws if a page or island goes missing.
+      expect(() => verifySiteStaticOutput(outDir)).not.toThrow();
+
+      rmSync(join(outDir, "home-en.html"));
+      expect(() => verifySiteStaticOutput(outDir)).toThrow(/home-en\.html/u);
+
+      writeFileSync(join(outDir, "home-en.html"), "<html></html>", "utf8");
+      rmSync(join(outDir, "islands", result.islandFiles.home));
+      expect(() => verifySiteStaticOutput(outDir)).toThrow(
+        new RegExp(result.islandFiles.home.replaceAll(".", "\\."), "u"),
+      );
     } finally {
       rmSync(outDir, { recursive: true, force: true });
+      rmSync(TEST_TMP_PARENT, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("runs as a CLI entrypoint even when invoked through a directory junction or symlink", () => {
+    const tmpRoot = makeRepoTmpDir("junction-");
+    const linkScripts = join(tmpRoot, "scripts-link");
+    const outDir = join(tmpRoot, "out");
+    try {
+      symlinkSync(
+        join(WEB_DIR, "scripts"),
+        linkScripts,
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      execFileSync(
+        process.execPath,
+        [join(linkScripts, "build-site-static.mjs")],
+        {
+          cwd: WEB_DIR,
+          env: { ...process.env, SITE_STATIC_OUT_DIR: outDir },
+          stdio: "pipe",
+        },
+      );
+      expect(() => verifySiteStaticOutput(outDir)).not.toThrow();
+    } finally {
+      rmSync(tmpRoot, { recursive: true, force: true });
+      rmSync(TEST_TMP_PARENT, { recursive: true, force: true });
     }
   }, 30_000);
 });

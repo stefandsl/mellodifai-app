@@ -6,7 +6,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const lang = getRequestLocale(request);
   const view =
     request.nextUrl.searchParams.get("view") === "grid" ? "grid" : "canvas";
@@ -18,6 +18,6 @@ export function GET(request: NextRequest) {
     request,
     `recipes-${view}${suffix}-${lang}.html`,
     "text/html; charset=utf-8",
-    { cacheControl: "public, max-age=0, must-revalidate", varyCookie: true },
+    { cacheControl: "private, no-cache", varyCookie: true, required: true },
   );
 }

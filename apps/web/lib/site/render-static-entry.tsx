@@ -33,7 +33,29 @@ import {
   SiteLink,
   SiteText,
 } from "@/src/site-primitives";
-import { buildMinifiedPageCss } from "./site-static-css";
+import { buildMinifiedFontsCss, buildMinifiedPageCss } from "./site-static-css";
+
+export type StaticAssetUrls = {
+  fontsUrl: string;
+  islandUrls: {
+    home: string;
+    pricing: string;
+    recipes: string;
+  };
+};
+
+const DEFAULT_ASSET_URLS: StaticAssetUrls = {
+  fontsUrl: "/site/styles/fonts.css",
+  islandUrls: {
+    home: "/site/islands/home.js",
+    pricing: "/site/islands/pricing.js",
+    recipes: "/site/islands/recipes.js",
+  },
+};
+
+export function buildSiteFontsCss(): string {
+  return buildMinifiedFontsCss();
+}
 
 const WEB_DIR =
   process.env.SITE_STATIC_WEB_DIR || path.resolve(import.meta.dirname, "../..");
@@ -127,6 +149,7 @@ function renderDocument(options: {
   page: "home" | "pricing" | "recipes";
   title: string;
   description: string;
+  fontsUrl: string;
   extraHead?: string;
   extraBodyTail?: string;
   extraCssClasses?: readonly string[];
@@ -167,17 +190,17 @@ function renderDocument(options: {
 
   const html = [
     "<!DOCTYPE html>",
-    `<html lang="${options.lang}" data-theme="dark" data-astryx-theme="mesh">`,
+    `<html lang="${options.lang}" data-theme="dark" data-astryx-theme="mesh" data-site-fonts-url="${escapeHtml(options.fontsUrl)}">`,
     "<head>",
     '<meta charset="utf-8"/>',
     '<meta name="viewport" content="width=device-width, initial-scale=1"/>',
     `<title>${escapeHtml(options.title)}</title>`,
     `<meta name="description" content="${escapeHtml(options.description)}"/>`,
     options.extraHead ?? "",
-    '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%2307070a%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%277%27 fill=%27%23f2333d%27/%3E%3C/svg%3E" type="image/svg+xml"/>',
+    '<link rel="icon" href="/favicon.ico" sizes="64x64" type="image/x-icon"/>',
     `<script>${THEME_INIT_SCRIPT}</script>`,
     `<style>${inlineCss}</style>`,
-    '<noscript><link rel="stylesheet" href="/site/fonts.css"/></noscript>',
+    `<noscript><link rel="stylesheet" href="${escapeHtml(options.fontsUrl)}"/></noscript>`,
     "</head>",
     "<body>",
     fullBody,
@@ -189,7 +212,10 @@ function renderDocument(options: {
   return { html, fontsCss, bodyHtml: fullBody };
 }
 
-export function renderPricingStatic(lang: SiteLang): {
+export function renderPricingStatic(
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): {
   html: string;
   fontsCss: string;
 } {
@@ -200,7 +226,8 @@ export function renderPricingStatic(lang: SiteLang): {
     page: "pricing",
     title: p.meta.title,
     description: p.meta.description,
-    scripts: ["/site/islands/pricing.js"],
+    fontsUrl: assets.fontsUrl,
+    scripts: [assets.islandUrls.pricing],
     children: (
       <>
         <PricingPlans copy={copy} />
@@ -259,7 +286,10 @@ export function renderPricingStatic(lang: SiteLang): {
   });
 }
 
-export function renderHomeStatic(lang: SiteLang): {
+export function renderHomeStatic(
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): {
   html: string;
   fontsCss: string;
 } {
@@ -269,9 +299,10 @@ export function renderHomeStatic(lang: SiteLang): {
     page: "home",
     title: copy.meta.title,
     description: copy.meta.description,
+    fontsUrl: assets.fontsUrl,
     // Keep Collapsible open-chevron rotation and disabled Button opacity classes available.
     extraCssClasses: ["x19jd1h0", "xbyyjgo"],
-    scripts: ["/site/islands/home.js"],
+    scripts: [assets.islandUrls.home],
     children: <Home copy={copy} />,
   });
 }
@@ -369,6 +400,7 @@ export function renderRecipesStatic(
   view: RecipesViewMode,
   fixture24: boolean,
   extraCssClasses: readonly string[] = [],
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
 ): { html: string; fontsCss: string; bodyHtml: string } {
   const copy = SITE_COPY[lang];
   const loaded = fixture24 ? getRecipeTestFixture() : getPublishedRecipes();
@@ -407,11 +439,12 @@ export function renderRecipesStatic(
     page: "recipes",
     title: copy.recipes.meta.title,
     description: copy.recipes.meta.description,
+    fontsUrl: assets.fontsUrl,
     extraHead:
       '<link rel="alternate" type="text/markdown" href="/recipes.md"/>',
     extraBodyTail,
     extraCssClasses,
-    scripts: ["/site/islands/recipes.js"],
+    scripts: [assets.islandUrls.recipes],
     deferScriptsUntilAfterLcp: true,
     children: (
       <RecipesIndex
@@ -426,14 +459,16 @@ export function renderRecipesStatic(
   });
 }
 
-export function renderAllStaticPages() {
+export function renderAllStaticPages(
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+) {
   const pages: Record<string, string> = {};
   let fontsCss = "";
 
   // Collect union of CSS classes used by both canvas and grid views so in-place view switches
   // have every Astryx and site.css rule immediately available without reloading styles.
-  const canvasProbe = renderRecipesStatic("en", "canvas", false);
-  const gridProbe = renderRecipesStatic("en", "grid", false);
+  const canvasProbe = renderRecipesStatic("en", "canvas", false, [], assets);
+  const gridProbe = renderRecipesStatic("en", "grid", false, [], assets);
   const recipesUnionClasses = [
     ...new Set([
       ...collectAllClasses(canvasProbe.bodyHtml),
@@ -442,10 +477,10 @@ export function renderAllStaticPages() {
   ];
 
   for (const lang of ["en", "it"] as const) {
-    const home = renderHomeStatic(lang);
+    const home = renderHomeStatic(lang, assets);
     pages[`home-${lang}.html`] = home.html;
 
-    const pricing = renderPricingStatic(lang);
+    const pricing = renderPricingStatic(lang, assets);
     pages[`pricing-${lang}.html`] = pricing.html;
     if (!fontsCss) fontsCss = pricing.fontsCss;
 
@@ -455,10 +490,17 @@ export function renderAllStaticPages() {
         view,
         false,
         recipesUnionClasses,
+        assets,
       );
       pages[`recipes-${view}-${lang}.html`] = regular.html;
 
-      const fix24 = renderRecipesStatic(lang, view, true, recipesUnionClasses);
+      const fix24 = renderRecipesStatic(
+        lang,
+        view,
+        true,
+        recipesUnionClasses,
+        assets,
+      );
       pages[`recipes-${view}-24-${lang}.html`] = fix24.html;
     }
   }

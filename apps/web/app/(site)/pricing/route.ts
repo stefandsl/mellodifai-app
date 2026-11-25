@@ -6,12 +6,12 @@ import {
 
 export const runtime = "nodejs";
 
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const lang = getRequestLocale(request);
   return serveStaticAsset(
     request,
     `pricing-${lang}.html`,
     "text/html; charset=utf-8",
-    { cacheControl: "public, max-age=0, must-revalidate", varyCookie: true },
+    { cacheControl: "private, no-cache", varyCookie: true, required: true },
   );
 }

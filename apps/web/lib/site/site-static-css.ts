@@ -425,6 +425,19 @@ const AGENTS_MENU_CSS = `
 .site-agents-popover__desc{font-size:var(--text-supporting-size);line-height:var(--text-supporting-leading);color:var(--color-text-secondary)}
 `;
 
+export function buildMinifiedFontsCss(): string {
+  const esbuild = resolveEsbuild();
+  const rawSiteCss = fs.readFileSync(
+    path.join(WEB_DIR, "app/(site)/site.css"),
+    "utf8",
+  );
+  const { fontsCss: rawFontsCss } = splitSiteFontsCss(rawSiteCss);
+  return esbuild.transformSync(rawFontsCss, {
+    loader: "css",
+    minify: true,
+  }).code;
+}
+
 export function buildMinifiedPageCss(options: {
   page: "home" | "pricing" | "recipes";
   bodyHtml: string;
