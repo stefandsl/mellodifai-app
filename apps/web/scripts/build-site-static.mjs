@@ -209,12 +209,15 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
 
   const prevWebDir = process.env.SITE_STATIC_WEB_DIR;
   process.env.SITE_STATIC_WEB_DIR = WEB_DIR;
+  /** @type {Record<string, string>} */
   let pages;
-  let fontsCss;
-  let fontsFile;
-  let fontsUrl;
-  const islandFiles = {};
-  const islandUrls = {};
+  let fontsCss = "";
+  let fontsFile = "";
+  let fontsUrl = "";
+  /** @type {{ home: string; pricing: string; recipes: string }} */
+  const islandFiles = { home: "", pricing: "", recipes: "" };
+  /** @type {{ home: string; pricing: string; recipes: string }} */
+  const islandUrls = { home: "", pricing: "", recipes: "" };
 
   try {
     const mod = await import(
@@ -249,7 +252,9 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
     });
 
     for (const outputFile of islandBuild.outputFiles) {
-      const base = path.basename(outputFile.path, ".js");
+      const base = /** @type {"home" | "pricing" | "recipes"} */ (
+        path.basename(outputFile.path, ".js")
+      );
       const hash = contentHash(outputFile.contents);
       const hashedName = `${base}.${hash}.js`;
       fs.writeFileSync(
