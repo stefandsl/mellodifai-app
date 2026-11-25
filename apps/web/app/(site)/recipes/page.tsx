@@ -1,9 +1,5 @@
 import "@/components/site/recipes.css";
-import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
-import { Icon } from "@astryxdesign/core/Icon";
-import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { Metadata } from "next";
 import { Cover, type CoverKind } from "@/components/site/art";
@@ -18,6 +14,12 @@ import { href } from "@/lib/site/nav";
 import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
 import { getPublishedRecipes, type LoadedRecipe } from "@/lib/site/recipes";
 import { getRecipeTestFixture } from "@/lib/site/recipes.fixture";
+import {
+  SiteButtonLink,
+  SiteHeading,
+  SiteIcon,
+  SiteText,
+} from "@/src/site-primitives";
 
 function toRecipeIndexItem(recipe: LoadedRecipe): RecipeIndexItem {
   return {
@@ -105,7 +107,7 @@ export default async function RecipesPage({
           gap={8}
           hAlign="center"
         >
-          <Heading
+          <SiteHeading
             level={2}
             id="recipes-close-title"
             type="display-2"
@@ -113,17 +115,17 @@ export default async function RecipesPage({
             className="site-close__title"
           >
             {copy.closing.title}
-          </Heading>
-          <Button
+          </SiteHeading>
+          <SiteButtonLink
             label={copy.closing.action}
             href={href("start")}
             variant="primary"
             size="lg"
-            icon={<Icon icon={ArrowGlyph} size="sm" color="inherit" />}
+            icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
           />
-          <Text type="supporting" color="secondary" justify="center">
+          <SiteText type="supporting" color="secondary" justify="center">
             {copy.closing.note}
-          </Text>
+          </SiteText>
         </VStack>
       </VStack>
     </VStack>
