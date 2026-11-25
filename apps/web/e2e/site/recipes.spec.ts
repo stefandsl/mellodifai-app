@@ -515,7 +515,9 @@ test("at 1440: /recipes ships zero ZodError client chunks to the browser", async
     if (
       res.status() === 200 &&
       url.includes("/_next/static/") &&
-      url.endsWith(".js")
+      url.endsWith(".js") &&
+      // The dev server also serves the Next dev overlay, which never ships in a production build.
+      !url.includes("next-devtools")
     ) {
       try {
         jsBodies.push({ url, body: await res.text() });
