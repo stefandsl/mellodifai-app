@@ -40,6 +40,7 @@ function initPhoneMenu(): void {
   };
 
   const hide = () => {
+    setOpen(false);
     if (dialog.open) dialog.close();
   };
 
@@ -55,6 +56,10 @@ function initPhoneMenu(): void {
   )) {
     link.addEventListener("click", hide);
   }
+
+  dialog.addEventListener("cancel", () => {
+    setOpen(false);
+  });
 
   dialog.addEventListener("close", () => {
     setOpen(false);
@@ -90,13 +95,12 @@ function initAgentsMenu(): void {
   if (!items.length) return;
 
   const menuId = "site-agents-popover";
-  trigger.setAttribute("aria-haspopup", "menu");
   trigger.setAttribute("aria-expanded", "false");
   trigger.setAttribute("aria-controls", menuId);
 
   const menu = document.createElement("div");
   menu.id = menuId;
-  menu.setAttribute("role", "menu");
+  menu.setAttribute("role", "group");
   menu.setAttribute("aria-label", trigger.textContent?.trim() || "Agents");
   menu.className = "site-agents-popover";
   menu.hidden = true;
@@ -105,7 +109,6 @@ function initAgentsMenu(): void {
   for (const item of items) {
     const a = document.createElement("a");
     a.href = item.href;
-    a.setAttribute("role", "menuitem");
     a.tabIndex = -1;
     a.draggable = false;
     a.className = "site-agents-popover__item";
@@ -169,7 +172,10 @@ function initAgentsMenu(): void {
   };
 
   trigger.addEventListener("pointerenter", (e) => {
-    if (e.pointerType !== "touch") open(false);
+    if (e.pointerType !== "touch") {
+      clearHide();
+      window.setTimeout(() => open(false), 0);
+    }
   });
   trigger.addEventListener("pointerleave", (e) => {
     if (e.pointerType !== "touch") scheduleClose();
@@ -195,7 +201,9 @@ function initAgentsMenu(): void {
   });
 
   menu.addEventListener("keydown", (e) => {
-    const current = links.findIndex((el) => el === document.activeElement);
+    const active = document.activeElement;
+    const current =
+      active instanceof HTMLAnchorElement ? links.indexOf(active) : -1;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       focusIndex(current < 0 ? 0 : current + 1);
@@ -239,17 +247,12 @@ function initAgentsMenu(): void {
   });
 }
 
-function initDeferredFonts(): void {
-  if (document.querySelector('link[data-site-fonts="true"]')) return;
-  let loaded = false;
-  const load = () => {
-    if (loaded) return;
-    loaded = true;
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "/site/fonts.css";
-    link.setAttribute("data-site-fonts", "true");
-    document.head.appendChild(link);
+export function onAfterFirstPaint(cb: () => void): void {
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    cb();
   };
 
   const supportsLcp =
@@ -264,11 +267,11 @@ function initDeferredFonts(): void {
       const obs = new PerformanceObserver((list) => {
         if (list.getEntries().length > 0) {
           obs.disconnect();
-          requestAnimationFrame(() => requestAnimationFrame(load));
+          requestAnimationFrame(() => requestAnimationFrame(run));
         }
       });
       obs.observe({ type: "largest-contentful-paint", buffered: true });
-      window.setTimeout(load, 600);
+      window.setTimeout(run, 600);
       return;
     } catch {
       // Fall through to load fallback.
@@ -276,14 +279,26 @@ function initDeferredFonts(): void {
   }
 
   if (document.readyState === "complete") {
-    requestAnimationFrame(() => window.setTimeout(load, 0));
+    requestAnimationFrame(() => window.setTimeout(run, 0));
   } else {
     window.addEventListener(
       "load",
-      () => requestAnimationFrame(() => window.setTimeout(load, 0)),
+      () => requestAnimationFrame(() => window.setTimeout(run, 0)),
       { once: true },
     );
   }
+}
+
+function initDeferredFonts(): void {
+  if (document.querySelector('link[data-site-fonts="true"]')) return;
+  onAfterFirstPaint(() => {
+    if (document.querySelector('link[data-site-fonts="true"]')) return;
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/site/fonts.css";
+    link.setAttribute("data-site-fonts", "true");
+    document.head.appendChild(link);
+  });
 }
 
 export function initShell(): void {

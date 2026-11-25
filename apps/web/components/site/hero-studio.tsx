@@ -82,12 +82,24 @@ export function HeroStudio({ copy }: { copy: SiteCopy["hero"] }) {
         ? `${copy.nowPlaying}: ${copy.lineStart} ${word}`
         : copy.ready;
 
+  const studioConfig = JSON.stringify({
+    first: HERO_SAMPLE.first,
+    clips: HERO_SAMPLE.clips,
+    play: copy.play,
+    pause: copy.pause,
+    ready: copy.ready,
+    missing: copy.missing,
+    nowPlaying: copy.nowPlaying,
+    lineStart: copy.lineStart,
+  });
+
   return (
     <VStack
       as="figure"
       className="site-studio"
       aria-labelledby="hero-studio-label"
       data-word={word}
+      data-hero-studio={studioConfig}
     >
       <HStack className="site-studio__bar" gap={3} align="center" wrap="wrap">
         <SiteText type="code" className="site-tag">

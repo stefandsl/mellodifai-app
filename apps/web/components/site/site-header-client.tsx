@@ -1,8 +1,8 @@
 "use client";
 
-import { HStack } from "@astryxdesign/core/HStack";
 import { TopNavMenu } from "@astryxdesign/core/TopNav";
 import { type ReactNode, useEffect, useState } from "react";
+import { SiteAgentsMenuHost } from "@/src/site-primitives";
 
 export function SiteHeaderScroll({ children }: { children: ReactNode }) {
   const [scrolled, setScrolled] = useState<boolean | null>(null);
@@ -32,8 +32,8 @@ export function SiteAgentsMenu({
   items: { title: string; description: string; href: string }[];
 }) {
   return (
-    <HStack data-site-agents-menu={JSON.stringify(items)}>
+    <SiteAgentsMenuHost itemsJson={JSON.stringify(items)}>
       <TopNavMenu label={label} delay={0} items={items} />
-    </HStack>
+    </SiteAgentsMenuHost>
   );
 }

@@ -713,3 +713,13 @@ export function SiteTopNavItem({
     </a>
   );
 }
+
+export function SiteAgentsMenuHost({
+  itemsJson,
+  children,
+}: {
+  itemsJson: string;
+  children: ReactNode;
+}) {
+  return <div data-site-agents-menu={itemsJson}>{children}</div>;
+}

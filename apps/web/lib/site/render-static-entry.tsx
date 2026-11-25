@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CompareTable } from "@/components/site/compare-table";
 import { Faq } from "@/components/site/faq";
+import { Home } from "@/components/site/home";
 import { PricingPlans } from "@/components/site/pricing-plans";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
@@ -154,10 +155,29 @@ export function renderPricingStatic(lang: SiteLang): {
   });
 }
 
+export function renderHomeStatic(lang: SiteLang): {
+  html: string;
+  fontsCss: string;
+} {
+  const copy = SITE_COPY[lang];
+  return renderDocument({
+    lang,
+    page: "home",
+    title: copy.meta.title,
+    description: copy.meta.description,
+    // Keep Collapsible open-chevron rotation class available when toggled client-side.
+    extraCssClasses: ["x19jd1h0"],
+    scripts: ["/site/islands/home.js"],
+    children: <Home copy={copy} />,
+  });
+}
+
 export function renderAllStaticPages() {
   const pages: Record<string, string> = {};
   let fontsCss = "";
   for (const lang of ["en", "it"] as const) {
+    const home = renderHomeStatic(lang);
+    pages[`home-${lang}.html`] = home.html;
     const pricing = renderPricingStatic(lang);
     pages[`pricing-${lang}.html`] = pricing.html;
     if (!fontsCss) fontsCss = pricing.fontsCss;

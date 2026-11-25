@@ -60,6 +60,207 @@ export function splitSiteFontsCss(siteCss: string): {
   return { inlineSiteCss, fontsCss: webFontBlocks.join("\n") };
 }
 
+function collectClassTokensFromHtml(
+  html: string,
+  extraClasses: readonly string[] = [],
+): Set<string> {
+  const allowed = new Set<string>(extraClasses);
+  for (const attr of html.matchAll(/\bclass="([^"]*)"/gu)) {
+    for (const m of attr[1].matchAll(/\bx[0-9a-z]{5,7}\b/gu)) {
+      allowed.add(m[0]);
+    }
+  }
+  return allowed;
+}
+
+function collectAllCssClasses(
+  html: string,
+  extraClasses: readonly string[] = [],
+): Set<string> {
+  const present = new Set<string>(extraClasses);
+  for (const attr of html.matchAll(/\bclass="([^"]*)"/gu)) {
+    for (const cls of attr[1].split(/\s+/u)) {
+      if (cls) present.add(cls);
+    }
+  }
+  return present;
+}
+
+// Classes toggled dynamically by vanilla islands (not always present in initial SSR HTML).
+const DYNAMIC_SITE_CLASSES = [
+  "site-menu-open",
+  "site-agents-popover",
+  "site-agents-popover__item",
+  "site-agents-popover__title",
+  "site-agents-popover__desc",
+  "site-word--active",
+  "site-chip--active",
+  "site-stage__play",
+  "site-stage__wave",
+  "site-recipes-empty",
+  "site-recipe-card__video",
+] as const;
+
+function selectorHasMissingSiteClass(
+  selectorText: string,
+  presentClasses: Set<string>,
+): boolean {
+  const parts = selectorText.split(",");
+  // Keep rule if AT LEAST ONE comma-separated selector has all its .site-* classes present.
+  for (const part of parts) {
+    const siteClasses = [...part.matchAll(/\.(site-[a-zA-Z0-9_-]+)/gu)].map(
+      (m) => m[1],
+    );
+    if (siteClasses.length === 0) return false;
+    if (siteClasses.every((c) => presentClasses.has(c))) return false;
+  }
+  return true;
+}
+
+/**
+ * Safely prunes rules from `site.css` whose `.site-*` class selectors never
+ * appear in the page's HTML (or dynamic island classes). Preserves `@font-face`,
+ * `@keyframes`, element rules, and wraps kept rules inside `@media`/`@container`/`@supports`.
+ */
+export function pruneUnusedSiteCss(
+  siteCss: string,
+  html: string,
+  extraClasses: readonly string[] = [],
+): string {
+  const present = collectAllCssClasses(html, [
+    ...DYNAMIC_SITE_CLASSES,
+    ...extraClasses,
+  ]);
+  const clean = siteCss.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
+
+  function filterBlock(src: string): string {
+    const out: string[] = [];
+    let i = 0;
+    const len = src.length;
+    while (i < len) {
+      while (i < len && /\s/u.test(src[i])) i++;
+      if (i >= len) break;
+
+      let brace = i;
+      let semi = -1;
+      while (brace < len && src[brace] !== "{") {
+        if (src[brace] === ";" && semi === -1) semi = brace;
+        brace++;
+      }
+      if (semi !== -1 && (brace >= len || semi < brace)) {
+        out.push(src.slice(i, semi + 1));
+        i = semi + 1;
+        continue;
+      }
+      if (brace >= len) {
+        out.push(src.slice(i));
+        break;
+      }
+
+      const prelude = src.slice(i, brace).trim();
+      let depth = 1;
+      let j = brace + 1;
+      while (j < len && depth > 0) {
+        if (src[j] === "{") depth++;
+        else if (src[j] === "}") depth--;
+        j++;
+      }
+      const inner = src.slice(brace + 1, j - 1);
+      i = j;
+
+      if (
+        prelude.startsWith("@font-face") ||
+        prelude.startsWith("@keyframes") ||
+        prelude.startsWith("@property")
+      ) {
+        out.push(`${prelude}{${inner}}`);
+        continue;
+      }
+
+      if (
+        prelude.startsWith("@media") ||
+        prelude.startsWith("@supports") ||
+        prelude.startsWith("@container") ||
+        prelude.startsWith("@layer")
+      ) {
+        const filteredInner = filterBlock(inner);
+        if (filteredInner.trim()) {
+          out.push(`${prelude}{${filteredInner}}`);
+        }
+        continue;
+      }
+
+      if (!selectorHasMissingSiteClass(prelude, present)) {
+        out.push(`${prelude}{${inner}}`);
+      }
+    }
+    return out.join("\n");
+  }
+
+  return filterBlock(clean);
+}
+
+/**
+ * Prunes unreferenced `--*` custom property declarations from `mesh.css`,
+ * keeping all transitively referenced variables, `--spacing-1` (probed by layout tests),
+ * and every non-variable rule (`color-scheme`, reset rules, etc.).
+ */
+export function pruneMeshCssVars(
+  meshCss: string,
+  referenceText: string,
+): { prunedMeshCss: string; definedMeshVars: Set<string> } {
+  const lines = meshCss.split(/\r?\n/u);
+  const declMap = new Map<string, string[]>();
+  const definedMeshVars = new Set<string>();
+
+  for (const line of lines) {
+    const m = line.match(/^\s*(--[\w-]+)\s*:\s*(.+);$/u);
+    if (!m) continue;
+    const [, name, val] = m;
+    definedMeshVars.add(name);
+    const list = declMap.get(name) ?? [];
+    list.push(val);
+    declMap.set(name, list);
+  }
+
+  // Seed with every --var referenced in page CSS, HTML, or mesh reset rules (lines outside :scope var decls).
+  const keptVars = new Set<string>(["--spacing-1"]);
+  for (const m of referenceText.matchAll(/--[\w-]+/gu)) {
+    keptVars.add(m[0]);
+  }
+  for (const line of lines) {
+    if (/^\s*--[\w-]+\s*:/u.test(line)) continue;
+    for (const m of line.matchAll(/var\((--[\w-]+)/gu)) {
+      keptVars.add(m[1]);
+    }
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const v of [...keptVars]) {
+      const vals = declMap.get(v);
+      if (!vals) continue;
+      for (const val of vals) {
+        for (const m of val.matchAll(/var\((--[\w-]+)/gu)) {
+          if (!keptVars.has(m[1])) {
+            keptVars.add(m[1]);
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  const keptLines = lines.filter((line) => {
+    const m = line.match(/^\s*(--[\w-]+)\s*:/u);
+    if (!m) return true;
+    return keptVars.has(m[1]);
+  });
+
+  return { prunedMeshCss: keptLines.join("\n"), definedMeshVars };
+}
+
 /**
  * Prunes `site-astryx.css` (and optional `site-astryx-table.css`) to ONLY the
  * StyleX `.x...` rules whose classes appear in `html` (plus `extraClasses`),
@@ -70,11 +271,9 @@ export function pruneAstryxCssForHtml(
   html: string,
   otherCss: string,
   extraClasses: readonly string[] = [],
+  shadowedRootVars: ReadonlySet<string> = new Set(),
 ): string {
-  const allowed = new Set<string>(extraClasses);
-  for (const m of html.matchAll(/\bx[0-9a-z]{5,7}\b/gu)) {
-    allowed.add(m[0]);
-  }
+  const allowed = collectClassTokensFromHtml(html, extraClasses);
 
   const seedVars = new Set<string>();
   for (const m of otherCss.matchAll(/var\((--[\w-]+)/gu)) {
@@ -132,6 +331,8 @@ export function pruneAstryxCssForHtml(
       }
       continue;
     }
+    // Static islands never set Astryx's React press state machine attribute.
+    if (t.includes("data-astryx-press")) continue;
     const sel = unwrapSelector(t);
     const cls = [...sel.matchAll(/\.(x[0-9a-z]{5,7})\b/gu)].map((m) => m[1]);
     if (!cls.length) continue;
@@ -151,6 +352,7 @@ export function pruneAstryxCssForHtml(
   while (changed) {
     changed = false;
     for (const v of [...keptVars]) {
+      if (shadowedRootVars.has(v)) continue;
       const def = rootDecls.get(v);
       if (!def) continue;
       for (const m of def.matchAll(/var\((--[\w-]+)/gu)) {
@@ -175,7 +377,7 @@ export function pruneAstryxCssForHtml(
   }
 
   const filteredRoot = [...rootDecls.entries()]
-    .filter(([k]) => keptVars.has(k))
+    .filter(([k]) => keptVars.has(k) && !shadowedRootVars.has(k))
     .map(([k, v]) => `${k}:${v}`)
     .join(";");
   if (filteredRoot) headerLines.push(`:root{${filteredRoot}}`);
@@ -202,6 +404,13 @@ const AGENTS_MENU_CSS = `
 .site-agents-popover__desc{font-size:var(--text-supporting-size);line-height:var(--text-supporting-leading);color:var(--color-text-secondary)}
 `;
 
+// Skip initial layout and paint of below-the-fold sections until needed.
+const BELOW_FOLD_CV_CSS: Record<"home" | "pricing" | "recipes", string> = {
+  home: `.site-show,.site-steps,.site-features__head,.site-feature,.site-platform,.site-kinds,.site-plans,.site-faq,.site-close,.site-footer{content-visibility:auto;contain-intrinsic-size:auto var(--site-close-band)}`,
+  pricing: `.site-price-compare,.site-faq,.site-footer{content-visibility:auto;contain-intrinsic-size:auto var(--site-close-band)}`,
+  recipes: "",
+};
+
 export function buildMinifiedPageCss(options: {
   page: "home" | "pricing" | "recipes";
   bodyHtml: string;
@@ -220,8 +429,14 @@ export function buildMinifiedPageCss(options: {
     path.join(WEB_DIR, "app/(site)/site.css"),
     "utf8",
   );
-  const { inlineSiteCss, fontsCss: rawFontsCss } =
+  const { inlineSiteCss: unprunedSiteCss, fontsCss: rawFontsCss } =
     splitSiteFontsCss(rawSiteCss);
+
+  const prunedSiteCss = pruneUnusedSiteCss(
+    unprunedSiteCss,
+    options.bodyHtml,
+    options.extraClasses,
+  );
 
   let extraPageCss = "";
   let combinedAstryx = siteAstryx;
@@ -243,25 +458,40 @@ export function buildMinifiedPageCss(options: {
     );
   }
 
-  const otherCss = [meshCss, inlineSiteCss, extraPageCss, AGENTS_MENU_CSS].join(
-    "\n",
+  const pageCvCss = BELOW_FOLD_CV_CSS[options.page];
+  const nonAstryxCss = [
+    prunedSiteCss,
+    extraPageCss,
+    AGENTS_MENU_CSS,
+    pageCvCss,
+  ].join("\n");
+
+  const { prunedMeshCss: initialMesh, definedMeshVars } = pruneMeshCssVars(
+    meshCss,
+    `${nonAstryxCss}\n${options.bodyHtml}`,
   );
   const prunedAstryx = pruneAstryxCssForHtml(
     combinedAstryx,
     options.bodyHtml,
-    otherCss,
+    `${initialMesh}\n${nonAstryxCss}`,
     options.extraClasses ?? [],
+    definedMeshVars,
+  );
+  const { prunedMeshCss } = pruneMeshCssVars(
+    meshCss,
+    `${prunedAstryx}\n${nonAstryxCss}\n${options.bodyHtml}`,
   );
 
-  const combined = [
+  const combinedHead = [
     prunedAstryx,
-    meshCss,
-    inlineSiteCss,
+    prunedMeshCss,
+    prunedSiteCss,
     extraPageCss,
     AGENTS_MENU_CSS,
+    pageCvCss,
   ].join("\n");
 
-  const inlineCss = esbuild.transformSync(combined, {
+  const inlineCss = esbuild.transformSync(combinedHead, {
     loader: "css",
     minify: true,
   }).code;
