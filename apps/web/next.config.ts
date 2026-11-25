@@ -1,6 +1,17 @@
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  compiler: {
+    runAfterProductionCompile: async ({ projectDir }) => {
+      execFileSync(
+        process.execPath,
+        [path.join(projectDir, "scripts", "build-site-static.mjs")],
+        { cwd: projectDir, stdio: "inherit" },
+      );
+    },
+  },
   experimental: {
     globalNotFound: true,
     // The desktop app builds unattended on the owner's PC: Next's upgrade nudge for coding

@@ -45,7 +45,12 @@ export function PlanUnits({
   const { period, changed } = use(PeriodContext);
   if (!stacked) {
     return (
-      <SiteText type="supporting" color="secondary">
+      <SiteText
+        type="supporting"
+        color="secondary"
+        data-plan-unit-monthly={units.monthly}
+        data-plan-unit-yearly={units.yearly}
+      >
         {units[period]}
       </SiteText>
     );
@@ -58,6 +63,7 @@ export function PlanUnits({
           type="supporting"
           color="secondary"
           className="site-plan-card__unit"
+          data-period={p}
           data-shown={p === period}
           aria-hidden={p !== period}
         >

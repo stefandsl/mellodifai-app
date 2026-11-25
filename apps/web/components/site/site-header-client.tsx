@@ -1,5 +1,6 @@
 "use client";
 
+import { HStack } from "@astryxdesign/core/HStack";
 import { TopNavMenu } from "@astryxdesign/core/TopNav";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -30,5 +31,9 @@ export function SiteAgentsMenu({
   label: string;
   items: { title: string; description: string; href: string }[];
 }) {
-  return <TopNavMenu label={label} delay={0} items={items} />;
+  return (
+    <HStack data-site-agents-menu={JSON.stringify(items)}>
+      <TopNavMenu label={label} delay={0} items={items} />
+    </HStack>
+  );
 }
