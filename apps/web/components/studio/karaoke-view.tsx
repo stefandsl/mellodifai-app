@@ -19,26 +19,23 @@ import { useGlass } from "./ambient-backdrop";
 
 const MAX_POLL_FAILURES = 5;
 
-async function findOpenAlignJob(
+async function findAlignJob(
   db: ReturnType<typeof createClient>,
   versionId: string,
   takeId: string | null,
 ): Promise<string | null> {
-  const { data, error } = await db
+  // One job per take or master (unique idempotency key), in any status: poll() decides.
+  const query = db
     .from("jobs")
-    .select("id, payload")
+    .select("id")
     .eq("version_id", versionId)
-    .eq("stage", "align_lyrics")
-    .in("status", ["queued", "running"]);
+    .eq("stage", "align_lyrics");
+  const { data, error } = await (takeId
+    ? query.eq("payload->>take_id", takeId)
+    : query.eq("payload->>source", "master")
+  ).maybeSingle();
   if (error || !data) return null;
-  const match = data.find((row) => {
-    const payload = row.payload as
-      | { take_id?: string; source?: string }
-      | null
-      | undefined;
-    return takeId ? payload?.take_id === takeId : payload?.source === "master";
-  });
-  return typeof match?.id === "string" ? match.id : null;
+  return typeof data.id === "string" ? data.id : null;
 }
 
 export function KaraokeView() {
@@ -119,17 +116,22 @@ function KaraokeSession({
     let failures = 0;
     const poll = async () => {
       try {
-        const [updatedResult, statusResult] = await Promise.all([
-          db
-            .from(take ? "takes" : "versions")
-            .select("lyric_timing")
-            .eq("id", take?.id ?? detail.songId)
-            .single(),
-          db.from("jobs").select("status").eq("id", job).single(),
-        ]);
+        // The worker writes the timing before it marks the job done, so read the status
+        // first: a terminal status read before the timing read means the timing is final.
+        const statusResult = await db
+          .from("jobs")
+          .select("status")
+          .eq("id", job)
+          .single();
         if (cancelled) return;
-        if (updatedResult.error || statusResult.error)
-          throw new Error("Alignment polling failed");
+        if (statusResult.error) throw new Error("Alignment polling failed");
+        const updatedResult = await db
+          .from(take ? "takes" : "versions")
+          .select("lyric_timing")
+          .eq("id", take?.id ?? detail.songId)
+          .single();
+        if (cancelled) return;
+        if (updatedResult.error) throw new Error("Alignment polling failed");
         failures = 0;
         const updated = updatedResult.data;
         const status = statusResult.data;
@@ -196,7 +198,7 @@ function KaraokeSession({
       if (!mountedRef.current) return;
       if (!jobId) {
         try {
-          jobId = await findOpenAlignJob(
+          jobId = await findAlignJob(
             createClient(),
             detail.songId,
             take?.id ?? null,
