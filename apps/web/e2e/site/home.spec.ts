@@ -507,7 +507,8 @@ test("fonts arriving 1.2 s late move nothing; blocked fonts cut nothing", async 
       await page.evaluate(() => (window as unknown as { cls: number }).cls),
     ).toBeLessThan(0.05);
 
-  await page.unroute(/\/site\/fonts\//u);
+  // A font request can still sit in the slow handler; drop it without "Route is already handled".
+  await page.unrouteAll({ behavior: "ignoreErrors" });
   await page.route(/\/site\/fonts\//u, (route) => route.abort());
   await page.goto("/");
   expect(
