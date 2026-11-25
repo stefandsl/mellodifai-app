@@ -94,16 +94,6 @@ function safeJsonForScript(value: unknown): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
 }
 
-function collectAllClasses(html: string): string[] {
-  const out = new Set<string>();
-  for (const attr of html.matchAll(/\bclass="([^"]*)"/gu)) {
-    for (const cls of attr[1].split(/\s+/u)) {
-      if (cls) out.add(cls);
-    }
-  }
-  return [...out];
-}
-
 function toRecipeIndexItem(recipe: LoadedRecipe): RecipeIndexItem {
   return {
     id: recipe.id,
@@ -150,6 +140,16 @@ function coverToDataUri(coverUrl: string): string {
   return uri;
 }
 
+let cachedFaviconDataUri: string | null = null;
+function getFaviconDataUri(): string {
+  if (cachedFaviconDataUri) return cachedFaviconDataUri;
+  const icoPath = path.join(WEB_DIR, "app/favicon.ico");
+  if (!fs.existsSync(icoPath)) return "/favicon.ico";
+  const b64 = fs.readFileSync(icoPath).toString("base64");
+  cachedFaviconDataUri = `data:image/x-icon;base64,${b64}`;
+  return cachedFaviconDataUri;
+}
+
 function renderDocument(options: {
   lang: SiteLang;
   page: "home" | "pricing" | "recipes";
@@ -194,6 +194,12 @@ function renderDocument(options: {
         )
         .join("");
 
+  // Keep the exact app/favicon.ico brand icon everywhere. On /recipes (where LCP is an
+  // inline cover image), inline the exact favicon.ico bytes so the browser never stalls
+  // an extra Slow 4G round-trip for /favicon.ico before LCP.
+  const faviconHref =
+    options.page === "recipes" ? getFaviconDataUri() : "/favicon.ico";
+
   const html = [
     "<!DOCTYPE html>",
     `<html lang="${options.lang}" data-theme="dark" data-astryx-theme="mesh" data-site-fonts-url="${escapeHtml(options.fontsUrl)}">`,
@@ -203,7 +209,7 @@ function renderDocument(options: {
     `<title>${escapeHtml(options.title)}</title>`,
     `<meta name="description" content="${escapeHtml(options.description)}"/>`,
     options.extraHead ?? "",
-    '<link rel="icon" href="/favicon.ico" sizes="64x64" type="image/x-icon"/>',
+    `<link rel="icon" href="${faviconHref}" sizes="64x64" type="image/x-icon"/>`,
     `<script>${THEME_INIT_SCRIPT}</script>`,
     `<style>${inlineCss}</style>`,
     `<noscript><link rel="stylesheet" href="${escapeHtml(options.fontsUrl)}"/></noscript>`,
@@ -565,17 +571,6 @@ export function renderAllStaticPages(
   const pages: Record<string, string> = {};
   let fontsCss = "";
 
-  // Collect union of CSS classes used by both canvas and grid views so in-place view switches
-  // have every Astryx and site.css rule immediately available without reloading styles.
-  const canvasProbe = renderRecipesStatic("en", "canvas", false, [], assets);
-  const gridProbe = renderRecipesStatic("en", "grid", false, [], assets);
-  const recipesUnionClasses = [
-    ...new Set([
-      ...collectAllClasses(canvasProbe.bodyHtml),
-      ...collectAllClasses(gridProbe.bodyHtml),
-    ]),
-  ];
-
   for (const lang of ["en", "it"] as const) {
     const home = renderHomeStatic(lang, assets);
     pages[`home-${lang}.html`] = home.html;
@@ -585,22 +580,10 @@ export function renderAllStaticPages(
     if (!fontsCss) fontsCss = pricing.fontsCss;
 
     for (const view of ["canvas", "grid"] as const) {
-      const regular = renderRecipesStatic(
-        lang,
-        view,
-        false,
-        recipesUnionClasses,
-        assets,
-      );
+      const regular = renderRecipesStatic(lang, view, false, [], assets);
       pages[`recipes-${view}-${lang}.html`] = regular.html;
 
-      const fix24 = renderRecipesStatic(
-        lang,
-        view,
-        true,
-        recipesUnionClasses,
-        assets,
-      );
+      const fix24 = renderRecipesStatic(lang, view, true, [], assets);
       pages[`recipes-${view}-24-${lang}.html`] = fix24.html;
     }
   }

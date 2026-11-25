@@ -865,6 +865,18 @@ function mountRecipesPage(): void {
           window.location.assign(targetHref);
           return;
         }
+        const fetchedStyle = doc.head.querySelector("style");
+        if (
+          fetchedStyle?.textContent &&
+          !document.head.querySelector(
+            `style[data-recipes-view-style="${targetView}"]`,
+          )
+        ) {
+          const styleEl = document.createElement("style");
+          styleEl.setAttribute("data-recipes-view-style", targetView);
+          styleEl.textContent = fetchedStyle.textContent;
+          document.head.appendChild(styleEl);
+        }
         nextRoot = document.importNode(fetched, true);
         viewCache.set(targetView, nextRoot);
       } catch {

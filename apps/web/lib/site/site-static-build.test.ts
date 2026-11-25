@@ -170,6 +170,10 @@ describe("buildSiteStatic prerender pipeline", () => {
       const fontsCss = readFileSync(join(outDir, result.fontsFile), "utf8");
       expect(fontsCss).toContain("/site/fonts/");
 
+      const expectedFaviconB64 = readFileSync(
+        join(WEB_DIR, "app/favicon.ico"),
+      ).toString("base64");
+
       for (const page of result.pages) {
         const html = readFileSync(join(outDir, page), "utf8");
         const lang = page.endsWith("-it.html") ? "it" : "en";
@@ -183,8 +187,14 @@ describe("buildSiteStatic prerender pipeline", () => {
         expect(html, page).toContain(
           `data-site-fonts-url="${result.fontsUrl}"`,
         );
-        // Restore favicon.ico rather than replacing it with an inline SVG icon.
-        expect(html, page).toContain('href="/favicon.ico"');
+        // Restore app/favicon.ico (never replace with an inline SVG icon).
+        if (page.startsWith("recipes-")) {
+          expect(html, page).toContain(
+            `href="data:image/x-icon;base64,${expectedFaviconB64}"`,
+          );
+        } else {
+          expect(html, page).toContain('href="/favicon.ico"');
+        }
         expect(html, page).not.toContain("data:image/svg+xml");
         expect(html, page).not.toContain("/_next/static/chunks/");
 
