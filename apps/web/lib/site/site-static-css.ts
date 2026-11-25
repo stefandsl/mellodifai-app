@@ -2,7 +2,8 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-const WEB_DIR = path.resolve(import.meta.dirname, "../..");
+const WEB_DIR =
+  process.env.SITE_STATIC_WEB_DIR || path.resolve(import.meta.dirname, "../..");
 
 type EsbuildMini = {
   transformSync: (
@@ -297,9 +298,7 @@ export function pruneAstryxCssForHtml(
     const t = line.trim();
     if (!inReset && t.startsWith("@layer reset {")) {
       inReset = true;
-      resetDepth = 1;
-      resetLines.push(line);
-      continue;
+      resetDepth = 0;
     }
     if (inReset) {
       resetLines.push(line);

@@ -7,11 +7,14 @@ import { computeSiteAstryxCss } from "../../scripts/build-site-astryx-css.mjs";
 const WEB = join(import.meta.dirname, "../..");
 
 describe("public site loads only the Astryx CSS it uses", () => {
-  it("does not import the full 304 KB @astryxdesign/core/astryx.css in the site layout", () => {
-    const layout = readFileSync(join(WEB, "app/(site)/layout.tsx"), "utf8");
-    expect(layout).not.toContain("@astryxdesign/core/astryx.css");
-    expect(layout).not.toContain("@astryxdesign/core/reset.css");
-    expect(layout).toContain("site-astryx.css");
+  it("does not import the full 304 KB @astryxdesign/core/astryx.css in the static site CSS pipeline", () => {
+    const cssPipeline = readFileSync(
+      join(WEB, "lib/site/site-static-css.ts"),
+      "utf8",
+    );
+    expect(cssPipeline).not.toContain("@astryxdesign/core/astryx.css");
+    expect(cssPipeline).not.toContain("@astryxdesign/core/reset.css");
+    expect(cssPipeline).toContain("site-astryx.css");
   });
 
   it("keeps generated site Astryx CSS in sync with site imports and smaller than half of astryx.css", () => {

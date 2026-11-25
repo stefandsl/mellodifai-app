@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 const WEB = join(import.meta.dirname, "../..");
 
 const STATIC_FILES = [
-  "app/(site)/layout.tsx",
-  "app/(site)/page.tsx",
-  "app/(site)/pricing/page.tsx",
+  "app/(site)/route.ts",
+  "app/(site)/pricing/route.ts",
+  "app/(site)/recipes/route.ts",
   "components/site/home.tsx",
   "components/site/site-footer.tsx",
   "components/site/brand.tsx",

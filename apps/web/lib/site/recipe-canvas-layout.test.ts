@@ -315,10 +315,25 @@ describe("recipes client bundle stays free of zod", () => {
     expect(indexSrc).not.toMatch(
       /import\s+(?!type\b)[^;]+from\s+["']@mellodifai\/shared["']/u,
     );
+    const islandSrc = readFileSync(
+      join(repoRoot, "apps/web/lib/site/islands/recipes.ts"),
+      "utf8",
+    );
+    expect(islandSrc).not.toMatch(/from\s+["']zod["']/u);
+    expect(islandSrc).not.toMatch(
+      /import\s+(?!type\b)[^;]+from\s+["']@mellodifai\/shared["']/u,
+    );
   });
 
-  it("ships zero ZodError references in any built /recipes client chunk when .next exists", () => {
+  it("ships zero ZodError references in any built /recipes client bundle when .next exists", () => {
     const nextDir = join(repoRoot, "apps/web/.next");
+    const islandPath = join(nextDir, "site-static/islands/recipes.js");
+    if (existsSync(islandPath)) {
+      const body = readFileSync(islandPath, "utf8");
+      expect(body.length).toBeGreaterThan(0);
+      expect(body).not.toContain("ZodError");
+      return;
+    }
     const manifestPath = join(
       nextDir,
       "server/app/(site)/recipes/page_client-reference-manifest.js",

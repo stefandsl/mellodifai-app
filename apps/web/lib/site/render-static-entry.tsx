@@ -35,7 +35,8 @@ import {
 } from "@/src/site-primitives";
 import { buildMinifiedPageCss } from "./site-static-css";
 
-const WEB_DIR = path.resolve(import.meta.dirname, "../..");
+const WEB_DIR =
+  process.env.SITE_STATIC_WEB_DIR || path.resolve(import.meta.dirname, "../..");
 
 const THEME_INIT_SCRIPT =
   'try{if(localStorage.getItem("mellodifai-theme")==="light")document.documentElement.setAttribute("data-theme","light")}catch{}';

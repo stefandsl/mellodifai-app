@@ -151,13 +151,24 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
     plugins: [makeAliasPlugin()],
   });
 
-  const mod = await import(`${pathToFileURL(runnerPath).href}?t=${Date.now()}`);
-  const { pages, fontsCss } = mod.renderAllStaticPages();
+  const prevWebDir = process.env.SITE_STATIC_WEB_DIR;
+  process.env.SITE_STATIC_WEB_DIR = WEB_DIR;
+  let pages;
+  let fontsCss;
+  try {
+    const mod = await import(
+      `${pathToFileURL(runnerPath).href}?t=${Date.now()}`
+    );
+    ({ pages, fontsCss } = mod.renderAllStaticPages());
+  } finally {
+    if (prevWebDir === undefined) delete process.env.SITE_STATIC_WEB_DIR;
+    else process.env.SITE_STATIC_WEB_DIR = prevWebDir;
+    fs.rmSync(runnerPath, { force: true });
+  }
   for (const [name, html] of Object.entries(pages)) {
     fs.writeFileSync(path.join(outDir, name), html, "utf8");
   }
   fs.writeFileSync(path.join(outDir, "fonts.css"), fontsCss, "utf8");
-  fs.rmSync(runnerPath, { force: true });
 
   return {
     outDir,
