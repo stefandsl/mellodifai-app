@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Button } from "@astryxdesign/core/Button";
+import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -12,7 +13,12 @@ import { Cover, type CoverKind } from "@/components/site/art";
 import { CompareTable } from "@/components/site/compare-table";
 import { Faq } from "@/components/site/faq";
 import { Home } from "@/components/site/home";
-import { ArrowGlyph, CloseGlyph } from "@/components/site/icons";
+import {
+  ArrowGlyph,
+  CloseGlyph,
+  PauseGlyph,
+  PlayGlyph,
+} from "@/components/site/icons";
 import { PricingPlans } from "@/components/site/pricing-plans";
 import {
   RecipesIndex,
@@ -286,6 +292,92 @@ export function renderPricingStatic(
   });
 }
 
+export type HomeAstryxStateClasses = {
+  disabledButton: string[];
+  panelClosed: string[];
+  panelOpen: string[];
+  chevronOpen: string[];
+  chevronClosed: string[];
+};
+
+function extractElementClasses(markup: string, pattern: RegExp): Set<string> {
+  const match = markup.match(pattern);
+  if (!match) return new Set();
+  const classMatch = match[0].match(/\bclass="([^"]*)"/u);
+  if (!classMatch) return new Set();
+  return new Set(classMatch[1].split(/\s+/u).filter(Boolean));
+}
+
+function diffClassSets(a: Set<string>, b: Set<string>): string[] {
+  return [...a].filter((cls) => !b.has(cls));
+}
+
+let cachedHomeClasses: HomeAstryxStateClasses | null = null;
+
+export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
+  if (cachedHomeClasses) return cachedHomeClasses;
+
+  const enabledBtn = renderToStaticMarkup(<Button label="x" />);
+  const disabledBtn = renderToStaticMarkup(<Button label="x" isDisabled />);
+  const enabledClasses = extractElementClasses(enabledBtn, /<button\b[^>]*>/u);
+  const disabledClasses = extractElementClasses(
+    disabledBtn,
+    /<button\b[^>]*>/u,
+  );
+
+  const closedCollapsible = renderToStaticMarkup(
+    <Collapsible trigger="x" defaultIsOpen={false}>
+      y
+    </Collapsible>,
+  );
+  const openCollapsible = renderToStaticMarkup(
+    <Collapsible trigger="x" defaultIsOpen={true}>
+      y
+    </Collapsible>,
+  );
+
+  const closedPanelClasses = extractElementClasses(
+    closedCollapsible,
+    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
+  );
+  const openPanelClasses = extractElementClasses(
+    openCollapsible,
+    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
+  );
+
+  const closedChevronClasses = extractElementClasses(
+    closedCollapsible,
+    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
+  );
+  const openChevronClasses = extractElementClasses(
+    openCollapsible,
+    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
+  );
+
+  cachedHomeClasses = {
+    disabledButton: diffClassSets(disabledClasses, enabledClasses),
+    panelClosed: diffClassSets(closedPanelClasses, openPanelClasses),
+    panelOpen: diffClassSets(openPanelClasses, closedPanelClasses),
+    chevronOpen: diffClassSets(openChevronClasses, closedChevronClasses),
+    chevronClosed: diffClassSets(closedChevronClasses, openChevronClasses),
+  };
+  return cachedHomeClasses;
+}
+
+function renderHomeTemplates(stateClasses: HomeAstryxStateClasses): string {
+  const playMarkup = renderToStaticMarkup(
+    <SiteIcon icon={PlayGlyph} size="sm" color="inherit" />,
+  );
+  const pauseMarkup = renderToStaticMarkup(
+    <SiteIcon icon={PauseGlyph} size="sm" color="inherit" />,
+  );
+  return [
+    `<template data-hero-icon="play">${playMarkup}</template>`,
+    `<template data-hero-icon="pause">${pauseMarkup}</template>`,
+    `<script type="application/json" id="site-home-classes">${safeJsonForScript(stateClasses)}</script>`,
+  ].join("");
+}
+
 export function renderHomeStatic(
   lang: SiteLang,
   assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
@@ -294,14 +386,22 @@ export function renderHomeStatic(
   fontsCss: string;
 } {
   const copy = SITE_COPY[lang];
+  const stateClasses = deriveHomeAstryxStateClasses();
+  const extraCssClasses = [
+    ...stateClasses.disabledButton,
+    ...stateClasses.panelClosed,
+    ...stateClasses.panelOpen,
+    ...stateClasses.chevronOpen,
+    ...stateClasses.chevronClosed,
+  ];
   return renderDocument({
     lang,
     page: "home",
     title: copy.meta.title,
     description: copy.meta.description,
     fontsUrl: assets.fontsUrl,
-    // Keep Collapsible open-chevron rotation and disabled Button opacity classes available.
-    extraCssClasses: ["x19jd1h0", "xbyyjgo"],
+    extraBodyTail: renderHomeTemplates(stateClasses),
+    extraCssClasses,
     scripts: [assets.islandUrls.home],
     children: <Home copy={copy} />,
   });

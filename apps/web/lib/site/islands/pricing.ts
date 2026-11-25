@@ -49,6 +49,15 @@ export function initPricingFaq(): void {
   }
 }
 
-initShell();
-initPeriodSwitch();
-initPricingFaq();
+export function initPricing(): void {
+  initShell();
+  initPeriodSwitch();
+  initPricingFaq();
+}
+
+if (
+  typeof window !== "undefined" &&
+  !("__SITE_ISLAND_MANUAL_INIT__" in window)
+) {
+  initPricing();
+}

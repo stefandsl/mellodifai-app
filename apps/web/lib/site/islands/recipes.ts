@@ -66,7 +66,7 @@ function readPayload(): RecipesPayload | null {
   }
 }
 
-function initRecipes(): void {
+function mountRecipesPage(): void {
   const payload = readPayload();
   if (!payload) return;
 
@@ -156,7 +156,12 @@ function initRecipes(): void {
     if (!input || !endSlot) return () => {};
 
     activeInput = input;
-    input.value = query;
+    if (query === "" && input.value !== "") {
+      query = input.value;
+      matchIds = computeMatchIds(query);
+    } else {
+      input.value = query;
+    }
 
     let clearBtn: HTMLButtonElement | null = null;
     const syncEndSlot = () => {
@@ -241,7 +246,6 @@ function initRecipes(): void {
     const pointers = new Map<number, { x: number; y: number }>();
     let suppressClick = false;
     let emptyNode: HTMLElement | null = null;
-    let lastMatchIds: ReadonlySet<string> | null = null;
 
     // Seed card pool from SSR cards and capture a clean Astryx template for virtualization.
     const cardPool = new Map<string, HTMLElement>();
@@ -382,6 +386,8 @@ function initRecipes(): void {
       : [];
     const minusBtn = zoomButtons[0] ?? null;
     const resetBtn = zoomButtons[1] ?? null;
+    const resetLabel =
+      resetBtn?.querySelector<HTMLElement>("span > span") ?? resetBtn;
     const plusBtn = zoomButtons[2] ?? null;
 
     function syncEmptyState(): void {
@@ -423,14 +429,13 @@ function initRecipes(): void {
       );
       stage.setAttribute("data-zoom", String(displayZoom));
 
-      if (resetBtn) resetBtn.textContent = `${displayZoom}%`;
+      if (resetLabel) resetLabel.textContent = `${displayZoom}%`;
       if (minusBtn) minusBtn.disabled = view.zoom <= MIN_ZOOM + 0.01;
       if (plusBtn) plusBtn.disabled = view.zoom >= MAX_ZOOM - 0.01;
 
       const visibleIds = new Set<string>();
+      const visibleEls: HTMLElement[] = [];
       const searching = matchIds !== null;
-      const searchChanged = matchIds !== lastMatchIds;
-      lastMatchIds = matchIds;
 
       for (const card of visible) {
         visibleIds.add(card.recipe.id);
@@ -443,14 +448,22 @@ function initRecipes(): void {
         el.setAttribute("data-match", card.matched ? "true" : "false");
         el.setAttribute("data-searching", searching ? "true" : "false");
         ensureVideo(el, card.recipe);
-        if (searchChanged || el.parentElement !== stage) {
-          stage.appendChild(el);
-        }
+        visibleEls.push(el);
       }
 
       for (const [id, el] of cardPool) {
         if (!visibleIds.has(id) && el.parentElement === stage) {
           el.remove();
+        }
+      }
+
+      // Keep DOM and tab order aligned with visible placement order without detaching in-order cards.
+      let cursor = stage.firstElementChild;
+      for (const el of visibleEls) {
+        if (el === cursor) {
+          cursor = cursor.nextElementSibling;
+        } else {
+          stage.insertBefore(el, cursor);
         }
       }
 
@@ -914,5 +927,14 @@ function initRecipes(): void {
   }
 }
 
-initShell();
-initRecipes();
+export function initRecipes(): void {
+  initShell();
+  mountRecipesPage();
+}
+
+if (
+  typeof window !== "undefined" &&
+  !("__SITE_ISLAND_MANUAL_INIT__" in window)
+) {
+  initRecipes();
+}

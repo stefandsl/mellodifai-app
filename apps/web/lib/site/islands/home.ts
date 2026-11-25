@@ -22,7 +22,48 @@ type KindItem = {
   rings: [number, number, number][];
 };
 
+type HomeStateClasses = {
+  disabledButton: string[];
+  panelClosed: string[];
+  panelOpen: string[];
+  chevronOpen: string[];
+  chevronClosed: string[];
+};
+
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+function readHomeStateClasses(): HomeStateClasses {
+  const el = document.getElementById("site-home-classes");
+  if (el?.textContent) {
+    try {
+      const parsed = JSON.parse(el.textContent) as Partial<HomeStateClasses>;
+      return {
+        disabledButton: Array.isArray(parsed.disabledButton)
+          ? parsed.disabledButton
+          : [],
+        panelClosed: Array.isArray(parsed.panelClosed)
+          ? parsed.panelClosed
+          : [],
+        panelOpen: Array.isArray(parsed.panelOpen) ? parsed.panelOpen : [],
+        chevronOpen: Array.isArray(parsed.chevronOpen)
+          ? parsed.chevronOpen
+          : [],
+        chevronClosed: Array.isArray(parsed.chevronClosed)
+          ? parsed.chevronClosed
+          : [],
+      };
+    } catch {
+      // Fall through to empty defaults.
+    }
+  }
+  return {
+    disabledButton: [],
+    panelClosed: [],
+    panelOpen: [],
+    chevronOpen: [],
+    chevronClosed: [],
+  };
+}
 
 function diffToggleClasses(buttons: HTMLButtonElement[]) {
   const pressed =
@@ -53,7 +94,7 @@ function setTogglePressed(
   }
 }
 
-function initHeroStudio(): void {
+function initHeroStudio(stateClasses: HomeStateClasses): void {
   const figure = document.querySelector<HTMLElement>(
     "figure.site-studio[data-hero-studio]",
   );
@@ -91,44 +132,36 @@ function initHeroStudio(): void {
   const playLabelSpan = playBtn.querySelector<HTMLElement>(
     "span > span:last-child",
   );
-  const playSvg = playBtn.querySelector<SVGSVGElement>("svg");
+  const playIconTpl = document.querySelector<HTMLTemplateElement>(
+    'template[data-hero-icon="play"]',
+  );
+  const pauseIconTpl = document.querySelector<HTMLTemplateElement>(
+    'template[data-hero-icon="pause"]',
+  );
 
   let word = figure.dataset.word || cfg.first;
   let state: "idle" | "playing" | "missing" = "idle";
 
   const renderPlayIcon = (playing: boolean) => {
-    if (!playSvg) return;
-    playSvg.replaceChildren();
-    if (playing) {
-      for (const x of ["4", "9.5"]) {
-        const rect = document.createElementNS(SVG_NS, "rect");
-        rect.setAttribute("x", x);
-        rect.setAttribute("y", "3");
-        rect.setAttribute("width", "2.5");
-        rect.setAttribute("height", "10");
-        rect.setAttribute("rx", "0.8");
-        rect.setAttribute("fill", "currentColor");
-        playSvg.appendChild(rect);
-      }
-    } else {
-      const path = document.createElementNS(SVG_NS, "path");
-      path.setAttribute("d", "M4.5 3 13 8l-8.5 5z");
-      path.setAttribute("fill", "currentColor");
-      playSvg.appendChild(path);
-    }
+    const tpl = playing ? pauseIconTpl : playIconTpl;
+    const nextSvg = tpl?.content.querySelector("svg");
+    const curSvg = playBtn.querySelector<SVGSVGElement>("svg");
+    if (!nextSvg || !curSvg) return;
+    curSvg.replaceWith(nextSvg.cloneNode(true));
   };
 
   const renderState = () => {
     const label = state === "playing" ? cfg.pause : cfg.play;
     playBtn.setAttribute("data-state", state);
-    if (state === "missing") {
-      playBtn.disabled = true;
+    const isMissing = state === "missing";
+    playBtn.disabled = isMissing;
+    if (isMissing) {
       playBtn.setAttribute("aria-disabled", "true");
-      playBtn.classList.add("xbyyjgo");
     } else {
-      playBtn.disabled = false;
       playBtn.removeAttribute("aria-disabled");
-      playBtn.classList.remove("xbyyjgo");
+    }
+    for (const cls of stateClasses.disabledButton) {
+      playBtn.classList.toggle(cls, isMissing);
     }
     if (playBtn.hasAttribute("aria-label")) {
       playBtn.setAttribute("aria-label", label);
@@ -308,7 +341,7 @@ function initKindsStage(): void {
   }
 }
 
-function initHomeFaq(): void {
+function initHomeFaq(stateClasses: HomeStateClasses): void {
   const triggers = document.querySelectorAll<HTMLButtonElement>(
     ".site-faq__item .astryx-collapsible-trigger[aria-controls]",
   );
@@ -322,18 +355,37 @@ function initHomeFaq(): void {
     btn.addEventListener("click", () => {
       const nextOpen = btn.getAttribute("aria-expanded") !== "true";
       btn.setAttribute("aria-expanded", String(nextOpen));
-      panel.classList.toggle("x1s85apg", !nextOpen);
+      for (const cls of stateClasses.panelClosed) {
+        panel.classList.toggle(cls, !nextOpen);
+      }
+      for (const cls of stateClasses.panelOpen) {
+        panel.classList.toggle(cls, nextOpen);
+      }
       panel.hidden = !nextOpen;
       if (chevron) {
-        chevron.classList.toggle("x19jd1h0", nextOpen);
-        chevron.classList.toggle("x7p49u4", !nextOpen);
+        for (const cls of stateClasses.chevronOpen) {
+          chevron.classList.toggle(cls, nextOpen);
+        }
+        for (const cls of stateClasses.chevronClosed) {
+          chevron.classList.toggle(cls, !nextOpen);
+        }
       }
     });
   }
 }
 
-initShell();
-initHeroStudio();
-initKindsStage();
-initPeriodSwitch();
-initHomeFaq();
+export function initHome(): void {
+  const stateClasses = readHomeStateClasses();
+  initShell();
+  initHeroStudio(stateClasses);
+  initKindsStage();
+  initPeriodSwitch();
+  initHomeFaq(stateClasses);
+}
+
+if (
+  typeof window !== "undefined" &&
+  !("__SITE_ISLAND_MANUAL_INIT__" in window)
+) {
+  initHome();
+}
