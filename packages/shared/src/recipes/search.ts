@@ -1,10 +1,48 @@
-import {
-  type Recipe,
-  type RecipeKind,
-  type RecipeLocale,
-  type RecipeTarget,
-  targetsForRecipe,
+import type {
+  LocalizedText,
+  Recipe,
+  RecipeFormat,
+  RecipeKind,
+  RecipeLocale,
+  RecipeOutput,
+  RecipeTarget,
 } from "./schema.js";
+
+export const TARGETS_BY_FORMAT: Record<RecipeFormat, readonly RecipeTarget[]> =
+  {
+    "9:16": ["tiktok", "reels", "shorts", "instagram"],
+    "16:9": ["youtube", "linkedin"],
+    "1:1": ["instagram", "linkedin"],
+    "4:5": ["instagram", "linkedin"],
+  };
+
+export const AUDIO_TARGETS: readonly RecipeTarget[] = [
+  "spotify",
+  "apple-music",
+];
+
+export type SearchableRecipe = {
+  id: string;
+  kind: RecipeKind;
+  title: LocalizedText;
+  summary: LocalizedText;
+  highlights: readonly LocalizedText[];
+  genre: string;
+  tempo?: { bpm?: number | undefined; feel?: string | undefined } | undefined;
+  languages: readonly string[];
+  output: RecipeOutput;
+  format?: RecipeFormat | undefined;
+  featured: boolean;
+  targets?: readonly RecipeTarget[] | undefined;
+};
+
+export function targetsForRecipe(
+  recipe: Pick<SearchableRecipe, "output" | "format" | "targets">,
+): RecipeTarget[] {
+  if (recipe.targets) return [...recipe.targets];
+  if (recipe.output === "audio") return [...AUDIO_TARGETS];
+  return recipe.format ? [...TARGETS_BY_FORMAT[recipe.format]] : [];
+}
 
 const TARGET_ALIASES: Record<string, RecipeTarget> = {
   tiktok: "tiktok",
@@ -47,7 +85,10 @@ export function resolveTargetFilter(query: string): RecipeTarget | null {
   return TARGET_ALIASES[cleaned] ?? null;
 }
 
-function recipeWordBag(recipe: Recipe, lang: RecipeLocale): Set<string> {
+function recipeWordBag(
+  recipe: SearchableRecipe,
+  lang: RecipeLocale,
+): Set<string> {
   const parts: string[] = [
     recipe.title[lang],
     recipe.summary[lang],
@@ -61,13 +102,13 @@ function recipeWordBag(recipe: Recipe, lang: RecipeLocale): Set<string> {
   return new Set(parts.flatMap(tokenizeRecipeText));
 }
 
-export type LocalRecipeSearchResult<T extends Recipe = Recipe> = {
+export type LocalRecipeSearchResult<T extends SearchableRecipe = Recipe> = {
   mode: "all" | "target" | "text";
   target: RecipeTarget | null;
   matches: T[];
 };
 
-export function searchRecipesLocal<T extends Recipe>(
+export function searchRecipesLocal<T extends SearchableRecipe>(
   recipes: readonly T[],
   query: string,
   lang: RecipeLocale = "en",
@@ -99,7 +140,7 @@ export function searchRecipesLocal<T extends Recipe>(
 }
 
 export function scoreRecipes(
-  recipes: readonly Recipe[],
+  recipes: readonly SearchableRecipe[],
   query: string,
   lang: RecipeLocale = "en",
 ): Record<string, number> {

@@ -75,3 +75,12 @@ export function DashGlyph(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function SearchGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <circle cx="7.25" cy="7.25" r="4.5" />
+      <path d="M10.75 10.75 13.5 13.5" />
+    </svg>
+  );
+}

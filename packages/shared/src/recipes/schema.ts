@@ -383,22 +383,8 @@ export const RecipeSchema = z
 
 export type Recipe = z.infer<typeof RecipeSchema>;
 
-export const TARGETS_BY_FORMAT: Record<RecipeFormat, readonly RecipeTarget[]> =
-  {
-    "9:16": ["tiktok", "reels", "shorts", "instagram"],
-    "16:9": ["youtube", "linkedin"],
-    "1:1": ["instagram", "linkedin"],
-    "4:5": ["instagram", "linkedin"],
-  };
-
-export const AUDIO_TARGETS: readonly RecipeTarget[] = [
-  "spotify",
-  "apple-music",
-];
-
-export function targetsForRecipe(
-  recipe: Pick<Recipe, "output" | "format">,
-): RecipeTarget[] {
-  if (recipe.output === "audio") return [...AUDIO_TARGETS];
-  return recipe.format ? [...TARGETS_BY_FORMAT[recipe.format]] : [];
-}
+export {
+  AUDIO_TARGETS,
+  TARGETS_BY_FORMAT,
+  targetsForRecipe,
+} from "./search.js";
