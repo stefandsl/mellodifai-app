@@ -45,12 +45,16 @@ export function resetStaticSiteCacheForTest(): void {
 function latestMtimeMs(target: string): number {
   let latest = 0;
   try {
-    const stat = fs.statSync(target);
+    const stat = fs.statSync(/*turbopackIgnore: true*/ target);
     if (stat.isFile()) return stat.mtimeMs;
     if (stat.isDirectory()) {
-      for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
+      for (const entry of fs.readdirSync(/*turbopackIgnore: true*/ target, {
+        withFileTypes: true,
+      })) {
         if (entry.name.startsWith(".")) continue;
-        const m = latestMtimeMs(path.join(target, entry.name));
+        const m = latestMtimeMs(
+          path.join(/*turbopackIgnore: true*/ target, entry.name),
+        );
         if (m > latest) latest = m;
       }
     }
@@ -99,11 +103,14 @@ function readManifest(staticDir: string): StaticManifest | null {
   if (process.env.NODE_ENV === "production" && cachedManifest) {
     return cachedManifest;
   }
-  const manifestPath = path.join(staticDir, "manifest.json");
-  if (!fs.existsSync(manifestPath)) return null;
+  const manifestPath = path.join(
+    /*turbopackIgnore: true*/ staticDir,
+    "manifest.json",
+  );
+  if (!fs.existsSync(/*turbopackIgnore: true*/ manifestPath)) return null;
   try {
     const parsed = JSON.parse(
-      fs.readFileSync(manifestPath, "utf8"),
+      fs.readFileSync(/*turbopackIgnore: true*/ manifestPath, "utf8"),
     ) as StaticManifest;
     if (process.env.NODE_ENV === "production") {
       cachedManifest = parsed;
@@ -136,7 +143,7 @@ export async function serveStaticAsset(
   options: { cacheControl: string; varyCookie?: boolean; required?: boolean },
 ): Promise<NextResponse> {
   const staticDir = getStaticDir();
-  const full = path.join(staticDir, relFile);
+  const full = path.join(/*turbopackIgnore: true*/ staticDir, relFile);
   const isProd = process.env.NODE_ENV === "production";
   const required = options.required ?? true;
 
@@ -144,7 +151,7 @@ export async function serveStaticAsset(
     if (cache.has(relFile)) {
       return buildOkResponse(cache.get(relFile) ?? "", contentType, options);
     }
-    if (!fs.existsSync(full)) {
+    if (!fs.existsSync(/*turbopackIgnore: true*/ full)) {
       if (required) {
         console.error(
           `[site-static] missing required static asset: ${relFile} (${full})`,
@@ -160,16 +167,16 @@ export async function serveStaticAsset(
       }
       return new NextResponse("Not Found", { status: 404 });
     }
-    const text = fs.readFileSync(full, "utf8");
+    const text = fs.readFileSync(/*turbopackIgnore: true*/ full, "utf8");
     cache.set(relFile, text);
     return buildOkResponse(text, contentType, options);
   }
 
   await ensureDevBuilt(staticDir, full);
-  if (!fs.existsSync(full)) {
+  if (!fs.existsSync(/*turbopackIgnore: true*/ full)) {
     return new NextResponse("Not Found", { status: 404 });
   }
-  const text = fs.readFileSync(full, "utf8");
+  const text = fs.readFileSync(/*turbopackIgnore: true*/ full, "utf8");
   return buildOkResponse(text, contentType, options);
 }
 
