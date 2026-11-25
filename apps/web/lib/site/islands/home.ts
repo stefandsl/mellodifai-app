@@ -79,7 +79,9 @@ function initHeroStudio(): void {
   );
   const wordBox = figure.querySelector<HTMLElement>(".site-studio__word");
   const dot = figure.querySelector<HTMLElement>(".site-dot");
-  const statusEl = figure.querySelector<HTMLElement>('[role="status"]');
+  const statusEl = figure.querySelector<HTMLElement>(
+    '.site-studio__foot [role="status"]',
+  );
   const waves = Array.from(
     figure.querySelectorAll<SVGSVGElement>("svg.site-wave"),
   );
@@ -122,9 +124,11 @@ function initHeroStudio(): void {
     if (state === "missing") {
       playBtn.disabled = true;
       playBtn.setAttribute("aria-disabled", "true");
+      playBtn.classList.add("xbyyjgo");
     } else {
       playBtn.disabled = false;
       playBtn.removeAttribute("aria-disabled");
+      playBtn.classList.remove("xbyyjgo");
     }
     if (playBtn.hasAttribute("aria-label")) {
       playBtn.setAttribute("aria-label", label);

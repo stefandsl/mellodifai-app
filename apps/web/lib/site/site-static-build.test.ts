@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildSiteStatic } from "../../scripts/build-site-static.mjs";
 import {
+  normalizeMeshLightDarkShadows,
   pruneAstryxCssForHtml,
   pruneMeshCssVars,
   pruneUnusedSiteCss,
@@ -65,6 +66,18 @@ describe("static site CSS helpers", () => {
     expect(prunedMeshCss).toContain("--color-helper:");
     expect(prunedMeshCss).toContain("--spacing-1:");
     expect(prunedMeshCss).not.toContain("--color-unused:");
+  });
+
+  it("moves light-dark() onto the color component of shadow tokens so native CSS parses them", () => {
+    const raw =
+      "--shadow-med: light-dark(0 12px 30px rgb(20 20 22 / 0.1), 0 12px 30px rgb(0 0 0 / 0.4));\n--glass-edge: light-dark(inset 0 1px 0 rgb(20 20 22 / 0.12), inset 0 1px 0 rgb(247 244 239 / 0.1));";
+    const out = normalizeMeshLightDarkShadows(raw);
+    expect(out).toContain(
+      "--shadow-med: 0 12px 30px light-dark(rgb(20 20 22 / 0.1), rgb(0 0 0 / 0.4));",
+    );
+    expect(out).toContain(
+      "--glass-edge: inset 0 1px 0 light-dark(rgb(20 20 22 / 0.12), rgb(247 244 239 / 0.1));",
+    );
   });
 
   it("prunes Astryx StyleX rules to used classes, drops data-astryx-press, and omits shadowed :root vars", () => {

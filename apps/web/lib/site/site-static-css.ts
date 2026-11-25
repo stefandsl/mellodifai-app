@@ -52,7 +52,11 @@ export function splitSiteFontsCss(siteCss: string): {
     /@font-face\s*\{[\s\S]*?\}/gu,
     (block) => {
       if (block.includes("/site/fonts/")) {
-        webFontBlocks.push(block);
+        // Because fonts.css is injected after first paint, rewrite font-display: optional
+        // to swap so metric-matched Figtree always activates once loaded (zero CLS).
+        webFontBlocks.push(
+          block.replace(/font-display\s*:\s*optional/gu, "font-display: swap"),
+        );
         return "";
       }
       return block;
@@ -94,10 +98,16 @@ const DYNAMIC_SITE_CLASSES = [
   "site-agents-popover__item",
   "site-agents-popover__title",
   "site-agents-popover__desc",
-  "site-word--active",
-  "site-chip--active",
-  "site-stage__play",
-  "site-stage__wave",
+  "site-dot--muted",
+  "site-studio__old",
+  "site-wave__take",
+  "site-cover--remix",
+  "site-cover--cover",
+  "site-cover--satire",
+  "site-cover--translation",
+  "site-cover--karaoke",
+  "site-cover--video",
+  "site-cover--pantomime",
   "site-recipes-empty",
   "site-recipe-card__video",
 ] as const;
@@ -201,6 +211,17 @@ export function pruneUnusedSiteCss(
   return filterBlock(clean);
 }
 
+// CSS light-dark() is only valid on <color> values; Astryx's generated mesh.css wraps
+// full box-shadow shorthands in light-dark(...), which Next's LightningCSS compiled away
+// but native browsers reject. Move light-dark() onto the <color> argument so every shadow
+// renders identically without LightningCSS.
+export function normalizeMeshLightDarkShadows(meshCss: string): string {
+  return meshCss.replaceAll(
+    /light-dark\(\s*((?:inset\s+)?(?:-?\d+(?:\.\d+)?(?:px|rem|em)?\s+)+)(rgb\([^)]+\))\s*,\s*(?:inset\s+)?(?:-?\d+(?:\.\d+)?(?:px|rem|em)?\s+)+(rgb\([^)]+\))\s*\)/gu,
+    "$1light-dark($2, $3)",
+  );
+}
+
 /**
  * Prunes unreferenced `--*` custom property declarations from `mesh.css`,
  * keeping all transitively referenced variables, `--spacing-1` (probed by layout tests),
@@ -210,7 +231,8 @@ export function pruneMeshCssVars(
   meshCss: string,
   referenceText: string,
 ): { prunedMeshCss: string; definedMeshVars: Set<string> } {
-  const lines = meshCss.split(/\r?\n/u);
+  const normalizedMesh = normalizeMeshLightDarkShadows(meshCss);
+  const lines = normalizedMesh.split(/\r?\n/u);
   const declMap = new Map<string, string[]>();
   const definedMeshVars = new Set<string>();
 
@@ -403,13 +425,6 @@ const AGENTS_MENU_CSS = `
 .site-agents-popover__desc{font-size:var(--text-supporting-size);line-height:var(--text-supporting-leading);color:var(--color-text-secondary)}
 `;
 
-// Skip initial layout and paint of below-the-fold sections until needed.
-const BELOW_FOLD_CV_CSS: Record<"home" | "pricing" | "recipes", string> = {
-  home: `.site-show,.site-steps,.site-features__head,.site-feature,.site-platform,.site-kinds,.site-plans,.site-faq,.site-close,.site-footer{content-visibility:auto;contain-intrinsic-size:auto var(--site-close-band)}`,
-  pricing: `.site-price-compare,.site-faq,.site-footer{content-visibility:auto;contain-intrinsic-size:auto var(--site-close-band)}`,
-  recipes: "",
-};
-
 export function buildMinifiedPageCss(options: {
   page: "home" | "pricing" | "recipes";
   bodyHtml: string;
@@ -457,13 +472,9 @@ export function buildMinifiedPageCss(options: {
     );
   }
 
-  const pageCvCss = BELOW_FOLD_CV_CSS[options.page];
-  const nonAstryxCss = [
-    prunedSiteCss,
-    extraPageCss,
-    AGENTS_MENU_CSS,
-    pageCvCss,
-  ].join("\n");
+  const nonAstryxCss = [prunedSiteCss, extraPageCss, AGENTS_MENU_CSS].join(
+    "\n",
+  );
 
   const { prunedMeshCss: initialMesh, definedMeshVars } = pruneMeshCssVars(
     meshCss,
@@ -504,7 +515,6 @@ export function buildMinifiedPageCss(options: {
     finalSiteCss,
     extraPageCss,
     AGENTS_MENU_CSS,
-    pageCvCss,
   ].join("\n");
 
   const inlineCss = esbuild.transformSync(combinedHead, {

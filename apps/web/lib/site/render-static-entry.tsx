@@ -269,8 +269,8 @@ export function renderHomeStatic(lang: SiteLang): {
     page: "home",
     title: copy.meta.title,
     description: copy.meta.description,
-    // Keep Collapsible open-chevron rotation class available when toggled client-side.
-    extraCssClasses: ["x19jd1h0"],
+    // Keep Collapsible open-chevron rotation and disabled Button opacity classes available.
+    extraCssClasses: ["x19jd1h0", "xbyyjgo"],
     scripts: ["/site/islands/home.js"],
     children: <Home copy={copy} />,
   });
