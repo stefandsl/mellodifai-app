@@ -404,10 +404,14 @@ test("keyboard only: skip link, pick a prompt chip, focus composer, submit to si
   await page.waitForURL(/\/login\?/u);
   const landed = new URL(page.url());
   expect(landed.pathname).toBe("/login");
-  expect(landed.searchParams.get("prompt")).toBe(expectedPrompt);
-  expect(landed.searchParams.get("next")).toBe(
-    `/create?prompt=${encodeURIComponent(expectedPrompt)}`,
-  );
+  expect(landed.searchParams.get("prompt")).toBeNull();
+  expect(landed.searchParams.get("next")).toBe("/create?draft=1");
+  expect(page.url()).not.toContain(expectedPrompt.slice(0, 12));
+  expect(
+    await page.evaluate(() =>
+      window.localStorage.getItem("mellodifai:composer-draft"),
+    ),
+  ).toBe(expectedPrompt);
   expect(posts).toEqual([]);
 });
 
@@ -416,7 +420,7 @@ for (const [width, height] of [
   [1024, 768],
   [390, 844],
 ] as const) {
-  test(`C04 hero composer and chips at ${width}x${height}: chip fills and focuses composer, send goes to sign-in with text kept and zero POST`, async ({
+  test(`C04 hero composer and chips at ${width}x${height}: chip fills and focuses composer, send goes to sign-in with multi-line draft in localStorage and zero text in URL`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height });
@@ -438,16 +442,25 @@ for (const [width, height] of [
     const input = page.locator("#hero-composer-input");
     await expect(input).toHaveValue(expectedPrompt);
     await expect(input).toBeFocused();
+    await expect(input).toHaveAttribute("maxlength", "500");
     await expect(chip).toHaveAttribute("aria-pressed", "true");
 
+    // Type two lines and submit; draft stays in localStorage and never enters the URL.
+    const twoLines = "First chorus line in slow tempo\nSecond line in Italian";
+    await input.fill(twoLines);
     await page.locator(".site-composer .site-hero__primary").click();
     await page.waitForURL(/\/login\?/u);
     const dest = new URL(page.url());
     expect(dest.pathname).toBe("/login");
-    expect(dest.searchParams.get("prompt")).toBe(expectedPrompt);
-    expect(dest.searchParams.get("next")).toBe(
-      `/create?prompt=${encodeURIComponent(expectedPrompt)}`,
-    );
+    expect(dest.searchParams.get("prompt")).toBeNull();
+    expect(dest.searchParams.get("next")).toBe("/create?draft=1");
+    expect(page.url()).not.toContain("First");
+    expect(page.url()).not.toContain("Second");
+    expect(
+      await page.evaluate(() =>
+        window.localStorage.getItem("mellodifai:composer-draft"),
+      ),
+    ).toBe(twoLines);
     expect(posts).toEqual([]);
   });
 }

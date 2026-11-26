@@ -4,15 +4,15 @@ import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { VStack } from "@astryxdesign/core/VStack";
+import { COMPOSER_PROMPT_MAX_LENGTH } from "@/lib/site/composer-draft";
 import type { SiteCopy } from "@/lib/site/copy";
 import { href } from "@/lib/site/nav";
 import { SiteIcon, SiteText } from "@/src/site-primitives";
 import { ArrowGlyph } from "./icons";
 
 // Hero prompt composer (STUDY.md Home section 0, MAPPING.md 3.1).
-// Submits via GET to sign-in with the draft prompt preserved in the query string,
-// never posting data before authentication. Interactive chip fills and submit
-// navigation are wired by the lightweight home vanilla island.
+// Stores the draft in localStorage and routes to sign-in with next=/create?draft=1,
+// keeping user prompt text out of URLs and never posting before authentication.
 export function HeroComposer({ copy }: { copy: SiteCopy["hero"] }) {
   return (
     <VStack className="site-composer-wrap" gap={4} hAlign="center">
@@ -25,8 +25,8 @@ export function HeroComposer({ copy }: { copy: SiteCopy["hero"] }) {
         <VStack gap={3} className="site-composer__inner">
           <textarea
             id="hero-composer-input"
-            name="prompt"
             rows={2}
+            maxLength={COMPOSER_PROMPT_MAX_LENGTH}
             aria-label={copy.composerLabel}
             placeholder={copy.composerPlaceholder}
             className="site-composer__input"

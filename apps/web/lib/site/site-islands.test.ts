@@ -26,6 +26,7 @@ import {
 
 const {
   COMPOSER_DRAFT_KEY,
+  COMPOSER_PROMPT_MAX_LENGTH,
   FEATURE_REEL_MS,
   HERO_ROTATE_MS,
   initHome,
@@ -232,6 +233,8 @@ describe("public site vanilla islands on built static HTML", () => {
       );
       expect(chips.length).toBe(6);
       expect(textarea).not.toBeNull();
+      expect(textarea?.maxLength).toBe(COMPOSER_PROMPT_MAX_LENGTH);
+      expect(textarea?.getAttribute("name")).toBeNull();
       expect(form).not.toBeNull();
 
       const expectedPrompt = chips[1].getAttribute("data-chip-prompt") ?? "";
@@ -242,20 +245,24 @@ describe("public site vanilla islands on built static HTML", () => {
       expect(chips[1].getAttribute("aria-pressed")).toBe("true");
       expect(chips[0].getAttribute("aria-pressed")).toBe("false");
 
-      // Submitting composer goes to /login with prompt kept, stores draft, and makes zero POST requests.
+      // Multi-line text over 500 chars is clamped and saved to localStorage, never placed in the URL.
+      const multiLine = `${expectedPrompt}\nSecond verse line ${"z".repeat(COMPOSER_PROMPT_MAX_LENGTH)}`;
+      if (textarea) textarea.value = multiLine;
+      window.localStorage.clear();
+      window.sessionStorage.clear();
       form?.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
       );
       expect(navigated).toHaveLength(1);
       const dest = new URL(navigated[0], "http://127.0.0.1");
       expect(dest.pathname).toBe("/login");
-      expect(dest.searchParams.get("prompt")).toBe(expectedPrompt);
-      expect(dest.searchParams.get("next")).toBe(
-        `/create?prompt=${encodeURIComponent(expectedPrompt)}`,
-      );
-      expect(window.sessionStorage.getItem(COMPOSER_DRAFT_KEY)).toBe(
-        expectedPrompt,
-      );
+      expect(dest.searchParams.get("prompt")).toBeNull();
+      expect(dest.searchParams.get("next")).toBe("/create?draft=1");
+      expect(navigated[0]).not.toContain("Second verse");
+      const savedDraft = window.localStorage.getItem(COMPOSER_DRAFT_KEY);
+      expect(savedDraft).toBe(multiLine.slice(0, COMPOSER_PROMPT_MAX_LENGTH));
+      expect(savedDraft?.includes("\n")).toBe(true);
+      expect(window.sessionStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
       expect(fetchMock).not.toHaveBeenCalled();
 
       // Kinds stage toggles cover class, title, and live caption.

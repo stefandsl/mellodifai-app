@@ -8,6 +8,11 @@ import {
   type WorkerState,
   WorkerStateProvider,
 } from "@/components/studio/worker-state";
+import {
+  COMPOSER_DRAFT_KEY,
+  COMPOSER_PROMPT_MAX_LENGTH,
+  saveComposerDraft,
+} from "@/lib/site/composer-draft";
 import { parseEngines } from "@/lib/studio/engines";
 import { initialForm, useCreateForm } from "@/store/create-form";
 import { CreatePanel } from "./create-panel";
@@ -326,5 +331,48 @@ describe("when the engine stops qualifying", () => {
     rerender(panel(worker({ now: NOW + 1_000 })));
     await chooseEngine(/YuE2 · locale/u);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});
+
+describe("home hero composer draft handoff", () => {
+  it("prefills a multi-line draft from localStorage once and clears it", async () => {
+    const multiLine = "First verse line\nSecond chorus line";
+    saveComposerDraft(multiLine);
+    useCreateForm.setState({ mode: "advanced", prompt: "" });
+
+    const { unmount } = render(panel(worker({ isAdmin: false }), "en"));
+    await waitFor(() => {
+      const box = screen.getByLabelText(
+        "Describe the song",
+      ) as HTMLTextAreaElement;
+      expect(box.value).toBe(multiLine);
+    });
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
+    unmount();
+
+    // Clearing the form and remounting does not re-apply the already-consumed draft.
+    useCreateForm.setState({ mode: "simple", prompt: "" });
+    render(panel(worker({ isAdmin: false }), "en"));
+    await waitFor(() => {
+      const box = screen.getByLabelText(
+        "Describe the song",
+      ) as HTMLTextAreaElement;
+      expect(box.value).toBe("");
+    });
+  });
+
+  it("clamps an oversized localStorage draft to the shared prompt limit", async () => {
+    const oversized = `${"x".repeat(490)}\n${"y".repeat(40)}`;
+    window.localStorage.setItem(COMPOSER_DRAFT_KEY, oversized);
+
+    render(panel(worker({ isAdmin: false }), "en"));
+    await waitFor(() => {
+      const box = screen.getByLabelText(
+        "Describe the song",
+      ) as HTMLTextAreaElement;
+      expect(box.value.length).toBe(COMPOSER_PROMPT_MAX_LENGTH);
+      expect(box.value).toBe(oversized.slice(0, COMPOSER_PROMPT_MAX_LENGTH));
+    });
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
   });
 });

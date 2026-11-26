@@ -2,13 +2,23 @@
 // shell (header scroll, agents menu, phone menu, deferred fonts),
 // hero rotating title (6.0 s), hero composer + chips, showcase marquee (32 px/s),
 // feature reels (5.0 s), recipe kinds stage, period switch, and FAQ collapsibles.
+import {
+  buildComposerSignUpUrl,
+  COMPOSER_DRAFT_KEY,
+  COMPOSER_PROMPT_MAX_LENGTH,
+  saveComposerDraft,
+} from "../composer-draft";
 import { initPeriodSwitch } from "./period-switch";
 import { initShell } from "./shell";
 
+export {
+  buildComposerSignUpUrl,
+  COMPOSER_DRAFT_KEY,
+  COMPOSER_PROMPT_MAX_LENGTH,
+};
 export const HERO_ROTATE_MS = 6000;
 export const MARQUEE_SPEED_PX_PER_SEC = 32;
 export const FEATURE_REEL_MS = 5000;
-export const COMPOSER_DRAFT_KEY = "mellodifai:composer-draft";
 
 type KindItem = {
   name: string;
@@ -194,22 +204,6 @@ export function initHeroRotator(): () => void {
   };
 }
 
-export function buildComposerSignUpUrl(action: string, prompt: string): string {
-  const trimmed = prompt.trim();
-  const base = action || "/login";
-  const url = new URL(base, window.location.origin);
-  if (trimmed) {
-    url.searchParams.set("prompt", trimmed);
-    url.searchParams.set(
-      "next",
-      `/create?prompt=${encodeURIComponent(trimmed)}`,
-    );
-  } else {
-    url.searchParams.set("next", "/create");
-  }
-  return `${url.pathname}${url.search}`;
-}
-
 export function initHeroComposer(
   stateClasses: Pick<HomeStateClasses, "chipPressed" | "chipUnpressed">,
   options?: HomeInitOptions,
@@ -270,17 +264,10 @@ export function initHeroComposer(
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const trimmed = textarea.value.trim();
-    if (trimmed) {
-      try {
-        window.sessionStorage.setItem(COMPOSER_DRAFT_KEY, trimmed);
-      } catch {
-        // Storage can be blocked in private browsing modes.
-      }
-    }
+    const saved = saveComposerDraft(textarea.value);
     const target = buildComposerSignUpUrl(
       form.getAttribute("action") || "/login",
-      trimmed,
+      saved,
     );
     navigate(target);
   });
