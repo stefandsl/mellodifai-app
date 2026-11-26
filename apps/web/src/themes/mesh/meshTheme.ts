@@ -282,6 +282,7 @@ export const meshTheme = defineTheme({
     "--site-gutter-panel": "3.8125rem", // 61: panel inset 20 + 61 = the measured column at 81
     "--site-gutter-panel-sm": "1.5625rem", // 25 (41 - 16)
     "--site-gutter-close": "1rem", // 16 + the closing column
+    "--site-gutter-recipes-sm": "0.875rem", // 14, recipes grid at 390 px
     "--site-close-width": "27.5rem", // 440
     "--site-close-band": "35rem", // 560
     "--site-section-y": "6rem", // 96
@@ -299,6 +300,7 @@ export const meshTheme = defineTheme({
     "--site-feature-gap-sm": "2rem", // 32
     "--site-feature-text": "26.25rem", // 420
     "--site-plan-gap": "1rem", // 16
+    "--site-recipes-gap-sm": "1.125rem", // 18, recipes grid gaps at 390 px
     "--site-faq-gap": "13.5rem", // 216
     "--site-faq-gap-md": "6rem", // 96
     "--site-faq-gap-sm": "2.5rem", // 40

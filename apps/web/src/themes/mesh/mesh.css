@@ -285,6 +285,7 @@
     --site-gutter-panel: 3.8125rem;
     --site-gutter-panel-sm: 1.5625rem;
     --site-gutter-close: 1rem;
+    --site-gutter-recipes-sm: 0.875rem;
     --site-close-width: 27.5rem;
     --site-close-band: 35rem;
     --site-section-y: 6rem;
@@ -302,6 +303,7 @@
     --site-feature-gap-sm: 2rem;
     --site-feature-text: 26.25rem;
     --site-plan-gap: 1rem;
+    --site-recipes-gap-sm: 1.125rem;
     --site-faq-gap: 13.5rem;
     --site-faq-gap-md: 6rem;
     --site-faq-gap-sm: 2.5rem;
