@@ -623,26 +623,32 @@ for (const [width, height] of [
     await page.mouse.move(1, 1);
     await expect(row0).toHaveAttribute("data-marquee-paused", "false");
 
-    // Focus inside stops row 1, keeps the focused link inside the viewport without scrollLeft, and blur resumes it.
+    // Keyboard focus inside stops row 1, keeps the focused card inside the viewport with outline inset, and blur resumes it.
     const row1 = page.locator('[data-marquee-row="1"]');
     const row1Link = row1.locator("a").first();
+    // Switch modality to keyboard before focusing so :focus-visible matches.
+    await page.keyboard.press("Tab");
     await row1Link.focus();
     await expect(row1).toHaveAttribute("data-marquee-paused", "true");
     const focusedBounds = await page.evaluate(() => {
       const vp = document.querySelector<HTMLElement>('[data-marquee-row="1"]');
       const link = document.activeElement as HTMLElement | null;
+      const card = link?.closest<HTMLElement>(".site-show__card");
       const vpRect = vp?.getBoundingClientRect();
+      const cardRect = card?.getBoundingClientRect();
       const linkRect = link?.getBoundingClientRect();
       return {
         scrollLeft: vp?.scrollLeft ?? -1,
         insideRow:
-          Boolean(vpRect && linkRect) &&
+          Boolean(vpRect && cardRect && linkRect) &&
+          (cardRect?.left ?? -1) >= (vpRect?.left ?? 0) - 1 &&
+          (cardRect?.right ?? 99999) <= (vpRect?.right ?? 0) + 1 &&
           (linkRect?.left ?? -1) >= (vpRect?.left ?? 0) - 1 &&
           (linkRect?.right ?? 99999) <= (vpRect?.right ?? 0) + 1,
         insideViewport:
-          Boolean(linkRect) &&
-          (linkRect?.left ?? -1) >= -1 &&
-          (linkRect?.right ?? 99999) <= window.innerWidth + 1,
+          Boolean(cardRect) &&
+          (cardRect?.left ?? -1) >= -1 &&
+          (cardRect?.right ?? 99999) <= window.innerWidth + 1,
       };
     });
     expect(focusedBounds.scrollLeft).toBe(0);
@@ -658,55 +664,128 @@ for (const [width, height] of [
   });
 }
 
-test("C04 showcase keyboard tabbing at 1440 keeps every focused card link inside the row and viewport", async ({
+for (const [width, height] of [
+  [1440, 900],
+  [390, 844],
+] as const) {
+  test(`C04 showcase keyboard tabbing at ${width}x${height} keeps every focused card and outline inside the row and viewport`, async ({
+    page,
+    browserName,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.clock.install();
+    await page.goto("/");
+    await page.clock.runFor(500);
+
+    // Establish keyboard modality so :focus-visible matches when focusing the first card.
+    await page.keyboard.press("Tab");
+
+    for (const rowIdx of [0, 1]) {
+      const row = page.locator(`[data-marquee-row="${rowIdx}"]`);
+      await row.scrollIntoViewIfNeeded();
+      const links = row.locator('[data-marquee-copy="0"] a');
+      const count = await links.count();
+      expect(count).toBe(6);
+
+      for (let i = 0; i < count; i++) {
+        if (i === 0 || browserName === "webkit") {
+          await links.nth(i).focus();
+        } else {
+          await page.keyboard.press("Tab");
+        }
+        await expect(links.nth(i)).toBeFocused();
+        await expect(row).toHaveAttribute("data-marquee-paused", "true");
+        const check = await page.evaluate((idx) => {
+          const vp = document.querySelector<HTMLElement>(
+            `[data-marquee-row="${idx}"]`,
+          );
+          const active = document.activeElement as HTMLElement | null;
+          const card = active?.closest<HTMLElement>(".site-show__card");
+          const vpRect = vp?.getBoundingClientRect();
+          const cardRect = card?.getBoundingClientRect();
+          const linkRect = active?.getBoundingClientRect();
+          return {
+            scrollLeft: vp?.scrollLeft ?? -1,
+            vpLeft: vpRect?.left ?? 0,
+            vpRight: vpRect?.right ?? 0,
+            vpWidth: vpRect?.width ?? 0,
+            cardLeft: cardRect?.left ?? -9999,
+            cardRight: cardRect?.right ?? 9999,
+            cardWidth: cardRect?.width ?? 0,
+            linkLeft: linkRect?.left ?? -9999,
+            linkRight: linkRect?.right ?? 9999,
+            winW: window.innerWidth,
+          };
+        }, rowIdx);
+        expect(check.scrollLeft).toBe(0);
+        // Card and link stay inside viewport and leave ~8 px outline inset when card fits.
+        const expectedInset = check.cardWidth + 16 <= check.vpWidth ? 6 : 0;
+        expect(check.cardLeft).toBeGreaterThanOrEqual(
+          check.vpLeft + expectedInset - 1,
+        );
+        expect(check.cardRight).toBeLessThanOrEqual(
+          check.vpRight - expectedInset + 1,
+        );
+        expect(check.linkLeft).toBeGreaterThanOrEqual(
+          check.vpLeft + expectedInset - 1,
+        );
+        expect(check.linkRight).toBeLessThanOrEqual(
+          check.vpRight - expectedInset + 1,
+        );
+        expect(check.cardLeft).toBeGreaterThanOrEqual(-1);
+        expect(check.cardRight).toBeLessThanOrEqual(check.winW + 1);
+      }
+      await links.last().evaluate((el: HTMLElement) => el.blur());
+      await expect(row).toHaveAttribute("data-marquee-paused", "false");
+    }
+  });
+}
+
+test("C04 showcase mouse click on a card cut at the row edge does not jump and opens its link", async ({
   page,
-  browserName,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.install();
   await page.goto("/");
-  await page.clock.runFor(500);
+  await page.clock.runFor(50);
+  const row0 = page.locator('[data-marquee-row="0"]');
+  await row0.scrollIntoViewIfNeeded();
+  await row0.hover();
+  await expect(row0).toHaveAttribute("data-marquee-paused", "true");
 
-  for (const rowIdx of [0, 1]) {
-    const row = page.locator(`[data-marquee-row="${rowIdx}"]`);
-    await row.scrollIntoViewIfNeeded();
-    const links = row.locator('[data-marquee-copy="0"] a');
-    const count = await links.count();
-    expect(count).toBe(6);
-
-    for (let i = 0; i < count; i++) {
-      if (i === 0 || browserName === "webkit") {
-        await links.nth(i).focus();
-      } else {
-        await page.keyboard.press("Tab");
-      }
-      await expect(links.nth(i)).toBeFocused();
-      await expect(row).toHaveAttribute("data-marquee-paused", "true");
-      const check = await page.evaluate((idx) => {
-        const vp = document.querySelector<HTMLElement>(
-          `[data-marquee-row="${idx}"]`,
-        );
-        const active = document.activeElement as HTMLElement | null;
-        const vpRect = vp?.getBoundingClientRect();
-        const linkRect = active?.getBoundingClientRect();
+  const clickTarget = await page.evaluate(() => {
+    const vp = document.querySelector<HTMLElement>('[data-marquee-row="0"]');
+    if (!vp) return null;
+    const vpRect = vp.getBoundingClientRect();
+    const cards = Array.from(
+      vp.querySelectorAll<HTMLElement>(
+        '[data-marquee-copy="0"] .site-show__card',
+      ),
+    );
+    for (const card of cards) {
+      const cardRect = card.getBoundingClientRect();
+      const link = card.querySelector<HTMLAnchorElement>("a");
+      if (!link) continue;
+      const linkRect = link.getBoundingClientRect();
+      const isCutRight =
+        cardRect.left < vpRect.right - 20 && cardRect.right > vpRect.right + 10;
+      const visibleLeft = Math.max(linkRect.left, vpRect.left);
+      const visibleRight = Math.min(linkRect.right, vpRect.right);
+      if (isCutRight && visibleRight - visibleLeft >= 16) {
         return {
-          scrollLeft: vp?.scrollLeft ?? -1,
-          vpLeft: vpRect?.left ?? 0,
-          vpRight: vpRect?.right ?? 0,
-          linkLeft: linkRect?.left ?? -9999,
-          linkRight: linkRect?.right ?? 9999,
-          winW: window.innerWidth,
+          x: visibleLeft + Math.min(14, (visibleRight - visibleLeft) / 2),
+          y: linkRect.top + linkRect.height / 2,
+          href: link.getAttribute("href") ?? "",
         };
-      }, rowIdx);
-      expect(check.scrollLeft).toBe(0);
-      expect(check.linkLeft).toBeGreaterThanOrEqual(check.vpLeft - 1);
-      expect(check.linkRight).toBeLessThanOrEqual(check.vpRight + 1);
-      expect(check.linkLeft).toBeGreaterThanOrEqual(-1);
-      expect(check.linkRight).toBeLessThanOrEqual(check.winW + 1);
+      }
     }
-    await links.last().evaluate((el: HTMLElement) => el.blur());
-    await expect(row).toHaveAttribute("data-marquee-paused", "false");
-  }
+    return null;
+  });
+
+  expect(clickTarget).not.toBeNull();
+  expect(clickTarget?.href).toBe("/recipes");
+  await page.mouse.click(clickTarget?.x ?? 0, clickTarget?.y ?? 0);
+  await page.waitForURL(/\/recipes$/u);
 });
 
 for (const [width, height] of [

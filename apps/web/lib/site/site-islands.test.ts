@@ -30,6 +30,7 @@ const {
   FEATURE_REEL_MS,
   HERO_ROTATE_MS,
   initHome,
+  MARQUEE_FOCUS_INSET_PX,
   MARQUEE_SPEED_PX_PER_SEC,
 } = await import("./islands/home");
 const { initPricing } = await import("./islands/pricing");
@@ -474,19 +475,46 @@ describe("public site vanilla islands on built static HTML", () => {
         row1.scrollLeft = 420;
       }
 
-      // Focusing card 0 on row 1 shifts track to x = 0 so card 0 is inside [0, 1000], and resets scrollLeft = 0.
+      const link5Row1 = cardsRow1[5]?.querySelector<HTMLAnchorElement>("a");
+      expect(link5Row1).not.toBeNull();
+
+      // Mouse focus (:focus-visible = false) pauses row 1 without jumping its transform.
+      const x1BeforeMouseFocus = parseX(track1?.style.transform ?? "");
+      if (linkInRow1) {
+        linkInRow1.matches = () => false;
+      }
+      linkInRow1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      expect(row1?.getAttribute("data-marquee-paused")).toBe("true");
+      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(
+        x1BeforeMouseFocus,
+        2,
+      );
+      row1?.dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: null }),
+      );
+
+      // Keyboard focus (:focus-visible = true) on card 0 shifts track to x = +8 px inset so outline shows, and resets scrollLeft = 0.
+      if (row1) row1.scrollLeft = 420;
+      if (linkInRow1) {
+        linkInRow1.matches = (sel: string) => sel === ":focus-visible";
+      }
       linkInRow1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
       expect(row1?.getAttribute("data-marquee-paused")).toBe("true");
       expect(row1?.scrollLeft).toBe(0);
       const x1OnFocus0 = parseX(track1?.style.transform ?? "");
-      expect(x1OnFocus0).toBeCloseTo(0, 1);
+      expect(x1OnFocus0).toBeCloseTo(MARQUEE_FOCUS_INSET_PX, 1);
       stepRaf(4500);
       expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(x1OnFocus0, 2);
 
-      // Focusing card 5 (left 1000..1180) shifts track to x = -180 so card 5 is inside [0, 1000].
-      const link5Row1 = cardsRow1[5]?.querySelector<HTMLAnchorElement>("a");
+      // Keyboard focus on card 5 (left 1000..1180) shifts track to x = 1000 - 8 - 1180 = -188 so right outline has 8 px clearance.
+      if (link5Row1) {
+        link5Row1.matches = (sel: string) => sel === ":focus-visible";
+      }
       link5Row1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(-180, 1);
+      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(
+        -180 - MARQUEE_FOCUS_INSET_PX,
+        1,
+      );
       expect(row1?.scrollLeft).toBe(0);
 
       row1?.dispatchEvent(

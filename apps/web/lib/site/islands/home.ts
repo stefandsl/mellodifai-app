@@ -18,6 +18,7 @@ export {
 };
 export const HERO_ROTATE_MS = 6000;
 export const MARQUEE_SPEED_PX_PER_SEC = 32;
+export const MARQUEE_FOCUS_INSET_PX = 8;
 export const FEATURE_REEL_MS = 5000;
 
 type KindItem = {
@@ -295,6 +296,7 @@ export function initShowcaseMarquee(): () => void {
     let offset = 0;
     let hovered = false;
     let focused = false;
+    let pointerDown = false;
     let reduced = prefersReducedMotion();
     let disposed = false;
     let lastTs: number | null = null;
@@ -323,6 +325,15 @@ export function initShowcaseMarquee(): () => void {
       track.style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
     };
 
+    const isKeyboardFocus = (target: HTMLElement | null): boolean => {
+      if (!target) return false;
+      try {
+        return target.matches(":focus-visible");
+      } catch {
+        return false;
+      }
+    };
+
     const bringFocusedCardIntoView = (target: HTMLElement | null) => {
       viewport.scrollLeft = 0;
       const card = target?.closest<HTMLElement>(".site-show__card") ?? target;
@@ -345,13 +356,17 @@ export function initShowcaseMarquee(): () => void {
       const visualLeft = currentX + cardLeft;
       const visualRight = visualLeft + cardWidth;
 
+      const inset = MARQUEE_FOCUS_INSET_PX;
       let targetX = currentX;
-      if (visualLeft < 0 || cardWidth > vpWidth) {
-        targetX = -cardLeft;
-      } else if (visualRight > vpWidth) {
-        targetX = vpWidth - (cardLeft + cardWidth);
+      if (cardWidth + inset * 2 > vpWidth) {
+        const leftInset = Math.min(inset, Math.max(0, vpWidth - cardWidth));
+        targetX = leftInset - cardLeft;
+      } else if (visualLeft < inset) {
+        targetX = inset - cardLeft;
+      } else if (visualRight > vpWidth - inset) {
+        targetX = vpWidth - inset - (cardLeft + cardWidth);
       }
-      targetX = Math.min(0, Math.max(-setWidth, targetX));
+      targetX = Math.min(inset, Math.max(-setWidth - inset, targetX));
       offset = direction < 0 ? -targetX : targetX + setWidth;
       applyTransform();
       viewport.scrollLeft = 0;
@@ -366,7 +381,10 @@ export function initShowcaseMarquee(): () => void {
       }
       if (lastTs !== null) {
         const dtSec = Math.max(0, (ts - lastTs) / 1000);
-        offset = (offset + MARQUEE_SPEED_PX_PER_SEC * dtSec) % setWidth;
+        offset =
+          (((offset + MARQUEE_SPEED_PX_PER_SEC * dtSec) % setWidth) +
+            setWidth) %
+          setWidth;
       }
       applyTransform();
       lastTs = ts;
@@ -397,10 +415,19 @@ export function initShowcaseMarquee(): () => void {
       hovered = false;
       start();
     };
+    const onPointerDown = () => {
+      pointerDown = true;
+    };
+    const onPointerUp = () => {
+      pointerDown = false;
+    };
     const onFocusIn = (event: FocusEvent) => {
       focused = true;
       stop();
-      bringFocusedCardIntoView(event.target as HTMLElement | null);
+      const target = event.target as HTMLElement | null;
+      if (!pointerDown && isKeyboardFocus(target)) {
+        bringFocusedCardIntoView(target);
+      }
     };
     const onFocusOut = (event: FocusEvent) => {
       if (!viewport.contains(event.relatedTarget as Node | null)) {
@@ -437,6 +464,11 @@ export function initShowcaseMarquee(): () => void {
     viewport.addEventListener("mouseenter", onEnter);
     viewport.addEventListener("pointerleave", onLeave);
     viewport.addEventListener("mouseleave", onLeave);
+    viewport.addEventListener("pointerdown", onPointerDown);
+    viewport.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("mouseup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
     viewport.addEventListener("focusin", onFocusIn);
     viewport.addEventListener("focusout", onFocusOut);
     viewport.addEventListener("scroll", onScroll);
@@ -458,6 +490,11 @@ export function initShowcaseMarquee(): () => void {
       viewport.removeEventListener("mouseenter", onEnter);
       viewport.removeEventListener("pointerleave", onLeave);
       viewport.removeEventListener("mouseleave", onLeave);
+      viewport.removeEventListener("pointerdown", onPointerDown);
+      viewport.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("mouseup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
       viewport.removeEventListener("focusin", onFocusIn);
       viewport.removeEventListener("focusout", onFocusOut);
       viewport.removeEventListener("scroll", onScroll);
