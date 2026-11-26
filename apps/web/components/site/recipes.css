@@ -465,10 +465,15 @@ body:has(.site-recipes-canvas-root),
     padding: var(--site-page-top-sm) var(--site-gutter-sm) var(--spacing-8);
   }
   .site-recipes-grid-section {
-    padding: 0 var(--site-gutter-sm) var(--site-section-y);
+    padding: 0 var(--site-gutter-recipes-sm) var(--site-section-y);
   }
   .site-recipes-grid-list {
     column-count: 2;
+    column-gap: var(--site-recipes-gap-sm);
+    row-gap: var(--site-recipes-gap-sm);
+  }
+  .site-recipes-grid-item {
+    margin-bottom: var(--site-recipes-gap-sm);
   }
 }
 
