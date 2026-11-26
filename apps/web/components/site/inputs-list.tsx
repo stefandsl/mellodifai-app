@@ -43,7 +43,7 @@ export function InputsList({ inputs, lang, copy }: InputsListProps) {
             <VStack as="li" key={input.id} className="site-inputs__row" gap={1}>
               <HStack
                 className="site-inputs__top"
-                align="baseline"
+                align="center"
                 justify="between"
                 gap={3}
               >

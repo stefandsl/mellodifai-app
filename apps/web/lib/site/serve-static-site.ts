@@ -177,7 +177,12 @@ export async function serveStaticAsset(
   _request: NextRequest,
   relFile: string,
   contentType: string,
-  options: { cacheControl: string; varyCookie?: boolean; required?: boolean },
+  options: {
+    cacheControl: string;
+    varyCookie?: boolean;
+    required?: boolean;
+    status?: number;
+  },
 ): Promise<NextResponse> {
   const staticDir = getStaticDir();
   const full = path.join(/*turbopackIgnore: true*/ staticDir, relFile);
@@ -222,10 +227,63 @@ export async function serveStaticAsset(
   return buildOkResponse(text, contentType, options);
 }
 
+const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+export async function serveStaticRecipeDetail(
+  request: NextRequest,
+  slug: string,
+): Promise<NextResponse> {
+  const lang = getRequestLocale(request);
+  const htmlOpts = {
+    cacheControl: "private, no-cache",
+    varyCookie: true,
+    required: true,
+  };
+  const notFoundFile = `not-found-${lang}.html`;
+
+  if (!SAFE_SLUG_RE.test(slug)) {
+    return serveStaticAsset(request, notFoundFile, "text/html; charset=utf-8", {
+      ...htmlOpts,
+      status: 404,
+    });
+  }
+
+  const pageFile = `recipe-${slug}-${lang}.html`;
+  const staticDir = getStaticDir();
+  const isProd = process.env.NODE_ENV === "production";
+  const manifest = isProd
+    ? readManifest(staticDir)
+    : await ensureDevBuilt(staticDir);
+
+  if (!manifest) {
+    if (isProd) {
+      console.error(
+        `[site-static] missing manifest.json when serving ${pageFile} (${staticDir})`,
+      );
+      return new NextResponse("Internal Server Error", { status: 500 });
+    }
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  if (!manifest.pages.includes(pageFile)) {
+    return serveStaticAsset(request, notFoundFile, "text/html; charset=utf-8", {
+      ...htmlOpts,
+      status: 404,
+    });
+  }
+
+  return serveStaticAsset(
+    request,
+    pageFile,
+    "text/html; charset=utf-8",
+    htmlOpts,
+  );
+}
+
 function buildOkResponse(
   body: string,
   contentType: string,
-  options: { cacheControl: string; varyCookie?: boolean },
+  options: { cacheControl: string; varyCookie?: boolean; status?: number },
 ): NextResponse {
   const headers: Record<string, string> = {
     "content-type": contentType,
@@ -234,5 +292,5 @@ function buildOkResponse(
   if (options.varyCookie) {
     headers.vary = "Cookie";
   }
-  return new NextResponse(body, { status: 200, headers });
+  return new NextResponse(body, { status: options.status ?? 200, headers });
 }

@@ -53,7 +53,7 @@ export function RecipeDetail({
         data-ref-section="0"
         data-recipe-detail={recipe.slug}
         aria-labelledby="recipe-detail-title"
-        gap={7}
+        gap={6}
       >
         <VStack className="site-recipe-detail__top" gap={4}>
           <HStack align="center">
@@ -79,7 +79,7 @@ export function RecipeDetail({
             <VStack
               className="site-recipe-detail__intro"
               data-ref-content
-              gap={2.5}
+              gap={2}
             >
               <HStack align="center" gap={2}>
                 <SiteText
@@ -153,6 +153,7 @@ export function RecipeDetail({
           title={title}
           lyricLine={lyricLine}
           coverSrc={heroCoverSrc}
+          backdropSrc={recipe.mediaUrls.cover}
           mediaSrc={recipe.mediaUrls.example}
           isVideo={video}
           estimatedSeconds={recipe.estimate.seconds}
