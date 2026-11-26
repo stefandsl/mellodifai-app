@@ -58,7 +58,6 @@ export function FeatureReel({
                   className="site-feature__bullet"
                   data-reel-bullet={String(stepIdx)}
                   data-active={stepIdx === 0 ? "true" : "false"}
-                  aria-current={stepIdx === 0 ? "step" : undefined}
                 />
               </VStack>
             ))}
@@ -120,7 +119,7 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
     const s = f.sheet;
     return (
       <>
-        <VStack className="site-feature__slide" aria-hidden="true">
+        <VStack className="site-feature__slide" data-reel-slide="0">
           <Card className="site-sheet" padding={6}>
             <VStack gap={4}>
               <HStack justify="between">
@@ -164,7 +163,11 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
             </VStack>
           </Card>
         </VStack>
-        <VStack className="site-feature__slide" aria-hidden="true">
+        <VStack
+          className="site-feature__slide"
+          data-reel-slide="1"
+          aria-hidden="true"
+        >
           <Card className="site-sheet" padding={6}>
             <VStack gap={4}>
               <SiteText type="code" color="secondary" className="site-eyebrow">
@@ -200,7 +203,11 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
             </VStack>
           </Card>
         </VStack>
-        <VStack className="site-feature__slide" aria-hidden="true">
+        <VStack
+          className="site-feature__slide"
+          data-reel-slide="2"
+          aria-hidden="true"
+        >
           <Card className="site-sheet" padding={6}>
             <VStack gap={4}>
               <SiteText type="code" color="secondary" className="site-eyebrow">
@@ -228,7 +235,7 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
     const v = f.voice;
     return (
       <>
-        <VStack className="site-feature__slide" aria-hidden="true">
+        <VStack className="site-feature__slide" data-reel-slide="0">
           <Card className="site-sheet" padding={6}>
             <VStack gap={3}>
               {v.lanes.map((lane, i) => (
@@ -264,7 +271,11 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
             </VStack>
           </Card>
         </VStack>
-        <VStack className="site-feature__slide" aria-hidden="true">
+        <VStack
+          className="site-feature__slide"
+          data-reel-slide="1"
+          aria-hidden="true"
+        >
           <Card className="site-sheet" padding={6}>
             <VStack gap={4}>
               <SiteText type="code" color="secondary" className="site-eyebrow">
@@ -296,7 +307,11 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
             </VStack>
           </Card>
         </VStack>
-        <VStack className="site-feature__slide" aria-hidden="true">
+        <VStack
+          className="site-feature__slide"
+          data-reel-slide="2"
+          aria-hidden="true"
+        >
           <Card className="site-sheet" padding={6}>
             <VStack gap={4}>
               <SiteText type="code" color="secondary" className="site-eyebrow">
@@ -323,7 +338,7 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
   const o = f.out;
   return (
     <>
-      <VStack className="site-feature__slide" aria-hidden="true">
+      <VStack className="site-feature__slide" data-reel-slide="0">
         <Card className="site-sheet" padding={6}>
           <VStack gap={3}>
             {o.rows.map((row, i) => (
@@ -351,7 +366,11 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
           </VStack>
         </Card>
       </VStack>
-      <VStack className="site-feature__slide" aria-hidden="true">
+      <VStack
+        className="site-feature__slide"
+        data-reel-slide="1"
+        aria-hidden="true"
+      >
         <Card className="site-sheet" padding={6}>
           <VStack gap={4}>
             <SiteText type="code" color="secondary" className="site-eyebrow">
@@ -367,7 +386,11 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
           </VStack>
         </Card>
       </VStack>
-      <VStack className="site-feature__slide" aria-hidden="true">
+      <VStack
+        className="site-feature__slide"
+        data-reel-slide="2"
+        aria-hidden="true"
+      >
         <Card className="site-sheet" padding={6}>
           <VStack gap={4}>
             <SiteText type="code" color="secondary" className="site-eyebrow">

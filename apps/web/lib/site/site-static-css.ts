@@ -484,19 +484,52 @@ export function buildMinifiedFontsCss(): string {
   }).code;
 }
 
+function stripBalancedMediaLayerBlocks(css: string): string {
+  let out = css;
+  const marker = "[data-astryx-media";
+  let searchFrom = 0;
+  while (true) {
+    const mediaIdx = out.indexOf(marker, searchFrom);
+    if (mediaIdx === -1) break;
+    const layerIdx = out.lastIndexOf("@layer astryx-theme", mediaIdx);
+    if (layerIdx === -1) break;
+    const openBrace = out.indexOf("{", layerIdx);
+    if (openBrace === -1 || openBrace > mediaIdx) break;
+    let depth = 1;
+    let endIdx = openBrace + 1;
+    while (endIdx < out.length && depth > 0) {
+      if (out[endIdx] === "{") depth++;
+      else if (out[endIdx] === "}") depth--;
+      endIdx++;
+    }
+    if (depth !== 0) break;
+    const block = out.slice(layerIdx, endIdx);
+    const remainder = block
+      .replaceAll(/@layer\s+astryx-theme\s*\{/gu, "")
+      .replaceAll(/@scope\s*\([^)]*\)(?:\s*to\s*\([^)]*\))?\s*\{/gu, "")
+      .replaceAll(/@media\s*\([^)]*\)\s*\{/gu, "")
+      .replaceAll(/[^;{}]*\[data-astryx-media[^\]]*\][^{]*\{[^}]*\}/gu, "")
+      .replaceAll(/[\s}]/gu, "");
+    if (remainder.length > 0) {
+      throw new Error(
+        "pruneUnusedMeshBlocks: unexpected non-media rules inside data-astryx-media @layer astryx-theme block",
+      );
+    }
+    const before = out.slice(0, layerIdx).trimEnd();
+    const after = out.slice(endIdx).trimStart();
+    out = before && after ? `${before}\n${after}` : `${before}${after}`;
+    searchFrom = layerIdx;
+  }
+  return out;
+}
+
 export function pruneUnusedMeshBlocks(
   meshCss: string,
   bodyHtml: string,
 ): string {
   let out = meshCss;
   if (!bodyHtml.includes("data-astryx-media")) {
-    const mediaIdx = out.indexOf('[data-astryx-media="dark"]');
-    if (mediaIdx !== -1) {
-      const layerIdx = out.lastIndexOf("@layer astryx-theme", mediaIdx);
-      if (layerIdx !== -1) {
-        out = out.slice(0, layerIdx).trimEnd();
-      }
-    }
+    out = stripBalancedMediaLayerBlocks(out);
   }
   for (const tag of ["h4", "h5", "h6", "small", "hr"] as const) {
     if (!new RegExp(`<${tag}\\b`, "iu").test(bodyHtml)) {

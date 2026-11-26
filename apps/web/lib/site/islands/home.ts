@@ -491,6 +491,9 @@ export function initFeatureReels(
     const dots = Array.from(
       article.querySelectorAll<HTMLButtonElement>("[data-reel-dot]"),
     );
+    const slides = Array.from(
+      article.querySelectorAll<HTMLElement>(".site-feature__slide"),
+    );
     const track = article.querySelector<HTMLElement>(
       '[data-reel-track="true"]',
     );
@@ -518,10 +521,12 @@ export function initFeatureReels(
         const active = i === step;
         points[i]?.setAttribute("data-active", String(active));
         bullets[i]?.setAttribute("data-active", String(active));
-        if (active) {
-          bullets[i]?.setAttribute("aria-current", "step");
+      }
+      for (let i = 0; i < slides.length; i++) {
+        if (i === step) {
+          slides[i].removeAttribute("aria-hidden");
         } else {
-          bullets[i]?.removeAttribute("aria-current");
+          slides[i].setAttribute("aria-hidden", "true");
         }
       }
       setTogglePressed(

@@ -567,6 +567,137 @@ describe("public site vanilla islands on built static HTML", () => {
     }
   });
 
+  it("home islands: hidden tab pauses rotator, showcase marquee, and feature reels, and resumes when visible", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const stepRaf = (ts: number) => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(ts);
+    };
+    const setHidden = (hidden: boolean) => {
+      Object.defineProperty(document, "hidden", {
+        value: hidden,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+
+    loadBuiltDocument(homeHtml);
+    setHidden(false);
+    const stopHome = initHome();
+    try {
+      const rotator = document.querySelector<HTMLElement>(
+        '[data-hero-rotator="true"]',
+      );
+      const row0 = document.querySelector<HTMLElement>(
+        '[data-marquee-row="0"]',
+      );
+      const track0 = row0?.querySelector<HTMLElement>(
+        '[data-marquee-track="true"]',
+      );
+      const reel0 = document.querySelector<HTMLElement>(
+        '[data-feature-reel="0"]',
+      );
+      stepRaf(0);
+      stepRaf(500);
+      const xBeforeHide = track0?.style.transform ?? "";
+      const rotBeforeHide = rotator?.getAttribute("data-rotator-index");
+      const reelBeforeHide = reel0?.getAttribute("data-reel-step");
+
+      // Hide tab: all three pause and stay frozen across long intervals and frames.
+      setHidden(true);
+      expect(rotator?.getAttribute("data-rotator-running")).toBe("false");
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("true");
+      expect(reel0?.getAttribute("data-reel-paused")).toBe("true");
+
+      vi.advanceTimersByTime(HERO_ROTATE_MS * 2 + FEATURE_REEL_MS * 2);
+      stepRaf(2500);
+      stepRaf(4500);
+      expect(rotator?.getAttribute("data-rotator-index")).toBe(rotBeforeHide);
+      expect(reel0?.getAttribute("data-reel-step")).toBe(reelBeforeHide);
+      expect(track0?.style.transform).toBe(xBeforeHide);
+
+      // Show tab again: all three resume cleanly.
+      setHidden(false);
+      expect(rotator?.getAttribute("data-rotator-running")).toBe("true");
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("false");
+      expect(reel0?.getAttribute("data-reel-paused")).toBe("false");
+
+      vi.advanceTimersByTime(HERO_ROTATE_MS);
+      stepRaf(5000);
+      stepRaf(6000);
+      expect(rotator?.getAttribute("data-rotator-index")).not.toBe(
+        rotBeforeHide,
+      );
+      expect(reel0?.getAttribute("data-reel-step")).not.toBe(reelBeforeHide);
+      expect(track0?.style.transform).not.toBe(xBeforeHide);
+    } finally {
+      setHidden(false);
+      stopHome();
+      vi.useRealTimers();
+    }
+  });
+
+  it("feature reels: step bullets expose only aria-pressed and only inactive slides are aria-hidden", () => {
+    loadBuiltDocument(homeHtml);
+    const stopHome = initHome();
+    try {
+      const reel0 = document.querySelector<HTMLElement>(
+        '[data-feature-reel="0"]',
+      );
+      const bullets = Array.from(
+        reel0?.querySelectorAll<HTMLButtonElement>("[data-reel-bullet]") ?? [],
+      );
+      const slides = Array.from(
+        reel0?.querySelectorAll<HTMLElement>(".site-feature__slide") ?? [],
+      );
+      expect(bullets.length).toBe(3);
+      expect(slides.length).toBe(3);
+
+      // Initial state: step 0 pressed, no aria-current on any bullet, only inactive slides aria-hidden.
+      expect(bullets[0].getAttribute("aria-pressed")).toBe("true");
+      expect(bullets[1].getAttribute("aria-pressed")).toBe("false");
+      for (const b of bullets) {
+        expect(b.hasAttribute("aria-current")).toBe(false);
+      }
+      expect(slides[0].hasAttribute("aria-hidden")).toBe(false);
+      expect(slides[1].getAttribute("aria-hidden")).toBe("true");
+      expect(slides[2].getAttribute("aria-hidden")).toBe("true");
+
+      // Selecting bullet 1 updates aria-pressed (without aria-current) and flips slide aria-hidden.
+      bullets[1].click();
+      expect(bullets[0].getAttribute("aria-pressed")).toBe("false");
+      expect(bullets[1].getAttribute("aria-pressed")).toBe("true");
+      for (const b of bullets) {
+        expect(b.hasAttribute("aria-current")).toBe(false);
+      }
+      expect(slides[0].getAttribute("aria-hidden")).toBe("true");
+      expect(slides[1].hasAttribute("aria-hidden")).toBe(false);
+      expect(slides[2].getAttribute("aria-hidden")).toBe("true");
+    } finally {
+      stopHome();
+    }
+  });
+
   it("pricing: switches billing period and toggles exclusive FAQ accordion with inert panels", () => {
     loadBuiltDocument(pricingHtml);
     initPricing();

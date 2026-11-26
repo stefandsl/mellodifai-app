@@ -504,8 +504,44 @@ test("C04 rotating hero line changes every 6.0 s +/- 0.3 s and keeps one fixed t
     });
   });
 
-  await page.clock.runFor(6100);
-  await page.clock.runFor(6100);
+  const readLineStyle = (idx: number) =>
+    page.evaluate((i) => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-rotator-line="${i}"]`,
+      );
+      if (!el) return { opacity: "", visibility: "" };
+      const s = getComputedStyle(el);
+      return { opacity: s.opacity, visibility: s.visibility };
+    }, idx);
+
+  expect(await readLineStyle(0)).toEqual({
+    opacity: "1",
+    visibility: "visible",
+  });
+  expect(await readLineStyle(1)).toEqual({
+    opacity: "0",
+    visibility: "hidden",
+  });
+
+  await page.clock.runFor(6500);
+  expect(await readLineStyle(1)).toEqual({
+    opacity: "1",
+    visibility: "visible",
+  });
+  expect(await readLineStyle(0)).toEqual({
+    opacity: "0",
+    visibility: "hidden",
+  });
+
+  await page.clock.runFor(6000);
+  expect(await readLineStyle(2)).toEqual({
+    opacity: "1",
+    visibility: "visible",
+  });
+  expect(await readLineStyle(1)).toEqual({
+    opacity: "0",
+    visibility: "hidden",
+  });
 
   const times = await page.evaluate(
     () =>
@@ -563,8 +599,14 @@ for (const [width, height] of [
     const b0 = await readX(0);
     const b1 = await readX(1);
 
-    const speed0 = Math.abs(b0.x - a0.x) / ((b0.t - a0.t) / 1000);
-    const speed1 = Math.abs(b1.x - a1.x) / ((b1.t - a1.t) / 1000);
+    const dx0 = b0.x - a0.x;
+    const dx1 = b1.x - a1.x;
+    expect(Math.sign(dx0)).toBe(-Math.sign(dx1));
+    expect(dx0).toBeLessThan(0);
+    expect(dx1).toBeGreaterThan(0);
+
+    const speed0 = Math.abs(dx0) / ((b0.t - a0.t) / 1000);
+    const speed1 = Math.abs(dx1) / ((b1.t - a1.t) / 1000);
     expect(speed0).toBeGreaterThanOrEqual(28);
     expect(speed0).toBeLessThanOrEqual(36);
     expect(speed1).toBeGreaterThanOrEqual(28);
@@ -704,8 +746,39 @@ for (const [width, height] of [
       }).observe(el, { attributes: true, attributeFilter: ["data-reel-step"] });
     });
 
-    await page.clock.runFor(5100);
-    await page.clock.runFor(5100);
+    const readTrackTx = () =>
+      page.evaluate(() => {
+        const track = document.querySelector<HTMLElement>(
+          '[data-feature-reel="0"] [data-reel-track="true"]',
+        );
+        if (!track) return { tx: Number.NaN, width: 0, inline: "" };
+        const style = getComputedStyle(track).transform;
+        let tx = 0;
+        if (style && style !== "none") {
+          const m = style.match(/matrix\(([^)]+)\)/u);
+          if (m) tx = Number(m[1].split(",")[4]);
+        }
+        return {
+          tx,
+          width: track.getBoundingClientRect().width,
+          inline: track.style.transform,
+        };
+      });
+
+    const tr0 = await readTrackTx();
+    expect(Math.abs(tr0.tx)).toBeLessThan(1);
+
+    await page.clock.runFor(5400);
+    const tr1 = await readTrackTx();
+    expect(tr1.inline).toContain("-33.33");
+    expect(tr1.tx).toBeLessThan(-tr1.width / 3 + 4);
+    expect(tr1.tx).toBeGreaterThan(-tr1.width / 3 - 4);
+
+    await page.clock.runFor(5000);
+    const tr2 = await readTrackTx();
+    expect(tr2.inline).toContain("-66.66");
+    expect(tr2.tx).toBeLessThan((-2 * tr2.width) / 3 + 4);
+    expect(tr2.tx).toBeGreaterThan((-2 * tr2.width) / 3 - 4);
 
     const times = await page.evaluate(
       () =>
