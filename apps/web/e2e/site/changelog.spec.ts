@@ -160,9 +160,33 @@ for (const [width, height] of WIDTHS) {
     await expect(targetChip).toHaveAttribute("aria-current", "location");
     await expect(chips.first()).not.toHaveAttribute("aria-current", "location");
 
+    // Wait for smooth scroll to bring the target entry cleanly below header + ruler.
     await expect
-      .poll(async () => page.evaluate(() => window.scrollY))
-      .toBeGreaterThan(200);
+      .poll(async () => {
+        const state = await page.evaluate((id) => {
+          const header = document
+            .querySelector(".site-header")
+            ?.getBoundingClientRect();
+          const ruler = document
+            .querySelector("[data-release-ruler]")
+            ?.getBoundingClientRect();
+          const el = document.getElementById(id ?? "");
+          if (!header || !ruler || !el) return null;
+          const entryTop = Math.round(el.getBoundingClientRect().top);
+          const chromeBottom = Math.round(header.bottom + ruler.height);
+          return {
+            scrollY: Math.round(window.scrollY),
+            headerBottom: Math.round(header.bottom),
+            rulerTop: Math.round(ruler.top),
+            rulerHeight: Math.round(ruler.height),
+            entryTop,
+            inPlace:
+              entryTop >= chromeBottom - 24 && entryTop < window.innerHeight,
+          };
+        }, targetId);
+        return Boolean(state && state.scrollY > 200 && state.inPlace);
+      })
+      .toBe(true);
 
     // While scrolled, the release ruler stays stuck directly under the fixed header.
     const stickyCheck = await page.evaluate(() => {

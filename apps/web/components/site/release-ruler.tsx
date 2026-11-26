@@ -1,10 +1,7 @@
 import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
-import {
-  type ChangelogEntry,
-  formatChangelogDate,
-} from "@/lib/site/changelog-types";
-import type { SiteCopy, SiteLang } from "@/lib/site/copy";
+import type { ChangelogEntry } from "@/lib/site/changelog-types";
+import type { SiteCopy } from "@/lib/site/copy";
 import { SiteLink, SiteText } from "@/src/site-primitives";
 
 // Deterministic tick heights for our own changelog waveform ruler (no reference SVG).
@@ -21,13 +18,12 @@ const RULER_TICKS = Array.from({ length: 120 }, (_, i) => {
 
 export type ReleaseRulerProps = {
   entries: readonly ChangelogEntry[];
-  lang: SiteLang;
   copy: SiteCopy["changelog"];
 };
 
 // Sticky release ruler (reference section 1): tick strip and horizontal rail of dated
 // release chips. Pure server-safe primitives; enhanced by lib/site/islands/changelog.ts.
-export function ReleaseRuler({ entries, lang, copy }: ReleaseRulerProps) {
+export function ReleaseRuler({ entries, copy }: ReleaseRulerProps) {
   return (
     <VStack
       as="section"
@@ -73,11 +69,6 @@ export function ReleaseRuler({ entries, lang, copy }: ReleaseRulerProps) {
             align="center"
           >
             {entries.map((entry, index) => {
-              const shortDate = formatChangelogDate(
-                entry.isoDate,
-                lang,
-                "short",
-              );
               const isCurrent = index === 0;
               return (
                 <HStack
@@ -105,7 +96,7 @@ export function ReleaseRuler({ entries, lang, copy }: ReleaseRulerProps) {
                         color="inherit"
                         className="site-ruler__chip-date"
                       >
-                        {shortDate}
+                        {entry.date}
                       </SiteText>
                       <SiteText
                         type="code"
