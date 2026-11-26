@@ -145,8 +145,19 @@ export function initClipPlayer(): void {
     const fallbackDuration = Number(
       seekSlider?.getAttribute("aria-valuemax") ?? "0",
     );
+    const mediaSrc = media.getAttribute("data-clip-src") ?? "";
     let lastNonZeroVolume = 1;
     let speedIndex = Math.max(0, speeds.indexOf(1));
+    let pendingSeek: number | null = null;
+
+    const ensureMediaSource = () => {
+      if (mediaSrc && !media.getAttribute("src")) {
+        const rate = speeds[speedIndex] ?? 1;
+        media.setAttribute("src", mediaSrc);
+        media.defaultPlaybackRate = rate;
+        media.playbackRate = rate;
+      }
+    };
 
     const effectiveDuration = () => {
       const d = media.duration;
@@ -156,9 +167,15 @@ export function initClipPlayer(): void {
         : 0;
     };
 
-    const syncTimeline = () => {
+    const syncTimeline = (overrideCurrent?: number) => {
       const dur = effectiveDuration();
-      const cur = Number.isFinite(media.currentTime) ? media.currentTime : 0;
+      const rawCur =
+        overrideCurrent !== undefined
+          ? overrideCurrent
+          : pendingSeek !== null
+            ? pendingSeek
+            : media.currentTime;
+      const cur = Number.isFinite(rawCur) ? rawCur : 0;
       const pct = dur > 0 ? Math.min(100, Math.max(0, (cur / dur) * 100)) : 0;
       if (seekFill) {
         seekFill.style.setProperty("--clip-seek-pct", `${pct.toFixed(2)}%`);
@@ -203,6 +220,7 @@ export function initClipPlayer(): void {
       speedIndex =
         ((nextIndex % speeds.length) + speeds.length) % speeds.length;
       const rate = speeds[speedIndex] ?? 1;
+      media.defaultPlaybackRate = rate;
       media.playbackRate = rate;
       shell.setAttribute("data-speed", String(rate));
       if (speedBtn) {
@@ -258,6 +276,7 @@ export function initClipPlayer(): void {
         syncPlayState(false);
         return;
       }
+      ensureMediaSource();
       if (config.isVideo) {
         shell.setAttribute("data-video-active", "true");
       }
@@ -272,12 +291,18 @@ export function initClipPlayer(): void {
     const seekTo = (seconds: number) => {
       const dur = effectiveDuration();
       const clamped = Math.min(dur, Math.max(0, seconds));
+      if (!media.getAttribute("src")) {
+        pendingSeek = clamped;
+        syncTimeline(clamped);
+        return;
+      }
+      pendingSeek = media.readyState === 0 ? clamped : null;
       try {
         media.currentTime = clamped;
       } catch {
         // Ignore if media has not loaded metadata yet.
       }
-      syncTimeline();
+      syncTimeline(clamped);
     };
 
     const toggleMute = () => {
@@ -440,9 +465,25 @@ export function initClipPlayer(): void {
       }
     });
 
-    media.addEventListener("loadedmetadata", syncTimeline);
-    media.addEventListener("durationchange", syncTimeline);
-    media.addEventListener("timeupdate", syncTimeline);
+    media.addEventListener("loadedmetadata", () => {
+      const rate = speeds[speedIndex] ?? 1;
+      media.playbackRate = rate;
+      if (pendingSeek !== null) {
+        const target = Math.min(effectiveDuration(), Math.max(0, pendingSeek));
+        pendingSeek = null;
+        try {
+          media.currentTime = target;
+        } catch {
+          // Ignore if browser rejects seek during metadata load.
+        }
+      }
+      syncTimeline();
+    });
+    media.addEventListener("durationchange", () => syncTimeline());
+    media.addEventListener("timeupdate", () => {
+      if (media.readyState > 0) pendingSeek = null;
+      syncTimeline();
+    });
     media.addEventListener("play", () => syncPlayState(true));
     media.addEventListener("pause", () => syncPlayState(false));
     media.addEventListener("ended", () => {

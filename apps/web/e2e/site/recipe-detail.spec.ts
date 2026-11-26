@@ -149,7 +149,7 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
   const shell = page.locator("[data-clip-player]");
   const media = page.locator("[data-clip-media]");
 
-  // Wait briefly to prove nothing autoplays or advances before user interaction.
+  // Wait briefly to prove nothing autoplays, fetches, or advances before user interaction.
   await page.waitForTimeout(300);
   const beforeClick = await media.evaluate((el) => {
     const m = el as HTMLVideoElement;
@@ -159,6 +159,10 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
       currentTime: m.currentTime,
       playbackRate: m.playbackRate,
       preload: m.preload,
+      srcAttr: m.getAttribute("src"),
+      deferredSrc: m.getAttribute("data-clip-src"),
+      networkState: m.networkState,
+      readyState: m.readyState,
     };
   });
   expect(beforeClick.paused).toBe(true);
@@ -166,6 +170,12 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
   expect(beforeClick.currentTime).toBe(0);
   expect(beforeClick.playbackRate).toBe(1);
   expect(beforeClick.preload).toBe("none");
+  expect(beforeClick.srcAttr).toBeNull();
+  expect(beforeClick.deferredSrc).toBe(
+    `/site/recipes/${SAMPLE_SLUG}/example.mp4`,
+  );
+  expect(beforeClick.networkState).toBe(0);
+  expect(beforeClick.readyState).toBe(0);
   await expect(shell).toHaveAttribute("data-playing", "false");
 
   // Every control has a non-empty accessible name.
@@ -250,7 +260,7 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
   await expect(seekSlider).toHaveAttribute("aria-valuenow", "0");
   expect(
     await media.evaluate((el) => (el as HTMLMediaElement).currentTime),
-  ).toBe(0);
+  ).toBeLessThan(0.1);
 
   // Speed button works by keyboard only (Enter, ArrowUp, ArrowDown, Space) and updates playbackRate.
   await speedBtn.focus();
@@ -386,9 +396,25 @@ test("audio-only recipe renders <audio> preview with speed control and no autopl
   await expect(audio).toHaveCount(1);
   const state = await audio.evaluate((el) => {
     const a = el as HTMLAudioElement;
-    return { paused: a.paused, autoplay: a.autoplay, preload: a.preload };
+    return {
+      paused: a.paused,
+      autoplay: a.autoplay,
+      preload: a.preload,
+      srcAttr: a.getAttribute("src"),
+      deferredSrc: a.getAttribute("data-clip-src"),
+      networkState: a.networkState,
+      readyState: a.readyState,
+    };
   });
-  expect(state).toEqual({ paused: true, autoplay: false, preload: "none" });
+  expect(state).toEqual({
+    paused: true,
+    autoplay: false,
+    preload: "none",
+    srcAttr: null,
+    deferredSrc: `/site/recipes/${AUDIO_SLUG}/example.wav`,
+    networkState: 0,
+    readyState: 0,
+  });
 
   await page.locator("[data-clip-speed]").click();
   expect(

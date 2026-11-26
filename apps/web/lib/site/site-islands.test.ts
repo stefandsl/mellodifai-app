@@ -518,10 +518,15 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(media).not.toBeNull();
     if (!shell || !media) return;
 
-    // Never autoplays, preloads nothing before a click, and omits fake caption tracks when recipes have no timed cues.
+    // Never autoplays, keeps src deferred until play so WebKit does not preload on parse,
+    // and omits fake caption tracks when recipes have no timed cues.
     expect(media.autoplay).toBe(false);
     expect(media.preload).toBe("none");
     expect(media.paused).toBe(true);
+    expect(media.getAttribute("src")).toBeNull();
+    expect(media.getAttribute("data-clip-src")).toBe(
+      "/site/recipes/acoustic-voice-swap/example.mp4",
+    );
     expect(media.querySelector("track")).toBeNull();
     expect(recipeDetailVideoHtml).not.toContain("data:text/vtt");
 
@@ -580,6 +585,9 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(playBtn?.getAttribute("aria-label")).toBe("Play clip");
     playBtn?.click();
     await Promise.resolve();
+    expect(media.getAttribute("src")).toBe(
+      "/site/recipes/acoustic-voice-swap/example.mp4",
+    );
     expect(playSpy).toHaveBeenCalledTimes(1);
     expect(shell.getAttribute("data-playing")).toBe("true");
     expect(shell.getAttribute("data-video-active")).toBe("true");

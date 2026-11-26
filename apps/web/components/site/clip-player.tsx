@@ -89,13 +89,15 @@ export function ClipPlayer({
             data-clip-poster="true"
           />
           {isVideo ? (
+            /* Omit initial src so WebKit (MediaFoundation) does not ignore preload="none",
+               fetch the full clip on parse, and block window.onload before any user click. */
             /* biome-ignore lint/a11y/useMediaCaption: synthetic placeholder clip has no timed transcript; lyric highlight is rendered on screen. */
             <video
               className="site-clip__media"
-              src={mediaSrc}
               preload="none"
               playsInline
               data-clip-media="true"
+              data-clip-src={mediaSrc}
             />
           ) : (
             <>
@@ -105,9 +107,9 @@ export function ClipPlayer({
               {/* biome-ignore lint/a11y/useMediaCaption: audio preview displays the lyric highlight on screen. */}
               <audio
                 className="site-clip__audio"
-                src={mediaSrc}
                 preload="none"
                 data-clip-media="true"
+                data-clip-src={mediaSrc}
               />
             </>
           )}
