@@ -147,6 +147,12 @@ for (const [width, height] of WIDTHS) {
       }
     }
 
+    // Ruler chips render localized short dates (not raw ISO YYYY-MM-DD).
+    const firstChipDate = (
+      await chips.first().locator(".site-ruler__chip-date").textContent()
+    )?.trim();
+    expect(firstChipDate).toBe("Nov 22");
+
     // First chip is initially marked with aria-current="location".
     await expect(chips.first()).toHaveAttribute("aria-current", "location");
 
@@ -227,8 +233,8 @@ for (const [width, height] of WIDTHS) {
     const manualIdx = Math.min(7, REPO_TAGS.length - 1);
     const manualChip = chips.nth(manualIdx);
     const manualId = await manualChip.getAttribute("data-release-chip");
-    // Wait for programmatic click-scroll lock to expire before manual scroll.
-    await page.waitForTimeout(750);
+    // Wait for smooth scroll + scrollend (or idle fallback on WebKit) to settle cleanly.
+    await page.waitForTimeout(350);
     await page.evaluate((id) => {
       const el = document.getElementById(id ?? "");
       if (!el) return;
@@ -343,7 +349,7 @@ test("reduced motion uses no smooth scroll and disables chip transitions", async
   expect(result.trackBehavior).toBe("auto");
 });
 
-test("Italian page renders Italian title, ruler labels, and same tag count", async ({
+test("Italian page renders Italian title, localized chip dates, lang=en on English notes, and same tag count", async ({
   page,
   baseURL,
 }) => {
@@ -365,6 +371,23 @@ test("Italian page renders Italian title, ruler labels, and same tag count", asy
     "aria-label",
     itCopy.changelog.rulerLabel,
   );
+  const firstChipDate = (
+    await page
+      .locator("[data-release-chip] .site-ruler__chip-date")
+      .first()
+      .textContent()
+  )?.trim();
+  expect(firstChipDate).toBe("22 nov");
+
+  // WCAG 3.1.2: English release note bodies carry lang="en" on the Italian page.
+  const notedBodies = page.locator(
+    '[data-release-entry][data-has-notes="true"] .site-release__body',
+  );
+  const count = await notedBodies.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i += 1) {
+    await expect(notedBodies.nth(i)).toHaveAttribute("lang", "en");
+  }
 });
 
 test("no Astryx client JS or Zod chunks ship to the browser, and page works with JS off", async ({

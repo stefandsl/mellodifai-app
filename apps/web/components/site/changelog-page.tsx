@@ -46,7 +46,7 @@ export function ChangelogPage({ entries, lang, copy }: ChangelogPageProps) {
         </SiteText>
       </VStack>
 
-      <ReleaseRuler entries={entries} copy={c} />
+      <ReleaseRuler entries={entries} lang={lang} copy={c} />
 
       <VStack
         as="section"

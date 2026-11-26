@@ -18,6 +18,10 @@ import {
   buildSiteStatic,
   verifySiteStaticOutput,
 } from "../../scripts/build-site-static.mjs";
+import {
+  renderAllStaticPages,
+  renderChangelogStatic,
+} from "./render-static-entry";
 import { SITE_STATIC_SOURCES } from "./serve-static-site";
 import {
   normalizeMeshLightDarkShadows,
@@ -271,6 +275,28 @@ describe("buildSiteStatic prerender pipeline", () => {
       );
       expect(recipesCanvas).toContain("data:image/jpeg;base64,");
 
+      // Changelog HTML checks: localized short dates on ruler chips (EN and IT),
+      // and WCAG 3.1.2 lang="en" on English release note containers on the Italian page.
+      const changelogEn = readFileSync(
+        join(outDir, "changelog-en.html"),
+        "utf8",
+      );
+      const changelogIt = readFileSync(
+        join(outDir, "changelog-it.html"),
+        "utf8",
+      );
+      expect(changelogEn).toContain("Nov 22");
+      expect(changelogEn).not.toMatch(
+        /site-ruler__chip-date[^>]*>\d{4}-\d{2}-\d{2}</u,
+      );
+      expect(changelogEn).not.toMatch(/site-release__body[^>]*lang="en"/u);
+
+      expect(changelogIt).toContain("22 nov");
+      expect(changelogIt).not.toMatch(
+        /site-ruler__chip-date[^>]*>\d{4}-\d{2}-\d{2}</u,
+      );
+      expect(changelogIt).toMatch(/site-release__body[^>]*lang="en"/u);
+
       for (const island of result.islands) {
         const full = join(outDir, "islands", island);
         expect(existsSync(full), island).toBe(true);
@@ -437,4 +463,66 @@ describe("buildSiteStatic prerender pipeline", () => {
       rmSync(TEST_TMP_PARENT, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("requires non-empty changelog entries in renderAllStaticPages and renderChangelogStatic, and marks English notes with lang=en on Italian pages", () => {
+    const dummyUrls = {
+      fontsUrl: "/site/styles/fonts.000000000000.css",
+      islandUrls: {
+        home: "/site/islands/home.000000000000.js",
+        pricing: "/site/islands/pricing.000000000000.js",
+        recipes: "/site/islands/recipes.000000000000.js",
+        "recipe-detail": "/site/islands/recipe-detail.000000000000.js",
+        changelog: "/site/islands/changelog.000000000000.js",
+      },
+    };
+
+    expect(() => renderChangelogStatic([], "en")).toThrow(/must not be empty/u);
+    expect(() => renderAllStaticPages(dummyUrls, [])).toThrow(
+      /must be non-empty/u,
+    );
+    expect(() =>
+      (renderAllStaticPages as unknown as (urls: typeof dummyUrls) => unknown)(
+        dummyUrls,
+      ),
+    ).toThrow(/must be non-empty/u);
+
+    const sampleEntries = [
+      {
+        tag: "v2.0.0",
+        id: "release-v2.0.0",
+        date: "2026-11-22",
+        isoDate: "2026-11-22T18:00:00+01:00",
+        title: "English release title",
+        summary: "English summary.",
+        blocks: [
+          {
+            type: "paragraph" as const,
+            inlines: [{ type: "text" as const, text: "English summary." }],
+          },
+        ],
+        hasNotes: true,
+      },
+      {
+        tag: "v1.0.0",
+        id: "release-v1.0.0",
+        date: "2026-11-03",
+        isoDate: "2026-11-03T10:00:00+01:00",
+        title: null,
+        summary: null,
+        blocks: [],
+        hasNotes: false,
+      },
+    ];
+
+    const itHtml = renderChangelogStatic(sampleEntries, "it").bodyHtml;
+    const enHtml = renderChangelogStatic(sampleEntries, "en").bodyHtml;
+
+    // On Italian pages, entries with English notes carry lang="en" on .site-release__body;
+    // tag-only entries without prose do not, and EN pages do not emit redundant lang="en".
+    const itBodies = itHtml.match(/<div[^>]*site-release__body[^>]*>/gu) ?? [];
+    expect(itBodies).toHaveLength(2);
+    expect(itBodies[0]).toContain('lang="en"');
+    expect(itBodies[1]).not.toContain('lang="en"');
+    expect(enHtml).not.toMatch(/site-release__body[^>]*lang="en"/u);
+  });
 });

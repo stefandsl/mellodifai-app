@@ -1,5 +1,10 @@
 import { VStack } from "@astryxdesign/core/VStack";
-import { Fragment, type ReactNode } from "react";
+import {
+  type ComponentProps,
+  type ComponentType,
+  Fragment,
+  type ReactNode,
+} from "react";
 import {
   type ChangelogEntry,
   formatChangelogDate,
@@ -8,6 +13,12 @@ import {
 } from "@/lib/site/changelog-types";
 import type { SiteLang } from "@/lib/site/copy";
 import { SiteHeading, SiteLink, SiteText } from "@/src/site-primitives";
+
+// @astryxdesign/core/VStack forwards standard HTML attributes at runtime,
+// including `lang`, even though its public prop type omits `lang`.
+const ReleaseBodyStack = VStack as ComponentType<
+  ComponentProps<typeof VStack> & { lang?: string }
+>;
 
 function inlineKeyText(inlines: readonly MarkdownInline[]): string {
   return inlines
@@ -185,7 +196,11 @@ export function ReleaseEntry({
         </SiteText>
       </VStack>
 
-      <VStack className="site-release__body" gap={4}>
+      <ReleaseBodyStack
+        className="site-release__body"
+        gap={4}
+        lang={lang !== "en" && entry.hasNotes ? "en" : undefined}
+      >
         <SiteHeading level={2} id={headingId} className="site-release__title">
           {headingText}
         </SiteHeading>
@@ -210,7 +225,7 @@ export function ReleaseEntry({
             })()}
           </VStack>
         ) : null}
-      </VStack>
+      </ReleaseBodyStack>
     </VStack>
   );
 }
