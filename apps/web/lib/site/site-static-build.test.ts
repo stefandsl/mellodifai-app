@@ -23,6 +23,7 @@ import {
   normalizeMeshLightDarkShadows,
   pruneAstryxCssForHtml,
   pruneMeshCssVars,
+  pruneUnusedMeshBlocks,
   pruneUnusedSiteCss,
   splitSiteFontsCss,
 } from "./site-static-css";
@@ -122,6 +123,28 @@ describe("static site CSS helpers", () => {
     expect(out).toContain(
       "--glass-edge: inset 0 1px 0 light-dark(rgb(20 20 22 / 0.12), rgb(247 244 239 / 0.1));",
     );
+  });
+
+  it("prunes unused mesh reset tag blocks and media-dark-page blocks absent from page HTML", () => {
+    const sample = [
+      "@layer reset { :where(h1) { font-size: 2rem; } :where(h4) { font-size: 1rem; } :where(hr) { border: 0; } }",
+      '@layer astryx-theme { @scope ([data-astryx-theme="mesh"]) { :scope { --a: 1; } } }',
+      '@layer astryx-theme { @scope ([data-astryx-theme="mesh"]) { [data-astryx-media="dark"] { color-scheme: dark; } } }',
+    ].join("\n");
+
+    const pruned = pruneUnusedMeshBlocks(sample, "<h1>Title</h1>");
+    expect(pruned).toContain(":where(h1)");
+    expect(pruned).not.toContain(":where(h4)");
+    expect(pruned).not.toContain(":where(hr)");
+    expect(pruned).not.toContain('data-astryx-media="dark"');
+
+    const kept = pruneUnusedMeshBlocks(
+      sample,
+      '<h4 data-astryx-media="dark">Sub</h4><hr/>',
+    );
+    expect(kept).toContain(":where(h4)");
+    expect(kept).toContain(":where(hr)");
+    expect(kept).toContain('data-astryx-media="dark"');
   });
 
   it("prunes Astryx StyleX rules to used classes, drops data-astryx-press, and omits shadowed :root vars", () => {

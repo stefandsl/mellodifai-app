@@ -48,7 +48,8 @@ describe("public site renders static parts on the server", () => {
 
   it("removes client-only Text/Heading/Link/Icon/Table/Theme imports from all interactive site islands", () => {
     const islands = [
-      "components/site/hero-studio.tsx",
+      "components/site/hero-composer.tsx",
+      "components/site/feature-reel.tsx",
       "components/site/home-client.tsx",
       "components/site/site-menu.tsx",
       "components/site/site-theme.tsx",
@@ -66,11 +67,17 @@ describe("public site renders static parts on the server", () => {
 
   it("keeps Astryx components for interactive controls", () => {
     const hero = readFileSync(
-      join(WEB, "components/site/hero-studio.tsx"),
+      join(WEB, "components/site/hero-composer.tsx"),
       "utf8",
     );
     expect(hero).toContain("@astryxdesign/core/Button");
     expect(hero).toContain("@astryxdesign/core/ToggleButton");
+
+    const reel = readFileSync(
+      join(WEB, "components/site/feature-reel.tsx"),
+      "utf8",
+    );
+    expect(reel).toContain("@astryxdesign/core/ToggleButton");
 
     const segmented = readFileSync(
       join(WEB, "components/site/segmented.tsx"),

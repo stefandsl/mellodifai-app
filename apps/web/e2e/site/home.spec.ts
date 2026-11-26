@@ -11,7 +11,6 @@ import {
 } from "../../lib/site/judge/likeness";
 import { collectPageText } from "../../lib/site/judge/page-text";
 import { HEADER_LINKS } from "../../lib/site/nav";
-import { HERO_SAMPLE } from "../../lib/site/sample";
 
 // The public home page and the site shell (C02), on Chromium, Firefox and WebKit.
 const SIZES = [
@@ -86,9 +85,8 @@ for (const [width, height] of SIZES) {
     expect(header?.height).toBeLessThanOrEqual(77);
     expect(await inView(page, ".site-header .site-brand__name")).toBe(true);
     expect(await inView(page, ".site-hero__primary")).toBe(true);
-    // The proof: the whole lyric line and the changed word are in the first screen.
-    expect(await inView(page, ".site-studio__lyric")).toBe(true);
-    expect(await inView(page, ".site-studio__word")).toBe(true);
+    // The hero composer field is visible in the first screen.
+    expect(await inView(page, ".site-composer__input")).toBe(true);
     // The hero ends with its content: below the last part there is only the hero's end padding.
     const band = await page.evaluate(() => {
       const hero = document.querySelector(".site-hero") as HTMLElement;
@@ -372,18 +370,15 @@ test("phone menu: full screen, keeps focus inside, stops page scroll, Escape clo
   ).not.toBe("hidden");
 });
 
-test("keyboard only: skip link, pick the word, play the line", async ({
+test("keyboard only: skip link, pick a prompt chip, focus composer, submit to sign-in without POST", async ({
   page,
   browserName,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.route(/\/site\/sample\//u, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "audio/wav",
-      body: silentWav(4),
-    }),
-  );
+  const posts: string[] = [];
+  page.on("request", (req) => {
+    if (req.method() === "POST") posts.push(req.url());
+  });
   await open(page);
   const skip = page.getByRole("link", { name: en.skip });
   // Safari's default keyboard setting skips links on Tab, so WebKit starts on the skip link itself.
@@ -392,61 +387,333 @@ test("keyboard only: skip link, pick the word, play the line", async ({
   await expect(skip).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main")).toBeFocused();
-  const love = page.getByRole("button", { name: /^love,/u });
-  const studio = page.locator(".site-studio");
-  await love.focus();
+
+  const chip = page
+    .locator(".site-composer__chips .site-chip[data-chip-prompt]")
+    .first();
+  const expectedPrompt = (await chip.getAttribute("data-chip-prompt")) ?? "";
+  expect(expectedPrompt.length).toBeGreaterThan(10);
+  await chip.focus();
   await page.keyboard.press("Space");
-  await expect(love).toHaveAttribute("aria-pressed", "true");
-  await expect(studio.locator(".site-studio__new")).toHaveText("love");
-  await expect(studio.locator(".site-studio__old")).toHaveText("hate");
-  const play = page.getByRole("button", { name: en.hero.play });
-  // Recorded as it happens: on a slow machine the clip can end before a later check.
-  await play.evaluate((el) => {
-    const w = window as unknown as { playingLabel?: string };
-    new MutationObserver((_, observer) => {
-      if (el.getAttribute("data-state") !== "playing") return;
-      w.playingLabel = el.getAttribute("aria-label") ?? el.textContent ?? "";
-      observer.disconnect();
-    }).observe(el, { attributes: true, childList: true, subtree: true });
-  });
-  await play.focus();
-  await page.keyboard.press("Enter");
-  // The clip of the picked word is the one that loads.
-  await expect
-    .poll(() => page.locator("audio").evaluate((a: HTMLAudioElement) => a.src))
-    .toMatch(new RegExp(`${HERO_SAMPLE.clips.love}$`, "u"));
-  // Playwright's WebKit build for Windows has no media playback, so it cannot play the clip.
-  if (browserName === "webkit") return;
-  // The button turned into Pause while the clip played, and the clip really played.
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => (window as unknown as { playingLabel?: string }).playingLabel,
-      ),
-    )
-    .toContain(en.hero.pause);
-  await expect
-    .poll(() =>
-      page.locator("audio").evaluate((a: HTMLAudioElement) => a.played.length),
-    )
-    .toBeGreaterThan(0);
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
+  const input = page.locator("#hero-composer-input");
+  await expect(input).toHaveValue(expectedPrompt);
+  await expect(input).toBeFocused();
+
+  await page.keyboard.press("Control+Enter");
+  await page.waitForURL(/\/login\?/u);
+  const landed = new URL(page.url());
+  expect(landed.pathname).toBe("/login");
+  expect(landed.searchParams.get("prompt")).toBe(expectedPrompt);
+  expect(landed.searchParams.get("next")).toBe(
+    `/create?prompt=${encodeURIComponent(expectedPrompt)}`,
+  );
+  expect(posts).toEqual([]);
 });
 
-test("a missing sample says so and turns the play button off", async ({
+for (const [width, height] of [
+  [1440, 900],
+  [1024, 768],
+  [390, 844],
+] as const) {
+  test(`C04 hero composer and chips at ${width}x${height}: chip fills and focuses composer, send goes to sign-in with text kept and zero POST`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    const posts: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST") posts.push(req.url());
+    });
+    await open(page);
+
+    const chips = page.locator(
+      ".site-composer__chips .site-chip[data-chip-prompt]",
+    );
+    await expect(chips).toHaveCount(6);
+    const chip = chips.nth(2);
+    const expectedPrompt = (await chip.getAttribute("data-chip-prompt")) ?? "";
+    expect(expectedPrompt.length).toBeGreaterThan(10);
+
+    await chip.click();
+    const input = page.locator("#hero-composer-input");
+    await expect(input).toHaveValue(expectedPrompt);
+    await expect(input).toBeFocused();
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
+
+    await page.locator(".site-composer .site-hero__primary").click();
+    await page.waitForURL(/\/login\?/u);
+    const dest = new URL(page.url());
+    expect(dest.pathname).toBe("/login");
+    expect(dest.searchParams.get("prompt")).toBe(expectedPrompt);
+    expect(dest.searchParams.get("next")).toBe(
+      `/create?prompt=${encodeURIComponent(expectedPrompt)}`,
+    );
+    expect(posts).toEqual([]);
+  });
+}
+
+test("C04 rotating hero line changes every 6.0 s +/- 0.3 s and keeps one fixed text for screen readers", async ({
   page,
 }) => {
-  await page.route(/\/site\/sample\//u, (route) =>
-    route.fulfill({ status: 404, body: "" }),
-  );
-  await open(page);
-  // The page checks for the clip when it loads, before any press of play.
-  await expect(
-    page.getByRole("status").filter({ hasText: en.hero.missing }),
-  ).toBeVisible();
-  await expect(page.locator(".site-studio__play")).toHaveAttribute(
-    "aria-disabled",
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.clock.install();
+  await page.goto("/");
+  await expect(page.locator('[data-hero-rotator="true"]')).toHaveAttribute(
+    "data-rotator-running",
     "true",
   );
+
+  // One fixed screen-reader title text inside #hero-title stays constant across rotations.
+  const srOnly = page.locator("#hero-title .site-sr-only");
+  await expect(srOnly).toHaveText(en.hero.fixedTitle);
+
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-hero-rotator="true"]');
+    const w = window as unknown as {
+      rotatorTimes: { index: string; t: number }[];
+    };
+    w.rotatorTimes = [
+      {
+        index: el?.getAttribute("data-rotator-index") ?? "",
+        t: performance.now(),
+      },
+    ];
+    if (!el) return;
+    new MutationObserver(() => {
+      const idx = el.getAttribute("data-rotator-index") ?? "";
+      const last = w.rotatorTimes[w.rotatorTimes.length - 1];
+      if (!last || last.index !== idx) {
+        w.rotatorTimes.push({ index: idx, t: performance.now() });
+      }
+    }).observe(el, {
+      attributes: true,
+      attributeFilter: ["data-rotator-index"],
+    });
+  });
+
+  await page.clock.runFor(6100);
+  await page.clock.runFor(6100);
+
+  const times = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          rotatorTimes: { index: string; t: number }[];
+        }
+      ).rotatorTimes,
+  );
+  expect(times.length).toBeGreaterThanOrEqual(3);
+  expect(times[0].index).toBe("0");
+  expect(times[1].index).toBe("1");
+  expect(times[2].index).toBe("2");
+  const dt1 = times[1].t - times[0].t;
+  const dt2 = times[2].t - times[1].t;
+  expect(dt1).toBeGreaterThanOrEqual(5700);
+  expect(dt1).toBeLessThanOrEqual(6300);
+  expect(dt2).toBeGreaterThanOrEqual(5700);
+  expect(dt2).toBeLessThanOrEqual(6300);
+  await expect(srOnly).toHaveText(en.hero.fixedTitle);
+});
+
+for (const [width, height] of [
+  [1440, 900],
+  [1024, 768],
+  [390, 844],
+] as const) {
+  test(`C04 showcase marquee at ${width}x${height}: moves at 32 px/s +/- 4 and stops on hover and focus inside`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.clock.install();
+    await page.goto("/");
+    await expect(page.locator('[data-marquee-row="0"]')).toHaveAttribute(
+      "data-marquee-paused",
+      "false",
+    );
+
+    const readX = (rowIdx: number) =>
+      page.evaluate((idx) => {
+        const card = document.querySelector(
+          `[data-marquee-row="${idx}"] [data-marquee-copy="0"] .site-show__card`,
+        );
+        return {
+          x: card ? card.getBoundingClientRect().left : Number.NaN,
+          t: performance.now(),
+        };
+      }, rowIdx);
+
+    // Prime one frame so initial transforms settle before measuring velocity.
+    await page.clock.runFor(50);
+    const a0 = await readX(0);
+    const a1 = await readX(1);
+    await page.clock.runFor(1500);
+    const b0 = await readX(0);
+    const b1 = await readX(1);
+
+    const speed0 = Math.abs(b0.x - a0.x) / ((b0.t - a0.t) / 1000);
+    const speed1 = Math.abs(b1.x - a1.x) / ((b1.t - a1.t) / 1000);
+    expect(speed0).toBeGreaterThanOrEqual(28);
+    expect(speed0).toBeLessThanOrEqual(36);
+    expect(speed1).toBeGreaterThanOrEqual(28);
+    expect(speed1).toBeLessThanOrEqual(36);
+
+    // Hover stops row 0; leaving resumes it.
+    const row0 = page.locator('[data-marquee-row="0"]');
+    await row0.scrollIntoViewIfNeeded();
+    await row0.hover();
+    await expect(row0).toHaveAttribute("data-marquee-paused", "true");
+    const h0 = await readX(0);
+    await page.clock.runFor(1000);
+    const h1 = await readX(0);
+    expect(Math.abs(h1.x - h0.x)).toBeLessThan(0.5);
+
+    await page.mouse.move(1, 1);
+    await expect(row0).toHaveAttribute("data-marquee-paused", "false");
+
+    // Focus inside stops row 1; blurring resumes it.
+    const row1 = page.locator('[data-marquee-row="1"]');
+    const row1Link = row1.locator("a").first();
+    await row1Link.focus();
+    await expect(row1).toHaveAttribute("data-marquee-paused", "true");
+    const f0 = await readX(1);
+    await page.clock.runFor(1000);
+    const f1 = await readX(1);
+    expect(Math.abs(f1.x - f0.x)).toBeLessThan(0.5);
+
+    await row1Link.evaluate((el: HTMLElement) => el.blur());
+    await expect(row1).toHaveAttribute("data-marquee-paused", "false");
+  });
+}
+
+for (const [width, height] of [
+  [1440, 900],
+  [1024, 768],
+  [390, 844],
+] as const) {
+  test(`C04 feature reels at ${width}x${height}: step every 5.0 s +/- 0.3 s and stop on hover`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.clock.install();
+    await page.goto("/");
+    const reel0 = page.locator('[data-feature-reel="0"]');
+    await expect(reel0).toHaveAttribute("data-reel-paused", "false");
+
+    await page.evaluate(() => {
+      const el = document.querySelector('[data-feature-reel="0"]');
+      const w = window as unknown as {
+        reelTimes: { step: string; t: number }[];
+      };
+      w.reelTimes = [
+        {
+          step: el?.getAttribute("data-reel-step") ?? "",
+          t: performance.now(),
+        },
+      ];
+      if (!el) return;
+      new MutationObserver(() => {
+        const step = el.getAttribute("data-reel-step") ?? "";
+        const last = w.reelTimes[w.reelTimes.length - 1];
+        if (!last || last.step !== step) {
+          w.reelTimes.push({ step, t: performance.now() });
+        }
+      }).observe(el, { attributes: true, attributeFilter: ["data-reel-step"] });
+    });
+
+    await page.clock.runFor(5100);
+    await page.clock.runFor(5100);
+
+    const times = await page.evaluate(
+      () =>
+        (window as unknown as { reelTimes: { step: string; t: number }[] })
+          .reelTimes,
+    );
+    expect(times.length).toBeGreaterThanOrEqual(3);
+    expect(times[0].step).toBe("0");
+    expect(times[1].step).toBe("1");
+    expect(times[2].step).toBe("2");
+    const dt1 = times[1].t - times[0].t;
+    const dt2 = times[2].t - times[1].t;
+    expect(dt1).toBeGreaterThanOrEqual(4700);
+    expect(dt1).toBeLessThanOrEqual(5300);
+    expect(dt2).toBeGreaterThanOrEqual(4700);
+    expect(dt2).toBeLessThanOrEqual(5300);
+
+    // Hover stops the feature reel across more than a full 5 s period.
+    await reel0.scrollIntoViewIfNeeded();
+    await reel0.hover();
+    await expect(reel0).toHaveAttribute("data-reel-paused", "true");
+    const pausedStep = await reel0.getAttribute("data-reel-step");
+    await page.clock.runFor(6500);
+    await expect(reel0).toHaveAttribute("data-reel-step", pausedStep ?? "2");
+
+    // Moving pointer off the article resumes stepping.
+    await page.mouse.move(1, 1);
+    await expect(reel0).toHaveAttribute("data-reel-paused", "false");
+    await page.clock.runFor(5100);
+    await expect(reel0).not.toHaveAttribute(
+      "data-reel-step",
+      pausedStep ?? "2",
+    );
+  });
+}
+
+test("C04 reduced motion: no loop runs and 0 changed pixels in the hero over 3 s", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page);
+
+  await expect(page.locator('[data-hero-rotator="true"]')).toHaveAttribute(
+    "data-rotator-running",
+    "false",
+  );
+  await expect(page.locator('[data-marquee-row="0"]')).toHaveAttribute(
+    "data-marquee-paused",
+    "true",
+  );
+  await expect(page.locator('[data-marquee-row="1"]')).toHaveAttribute(
+    "data-marquee-paused",
+    "true",
+  );
+  await expect(page.locator('[data-feature-reel="0"]')).toHaveAttribute(
+    "data-reel-paused",
+    "true",
+  );
+
+  // Measure real 3.0 s elapsed time and compare hero screenshots pixel-for-pixel.
+  const hero = page.locator(".site-hero");
+  const startState = await page.evaluate(() => ({
+    t0: performance.now(),
+    row0X:
+      document
+        .querySelector('[data-marquee-row="0"] .site-show__card')
+        ?.getBoundingClientRect().left ?? 0,
+  }));
+  const shotBefore = await hero.screenshot({ animations: "allow" });
+  await page.waitForFunction(
+    (t0) => performance.now() - t0 >= 3000,
+    startState.t0,
+  );
+  const shotAfter = await hero.screenshot({ animations: "allow" });
+
+  expect(Buffer.compare(shotBefore, shotAfter)).toBe(0);
+  await expect(page.locator('[data-hero-rotator="true"]')).toHaveAttribute(
+    "data-rotator-index",
+    "0",
+  );
+  await expect(page.locator('[data-feature-reel="0"]')).toHaveAttribute(
+    "data-reel-step",
+    "0",
+  );
+  const endRow0X = await page.evaluate(
+    () =>
+      document
+        .querySelector('[data-marquee-row="0"] .site-show__card')
+        ?.getBoundingClientRect().left ?? 0,
+  );
+  expect(Math.abs(endRow0X - startState.row0X)).toBe(0);
 });
 
 for (const [scale, width, lang] of [
@@ -495,7 +762,7 @@ for (const [scale, width, lang] of [
     const clipped = await page.evaluate(() =>
       [
         ...document.querySelectorAll(
-          ".site-studio, .site-studio__body, .site-hero, .site-plan, .site-pill, .site-chip",
+          ".site-composer, .site-hero, .site-plan, .site-pill, .site-chip",
         ),
       ]
         .filter((el) => el.scrollWidth > el.clientWidth + 1)
@@ -554,7 +821,7 @@ test("fonts arriving 1.2 s late move nothing; blocked fonts cut nothing", async 
   expect(await inView(page, ".site-hero__primary")).toBe(true);
 });
 
-test("forced colours: the word being changed stays marked", async ({
+test("forced colours: the chosen prompt chip stays marked", async ({
   page,
   browserName,
 }) => {
@@ -564,12 +831,14 @@ test("forced colours: the word being changed stays marked", async ({
   );
   await page.emulateMedia({ forcedColors: "active" });
   await open(page);
+  await page.locator(".site-composer__chips .site-chip").first().click();
   const outline = await page
     .locator(".site-chip[aria-pressed='true']")
     .evaluate((el) => getComputedStyle(el).outlineStyle);
   expect(outline).not.toBe("none");
   const other = await page
     .locator(".site-chip[aria-pressed='false']")
+    .first()
     .evaluate((el) => getComputedStyle(el).outlineStyle);
   expect(other).toBe("none");
 });
@@ -801,23 +1070,3 @@ test("clean-room judge: no shared sentence and no equal string with the referenc
 // Interface words every site uses; equal to a reference string is not copying.
 // "Notifications alt+T" is the label of the toast area of the app shell (sonner), not site text.
 const SITE_ALLOW_WORDS = ["Notifications alt+T"];
-
-// Silence as 16-bit PCM at 44.1 kHz, which every engine plays (made in the test, not a song).
-function silentWav(seconds: number) {
-  const rate = 44100;
-  const bytes = rate * seconds * 2;
-  const b = Buffer.alloc(44 + bytes);
-  b.write("RIFF", 0);
-  b.writeUInt32LE(36 + bytes, 4);
-  b.write("WAVEfmt ", 8);
-  b.writeUInt32LE(16, 16);
-  b.writeUInt16LE(1, 20);
-  b.writeUInt16LE(1, 22);
-  b.writeUInt32LE(rate, 24);
-  b.writeUInt32LE(rate * 2, 28);
-  b.writeUInt16LE(2, 32);
-  b.writeUInt16LE(16, 34);
-  b.write("data", 36);
-  b.writeUInt32LE(bytes, 40);
-  return b;
-}
