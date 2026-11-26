@@ -26,6 +26,7 @@ import {
 
 const { initHome } = await import("./islands/home");
 const { initPricing } = await import("./islands/pricing");
+const { initRecipeDetail } = await import("./islands/recipe-detail");
 const { initRecipes } = await import("./islands/recipes");
 
 const WEB_DIR = resolve(import.meta.dirname, "../..");
@@ -53,6 +54,8 @@ describe("public site vanilla islands on built static HTML", () => {
   let recipesCanvasHtml = "";
   let recipesGridHtml = "";
   let recipesCanvas24Html = "";
+  let recipeDetailVideoHtml = "";
+  let recipeDetailAudioHtml = "";
 
   beforeAll(() => {
     mkdirSync(TMP_PARENT, { recursive: true });
@@ -81,6 +84,14 @@ describe("public site vanilla islands on built static HTML", () => {
     );
     recipesCanvas24Html = readFileSync(
       join(outDir, "recipes-canvas-24-en.html"),
+      "utf8",
+    );
+    recipeDetailVideoHtml = readFileSync(
+      join(outDir, "recipe-acoustic-voice-swap-en.html"),
+      "utf8",
+    );
+    recipeDetailAudioHtml = readFileSync(
+      join(outDir, "recipe-group-chat-ballad-en.html"),
       "utf8",
     );
   }, 30_000);
@@ -496,5 +507,207 @@ describe("public site vanilla islands on built static HTML", () => {
         .querySelector('[data-recipes-canvas-stage="true"]')
         ?.getAttribute("data-ready"),
     ).toBe("true");
+  });
+
+  it("recipe-detail: no autoplay before click, controls play/pause, speed playbackRate, seek, mute/volume, fullscreen, keyboard, and card row arrows", async () => {
+    loadBuiltDocument(recipeDetailVideoHtml);
+
+    const shell = document.querySelector<HTMLElement>("[data-clip-player]");
+    const media = document.querySelector<HTMLVideoElement>("[data-clip-media]");
+    expect(shell).not.toBeNull();
+    expect(media).not.toBeNull();
+    if (!shell || !media) return;
+
+    // Never autoplays and preloads nothing before a click.
+    expect(media.autoplay).toBe(false);
+    expect(media.preload).toBe("none");
+    expect(media.paused).toBe(true);
+
+    let isPaused = true;
+    let currentTimeVal = 0;
+    Object.defineProperty(media, "paused", {
+      get: () => isPaused,
+      configurable: true,
+    });
+    Object.defineProperty(media, "duration", {
+      get: () => 20,
+      configurable: true,
+    });
+    Object.defineProperty(media, "currentTime", {
+      get: () => currentTimeVal,
+      set: (v: number) => {
+        currentTimeVal = v;
+      },
+      configurable: true,
+    });
+    const playSpy = vi.fn().mockImplementation(async () => {
+      isPaused = false;
+      media.dispatchEvent(new Event("play"));
+    });
+    const pauseSpy = vi.fn().mockImplementation(() => {
+      isPaused = true;
+      media.dispatchEvent(new Event("pause"));
+    });
+    media.play = playSpy;
+    media.pause = pauseSpy;
+
+    let fsEl: Element | null = null;
+    Object.defineProperty(document, "fullscreenElement", {
+      get: () => fsEl,
+      configurable: true,
+    });
+    const reqFs = vi.fn().mockImplementation(async () => {
+      fsEl = shell;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    const exitFs = vi.fn().mockImplementation(async () => {
+      fsEl = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    shell.requestFullscreen = reqFs;
+    document.exitFullscreen = exitFs;
+
+    initRecipeDetail();
+
+    // No play called on mount.
+    expect(playSpy).not.toHaveBeenCalled();
+    expect(shell.getAttribute("data-playing")).toBe("false");
+
+    // Play / pause swaps icons from icons.tsx and updates aria-label.
+    const playBtn = shell.querySelector<HTMLButtonElement>("[data-clip-play]");
+    expect(playBtn?.getAttribute("aria-label")).toBe("Play clip");
+    playBtn?.click();
+    await Promise.resolve();
+    expect(playSpy).toHaveBeenCalledTimes(1);
+    expect(shell.getAttribute("data-playing")).toBe("true");
+    expect(shell.getAttribute("data-video-active")).toBe("true");
+    expect(playBtn?.getAttribute("aria-label")).toBe("Pause clip");
+    expect(playBtn?.querySelector("svg")?.innerHTML).toContain(
+      "M5.5 3.5v9M10.5 3.5v9",
+    );
+
+    playBtn?.click();
+    await Promise.resolve();
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+    expect(shell.getAttribute("data-playing")).toBe("false");
+    expect(playBtn?.getAttribute("aria-label")).toBe("Play clip");
+    expect(playBtn?.querySelector("svg")?.innerHTML).toContain(
+      "M5 3.5v9l7-4.5z",
+    );
+
+    // Speed button changes playbackRate, preserves Astryx span > span, and handles arrow keys.
+    const speedBtn =
+      shell.querySelector<HTMLButtonElement>("[data-clip-speed]");
+    expect(media.playbackRate).toBe(1);
+    expect(speedBtn?.querySelector("span > span")?.textContent).toBe("1x");
+    speedBtn?.click();
+    expect(media.playbackRate).toBe(1.25);
+    expect(shell.getAttribute("data-speed")).toBe("1.25");
+    expect(speedBtn?.querySelector("span > span")?.textContent).toBe("1.25x");
+    expect(speedBtn?.getAttribute("aria-label")).toBe("Playback speed: 1.25x");
+    speedBtn?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    );
+    expect(media.playbackRate).toBe(1);
+
+    // Seek slider keyboard arrows, End, Home.
+    const seek = shell.querySelector<HTMLElement>("[data-clip-seek]");
+    seek?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    expect(currentTimeVal).toBe(5);
+    expect(seek?.getAttribute("aria-valuenow")).toBe("5");
+    seek?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+    );
+    expect(currentTimeVal).toBe(20);
+    seek?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
+    );
+    expect(currentTimeVal).toBe(0);
+
+    // Mute toggle and volume slider keyboard controls.
+    const muteBtn = shell.querySelector<HTMLButtonElement>("[data-clip-mute]");
+    const vol = shell.querySelector<HTMLElement>("[data-clip-volume]");
+    expect(muteBtn?.getAttribute("aria-pressed")).toBe("false");
+    muteBtn?.click();
+    expect(media.muted).toBe(true);
+    expect(muteBtn?.getAttribute("aria-pressed")).toBe("true");
+    expect(muteBtn?.getAttribute("aria-label")).toBe("Unmute audio");
+    expect(vol?.getAttribute("aria-valuenow")).toBe("0");
+
+    vol?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+    );
+    expect(media.muted).toBe(false);
+    expect(media.volume).toBeCloseTo(0.1, 2);
+    expect(vol?.getAttribute("aria-valuenow")).toBe("10");
+
+    // Fullscreen button toggles fullscreen and icon.
+    const fsBtn = shell.querySelector<HTMLButtonElement>(
+      "[data-clip-fullscreen]",
+    );
+    fsBtn?.click();
+    await Promise.resolve();
+    expect(reqFs).toHaveBeenCalledTimes(1);
+    expect(shell.getAttribute("data-fullscreen")).toBe("true");
+    expect(fsBtn?.getAttribute("aria-label")).toBe("Exit full screen");
+    fsBtn?.click();
+    await Promise.resolve();
+    expect(exitFs).toHaveBeenCalledTimes(1);
+    expect(shell.getAttribute("data-fullscreen")).toBe("false");
+
+    // Keyboard shortcuts m and k inside the player shell.
+    shell.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "m", bubbles: true }),
+    );
+    expect(media.muted).toBe(true);
+    shell.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "k", bubbles: true }),
+    );
+    await Promise.resolve();
+    expect(playSpy).toHaveBeenCalledTimes(2);
+
+    // More-recipes horizontal row arrows scroll with reduced-motion behavior: "auto".
+    const track = document.querySelector<HTMLElement>("[data-card-row-track]");
+    const prevBtn = document.querySelector<HTMLButtonElement>(
+      "[data-card-row-prev]",
+    );
+    const nextBtn = document.querySelector<HTMLButtonElement>(
+      "[data-card-row-next]",
+    );
+    expect(track).not.toBeNull();
+    expect(prevBtn?.disabled).toBe(true);
+    if (track) {
+      Object.defineProperty(track, "scrollWidth", {
+        value: 4800,
+        configurable: true,
+      });
+      Object.defineProperty(track, "clientWidth", {
+        value: 980,
+        configurable: true,
+      });
+      const scrollBySpy = vi
+        .fn()
+        .mockImplementation((opts: { left?: number }) => {
+          track.scrollLeft += opts.left ?? 0;
+        });
+      track.scrollBy = scrollBySpy;
+      nextBtn?.click();
+      expect(scrollBySpy).toHaveBeenCalledWith({
+        left: 403,
+        behavior: "auto",
+      });
+      expect(prevBtn?.disabled).toBe(false);
+    }
+
+    // Audio-only recipe detail page mounts cleanly too.
+    loadBuiltDocument(recipeDetailAudioHtml);
+    initRecipeDetail();
+    const audioEl =
+      document.querySelector<HTMLAudioElement>("[data-clip-media]");
+    expect(audioEl?.tagName).toBe("AUDIO");
+    expect(audioEl?.autoplay).toBe(false);
+    expect(audioEl?.preload).toBe("none");
   });
 });

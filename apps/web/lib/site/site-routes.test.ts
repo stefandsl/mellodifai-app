@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { GET as getPricing } from "@/app/(site)/pricing/route";
+import { GET as getRecipeDetail } from "@/app/(site)/recipes/[slug]/route";
 import { GET as getRecipes } from "@/app/(site)/recipes/route";
 import { GET as getHome } from "@/app/(site)/route";
 import { GET as getIsland } from "@/app/site/islands/[name]/route";
@@ -112,6 +113,19 @@ describe("public site static route handlers", () => {
     );
     expect(okIsland.headers.get("content-type")).toContain("text/javascript");
 
+    const detailIsland = built.islandFiles["recipe-detail"];
+    const okDetailIsland = await getIsland(
+      makeRequest(`http://127.0.0.1:3239/site/islands/${detailIsland}`),
+      { params: Promise.resolve({ name: detailIsland }) },
+    );
+    expect(okDetailIsland.status).toBe(200);
+    expect(okDetailIsland.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
+    expect(okDetailIsland.headers.get("content-type")).toContain(
+      "text/javascript",
+    );
+
     for (const bad of [
       "shell.js",
       "home.js",
@@ -143,6 +157,60 @@ describe("public site static route handlers", () => {
         { params: Promise.resolve({ name: bad }) },
       );
       expect(res.status, bad).toBe(404);
+    }
+  });
+
+  it("serves prerendered /recipes/<slug> pages in IT and EN and returns the site 404 for unknown slugs", async () => {
+    for (const slug of ["acoustic-voice-swap", "group-chat-ballad"]) {
+      const itRes = await getRecipeDetail(
+        makeRequest(`http://127.0.0.1:3239/recipes/${slug}`),
+        { params: Promise.resolve({ slug }) },
+      );
+      expect(itRes.status, `${slug} it`).toBe(200);
+      expect(itRes.headers.get("cache-control")).toBe("private, no-cache");
+      expect(itRes.headers.get("vary")).toBe("Cookie");
+      const itHtml = await itRes.text();
+      expect(itHtml).toContain('<html lang="it"');
+      expect(itHtml).toContain(`href="/recipes/${slug}/try"`);
+
+      const enRes = await getRecipeDetail(
+        makeRequest(
+          `http://127.0.0.1:3239/recipes/${slug}`,
+          "mellodifai_lang=en",
+        ),
+        { params: Promise.resolve({ slug }) },
+      );
+      expect(enRes.status, `${slug} en`).toBe(200);
+      expect(enRes.headers.get("cache-control")).toBe("private, no-cache");
+      expect(enRes.headers.get("vary")).toBe("Cookie");
+      const enHtml = await enRes.text();
+      expect(enHtml).toContain('<html lang="en"');
+      expect(enHtml).toContain(`href="/recipes/${slug}/try"`);
+    }
+
+    for (const bad of ["does-not-exist", "../home-en", "UPPER_CASE"]) {
+      const en404 = await getRecipeDetail(
+        makeRequest(
+          `http://127.0.0.1:3239/recipes/${encodeURIComponent(bad)}`,
+          "mellodifai_lang=en",
+        ),
+        { params: Promise.resolve({ slug: bad }) },
+      );
+      expect(en404.status, bad).toBe(404);
+      expect(en404.headers.get("cache-control")).toBe("private, no-cache");
+      expect(en404.headers.get("vary")).toBe("Cookie");
+      const html404 = await en404.text();
+      expect(html404).toContain('<html lang="en"');
+      expect(html404).toContain('data-astryx-theme="mesh"');
+      expect(html404).toContain('href="/"');
+      expect(html404).toContain("404");
+
+      const it404 = await getRecipeDetail(
+        makeRequest(`http://127.0.0.1:3239/recipes/${encodeURIComponent(bad)}`),
+        { params: Promise.resolve({ slug: bad }) },
+      );
+      expect(it404.status, `${bad} it`).toBe(404);
+      expect(await it404.text()).toContain('<html lang="it"');
     }
   });
 

@@ -13,6 +13,7 @@ describe("public site has its own document shell separate from studio", () => {
       "app/(site)/route.ts",
       "app/(site)/pricing/route.ts",
       "app/(site)/recipes/route.ts",
+      "app/(site)/recipes/[slug]/route.ts",
     ]) {
       expect(existsSync(join(WEB, rel)), `${rel} exists`).toBe(true);
     }

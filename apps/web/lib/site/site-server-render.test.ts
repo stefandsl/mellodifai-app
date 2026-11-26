@@ -8,6 +8,7 @@ const STATIC_FILES = [
   "app/(site)/route.ts",
   "app/(site)/pricing/route.ts",
   "app/(site)/recipes/route.ts",
+  "app/(site)/recipes/[slug]/route.ts",
   "components/site/home.tsx",
   "components/site/site-footer.tsx",
   "components/site/brand.tsx",
@@ -15,6 +16,10 @@ const STATIC_FILES = [
   "components/site/compare-table.tsx",
   "components/site/plan-card.tsx",
   "components/site/pricing-plans.tsx",
+  "components/site/recipe-detail.tsx",
+  "components/site/clip-player.tsx",
+  "components/site/inputs-list.tsx",
+  "components/site/card-row.tsx",
   "components/site/icons.tsx",
 ] as const;
 
