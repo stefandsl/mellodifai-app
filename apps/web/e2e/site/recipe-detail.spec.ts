@@ -188,25 +188,73 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
     expect((label ?? "").trim().length).toBeGreaterThan(0);
   }
 
-  // Click play, then pause by keyboard Enter.
-  await playBtn.click();
+  // No synthetic caption track is emitted when the recipe fixture has no timed cues.
+  expect(
+    await media.evaluate((el) => (el as HTMLVideoElement).textTracks.length),
+  ).toBe(0);
+
+  // Install a fullscreen request spy on the player shell so keyboard Enter and shortcut "f"
+  // prove they invoke fullscreen without failing in headless browsers.
+  await shell.evaluate((el) => {
+    const win = window as unknown as { __clipFsRequests?: number };
+    win.__clipFsRequests = 0;
+    const record = async () => {
+      win.__clipFsRequests = (win.__clipFsRequests ?? 0) + 1;
+    };
+    (el as HTMLElement).requestFullscreen = record;
+    (
+      el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }
+    ).webkitRequestFullscreen = record;
+  });
+
+  // Start playback and pause by keyboard only (Enter, then Space).
+  await playBtn.focus();
+  await page.keyboard.press("Enter");
   await expect(shell).toHaveAttribute("data-video-active", "true");
   await expect(shell).toHaveAttribute("data-playing", "true");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).paused)).toBe(
+    false,
+  );
   await expect(playBtn).toHaveAttribute(
     "aria-label",
     en.recipeDetail.player.pause,
   );
 
-  await playBtn.focus();
-  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
   await expect(shell).toHaveAttribute("data-playing", "false");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).paused)).toBe(
+    true,
+  );
   await expect(playBtn).toHaveAttribute(
     "aria-label",
     en.recipeDetail.player.play,
   );
 
-  // Speed control changes media.playbackRate via click and keyboard.
-  await speedBtn.click();
+  // Seek slider works by keyboard only (ArrowRight, ArrowLeft, End, Home).
+  await seekSlider.focus();
+  await page.keyboard.press("ArrowRight");
+  const soughtNow = Number(await seekSlider.getAttribute("aria-valuenow"));
+  expect(soughtNow).toBeGreaterThan(0);
+  expect(
+    await media.evaluate((el) => (el as HTMLMediaElement).currentTime),
+  ).toBeGreaterThan(0);
+  await page.keyboard.press("ArrowLeft");
+  expect(
+    Number(await seekSlider.getAttribute("aria-valuenow")),
+  ).toBeLessThanOrEqual(soughtNow);
+  await page.keyboard.press("End");
+  expect(
+    Number(await seekSlider.getAttribute("aria-valuenow")),
+  ).toBeGreaterThan(0);
+  await page.keyboard.press("Home");
+  await expect(seekSlider).toHaveAttribute("aria-valuenow", "0");
+  expect(
+    await media.evaluate((el) => (el as HTMLMediaElement).currentTime),
+  ).toBe(0);
+
+  // Speed button works by keyboard only (Enter, ArrowUp, ArrowDown, Space) and updates playbackRate.
+  await speedBtn.focus();
+  await page.keyboard.press("Enter");
   expect(
     await media.evaluate((el) => (el as HTMLMediaElement).playbackRate),
   ).toBe(1.25);
@@ -215,8 +263,6 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
     "aria-label",
     `${en.recipeDetail.player.speed}: 1.25x`,
   );
-
-  await speedBtn.focus();
   await page.keyboard.press("ArrowUp");
   expect(
     await media.evaluate((el) => (el as HTMLMediaElement).playbackRate),
@@ -230,8 +276,13 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
     await media.evaluate((el) => (el as HTMLMediaElement).playbackRate),
   ).toBe(1.5);
 
-  // Mute button works by keyboard Space and updates media.muted and aria-pressed.
+  // Mute button works by keyboard only (Space, Enter) with a fixed accessible label and toggling aria-pressed.
   await muteBtn.focus();
+  await expect(muteBtn).toHaveAttribute("aria-pressed", "false");
+  await expect(muteBtn).toHaveAttribute(
+    "aria-label",
+    en.recipeDetail.player.mute,
+  );
   await page.keyboard.press("Space");
   expect(await media.evaluate((el) => (el as HTMLMediaElement).muted)).toBe(
     true,
@@ -241,28 +292,88 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
     "aria-label",
     en.recipeDetail.player.mute,
   );
+  await page.keyboard.press("Enter");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).muted)).toBe(
+    false,
+  );
+  await expect(muteBtn).toHaveAttribute("aria-pressed", "false");
+  await expect(muteBtn).toHaveAttribute(
+    "aria-label",
+    en.recipeDetail.player.mute,
+  );
 
-  // Volume slider works by keyboard ArrowUp and Home/End.
+  // Volume slider works by keyboard only (ArrowDown, Home, ArrowUp, End).
   await volumeSlider.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(volumeSlider).toHaveAttribute("aria-valuenow", "90");
+  expect(
+    await media.evaluate((el) => (el as HTMLMediaElement).volume),
+  ).toBeCloseTo(0.9, 2);
+  await page.keyboard.press("Home");
+  await expect(volumeSlider).toHaveAttribute("aria-valuenow", "0");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).muted)).toBe(
+    true,
+  );
   await page.keyboard.press("ArrowUp");
   await expect(volumeSlider).toHaveAttribute("aria-valuenow", "10");
   expect(await media.evaluate((el) => (el as HTMLMediaElement).muted)).toBe(
     false,
   );
+  expect(
+    await media.evaluate((el) => (el as HTMLMediaElement).volume),
+  ).toBeCloseTo(0.1, 2);
   await page.keyboard.press("End");
   await expect(volumeSlider).toHaveAttribute("aria-valuenow", "100");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).volume)).toBe(1);
 
-  // Seek slider works by keyboard ArrowRight and Home.
-  await seekSlider.focus();
-  await page.keyboard.press("ArrowRight");
-  const soughtNow = Number(await seekSlider.getAttribute("aria-valuenow"));
-  expect(soughtNow).toBeGreaterThan(0);
-  await page.keyboard.press("Home");
-  await expect(seekSlider).toHaveAttribute("aria-valuenow", "0");
-
-  // Fullscreen button is focusable and keyboard-activatable without errors.
+  // Fullscreen button works by keyboard Enter and invokes requestFullscreen.
   await fsBtn.focus();
   await expect(fsBtn).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __clipFsRequests?: number })
+            .__clipFsRequests ?? 0,
+      ),
+    )
+    .toBe(1);
+
+  // Player shortcuts k (play/pause), m (mute), and f (fullscreen) work from inside the player.
+  await speedBtn.focus();
+  await page.keyboard.press("k");
+  await expect(shell).toHaveAttribute("data-playing", "true");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).paused)).toBe(
+    false,
+  );
+  await page.keyboard.press("k");
+  await expect(shell).toHaveAttribute("data-playing", "false");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).paused)).toBe(
+    true,
+  );
+
+  await page.keyboard.press("m");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).muted)).toBe(
+    true,
+  );
+  await expect(muteBtn).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("m");
+  expect(await media.evaluate((el) => (el as HTMLMediaElement).muted)).toBe(
+    false,
+  );
+  await expect(muteBtn).toHaveAttribute("aria-pressed", "false");
+
+  await page.keyboard.press("f");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __clipFsRequests?: number })
+            .__clipFsRequests ?? 0,
+      ),
+    )
+    .toBe(2);
 });
 
 test("audio-only recipe renders <audio> preview with speed control and no autoplay", async ({

@@ -662,7 +662,7 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(exitFs).toHaveBeenCalledTimes(1);
     expect(shell.getAttribute("data-fullscreen")).toBe("false");
 
-    // Keyboard shortcuts m and k inside the player shell.
+    // Keyboard shortcuts m, k, and f inside the player shell.
     shell.dispatchEvent(
       new KeyboardEvent("keydown", { key: "m", bubbles: true }),
     );
@@ -672,6 +672,11 @@ describe("public site vanilla islands on built static HTML", () => {
     );
     await Promise.resolve();
     expect(playSpy).toHaveBeenCalledTimes(2);
+    shell.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "f", bubbles: true }),
+    );
+    await Promise.resolve();
+    expect(reqFs).toHaveBeenCalledTimes(2);
 
     // More-recipes horizontal row arrows scroll with reduced-motion behavior: "auto".
     const track = document.querySelector<HTMLElement>("[data-card-row-track]");
