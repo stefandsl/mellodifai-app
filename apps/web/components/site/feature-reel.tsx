@@ -138,7 +138,7 @@ function FeatureSlides({ copy, index }: { copy: SiteCopy; index: number }) {
                   {copy.hero.take}
                 </SiteText>
               </HStack>
-              <VStack as="ol" gap={2} className="site-sheet__lines">
+              <VStack gap={2} className="site-sheet__lines">
                 {s.lines.map((line, i) => (
                   <SiteText
                     as="p"
