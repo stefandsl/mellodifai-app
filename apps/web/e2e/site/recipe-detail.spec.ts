@@ -525,13 +525,18 @@ test("reduced motion disables transitions and smooth scroll", async ({
       ".site-recipe-detail__back",
     ]) {
       const el = document.querySelector(sel);
-      if (!el) continue;
+      if (!el) {
+        bad.push(`${sel}: missing`);
+        continue;
+      }
       const td = getComputedStyle(el).transitionDuration;
       if (!zero(td)) bad.push(`${sel}: ${td}`);
     }
-    const trackBehavior = getComputedStyle(
-      document.querySelector("[data-card-row-track]") as Element,
-    ).scrollBehavior;
+    const track = document.querySelector("[data-card-row-track]");
+    if (!track) {
+      bad.push("[data-card-row-track]: missing");
+    }
+    const trackBehavior = track ? getComputedStyle(track).scrollBehavior : "";
     return { bad, trackBehavior };
   });
   expect(durations.bad).toEqual([]);
