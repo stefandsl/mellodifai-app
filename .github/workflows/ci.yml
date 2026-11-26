@@ -22,6 +22,8 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
       - name: Keep runtime and caches off C
         run: |
           $root = Join-Path $env:RUNNER_TEMP 'mellodifai-native'

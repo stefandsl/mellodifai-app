@@ -12,7 +12,7 @@ export const ROUTES = {
   desktop: { route: "/desktop", built: false, fallback: "/#studio" },
   agents: { route: "/agents", built: false, fallback: "/#agents" },
   plans: { route: "/pricing", built: true, fallback: "/#plans" },
-  changelog: { route: "/changelog", built: false, fallback: "/#steps" },
+  changelog: { route: "/changelog", built: true, fallback: "/#steps" },
   guides: { route: "/learn", built: false, fallback: "/#features" },
   support: { route: "/support", built: false, fallback: "/#faq" },
   privacy: { route: "/privacy", built: false, fallback: "/#faq" },

@@ -19,6 +19,7 @@ const BUILD_SCRIPT = path.join(WEB_DIR, "scripts", "build-site-static.mjs");
  */
 export const SITE_STATIC_SOURCES = [
   "apps/web/scripts/build-site-static.mjs",
+  "apps/web/scripts/site-study/changelog-data.mjs",
   "apps/web/lib/site",
   "apps/web/lib/theme.ts",
   "apps/web/components/site",
@@ -31,6 +32,7 @@ export const SITE_STATIC_SOURCES = [
   "apps/web/public/site/assets.manifest.json",
   "apps/web/public/site/brand-mark.png",
   "apps/web/public/site/recipes",
+  "content/changelog",
   "content/recipes",
   // The whole package, not only recipes/: the prerender bundles its index barrel.
   "packages/shared/src",
