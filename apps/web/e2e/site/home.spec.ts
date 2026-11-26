@@ -746,15 +746,16 @@ test("C04 showcase mouse click on a card cut at the row edge does not jump and o
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.clock.install();
+  const fixedTime = Date.UTC(2026, 10, 26, 12, 0, 0);
+  await page.clock.install({ time: fixedTime });
+  await page.clock.pauseAt(fixedTime);
   await page.goto("/");
   const row0 = page.locator('[data-marquee-row="0"]');
   await expect(row0).toHaveAttribute("data-marquee-paused", "false");
   await row0.scrollIntoViewIfNeeded();
 
-  // Freeze virtual time and step the marquee deterministically until a card in copy 0 is clearly
+  // Step the paused virtual clock deterministically until a card in copy 0 is clearly
   // cut across the right edge of the row with enough visible link width to click.
-  await page.clock.pauseAt(await page.evaluate(() => Date.now()));
 
   const findCutCard = () =>
     page.evaluate(() => {
