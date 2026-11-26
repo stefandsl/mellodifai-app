@@ -25,8 +25,8 @@ export type ChangelogEntry = {
 };
 
 /**
- * Format an ISO date string (YYYY-MM-DD or full ISO timestamp) for display in EN or IT.
- * Uses UTC so server prerendering produces identical dates regardless of build host timezone.
+ * Format a tag's calendar date (YYYY-MM-DD from the tagger's timestamp) for display in EN or IT.
+ * Constructs a UTC calendar date so server prerendering stays independent of build host timezone.
  */
 export function formatChangelogDate(
   isoDate: string,

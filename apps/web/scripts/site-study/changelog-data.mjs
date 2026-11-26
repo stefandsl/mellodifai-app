@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 // Build-time data step for /changelog (C09).
-// Reads git tags (name, date) from the repository and joins content/changelog/<tag>.md
-// when present. Parses Markdown into a safe AST with no raw HTML support.
-// Works in CI and shallow clones: fetches tags if missing, or fails with a clear error.
+// Reads git tags (name, tagger's calendar date, exact git order) from the repository
+// when `.git` is present, or from `content/changelog/tags.json` in archive builds
+// without `.git` (such as the Windows desktop installer). Joins `content/changelog/<tag>.md`
+// when present and parses Markdown into a safe AST with no raw HTML support.
+// Never invokes the network (`git fetch`): fails loudly if tags are missing or if the
+// committed tag snapshot drifts from git tags in CI.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +24,11 @@ export const DEFAULT_CONTENT_DIR = join(
   DEFAULT_REPO_ROOT,
   "content",
   "changelog",
+);
+export const SNAPSHOT_FILENAME = "tags.json";
+export const DEFAULT_SNAPSHOT_PATH = join(
+  DEFAULT_CONTENT_DIR,
+  SNAPSHOT_FILENAME,
 );
 
 const SAFE_URL_RE = /^(?:https?:\/\/|\/(?!\/)|#)/iu;
@@ -68,14 +82,12 @@ export function parseInlineMarkdown(text) {
   };
 
   while (i < text.length) {
-    // Escaped punctuation: \* \[ \` \\ etc.
     if (text[i] === "\\" && i + 1 < text.length) {
       pushText(text[i + 1]);
       i += 2;
       continue;
     }
 
-    // Inline code: `code`
     if (text[i] === "`") {
       const end = text.indexOf("`", i + 1);
       if (end > i + 1) {
@@ -85,7 +97,6 @@ export function parseInlineMarkdown(text) {
       }
     }
 
-    // Markdown link: [label](href)
     if (text[i] === "[") {
       const closeBracket = text.indexOf("]", i + 1);
       if (closeBracket > i + 1 && text[closeBracket + 1] === "(") {
@@ -105,7 +116,6 @@ export function parseInlineMarkdown(text) {
       }
     }
 
-    // Bold: **text**
     if (text.startsWith("**", i)) {
       const end = text.indexOf("**", i + 2);
       if (end > i + 2) {
@@ -118,7 +128,6 @@ export function parseInlineMarkdown(text) {
       }
     }
 
-    // Emphasis: *text* (only when not a lone space after *)
     if (text[i] === "*" && text[i + 1] && text[i + 1] !== " ") {
       const end = text.indexOf("*", i + 1);
       if (end > i + 1 && text[end - 1] !== " ") {
@@ -140,12 +149,6 @@ export function parseInlineMarkdown(text) {
 
 /**
  * Parse a changelog Markdown document into a title, optional summary, and safe block AST.
- * Supports:
- * - First `# Heading` as the entry title
- * - `##` and `###` subheadings (rendered as h3 / h4 under the entry h2)
- * - Unordered (`- `, `* `) and ordered (`1. `) lists
- * - Fenced code blocks (```)
- * - Paragraphs with inline bold, italic, code, and safe links
  * Raw HTML is never parsed or emitted; angle brackets remain plain text.
  * @param {string} raw
  */
@@ -162,7 +165,6 @@ export function parseSafeMarkdown(raw) {
 
   let i = 0;
 
-  // Optional simple frontmatter: title: ...
   if (lines[0]?.trim() === "---") {
     let endIdx = -1;
     for (let j = 1; j < lines.length; j += 1) {
@@ -193,7 +195,6 @@ export function parseSafeMarkdown(raw) {
       continue;
     }
 
-    // Fenced code block
     const fence = /^```([a-zA-Z0-9_-]*)\s*$/u.exec(trimmed);
     if (fence) {
       const lang = fence[1] || undefined;
@@ -208,7 +209,6 @@ export function parseSafeMarkdown(raw) {
       continue;
     }
 
-    // Headings (#, ##, ###)
     const heading = /^(#{1,3})\s+(.+?)\s*#*$/u.exec(trimmed);
     if (heading) {
       const depth = heading[1].length;
@@ -227,7 +227,6 @@ export function parseSafeMarkdown(raw) {
       continue;
     }
 
-    // Unordered list (- item or * item)
     if (/^[-*]\s+/u.test(trimmed)) {
       const items = [];
       while (i < lines.length && /^[-*]\s+/u.test(lines[i].trim())) {
@@ -239,7 +238,6 @@ export function parseSafeMarkdown(raw) {
       continue;
     }
 
-    // Ordered list (1. item)
     if (/^\d+\.\s+/u.test(trimmed)) {
       const items = [];
       while (i < lines.length && /^\d+\.\s+/u.test(lines[i].trim())) {
@@ -251,7 +249,6 @@ export function parseSafeMarkdown(raw) {
       continue;
     }
 
-    // Paragraph (join consecutive non-empty plain lines)
     const paraLines = [];
     while (
       i < lines.length &&
@@ -293,7 +290,8 @@ function defaultRunGit(args, cwd) {
 }
 
 /**
- * Parse lines emitted by `git for-each-ref --format=%(refname:short)%x09%(creatordate:iso-strict)%x09%(objecttype) refs/tags`.
+ * Parse lines emitted by `git for-each-ref --sort=-creatordate --format=%(refname:short)\t%(creatordate:iso-strict)\t%(objecttype) refs/tags`.
+ * Preserves git's exact emitted order (newest creatordate first, ties broken by refname ascending).
  * @param {string} stdout
  */
 export function parseGitTagLines(stdout) {
@@ -313,85 +311,182 @@ export function parseGitTagLines(stdout) {
       objectType,
     });
   }
-  tags.sort((a, b) => {
-    const ta = Date.parse(a.isoDate);
-    const tb = Date.parse(b.isoDate);
-    if (Number.isFinite(ta) && Number.isFinite(tb) && tb !== ta) {
-      return tb - ta;
-    }
-    return b.tag.localeCompare(a.tag);
-  });
   return tags;
 }
 
 /**
- * Read git tags from repoRoot. In a shallow clone or CI checkout that omitted tags,
- * attempts `git fetch --tags` from origin (or the first configured remote) once.
- * Never silently returns zero tags: throws a clear, actionable error if no tags exist.
- *
- * @param {{ repoRoot?: string, allowFetch?: boolean, runGit?: (args: string[], cwd: string) => string }} [options]
+ * Read and validate a committed or archive-generated tag snapshot file (`content/changelog/tags.json`).
+ * @param {string} snapshotPath
  */
-export function collectGitTags(options = {}) {
-  const repoRoot = resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
-  const allowFetch = options.allowFetch ?? true;
-  const runGit = options.runGit ?? defaultRunGit;
+export function readTagSnapshot(snapshotPath) {
+  const abs = resolve(snapshotPath);
+  if (!existsSync(abs) || !statSync(abs).isFile()) {
+    throw new Error(
+      `changelog-data: missing tag snapshot at ${abs}. Build inside a git checkout with tags, or generate content/changelog/tags.json with "node apps/web/scripts/site-study/changelog-data.mjs --write-snapshot".`,
+    );
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(abs, "utf8"));
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `changelog-data: invalid JSON in tag snapshot ${abs} (${detail}).`,
+    );
+  }
+  const rawList = Array.isArray(parsed) ? parsed : parsed?.tags;
+  if (!Array.isArray(rawList) || rawList.length === 0) {
+    throw new Error(
+      `changelog-data: tag snapshot ${abs} has zero entries. Cannot build /changelog with zero tags.`,
+    );
+  }
+  /** @type {Array<{ tag: string, date: string, isoDate: string, objectType: string }>} */
+  const tags = [];
+  for (const item of rawList) {
+    if (
+      !item ||
+      typeof item.tag !== "string" ||
+      !item.tag.trim() ||
+      typeof item.isoDate !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}/u.test(item.isoDate)
+    ) {
+      throw new Error(
+        `changelog-data: malformed tag entry in snapshot ${abs}: ${JSON.stringify(item)}`,
+      );
+    }
+    const date =
+      typeof item.date === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(item.date)
+        ? item.date
+        : item.isoDate.slice(0, 10);
+    tags.push({
+      tag: item.tag,
+      date,
+      isoDate: item.isoDate,
+      objectType:
+        typeof item.objectType === "string" ? item.objectType : "commit",
+    });
+  }
+  return tags;
+}
 
+/**
+ * Compare live git tags against the snapshot list (name, date, isoDate, and exact order).
+ * Throws a clear error if they differ.
+ * @param {Array<{ tag: string, date: string, isoDate: string }>} gitTags
+ * @param {Array<{ tag: string, date: string, isoDate: string }>} snapshotTags
+ * @param {string} snapshotPath
+ */
+export function assertSnapshotMatchesGit(gitTags, snapshotTags, snapshotPath) {
+  const diffs = [];
+  if (gitTags.length !== snapshotTags.length) {
+    diffs.push(
+      `count differs (git has ${gitTags.length}, snapshot has ${snapshotTags.length})`,
+    );
+  }
+  const max = Math.max(gitTags.length, snapshotTags.length);
+  for (let i = 0; i < max; i += 1) {
+    const g = gitTags[i];
+    const s = snapshotTags[i];
+    if (!g || !s) {
+      diffs.push(
+        `index ${i}: git=${g ? g.tag : "<missing>"}, snapshot=${s ? s.tag : "<missing>"}`,
+      );
+      break;
+    }
+    if (g.tag !== s.tag || g.date !== s.date || g.isoDate !== s.isoDate) {
+      diffs.push(
+        `index ${i}: git=${g.tag} (${g.isoDate}), snapshot=${s.tag} (${s.isoDate})`,
+      );
+      break;
+    }
+  }
+  if (diffs.length > 0) {
+    throw new Error(
+      `changelog-data: tag snapshot ${snapshotPath} is out of date with git tags (${diffs.join("; ")}). Refresh it with "node apps/web/scripts/site-study/changelog-data.mjs --write-snapshot".`,
+    );
+  }
+}
+
+/**
+ * Read git tags directly from a repository with `.git`. Never calls the network.
+ * @param {string} repoRoot
+ * @param {(args: string[], cwd: string) => string} runGit
+ */
+function readLiveGitTags(repoRoot, runGit) {
   const listArgs = [
     "for-each-ref",
     "--sort=-creatordate",
     "--format=%(refname:short)\t%(creatordate:iso-strict)\t%(objecttype)",
     "refs/tags",
   ];
-
-  /** @param {string[]} args */
-  const execGit = (args) => {
-    try {
-      return runGit(args, repoRoot);
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `changelog-data: failed to read git tags in ${repoRoot} (${detail}). Ensure git is available and tags are present ("git fetch --tags").`,
-      );
-    }
-  };
-
-  let tags = parseGitTagLines(execGit(listArgs));
-
-  if (tags.length === 0 && allowFetch) {
-    let remote = "";
-    try {
-      const remotes = runGit(["remote"], repoRoot)
-        .split(/\r?\n/u)
-        .map((r) => r.trim())
-        .filter(Boolean);
-      remote = remotes.includes("origin") ? "origin" : (remotes[0] ?? "");
-    } catch {
-      remote = "";
-    }
-
-    if (remote) {
-      try {
-        runGit(
-          ["fetch", "--tags", "--no-write-fetch-head", "--quiet", remote],
-          repoRoot,
-        );
-        tags = parseGitTagLines(execGit(listArgs));
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        throw new Error(
-          `changelog-data: no local git tags found in ${repoRoot}, and automatic "git fetch --tags ${remote}" failed (${detail}). Fetch tags before building ("git fetch --tags" or actions/checkout with fetch-tags: true).`,
-        );
-      }
-    }
-  }
-
-  if (tags.length === 0) {
+  let stdout;
+  try {
+    stdout = runGit(listArgs, repoRoot);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
     throw new Error(
-      `changelog-data: no git tags found in ${repoRoot}. Cannot build /changelog with zero entries. In CI or a shallow clone, fetch tags before building ("git fetch --tags" or actions/checkout with fetch-tags: true).`,
+      `changelog-data: failed to read git tags in ${repoRoot} (${detail}). Fetch tags before building: git fetch --no-tags --depth=1 origin "+refs/tags/*:refs/tags/*"`,
     );
   }
-
+  const tags = parseGitTagLines(stdout);
+  if (tags.length === 0) {
+    throw new Error(
+      `changelog-data: no git tags found in ${repoRoot}. Cannot build /changelog with zero entries. Fetch tags before building: git fetch --no-tags --depth=1 origin "+refs/tags/*:refs/tags/*"`,
+    );
+  }
   return tags;
+}
+
+/**
+ * Write the tag snapshot file (`content/changelog/tags.json`) from live git tags.
+ * Used when refreshing the committed snapshot or staging a `git archive` build.
+ * @param {{ repoRoot?: string, outPath?: string, runGit?: (args: string[], cwd: string) => string }} [options]
+ */
+export function writeTagSnapshot(options = {}) {
+  const repoRoot = resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
+  const outPath = resolve(
+    options.outPath ??
+      join(repoRoot, "content", "changelog", SNAPSHOT_FILENAME),
+  );
+  const runGit = options.runGit ?? defaultRunGit;
+  const tags = readLiveGitTags(repoRoot, runGit);
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, `${JSON.stringify({ tags }, null, 2)}\n`, "utf8");
+  return { outPath, tags };
+}
+
+/**
+ * Collect ordered tags for /changelog:
+ * - When `.git` exists in `repoRoot`: reads tags from git (never calls the network) and fails
+ *   loudly on zero tags. When `verifySnapshot` is true (default in CI, `process.env.CI === "true"`),
+ *   compares git tags against `snapshotPath` and fails loudly if they drift.
+ * - When `.git` does not exist (for example an extracted `git archive HEAD` in the Windows
+ *   desktop installer): reads tags from `snapshotPath` (`content/changelog/tags.json`) and
+ *   fails loudly if missing or empty.
+ *
+ * @param {{ repoRoot?: string, snapshotPath?: string, verifySnapshot?: boolean, runGit?: (args: string[], cwd: string) => string }} [options]
+ */
+export function collectGitTags(options = {}) {
+  const repoRoot = resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
+  const snapshotPath = resolve(
+    options.snapshotPath ??
+      join(repoRoot, "content", "changelog", SNAPSHOT_FILENAME),
+  );
+  const hasGit = existsSync(join(repoRoot, ".git"));
+  const runGit = options.runGit ?? defaultRunGit;
+
+  if (!hasGit && !options.runGit) {
+    return readTagSnapshot(snapshotPath);
+  }
+
+  const gitTags = readLiveGitTags(repoRoot, runGit);
+  const shouldVerify =
+    options.verifySnapshot ?? (process.env.CI === "true" && !options.runGit);
+  if (shouldVerify) {
+    const snapshotTags = readTagSnapshot(snapshotPath);
+    assertSnapshotMatchesGit(gitTags, snapshotTags, snapshotPath);
+  }
+  return gitTags;
 }
 
 /**
@@ -418,18 +513,22 @@ function resolveTagMarkdownPath(contentDir, tag) {
 
 /**
  * Build the complete ordered list of changelog entries (newest tag first) by joining
- * git tags with optional content/changelog/<tag>.md files.
+ * git tags (or the archive tag snapshot) with optional `content/changelog/<tag>.md` files.
  *
- * @param {{ repoRoot?: string, contentDir?: string, allowFetch?: boolean, runGit?: (args: string[], cwd: string) => string }} [options]
+ * @param {{ repoRoot?: string, contentDir?: string, snapshotPath?: string, verifySnapshot?: boolean, runGit?: (args: string[], cwd: string) => string }} [options]
  */
 export function loadChangelogEntries(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
   const contentDir = resolve(
     options.contentDir ?? join(repoRoot, "content", "changelog"),
   );
+  const snapshotPath = resolve(
+    options.snapshotPath ?? join(contentDir, SNAPSHOT_FILENAME),
+  );
   const tags = collectGitTags({
     repoRoot,
-    allowFetch: options.allowFetch,
+    snapshotPath,
+    verifySnapshot: options.verifySnapshot,
     runGit: options.runGit,
   });
 
@@ -478,8 +577,13 @@ const isMain =
 
 if (isMain) {
   try {
-    const entries = loadChangelogEntries();
-    process.stdout.write(`${JSON.stringify(entries, null, 2)}\n`);
+    if (process.argv.includes("--write-snapshot")) {
+      const res = writeTagSnapshot();
+      process.stdout.write(`Wrote ${res.tags.length} tags to ${res.outPath}\n`);
+    } else {
+      const entries = loadChangelogEntries();
+      process.stdout.write(`${JSON.stringify(entries, null, 2)}\n`);
+    }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);

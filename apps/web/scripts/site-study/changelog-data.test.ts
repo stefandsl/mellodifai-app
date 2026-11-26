@@ -1,22 +1,27 @@
 // @vitest-environment node
 import { execFileSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { formatChangelogDate } from "../../lib/site/changelog-types";
 import {
+  assertSnapshotMatchesGit,
   collectGitTags,
   loadChangelogEntries,
   parseGitTagLines,
   parseSafeMarkdown,
+  readTagSnapshot,
   sanitizeMarkdownHref,
   tagToAnchorId,
+  writeTagSnapshot,
 } from "./changelog-data.mjs";
 
 const WEB_DIR = resolve(import.meta.dirname, "../..");
@@ -35,12 +40,24 @@ function makeTempDir(prefix: string): string {
   return dir;
 }
 
-function git(args: string[], cwd: string): string {
+function git(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string>,
+): string {
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",
+    env: env ? { ...process.env, ...env } : process.env,
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function tarBinary(): string {
+  if (process.platform === "win32") {
+    return join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+  }
+  return "tar";
 }
 
 afterAll(() => {
@@ -129,15 +146,18 @@ describe("changelog-data: safe Markdown parser", () => {
   });
 });
 
-describe("changelog-data: git tag collection and shallow clone handling", () => {
-  it("reads every real git tag in this repo newest-first and joins content/changelog/<tag>.md", () => {
+describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break order", () => {
+  it("reads every real git tag in this repo matching content/changelog/tags.json and joins markdown notes", () => {
     const realTagCount = git(["tag"], REPO_ROOT)
       .split(/\r?\n/u)
       .map((t) => t.trim())
       .filter(Boolean).length;
     expect(realTagCount).toBeGreaterThanOrEqual(11);
 
-    const entries = loadChangelogEntries({ repoRoot: REPO_ROOT });
+    const entries = loadChangelogEntries({
+      repoRoot: REPO_ROOT,
+      verifySnapshot: true,
+    });
     expect(entries).toHaveLength(realTagCount);
     expect(entries[0].tag).toBe("native-20261122-r5");
     expect(entries[entries.length - 1].tag).toBe("m1-floor");
@@ -177,7 +197,7 @@ describe("changelog-data: git tag collection and shallow clone handling", () => 
     const entries = loadChangelogEntries({
       repoRoot: REPO_ROOT,
       contentDir,
-      allowFetch: false,
+      verifySnapshot: false,
       runGit: fakeGit,
     });
 
@@ -201,7 +221,133 @@ describe("changelog-data: git tag collection and shallow clone handling", () => 
     });
   });
 
-  it("fetches tags in a shallow clone that omitted tags, and fails loudly when no tags exist", () => {
+  it("builds in an extracted git archive without .git using content/changelog/tags.json (exit 0, identical entries)", () => {
+    const archiveDir = makeTempDir("archive-");
+    const tarFile = join(archiveDir, "head.tar");
+    const extracted = join(archiveDir, "app");
+    mkdirSync(extracted, { recursive: true });
+
+    git(["archive", "--format=tar", "-o", tarFile, "HEAD"], REPO_ROOT);
+    execFileSync(tarBinary(), ["-xf", tarFile, "-C", extracted], {
+      stdio: "pipe",
+    });
+    rmSync(tarFile);
+
+    // Ensure the extracted archive has no .git directory or file.
+    expect(existsSync(join(extracted, ".git"))).toBe(false);
+
+    // Stage the current tag snapshot and changelog script (mirrors apps/windows/src/build.mjs).
+    const snapshotTarget = join(extracted, "content", "changelog", "tags.json");
+    writeTagSnapshot({ repoRoot: REPO_ROOT, outPath: snapshotTarget });
+    copyFileSync(
+      join(
+        REPO_ROOT,
+        "apps",
+        "web",
+        "scripts",
+        "site-study",
+        "changelog-data.mjs",
+      ),
+      join(
+        extracted,
+        "apps",
+        "web",
+        "scripts",
+        "site-study",
+        "changelog-data.mjs",
+      ),
+    );
+
+    // Running the data step CLI inside the .git-less extracted archive exits 0 with identical entries.
+    const cliStdout = execFileSync(
+      process.execPath,
+      [
+        join(
+          extracted,
+          "apps",
+          "web",
+          "scripts",
+          "site-study",
+          "changelog-data.mjs",
+        ),
+      ],
+      { cwd: extracted, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const archiveEntries = JSON.parse(cliStdout);
+    const repoEntries = loadChangelogEntries({
+      repoRoot: REPO_ROOT,
+      verifySnapshot: true,
+    });
+    expect(archiveEntries).toEqual(repoEntries);
+
+    // Removing tags.json from a .git-less folder must fail loudly (never return []).
+    rmSync(snapshotTarget);
+    expect(() => collectGitTags({ repoRoot: extracted })).toThrow(
+      /missing tag snapshot/u,
+    );
+
+    // An empty tags array in tags.json must also fail loudly.
+    writeFileSync(snapshotTarget, JSON.stringify({ tags: [] }), "utf8");
+    expect(() => readTagSnapshot(snapshotTarget)).toThrow(/zero entries/u);
+  }, 15_000);
+
+  it("fails loudly in CI when content/changelog/tags.json drifts from live git tags", () => {
+    const snapshotDir = makeTempDir("drift-");
+    const goodSnapshot = join(snapshotDir, "good.json");
+    const driftedSnapshot = join(snapshotDir, "drifted.json");
+
+    const { tags } = writeTagSnapshot({
+      repoRoot: REPO_ROOT,
+      outPath: goodSnapshot,
+    });
+    expect(() =>
+      collectGitTags({
+        repoRoot: REPO_ROOT,
+        snapshotPath: goodSnapshot,
+        verifySnapshot: true,
+      }),
+    ).not.toThrow();
+
+    // Drop the newest tag from the snapshot to simulate drift.
+    writeFileSync(
+      driftedSnapshot,
+      JSON.stringify({ tags: tags.slice(1) }, null, 2),
+      "utf8",
+    );
+    expect(() =>
+      collectGitTags({
+        repoRoot: REPO_ROOT,
+        snapshotPath: driftedSnapshot,
+        verifySnapshot: true,
+      }),
+    ).toThrow(/out of date with git tags/u);
+
+    // Also verify CI=true triggers drift detection automatically.
+    const prevCi = process.env.CI;
+    try {
+      process.env.CI = "true";
+      expect(() =>
+        collectGitTags({
+          repoRoot: REPO_ROOT,
+          snapshotPath: driftedSnapshot,
+        }),
+      ).toThrow(/out of date with git tags/u);
+    } finally {
+      if (prevCi === undefined) delete process.env.CI;
+      else process.env.CI = prevCi;
+    }
+
+    // Reordered tags with same count must also fail.
+    expect(() =>
+      assertSnapshotMatchesGit(
+        tags,
+        [tags[1], tags[0], ...tags.slice(2)],
+        driftedSnapshot,
+      ),
+    ).toThrow(/out of date with git tags/u);
+  });
+
+  it("never calls git fetch in the data step, fails loudly on tagless shallow clones, and CI fetches tags explicitly", () => {
     const originDir = makeTempDir("origin-");
     git(["init", "-b", "main"], originDir);
     git(["config", "user.email", "test@mellodifai.local"], originDir);
@@ -209,12 +355,20 @@ describe("changelog-data: git tag collection and shallow clone handling", () => 
 
     writeFileSync(join(originDir, "a.txt"), "one\n", "utf8");
     git(["add", "a.txt"], originDir);
-    git(["commit", "-m", "first"], originDir);
-    git(["tag", "-a", "v0.1.0", "-m", "First tag"], originDir);
+    git(["commit", "-m", "first"], originDir, {
+      GIT_AUTHOR_DATE: "2026-11-10T10:00:00Z",
+      GIT_COMMITTER_DATE: "2026-11-10T10:00:00Z",
+    });
+    git(["tag", "-a", "v0.1.0", "-m", "First tag"], originDir, {
+      GIT_COMMITTER_DATE: "2026-11-10T10:00:00Z",
+    });
 
     writeFileSync(join(originDir, "a.txt"), "two\n", "utf8");
     git(["add", "a.txt"], originDir);
-    git(["commit", "-m", "second"], originDir);
+    git(["commit", "-m", "second"], originDir, {
+      GIT_AUTHOR_DATE: "2026-11-20T10:00:00Z",
+      GIT_COMMITTER_DATE: "2026-11-20T10:00:00Z",
+    });
     git(["tag", "v0.2.0"], originDir);
 
     // Clone shallow with --no-tags, mimicking actions/checkout@v4 default shallow checkout.
@@ -232,31 +386,99 @@ describe("changelog-data: git tag collection and shallow clone handling", () => 
     );
     expect(git(["tag"], shallowDir).trim()).toBe("");
 
-    // When allowFetch is false on a tagless shallow clone, it must fail clearly (never return []).
+    // collectGitTags must fail loudly and MUST NOT run git fetch against origin.
     expect(() =>
-      collectGitTags({ repoRoot: shallowDir, allowFetch: false }),
-    ).toThrow(/git fetch --tags/u);
+      collectGitTags({ repoRoot: shallowDir, verifySnapshot: false }),
+    ).toThrow(/no git tags found/u);
+    expect(git(["tag"], shallowDir).trim()).toBe("");
 
-    // With default allowFetch: true, collectGitTags fetches tags from origin and returns them.
-    const fetched = collectGitTags({ repoRoot: shallowDir });
-    expect(fetched.map((t) => t.tag)).toEqual(["v0.2.0", "v0.1.0"]);
+    // Spy confirms the data step only runs for-each-ref and never invokes fetch.
+    const spyGit = vi.fn().mockReturnValue("");
+    expect(() =>
+      collectGitTags({
+        repoRoot: shallowDir,
+        verifySnapshot: false,
+        runGit: spyGit,
+      }),
+    ).toThrow(/no git tags found/u);
+    expect(spyGit).toHaveBeenCalledTimes(1);
+    expect(spyGit.mock.calls[0][0][0]).toBe("for-each-ref");
 
-    // An empty repository with no tags and no remote must fail with a clear error.
+    // Running the explicit CI fetch command populates tags without full history.
+    git(
+      ["fetch", "--no-tags", "--depth=1", "origin", "+refs/tags/*:refs/tags/*"],
+      shallowDir,
+    );
+    const afterFetch = collectGitTags({
+      repoRoot: shallowDir,
+      verifySnapshot: false,
+    });
+    expect(afterFetch.map((t) => t.tag)).toEqual(["v0.2.0", "v0.1.0"]);
+
+    // Verify CI workflow fetches tags explicitly instead of relying on actions/checkout fetch-tags.
+    const ciYaml = readFileSync(
+      join(REPO_ROOT, ".github", "workflows", "ci.yml"),
+      "utf8",
+    );
+    expect(ciYaml).toContain(
+      'git fetch --no-tags --depth=1 origin "+refs/tags/*:refs/tags/*"',
+    );
+    expect(ciYaml).not.toMatch(/fetch-tags:\s*true/u);
+
+    // An empty repository with no tags and no remote fails clearly.
     const emptyRepo = makeTempDir("empty-repo-");
     git(["init", "-b", "main"], emptyRepo);
-    expect(() => collectGitTags({ repoRoot: emptyRepo })).toThrow(
-      /no git tags found/u,
-    );
-  });
+    expect(() =>
+      collectGitTags({ repoRoot: emptyRepo, verifySnapshot: false }),
+    ).toThrow(/no git tags found/u);
+  }, 15_000);
 
-  it("sorts tag lines newest-first and formats dates deterministically in UTC", () => {
+  it("preserves git's exact tag tie-break order (refname ascending on identical creatordate)", () => {
+    const tieRepo = makeTempDir("tie-order-");
+    git(["init", "-b", "main"], tieRepo);
+    git(["config", "user.email", "test@mellodifai.local"], tieRepo);
+    git(["config", "user.name", "Test"], tieRepo);
+
+    writeFileSync(join(tieRepo, "a.txt"), "same commit\n", "utf8");
+    git(["add", "a.txt"], tieRepo);
+    git(["commit", "-m", "base"], tieRepo);
+    // Two lightweight tags on the same commit share the exact same creatordate.
+    git(["tag", "zeta-tie"], tieRepo);
+    git(["tag", "alpha-tie"], tieRepo);
+
+    const gitOrder = git(
+      [
+        "for-each-ref",
+        "--sort=-creatordate",
+        "--format=%(refname:short)",
+        "refs/tags",
+      ],
+      tieRepo,
+    )
+      .split(/\r?\n/u)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(gitOrder).toEqual(["alpha-tie", "zeta-tie"]);
+
+    const collected = collectGitTags({
+      repoRoot: tieRepo,
+      verifySnapshot: false,
+    });
+    expect(collected.map((t) => t.tag)).toEqual(gitOrder);
+
+    // parseGitTagLines preserves git's emitted order without re-sorting ties.
     const parsed = parseGitTagLines(
       [
+        "alpha-tie\t2026-11-22T18:00:00+01:00\tcommit",
+        "zeta-tie\t2026-11-22T18:00:00+01:00\tcommit",
         "older\t2026-11-03T20:00:00+01:00\tcommit",
-        "newer\t2026-11-22T18:00:00+01:00\ttag",
       ].join("\n"),
     );
-    expect(parsed.map((p) => p.tag)).toEqual(["newer", "older"]);
+    expect(parsed.map((p) => p.tag)).toEqual([
+      "alpha-tie",
+      "zeta-tie",
+      "older",
+    ]);
 
     expect(formatChangelogDate("2026-11-22T18:09:05+01:00", "en", "long")).toBe(
       "Nov 22, 2026",
@@ -264,6 +486,9 @@ describe("changelog-data: git tag collection and shallow clone handling", () => 
     expect(
       formatChangelogDate("2026-11-22T18:09:05+01:00", "en", "short"),
     ).toBe("Nov 22");
+    expect(
+      formatChangelogDate("2026-11-22T18:09:05+01:00", "it", "short"),
+    ).toBe("22 nov");
     expect(
       formatChangelogDate("2026-11-22T18:09:05+01:00", "it", "long"),
     ).toContain("2026");

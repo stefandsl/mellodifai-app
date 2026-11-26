@@ -22,8 +22,8 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-tags: true
+      - name: Fetch release tags for changelog
+        run: git fetch --no-tags --depth=1 origin "+refs/tags/*:refs/tags/*"
       - name: Keep runtime and caches off C
         run: |
           $root = Join-Path $env:RUNNER_TEMP 'mellodifai-native'

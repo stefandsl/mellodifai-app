@@ -1,0 +1,82 @@
+{
+  "tags": [
+    {
+      "tag": "native-20261122-r5",
+      "date": "2026-11-22",
+      "isoDate": "2026-11-22T18:09:05+01:00",
+      "objectType": "commit"
+    },
+    {
+      "tag": "native-20261122-r4",
+      "date": "2026-11-22",
+      "isoDate": "2026-11-22T16:05:42+01:00",
+      "objectType": "commit"
+    },
+    {
+      "tag": "native-20261120-r3",
+      "date": "2026-11-20",
+      "isoDate": "2026-11-20T09:45:27+01:00",
+      "objectType": "commit"
+    },
+    {
+      "tag": "native-20261119-r2",
+      "date": "2026-11-19",
+      "isoDate": "2026-11-19T08:24:30+01:00",
+      "objectType": "tag"
+    },
+    {
+      "tag": "native-20261114-r1",
+      "date": "2026-11-14",
+      "isoDate": "2026-11-14T17:53:20+01:00",
+      "objectType": "tag"
+    },
+    {
+      "tag": "agent-remake-20261110-r1",
+      "date": "2026-11-10",
+      "isoDate": "2026-11-10T12:54:43+01:00",
+      "objectType": "tag"
+    },
+    {
+      "tag": "m1-final-20261108-r1",
+      "date": "2026-11-08",
+      "isoDate": "2026-11-08T15:40:32+01:00",
+      "objectType": "tag"
+    },
+    {
+      "tag": "m1-prod-ports-20261108-r3",
+      "date": "2026-11-08",
+      "isoDate": "2026-11-08T12:57:48+01:00",
+      "objectType": "tag"
+    },
+    {
+      "tag": "m1-prod-ports-20261108-r2",
+      "date": "2026-11-08",
+      "isoDate": "2026-11-08T12:51:21+01:00",
+      "objectType": "tag"
+    },
+    {
+      "tag": "m1-prod-ports-20261108",
+      "date": "2026-11-08",
+      "isoDate": "2026-11-08T12:43:27+01:00",
+      "objectType": "tag"
+    },
+    {
+      "tag": "m1-agents",
+      "date": "2026-11-06",
+      "isoDate": "2026-11-06T04:05:46+01:00",
+      "objectType": "commit"
+    },
+    {
+      "tag": "m1-topology",
+      "date": "2026-11-06",
+      "isoDate": "2026-11-06T00:19:21+01:00",
+      "objectType": "commit"
+    },
+    {
+      "tag": "m1-floor",
+      "date": "2026-11-03",
+      "isoDate": "2026-11-03T20:57:13+01:00",
+      "objectType": "commit"
+    }
+  ]
+}

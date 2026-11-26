@@ -631,6 +631,11 @@ export function renderChangelogStatic(
   lang: SiteLang,
   assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
 ): { html: string; fontsCss: string; bodyHtml: string } {
+  if (entries.length === 0) {
+    throw new Error(
+      "renderChangelogStatic: changelog entries must not be empty",
+    );
+  }
   const copy = SITE_COPY[lang];
   return renderDocument({
     lang,
@@ -660,9 +665,14 @@ export function renderNotFoundStatic(
 }
 
 export function renderAllStaticPages(
-  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
-  changelogEntries: readonly ChangelogEntry[] = [],
+  assets: StaticAssetUrls,
+  changelogEntries: readonly ChangelogEntry[],
 ) {
+  if (!Array.isArray(changelogEntries) || changelogEntries.length === 0) {
+    throw new Error(
+      "renderAllStaticPages: changelogEntries is required and must be non-empty",
+    );
+  }
   const pages: Record<string, string> = {};
   let fontsCss = "";
   const publishedRecipes = getPublishedRecipes();
