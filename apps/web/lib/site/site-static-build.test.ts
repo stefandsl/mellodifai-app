@@ -18,6 +18,8 @@ import {
   buildSiteStatic,
   verifySiteStaticOutput,
 } from "../../scripts/build-site-static.mjs";
+import { loadChangelogEntries } from "../../scripts/site-study/changelog-data.mjs";
+import { formatChangelogDate } from "./changelog-types";
 import {
   renderAllStaticPages,
   renderChangelogStatic,
@@ -277,6 +279,17 @@ describe("buildSiteStatic prerender pipeline", () => {
 
       // Changelog HTML checks: localized short dates on ruler chips (EN and IT),
       // and WCAG 3.1.2 lang="en" on English release note containers on the Italian page.
+      const liveEntries = loadChangelogEntries({ repoRoot: REPO_ROOT });
+      const newestEnShort = formatChangelogDate(
+        liveEntries[0].isoDate,
+        "en",
+        "short",
+      );
+      const newestItShort = formatChangelogDate(
+        liveEntries[0].isoDate,
+        "it",
+        "short",
+      );
       const changelogEn = readFileSync(
         join(outDir, "changelog-en.html"),
         "utf8",
@@ -285,13 +298,13 @@ describe("buildSiteStatic prerender pipeline", () => {
         join(outDir, "changelog-it.html"),
         "utf8",
       );
-      expect(changelogEn).toContain("Nov 22");
+      expect(changelogEn).toContain(newestEnShort);
       expect(changelogEn).not.toMatch(
         /site-ruler__chip-date[^>]*>\d{4}-\d{2}-\d{2}</u,
       );
       expect(changelogEn).not.toMatch(/site-release__body[^>]*lang="en"/u);
 
-      expect(changelogIt).toContain("22 nov");
+      expect(changelogIt).toContain(newestItShort);
       expect(changelogIt).not.toMatch(
         /site-ruler__chip-date[^>]*>\d{4}-\d{2}-\d{2}</u,
       );

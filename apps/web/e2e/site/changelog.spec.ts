@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { formatChangelogDate } from "../../lib/site/changelog-types";
 import { SITE_COPY } from "../../lib/site/copy";
 import { cleanRoom } from "../../lib/site/judge/clean-room";
 import {
@@ -20,19 +21,34 @@ const WIDTHS = [
 ] as const;
 
 const REPO_ROOT = resolve(import.meta.dirname, "../../../..");
-const REPO_TAGS = execFileSync(
+const REPO_TAG_ROWS = execFileSync(
   "git",
   [
     "for-each-ref",
     "--sort=-creatordate",
-    "--format=%(refname:short)",
+    "--format=%(refname:short)\t%(creatordate:iso-strict)",
     "refs/tags",
   ],
   { cwd: REPO_ROOT, encoding: "utf8" },
 )
   .split(/\r?\n/u)
-  .map((t) => t.trim())
-  .filter(Boolean);
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .map((line) => {
+    const [tag, isoDate] = line.split("\t");
+    return { tag, isoDate };
+  });
+const REPO_TAGS = REPO_TAG_ROWS.map((row) => row.tag);
+const NEWEST_CHIP_DATE_EN = formatChangelogDate(
+  REPO_TAG_ROWS[0].isoDate,
+  "en",
+  "short",
+);
+const NEWEST_CHIP_DATE_IT = formatChangelogDate(
+  REPO_TAG_ROWS[0].isoDate,
+  "it",
+  "short",
+);
 
 const en = SITE_COPY.en;
 const itCopy = SITE_COPY.it;
@@ -151,7 +167,7 @@ for (const [width, height] of WIDTHS) {
     const firstChipDate = (
       await chips.first().locator(".site-ruler__chip-date").textContent()
     )?.trim();
-    expect(firstChipDate).toBe("Nov 22");
+    expect(firstChipDate).toBe(NEWEST_CHIP_DATE_EN);
 
     // First chip is initially marked with aria-current="location".
     await expect(chips.first()).toHaveAttribute("aria-current", "location");
@@ -377,7 +393,7 @@ test("Italian page renders Italian title, localized chip dates, lang=en on Engli
       .first()
       .textContent()
   )?.trim();
-  expect(firstChipDate).toBe("22 nov");
+  expect(firstChipDate).toBe(NEWEST_CHIP_DATE_IT);
 
   // WCAG 3.1.2: English release note bodies carry lang="en" on the Italian page.
   const notedBodies = page.locator(

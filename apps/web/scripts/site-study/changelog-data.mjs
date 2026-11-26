@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Build-time data step for /changelog (C09).
-// Reads git tags (name, tagger's calendar date, exact git order) from the repository
-// when `.git` is present, or from `content/changelog/tags.json` in archive builds
-// without `.git` (such as the Windows desktop installer). Joins `content/changelog/<tag>.md`
-// when present and parses Markdown into a safe AST with no raw HTML support.
-// Never invokes the network (`git fetch`): fails loudly if tags are missing or if the
-// committed tag snapshot drifts from git tags in CI.
+// Reads git tags (name, tagger's calendar date, exact git order) directly from live git
+// when `.git` is present, or from a generated `content/changelog/tags.json` snapshot in
+// `.git`-less tree copies (such as the Windows desktop installer or `ops/e2e-server.ts`).
+// Joins `content/changelog/<tag>.md` when present and parses Markdown into a safe AST
+// with no raw HTML support. Never invokes the network (`git fetch`): fails loudly if tags
+// are missing.
 
 import { execFileSync } from "node:child_process";
 import {
@@ -315,7 +315,7 @@ export function parseGitTagLines(stdout) {
 }
 
 /**
- * Read and validate a committed or archive-generated tag snapshot file (`content/changelog/tags.json`).
+ * Read and validate an archive/copy-generated tag snapshot file (`content/changelog/tags.json`).
  * @param {string} snapshotPath
  */
 export function readTagSnapshot(snapshotPath) {
@@ -370,44 +370,6 @@ export function readTagSnapshot(snapshotPath) {
 }
 
 /**
- * Compare live git tags against the snapshot list (name, date, isoDate, and exact order).
- * Throws a clear error if they differ.
- * @param {Array<{ tag: string, date: string, isoDate: string }>} gitTags
- * @param {Array<{ tag: string, date: string, isoDate: string }>} snapshotTags
- * @param {string} snapshotPath
- */
-export function assertSnapshotMatchesGit(gitTags, snapshotTags, snapshotPath) {
-  const diffs = [];
-  if (gitTags.length !== snapshotTags.length) {
-    diffs.push(
-      `count differs (git has ${gitTags.length}, snapshot has ${snapshotTags.length})`,
-    );
-  }
-  const max = Math.max(gitTags.length, snapshotTags.length);
-  for (let i = 0; i < max; i += 1) {
-    const g = gitTags[i];
-    const s = snapshotTags[i];
-    if (!g || !s) {
-      diffs.push(
-        `index ${i}: git=${g ? g.tag : "<missing>"}, snapshot=${s ? s.tag : "<missing>"}`,
-      );
-      break;
-    }
-    if (g.tag !== s.tag || g.date !== s.date || g.isoDate !== s.isoDate) {
-      diffs.push(
-        `index ${i}: git=${g.tag} (${g.isoDate}), snapshot=${s.tag} (${s.isoDate})`,
-      );
-      break;
-    }
-  }
-  if (diffs.length > 0) {
-    throw new Error(
-      `changelog-data: tag snapshot ${snapshotPath} is out of date with git tags (${diffs.join("; ")}). Refresh it with "node apps/web/scripts/site-study/changelog-data.mjs --write-snapshot".`,
-    );
-  }
-}
-
-/**
  * Read git tags directly from a repository with `.git`. Never calls the network.
  * @param {string} repoRoot
  * @param {(args: string[], cwd: string) => string} runGit
@@ -438,8 +400,9 @@ function readLiveGitTags(repoRoot, runGit) {
 }
 
 /**
- * Write the tag snapshot file (`content/changelog/tags.json`) from live git tags.
- * Used when refreshing the committed snapshot or staging a `git archive` build.
+ * Write a tag snapshot file (`content/changelog/tags.json`) from live git tags.
+ * Called by steps that copy or archive the repository without `.git`
+ * (`apps/windows/src/build.mjs`, `ops/e2e-server.ts`).
  * @param {{ repoRoot?: string, outPath?: string, runGit?: (args: string[], cwd: string) => string }} [options]
  */
 export function writeTagSnapshot(options = {}) {
@@ -457,14 +420,13 @@ export function writeTagSnapshot(options = {}) {
 
 /**
  * Collect ordered tags for /changelog:
- * - When `.git` exists in `repoRoot`: reads tags from git (never calls the network) and fails
- *   loudly on zero tags. When `verifySnapshot` is true (default in CI, `process.env.CI === "true"`),
- *   compares git tags against `snapshotPath` and fails loudly if they drift.
+ * - When `.git` exists in `repoRoot` (or a custom `runGit` is supplied): reads tags directly
+ *   from live git (never calls the network) and fails loudly on zero tags.
  * - When `.git` does not exist (for example an extracted `git archive HEAD` in the Windows
- *   desktop installer): reads tags from `snapshotPath` (`content/changelog/tags.json`) and
- *   fails loudly if missing or empty.
+ *   desktop installer or an `ops/e2e-server.ts` runtime copy): reads tags from `snapshotPath`
+ *   (`content/changelog/tags.json`) and fails loudly if missing or empty.
  *
- * @param {{ repoRoot?: string, snapshotPath?: string, verifySnapshot?: boolean, runGit?: (args: string[], cwd: string) => string }} [options]
+ * @param {{ repoRoot?: string, snapshotPath?: string, runGit?: (args: string[], cwd: string) => string }} [options]
  */
 export function collectGitTags(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
@@ -479,14 +441,7 @@ export function collectGitTags(options = {}) {
     return readTagSnapshot(snapshotPath);
   }
 
-  const gitTags = readLiveGitTags(repoRoot, runGit);
-  const shouldVerify =
-    options.verifySnapshot ?? (process.env.CI === "true" && !options.runGit);
-  if (shouldVerify) {
-    const snapshotTags = readTagSnapshot(snapshotPath);
-    assertSnapshotMatchesGit(gitTags, snapshotTags, snapshotPath);
-  }
-  return gitTags;
+  return readLiveGitTags(repoRoot, runGit);
 }
 
 /**
@@ -515,7 +470,7 @@ function resolveTagMarkdownPath(contentDir, tag) {
  * Build the complete ordered list of changelog entries (newest tag first) by joining
  * git tags (or the archive tag snapshot) with optional `content/changelog/<tag>.md` files.
  *
- * @param {{ repoRoot?: string, contentDir?: string, snapshotPath?: string, verifySnapshot?: boolean, runGit?: (args: string[], cwd: string) => string }} [options]
+ * @param {{ repoRoot?: string, contentDir?: string, snapshotPath?: string, runGit?: (args: string[], cwd: string) => string }} [options]
  */
 export function loadChangelogEntries(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? DEFAULT_REPO_ROOT);
@@ -528,7 +483,6 @@ export function loadChangelogEntries(options = {}) {
   const tags = collectGitTags({
     repoRoot,
     snapshotPath,
-    verifySnapshot: options.verifySnapshot,
     runGit: options.runGit,
   });
 
@@ -571,17 +525,26 @@ export function loadChangelogEntries(options = {}) {
   });
 }
 
+function readCliFlag(argv, flag) {
+  const idx = argv.indexOf(flag);
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1];
+  return undefined;
+}
+
 const isMain =
   process.argv[1] &&
   resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
   try {
-    if (process.argv.includes("--write-snapshot")) {
-      const res = writeTagSnapshot();
+    const argv = process.argv.slice(2);
+    const repoRoot = readCliFlag(argv, "--repo-root");
+    const outPath = readCliFlag(argv, "--out");
+    if (argv.includes("--write-snapshot")) {
+      const res = writeTagSnapshot({ repoRoot, outPath });
       process.stdout.write(`Wrote ${res.tags.length} tags to ${res.outPath}\n`);
     } else {
-      const entries = loadChangelogEntries();
+      const entries = loadChangelogEntries({ repoRoot });
       process.stdout.write(`${JSON.stringify(entries, null, 2)}\n`);
     }
   } catch (err) {

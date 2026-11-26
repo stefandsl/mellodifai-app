@@ -181,7 +181,7 @@ describe("serve-static-site in dev", () => {
     expect((await home()).status).toBe(200);
     let expected = 1;
     for (const rel of [
-      "content/changelog/tags.json",
+      "content/changelog",
       "content/recipes",
       "apps/web/public/site/assets.manifest.json",
       "apps/web/public/site/brand-mark.png",

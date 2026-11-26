@@ -13,7 +13,6 @@ import { join, resolve } from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { formatChangelogDate } from "../../lib/site/changelog-types";
 import {
-  assertSnapshotMatchesGit,
   collectGitTags,
   loadChangelogEntries,
   parseGitTagLines,
@@ -147,20 +146,31 @@ describe("changelog-data: safe Markdown parser", () => {
 });
 
 describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break order", () => {
-  it("reads every real git tag in this repo matching content/changelog/tags.json and joins markdown notes", () => {
-    const realTagCount = git(["tag"], REPO_ROOT)
+  it("reads every live git tag in git for-each-ref order without a committed snapshot and joins markdown notes", () => {
+    const liveTags = git(
+      [
+        "for-each-ref",
+        "--sort=-creatordate",
+        "--format=%(refname:short)",
+        "refs/tags",
+      ],
+      REPO_ROOT,
+    )
       .split(/\r?\n/u)
       .map((t) => t.trim())
-      .filter(Boolean).length;
-    expect(realTagCount).toBeGreaterThanOrEqual(11);
+      .filter(Boolean);
+    expect(liveTags.length).toBeGreaterThanOrEqual(11);
 
-    const entries = loadChangelogEntries({
-      repoRoot: REPO_ROOT,
-      verifySnapshot: true,
-    });
-    expect(entries).toHaveLength(realTagCount);
-    expect(entries[0].tag).toBe("native-20261122-r5");
-    expect(entries[entries.length - 1].tag).toBe("m1-floor");
+    // content/changelog/tags.json is generated on demand for .git-less copies and never committed.
+    expect(
+      git(["ls-files", "content/changelog/tags.json"], REPO_ROOT).trim(),
+    ).toBe("");
+    expect(
+      git(["check-ignore", "content/changelog/tags.json"], REPO_ROOT).trim(),
+    ).toBe("content/changelog/tags.json");
+
+    const entries = loadChangelogEntries({ repoRoot: REPO_ROOT });
+    expect(entries.map((e) => e.tag)).toEqual(liveTags);
 
     for (let i = 1; i < entries.length; i += 1) {
       expect(Date.parse(entries[i - 1].isoDate)).toBeGreaterThanOrEqual(
@@ -197,7 +207,6 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
     const entries = loadChangelogEntries({
       repoRoot: REPO_ROOT,
       contentDir,
-      verifySnapshot: false,
       runGit: fakeGit,
     });
 
@@ -274,10 +283,7 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
       { cwd: extracted, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
     const archiveEntries = JSON.parse(cliStdout);
-    const repoEntries = loadChangelogEntries({
-      repoRoot: REPO_ROOT,
-      verifySnapshot: true,
-    });
+    const repoEntries = loadChangelogEntries({ repoRoot: REPO_ROOT });
     expect(archiveEntries).toEqual(repoEntries);
 
     // Removing tags.json from a .git-less folder must fail loudly (never return []).
@@ -291,61 +297,59 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
     expect(() => readTagSnapshot(snapshotTarget)).toThrow(/zero entries/u);
   }, 15_000);
 
-  it("fails loudly in CI when content/changelog/tags.json drifts from live git tags", () => {
-    const snapshotDir = makeTempDir("drift-");
-    const goodSnapshot = join(snapshotDir, "good.json");
-    const driftedSnapshot = join(snapshotDir, "drifted.json");
+  it("always reads live git tags when .git exists even under CI=true with a stale or missing tags.json", () => {
+    const repoDir = makeTempDir("new-tag-ci-");
+    git(["init", "-b", "main"], repoDir);
+    git(["config", "user.email", "test@mellodifai.local"], repoDir);
+    git(["config", "user.name", "Test"], repoDir);
 
-    const { tags } = writeTagSnapshot({
-      repoRoot: REPO_ROOT,
-      outPath: goodSnapshot,
+    writeFileSync(join(repoDir, "a.txt"), "one\n", "utf8");
+    git(["add", "a.txt"], repoDir);
+    git(["commit", "-m", "first"], repoDir, {
+      GIT_AUTHOR_DATE: "2026-11-10T10:00:00Z",
+      GIT_COMMITTER_DATE: "2026-11-10T10:00:00Z",
     });
-    expect(() =>
-      collectGitTags({
-        repoRoot: REPO_ROOT,
-        snapshotPath: goodSnapshot,
-        verifySnapshot: true,
-      }),
-    ).not.toThrow();
+    git(["tag", "v1.0.0"], repoDir);
 
-    // Drop the newest tag from the snapshot to simulate drift.
-    writeFileSync(
-      driftedSnapshot,
-      JSON.stringify({ tags: tags.slice(1) }, null, 2),
-      "utf8",
-    );
-    expect(() =>
-      collectGitTags({
-        repoRoot: REPO_ROOT,
-        snapshotPath: driftedSnapshot,
-        verifySnapshot: true,
-      }),
-    ).toThrow(/out of date with git tags/u);
+    // Write an older snapshot, then add a brand-new release tag without refreshing tags.json.
+    const staleSnapshot = join(repoDir, "content", "changelog", "tags.json");
+    writeTagSnapshot({ repoRoot: repoDir, outPath: staleSnapshot });
 
-    // Also verify CI=true triggers drift detection automatically.
+    writeFileSync(join(repoDir, "a.txt"), "two\n", "utf8");
+    git(["add", "a.txt"], repoDir);
+    git(["commit", "-m", "second"], repoDir, {
+      GIT_AUTHOR_DATE: "2026-11-26T10:00:00Z",
+      GIT_COMMITTER_DATE: "2026-11-26T10:00:00Z",
+    });
+    git(["tag", "-a", "v2.0.0-new", "-m", "Fresh tag"], repoDir, {
+      GIT_COMMITTER_DATE: "2026-11-26T10:00:00Z",
+    });
+
     const prevCi = process.env.CI;
     try {
       process.env.CI = "true";
-      expect(() =>
-        collectGitTags({
-          repoRoot: REPO_ROOT,
-          snapshotPath: driftedSnapshot,
-        }),
-      ).toThrow(/out of date with git tags/u);
+      // With a stale snapshot present, CI=true still reads live git tags and includes the new tag.
+      const tagsWithStale = collectGitTags({
+        repoRoot: repoDir,
+        snapshotPath: staleSnapshot,
+      });
+      expect(tagsWithStale.map((t) => t.tag)).toEqual(["v2.0.0-new", "v1.0.0"]);
+
+      // With no snapshot file at all, CI=true still succeeds from live git tags.
+      rmSync(staleSnapshot);
+      const tagsWithoutSnapshot = collectGitTags({
+        repoRoot: repoDir,
+        snapshotPath: staleSnapshot,
+      });
+      expect(tagsWithoutSnapshot.map((t) => t.tag)).toEqual([
+        "v2.0.0-new",
+        "v1.0.0",
+      ]);
     } finally {
       if (prevCi === undefined) delete process.env.CI;
       else process.env.CI = prevCi;
     }
-
-    // Reordered tags with same count must also fail.
-    expect(() =>
-      assertSnapshotMatchesGit(
-        tags,
-        [tags[1], tags[0], ...tags.slice(2)],
-        driftedSnapshot,
-      ),
-    ).toThrow(/out of date with git tags/u);
-  });
+  }, 15_000);
 
   it("never calls git fetch in the data step, fails loudly on tagless shallow clones, and CI fetches tags explicitly", () => {
     const originDir = makeTempDir("origin-");
@@ -387,9 +391,9 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
     expect(git(["tag"], shallowDir).trim()).toBe("");
 
     // collectGitTags must fail loudly and MUST NOT run git fetch against origin.
-    expect(() =>
-      collectGitTags({ repoRoot: shallowDir, verifySnapshot: false }),
-    ).toThrow(/no git tags found/u);
+    expect(() => collectGitTags({ repoRoot: shallowDir })).toThrow(
+      /no git tags found/u,
+    );
     expect(git(["tag"], shallowDir).trim()).toBe("");
 
     // Spy confirms the data step only runs for-each-ref and never invokes fetch.
@@ -397,7 +401,6 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
     expect(() =>
       collectGitTags({
         repoRoot: shallowDir,
-        verifySnapshot: false,
         runGit: spyGit,
       }),
     ).toThrow(/no git tags found/u);
@@ -409,10 +412,7 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
       ["fetch", "--no-tags", "--depth=1", "origin", "+refs/tags/*:refs/tags/*"],
       shallowDir,
     );
-    const afterFetch = collectGitTags({
-      repoRoot: shallowDir,
-      verifySnapshot: false,
-    });
+    const afterFetch = collectGitTags({ repoRoot: shallowDir });
     expect(afterFetch.map((t) => t.tag)).toEqual(["v0.2.0", "v0.1.0"]);
 
     // Verify CI workflow fetches tags explicitly instead of relying on actions/checkout fetch-tags.
@@ -428,9 +428,9 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
     // An empty repository with no tags and no remote fails clearly.
     const emptyRepo = makeTempDir("empty-repo-");
     git(["init", "-b", "main"], emptyRepo);
-    expect(() =>
-      collectGitTags({ repoRoot: emptyRepo, verifySnapshot: false }),
-    ).toThrow(/no git tags found/u);
+    expect(() => collectGitTags({ repoRoot: emptyRepo })).toThrow(
+      /no git tags found/u,
+    );
   }, 15_000);
 
   it("preserves git's exact tag tie-break order (refname ascending on identical creatordate)", () => {
@@ -460,10 +460,7 @@ describe("changelog-data: git tags, archive snapshot, CI fetch, and tie-break or
       .filter(Boolean);
     expect(gitOrder).toEqual(["alpha-tie", "zeta-tie"]);
 
-    const collected = collectGitTags({
-      repoRoot: tieRepo,
-      verifySnapshot: false,
-    });
+    const collected = collectGitTags({ repoRoot: tieRepo });
     expect(collected.map((t) => t.tag)).toEqual(gitOrder);
 
     // parseGitTagLines preserves git's emitted order without re-sorting ties.
