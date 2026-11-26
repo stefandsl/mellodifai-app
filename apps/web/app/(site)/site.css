@@ -1474,17 +1474,41 @@ html.site-menu-open {
   }
 }
 
-/* Very large text on a phone (where the header hides its CTA at 23rem or less): tighten the
-   hero title and gaps so the hero CTA stays inside the first screen in both languages. */
-@container site-hero (max-width: 15rem) {
+/* Narrow phone or large text (header hides its CTA at 23rem or less): keep the hero CTA inside the first screen. */
+@container site-hero (max-width: 23rem) {
+  .site-hero__copy {
+    padding-top: calc(var(--site-header-height) + var(--spacing-3));
+  }
   .site-hero__title {
     font-size: var(--font-size-xl);
   }
   .site-hero__lede {
+    margin-top: var(--spacing-2);
+  }
+  .site-hero__stage {
     margin-top: var(--spacing-3);
   }
-  .site-hero__actions {
-    margin-top: var(--spacing-4);
+  .site-composer__inner {
+    padding: var(--spacing-3);
+  }
+  .site-composer__input {
+    min-height: var(--spacing-10);
+  }
+  .site-composer__bar {
+    padding-top: var(--spacing-2);
+    flex-wrap: wrap-reverse;
+  }
+}
+
+@container site-hero (max-width: 17rem) {
+  .site-hero__title {
+    font-size: var(--font-size-lg);
+  }
+  .site-hero__lede {
+    font-size: var(--text-supporting-size);
+  }
+  .site-composer__hint {
+    display: none;
   }
 }
 

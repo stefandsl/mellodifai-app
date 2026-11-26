@@ -353,6 +353,13 @@ export function pruneAstryxCssForHtml(
     }
     // Static islands never set Astryx's React press state machine attribute.
     if (t.includes("data-astryx-press")) continue;
+    // Static pages without disabled controls never match disabled focus-visible wrappers.
+    if (
+      !html.includes('aria-disabled="true"') &&
+      t.includes('[aria-disabled="true"]:focus-visible')
+    ) {
+      continue;
+    }
     const sel = unwrapSelector(t);
     const cls = [...sel.matchAll(/\.(x[0-9a-z]{5,7})\b/gu)].map((m) => m[1]);
     if (!cls.length) continue;
@@ -402,14 +409,54 @@ export function pruneAstryxCssForHtml(
     .join(";");
   if (filteredRoot) headerLines.push(`:root{${filteredRoot}}`);
 
+  const prunedReset = pruneUnusedResetCss(resetLines.join("\n"), html);
+
   return [
     "@layer reset, astryx-base, astryx-theme;",
-    ...resetLines,
+    prunedReset,
     "@layer astryx-base {",
     ...headerLines,
     ...ruleLines,
     "}",
   ].join("\n");
+}
+
+function pruneUnusedResetCss(resetCss: string, html: string): string {
+  let out = resetCss;
+  const tagRules: Array<[RegExp, RegExp]> = [
+    [/<(?:b|strong)\b/iu, /:where\(b,\s*strong\)\s*\{[^}]*\}/gu],
+    [
+      /<(?:code|kbd|samp|pre)\b/iu,
+      /:where\(code,\s*kbd,\s*samp,\s*pre\)\s*\{[^}]*\}/gu,
+    ],
+    [/<small\b/iu, /:where\(small\)\s*\{[^}]*\}/gu],
+    [/<(?:sub|sup)\b/iu, /:where\(sub,\s*sup\)\s*\{[^}]*\}/gu],
+    [/<sub\b/iu, /:where\(sub\)\s*\{[^}]*\}/gu],
+    [/<sup\b/iu, /:where\(sup\)\s*\{[^}]*\}/gu],
+    [/<fieldset\b/iu, /:where\(fieldset\)\s*\{[^}]*\}/gu],
+    [/<legend\b/iu, /:where\(legend\)\s*\{[^}]*\}/gu],
+    [/<table\b/iu, /:where\(table\)\s*\{[^}]*\}/gu],
+    [/<hr\b/iu, /:where\(hr\)\s*\{[^}]*\}/gu],
+    [/<summary\b/iu, /:where\(summary\)\s*\{[^}]*\}/gu],
+    [
+      /\blist=/iu,
+      /:where\(\[list\]\)::-webkit-calendar-picker-indicator\s*\{[^}]*\}/gu,
+    ],
+    [
+      /type=["']search["']/iu,
+      /:where\(\[type='search'\]\)::-webkit-search-decoration,\s*:where\(\[type='search'\]\)::-webkit-search-cancel-button\s*\{[^}]*\}/gu,
+    ],
+    [
+      /data-astryx-media/iu,
+      /:where\(\[data-astryx-media="(?:dark|light)"\]\)\s*\{[^}]*\}/gu,
+    ],
+  ];
+  for (const [presentRe, ruleRe] of tagRules) {
+    if (!presentRe.test(html)) {
+      out = out.replace(ruleRe, "");
+    }
+  }
+  return out;
 }
 
 // Popover styles for the lightweight Agents menu island (uses only mesh tokens).

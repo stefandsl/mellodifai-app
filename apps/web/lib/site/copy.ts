@@ -318,7 +318,7 @@ const en: SiteCopy = {
   features: {
     title: "Three parts of a song, each one yours to change",
     line: "The words, the voice and what you do with the finished take.",
-    stepLabel: "Step",
+    stepLabel: "Slide",
     dotsLabel: "Choose slide",
     items: [
       {
@@ -401,8 +401,8 @@ const en: SiteCopy = {
       karaokeMeta: "Lead vocal lowered to 10 percent, full band intact.",
       formatsTitle: "Export sizes",
       formats: [
-        { tag: "9:16", detail: "Vertical clip for Shorts and Reels" },
-        { tag: "16:9", detail: "Widescreen lyric video for YouTube" },
+        { tag: "Portrait 9:16", detail: "Vertical clip for Shorts and Reels" },
+        { tag: "Wide 16:9", detail: "Widescreen lyric video for YouTube" },
         { tag: "WAV", detail: "Lossless master plus separated stems" },
       ],
     },
@@ -845,7 +845,7 @@ const it: SiteCopy = {
   features: {
     title: "Tre parti della canzone, ognuna da cambiare",
     line: "Le parole, la voce e quello che fai con la take finita.",
-    stepLabel: "Passo",
+    stepLabel: "Scheda",
     dotsLabel: "Scegli scheda",
     items: [
       {
@@ -929,8 +929,11 @@ const it: SiteCopy = {
       karaokeMeta: "Voce principale al 10 per cento, band intera.",
       formatsTitle: "Formati di esportazione",
       formats: [
-        { tag: "9:16", detail: "Clip verticale per Shorts e Reels" },
-        { tag: "16:9", detail: "Video del testo panoramico per YouTube" },
+        { tag: "Verticale 9:16", detail: "Clip verticale per Shorts e Reels" },
+        {
+          tag: "Panoramico 16:9",
+          detail: "Video del testo panoramico per YouTube",
+        },
         { tag: "WAV", detail: "Master senza perdita e tracce separate" },
       ],
     },
