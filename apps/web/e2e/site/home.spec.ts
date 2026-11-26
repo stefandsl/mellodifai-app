@@ -523,25 +523,21 @@ test("C04 rotating hero line changes every 6.0 s +/- 0.3 s and keeps one fixed t
     visibility: "hidden",
   });
 
-  await page.clock.runFor(6500);
-  expect(await readLineStyle(1)).toEqual({
-    opacity: "1",
-    visibility: "visible",
-  });
-  expect(await readLineStyle(0)).toEqual({
-    opacity: "0",
-    visibility: "hidden",
-  });
+  await page.clock.runFor(6100);
+  await expect
+    .poll(() => readLineStyle(1), { timeout: 3000 })
+    .toEqual({ opacity: "1", visibility: "visible" });
+  await expect
+    .poll(() => readLineStyle(0), { timeout: 3000 })
+    .toEqual({ opacity: "0", visibility: "hidden" });
 
-  await page.clock.runFor(6000);
-  expect(await readLineStyle(2)).toEqual({
-    opacity: "1",
-    visibility: "visible",
-  });
-  expect(await readLineStyle(1)).toEqual({
-    opacity: "0",
-    visibility: "hidden",
-  });
+  await page.clock.runFor(6100);
+  await expect
+    .poll(() => readLineStyle(2), { timeout: 3000 })
+    .toEqual({ opacity: "1", visibility: "visible" });
+  await expect
+    .poll(() => readLineStyle(1), { timeout: 3000 })
+    .toEqual({ opacity: "0", visibility: "hidden" });
 
   const times = await page.evaluate(
     () =>
@@ -768,17 +764,32 @@ for (const [width, height] of [
     const tr0 = await readTrackTx();
     expect(Math.abs(tr0.tx)).toBeLessThan(1);
 
-    await page.clock.runFor(5400);
-    const tr1 = await readTrackTx();
-    expect(tr1.inline).toContain("-33.33");
-    expect(tr1.tx).toBeLessThan(-tr1.width / 3 + 4);
-    expect(tr1.tx).toBeGreaterThan(-tr1.width / 3 - 4);
+    await page.clock.runFor(5100);
+    await expect
+      .poll(
+        async () => {
+          const tr = await readTrackTx();
+          return (
+            tr.inline.includes("-33.33") && Math.abs(tr.tx - -tr.width / 3) < 2
+          );
+        },
+        { timeout: 3000 },
+      )
+      .toBe(true);
 
-    await page.clock.runFor(5000);
-    const tr2 = await readTrackTx();
-    expect(tr2.inline).toContain("-66.66");
-    expect(tr2.tx).toBeLessThan((-2 * tr2.width) / 3 + 4);
-    expect(tr2.tx).toBeGreaterThan((-2 * tr2.width) / 3 - 4);
+    await page.clock.runFor(5100);
+    await expect
+      .poll(
+        async () => {
+          const tr = await readTrackTx();
+          return (
+            tr.inline.includes("-66.66") &&
+            Math.abs(tr.tx - (-2 * tr.width) / 3) < 2
+          );
+        },
+        { timeout: 3000 },
+      )
+      .toBe(true);
 
     const times = await page.evaluate(
       () =>
