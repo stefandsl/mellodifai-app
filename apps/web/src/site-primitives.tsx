@@ -24,6 +24,7 @@ import { interactionOverlayStyles } from "@astryxdesign/core/utils/interactionOv
 import * as stylex from "@stylexjs/stylex";
 import type {
   AnchorHTMLAttributes,
+  ButtonHTMLAttributes,
   ComponentType,
   CSSProperties,
   HTMLAttributes,
@@ -531,6 +532,141 @@ export function SiteButtonLink({
         <span className="xb3r6kr xlyipyv xeuugli">{children ?? label}</span>
       </span>
     </a>
+  );
+}
+
+export type SiteButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  label: string;
+  variant?: keyof typeof BUTTON_VARIANTS;
+  size?: keyof typeof BUTTON_SIZE_STYLES;
+  width?: string | number;
+  icon?: ReactNode;
+};
+
+export function SiteButton({
+  label,
+  variant = "secondary",
+  size = "md",
+  width,
+  icon,
+  type = "button",
+  className,
+  style,
+  children,
+  ...props
+}: SiteButtonProps) {
+  const isSolid = variant === "primary" || variant === "secondary";
+  const computed = focusOutlineProps.focusVisible(
+    BUTTON_STYLES.base,
+    BUTTON_SIZE_STYLES[size],
+    interactionOverlayStyles.backgroundImage,
+    BUTTON_PRESS_STYLES.rowCell,
+    BUTTON_PRESS_STYLES.rowCellOnImage,
+    BUTTON_PRESS_STYLES.control,
+    BUTTON_STYLES.pressable,
+    BUTTON_STYLES.elevationNone,
+    width != null && BUTTON_STYLES.width,
+    isSolid && BUTTON_STYLES.forcedColorsStandalone,
+    BUTTON_VARIANTS[variant],
+  );
+  const widthStyle =
+    width != null
+      ? ({
+          "--x-width": typeof width === "number" ? `${width}px` : width,
+        } as CSSProperties)
+      : undefined;
+  const contentProps = sx(
+    BUTTON_STYLES.contentWrapper,
+    touchHitAreaStyles.layer,
+  );
+  const iconBoxProps = sx(
+    BUTTON_STYLES.iconWrapper,
+    iconBoxSizeStyles[BUTTON_ICON_SIZE[size]],
+  );
+  return (
+    <button
+      type={type}
+      data-variant={variant}
+      data-size={size}
+      data-elevation="none"
+      {...(variant === "ghost" ? { [EDGE_COMP_ATTR]: "" } : null)}
+      aria-label={children != null && children !== label ? label : undefined}
+      className={joinClasses(
+        stableClassName("button"),
+        computed.className,
+        className,
+      )}
+      style={mergeStyle(
+        mergeStyle(computed.style as CSSProperties | undefined, widthStyle),
+        style,
+      )}
+      {...props}
+    >
+      <span className={contentProps.className}>
+        {icon != null ? (
+          <span className={iconBoxProps.className}>{icon}</span>
+        ) : null}
+        <span className="xb3r6kr xlyipyv xeuugli">{children ?? label}</span>
+      </span>
+    </button>
+  );
+}
+
+export type SiteIconButtonProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "children"
+> & {
+  label: string;
+  icon: ReactNode;
+  variant?: keyof typeof BUTTON_VARIANTS;
+  size?: keyof typeof BUTTON_SIZE_STYLES;
+};
+
+export function SiteIconButton({
+  label,
+  icon,
+  variant = "ghost",
+  size = "sm",
+  type = "button",
+  className,
+  style,
+  ...props
+}: SiteIconButtonProps) {
+  const isSolid = variant === "primary" || variant === "secondary";
+  const computed = focusOutlineProps.focusVisible(
+    BUTTON_STYLES.base,
+    BUTTON_SIZE_STYLES[size],
+    interactionOverlayStyles.backgroundImage,
+    BUTTON_PRESS_STYLES.rowCell,
+    BUTTON_PRESS_STYLES.rowCellOnImage,
+    BUTTON_PRESS_STYLES.control,
+    BUTTON_STYLES.pressable,
+    BUTTON_STYLES.elevationNone,
+    isSolid && BUTTON_STYLES.forcedColorsStandalone,
+    BUTTON_VARIANTS[variant],
+  );
+  const iconBoxProps = sx(
+    BUTTON_STYLES.iconWrapper,
+    iconBoxSizeStyles[BUTTON_ICON_SIZE[size]],
+  );
+  return (
+    <button
+      type={type}
+      aria-label={label}
+      data-variant={variant}
+      data-size={size}
+      data-elevation="none"
+      {...(variant === "ghost" ? { [EDGE_COMP_ATTR]: "" } : null)}
+      className={joinClasses(
+        stableClassName("icon-button"),
+        computed.className,
+        className,
+      )}
+      style={mergeStyle(computed.style as CSSProperties | undefined, style)}
+      {...props}
+    >
+      <span className={iconBoxProps.className}>{icon}</span>
+    </button>
   );
 }
 

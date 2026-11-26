@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { type NextRequest, NextResponse } from "next/server";
+import { recipeStartHref } from "./nav";
 
 const execFileAsync = promisify(execFile);
 
@@ -177,7 +178,12 @@ export async function serveStaticAsset(
   _request: NextRequest,
   relFile: string,
   contentType: string,
-  options: { cacheControl: string; varyCookie?: boolean; required?: boolean },
+  options: {
+    cacheControl: string;
+    varyCookie?: boolean;
+    required?: boolean;
+    status?: number;
+  },
 ): Promise<NextResponse> {
   const staticDir = getStaticDir();
   const full = path.join(/*turbopackIgnore: true*/ staticDir, relFile);
@@ -222,10 +228,124 @@ export async function serveStaticAsset(
   return buildOkResponse(text, contentType, options);
 }
 
+const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+type RecipeLookupResult =
+  | { kind: "ok"; pageFile: string }
+  | { kind: "not-found"; response: NextResponse }
+  | { kind: "error"; response: NextResponse };
+
+async function lookupStaticRecipePage(
+  request: NextRequest,
+  slug: string,
+): Promise<RecipeLookupResult> {
+  const lang = getRequestLocale(request);
+  const htmlOpts = {
+    cacheControl: "private, no-cache",
+    varyCookie: true,
+    required: true,
+  };
+  const notFoundFile = `not-found-${lang}.html`;
+
+  if (!SAFE_SLUG_RE.test(slug)) {
+    return {
+      kind: "not-found",
+      response: await serveStaticAsset(
+        request,
+        notFoundFile,
+        "text/html; charset=utf-8",
+        {
+          ...htmlOpts,
+          status: 404,
+        },
+      ),
+    };
+  }
+
+  const pageFile = `recipe-${slug}-${lang}.html`;
+  const staticDir = getStaticDir();
+  const isProd = process.env.NODE_ENV === "production";
+  const manifest = isProd
+    ? readManifest(staticDir)
+    : await ensureDevBuilt(staticDir);
+
+  if (!manifest) {
+    if (isProd) {
+      console.error(
+        `[site-static] missing manifest.json when serving ${pageFile} (${staticDir})`,
+      );
+      return {
+        kind: "error",
+        response: new NextResponse("Internal Server Error", { status: 500 }),
+      };
+    }
+    return {
+      kind: "not-found",
+      response: new NextResponse("Not Found", { status: 404 }),
+    };
+  }
+
+  if (!manifest.pages.includes(pageFile)) {
+    return {
+      kind: "not-found",
+      response: await serveStaticAsset(
+        request,
+        notFoundFile,
+        "text/html; charset=utf-8",
+        {
+          ...htmlOpts,
+          status: 404,
+        },
+      ),
+    };
+  }
+
+  return { kind: "ok", pageFile };
+}
+
+export async function serveStaticRecipeDetail(
+  request: NextRequest,
+  slug: string,
+): Promise<NextResponse> {
+  const lookup = await lookupStaticRecipePage(request, slug);
+  if (lookup.kind !== "ok") return lookup.response;
+
+  return serveStaticAsset(
+    request,
+    lookup.pageFile,
+    "text/html; charset=utf-8",
+    {
+      cacheControl: "private, no-cache",
+      varyCookie: true,
+      required: true,
+    },
+  );
+}
+
+// Temporary bridge until C15 (#46) lands the anonymous recipe trial studio:
+// redirect known slugs (307) to the existing /create?recipe=<slug> entry and
+// return the static site 404 for unknown or malformed slugs.
+export async function serveStaticRecipeTry(
+  request: NextRequest,
+  slug: string,
+): Promise<NextResponse> {
+  const lookup = await lookupStaticRecipePage(request, slug);
+  if (lookup.kind !== "ok") return lookup.response;
+
+  return new NextResponse(null, {
+    status: 307,
+    headers: {
+      location: recipeStartHref(slug),
+      "cache-control": "private, no-cache",
+      vary: "Cookie",
+    },
+  });
+}
+
 function buildOkResponse(
   body: string,
   contentType: string,
-  options: { cacheControl: string; varyCookie?: boolean },
+  options: { cacheControl: string; varyCookie?: boolean; status?: number },
 ): NextResponse {
   const headers: Record<string, string> = {
     "content-type": contentType,
@@ -234,5 +354,5 @@ function buildOkResponse(
   if (options.varyCookie) {
     headers.vary = "Cookie";
   }
-  return new NextResponse(body, { status: 200, headers });
+  return new NextResponse(body, { status: options.status ?? 200, headers });
 }
