@@ -15,6 +15,7 @@ import {
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { runtimePath } from "../envs.js";
 import { runtimeRoot } from "../runtime.js";
@@ -73,6 +74,8 @@ export interface InstallOptions {
   cache?: string | undefined;
   seedDirs?: string[] | undefined;
   fetchImpl?: typeof fetch | undefined;
+  renameImpl?: ((from: string, to: string) => void) | undefined;
+  sleepImpl?: ((ms: number) => Promise<void>) | undefined;
   recipes?: Partial<Record<string, { id: string; run: Recipe }>> | undefined;
   log?: ((message: string) => void) | undefined;
 }
@@ -262,6 +265,35 @@ const same = (a: Marker | null, b: Marker) =>
   a.sha256 === b.sha256 &&
   a.recipe === b.recipe;
 
+const RETRYABLE_RENAME_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+const RENAME_MAX_ATTEMPTS = 10;
+const RENAME_BACKOFF_STEP_MS = 100;
+
+/** Retry folder renames when Windows briefly holds a freshly extracted tree. */
+async function renameWithRetry(
+  from: string,
+  to: string,
+  options: Pick<InstallOptions, "renameImpl" | "sleepImpl"> = {},
+): Promise<void> {
+  const rename = options.renameImpl ?? renameSync;
+  const wait = options.sleepImpl ?? ((ms: number) => sleep(ms));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (
+        !code ||
+        !RETRYABLE_RENAME_CODES.has(code) ||
+        attempt >= RENAME_MAX_ATTEMPTS
+      )
+        throw error;
+      await wait(attempt * RENAME_BACKOFF_STEP_MS);
+    }
+  }
+}
+
 /** Remove only folders this module created for the named artifact version. */
 function removeOwn(path: string, parent: string): void {
   if (dirname(path) !== parent) throw new Error("Refusing to remove this path");
@@ -319,10 +351,10 @@ export async function installArtifact(
     if (existsSync(target)) {
       // A folder without the current marker is an older or interrupted install.
       const old = join(parent, `.staging-old-${randomUUID()}`);
-      renameSync(target, old);
+      await renameWithRetry(target, old, options);
       removeOwn(old, parent);
     }
-    renameSync(staging, target);
+    await renameWithRetry(staging, target, options);
     return target;
   } finally {
     removeOwn(staging, parent);
