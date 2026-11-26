@@ -6,6 +6,7 @@ import {
   rmSync,
   statSync,
   utimesSync,
+  writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { NextRequest } from "next/server";
@@ -20,7 +21,12 @@ import {
 } from "vitest";
 import { GET as getHome } from "@/app/(site)/route";
 import { GET as getIsland } from "@/app/site/islands/[name]/route";
-import { resetStaticSiteCacheForTest } from "./serve-static-site";
+import {
+  getWatchedPaths,
+  resetStaticSiteCacheForTest,
+  resolveGitTagWatchPaths,
+  sourcesChangedSince,
+} from "./serve-static-site";
 
 // Dev mode of serve-static-site.ts: the build child process is replaced by a fake that counts
 // builds and writes a tiny output, so the tests observe exactly when a request rebuilds.
@@ -175,6 +181,7 @@ describe("serve-static-site in dev", () => {
     expect((await home()).status).toBe(200);
     let expected = 1;
     for (const rel of [
+      "content/changelog/tags.json",
       "content/recipes",
       "apps/web/public/site/assets.manifest.json",
       "apps/web/public/site/brand-mark.png",
@@ -194,6 +201,57 @@ describe("serve-static-site in dev", () => {
         expect((await home()).status, rel).toBe(200);
         expect(fake.builds, rel).toBe(expected);
       });
+    }
+  });
+
+  it("watches git tag refs (packed-refs and refs/tags) for standard repos and worktrees", () => {
+    const tmp = mkdtempSync(join(TMP_PARENT, "git-watch-"));
+    try {
+      // Standard .git directory.
+      const standardRepo = join(tmp, "standard");
+      mkdirSync(join(standardRepo, ".git", "refs", "tags"), {
+        recursive: true,
+      });
+      const packedRefs = join(standardRepo, ".git", "packed-refs");
+      const tagFile = join(standardRepo, ".git", "refs", "tags", "v1.0.0");
+      writeFileSync(packedRefs, "# pack-refs\n", "utf8");
+      writeFileSync(tagFile, "0000000\n", "utf8");
+
+      const stdPaths = resolveGitTagWatchPaths(standardRepo);
+      expect(stdPaths).toEqual([
+        packedRefs,
+        join(standardRepo, ".git", "refs", "tags"),
+      ]);
+
+      const watched = getWatchedPaths(standardRepo);
+      expect(watched).toEqual(expect.arrayContaining(stdPaths));
+
+      const future = Date.now() + 5_000;
+      expect(sourcesChangedSince(future, stdPaths)).toBe(false);
+      utimesSync(tagFile, new Date(future + 1000), new Date(future + 1000));
+      expect(sourcesChangedSince(future, stdPaths)).toBe(true);
+
+      // Worktree .git pointer file with commondir.
+      const commonGit = join(tmp, "common-git");
+      const wtGitDir = join(commonGit, "worktrees", "wt-a");
+      const wtRepo = join(tmp, "wt-a");
+      mkdirSync(join(commonGit, "refs", "tags"), { recursive: true });
+      mkdirSync(wtGitDir, { recursive: true });
+      mkdirSync(wtRepo, { recursive: true });
+      writeFileSync(join(wtGitDir, "commondir"), "../..\n", "utf8");
+      writeFileSync(join(wtRepo, ".git"), `gitdir: ${wtGitDir}\n`, "utf8");
+
+      expect(resolveGitTagWatchPaths(wtRepo)).toEqual([
+        join(commonGit, "packed-refs"),
+        join(commonGit, "refs", "tags"),
+      ]);
+
+      // Archive folder without .git returns [].
+      const noGit = join(tmp, "archive");
+      mkdirSync(noGit, { recursive: true });
+      expect(resolveGitTagWatchPaths(noGit)).toEqual([]);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
     }
   });
 });

@@ -24,7 +24,7 @@ import {
 (window as unknown as Record<string, unknown>).__SITE_ISLAND_MANUAL_INIT__ =
   true;
 
-const { initChangelog } = await import("./islands/changelog");
+const { initChangelog, initReleaseRuler } = await import("./islands/changelog");
 const { initHome } = await import("./islands/home");
 const { initPricing } = await import("./islands/pricing");
 const { initRecipeDetail } = await import("./islands/recipe-detail");
@@ -812,15 +812,12 @@ describe("public site vanilla islands on built static HTML", () => {
       expect.objectContaining({ behavior: "smooth" }),
     );
 
-    // Scroll position updates the marked chip (advance past lock window).
-    const nowSpy = vi
-      .spyOn(performance, "now")
-      .mockReturnValue(performance.now() + 2000);
+    // Scroll position updates the marked chip once scrollend unlocks the programmatic jump.
+    window.dispatchEvent(new Event("scrollend"));
     currentScrollY = 400 + 1 * 600 - 40;
     window.dispatchEvent(new Event("scroll"));
     expect(chips[1].getAttribute("aria-current")).toBe("location");
     expect(chips[4].hasAttribute("aria-current")).toBe(false);
-    nowSpy.mockRestore();
 
     // Keyboard: ArrowRight, ArrowLeft, End, Home move focus; Space activates chip.
     chips[0].focus();
@@ -860,5 +857,293 @@ describe("public site vanilla islands on built static HTML", () => {
       }),
     );
     expect(chips[3].getAttribute("aria-current")).toBe("location");
+  });
+
+  it("changelog scroll sync: writes aria-current only when active chip changes and reads layout at most once per frame", () => {
+    loadBuiltDocument(changelogHtml);
+
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+    const flushFrame = () => {
+      const batch = rafQueue.splice(0, rafQueue.length);
+      for (const cb of batch) cb(performance.now());
+    };
+
+    const header = document.querySelector<HTMLElement>(".site-header");
+    const ruler = document.querySelector<HTMLElement>("[data-release-ruler]");
+    const track = document.querySelector<HTMLElement>(
+      "[data-release-ruler-track]",
+    );
+    const chips = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("[data-release-chip]"),
+    );
+    const entries = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-release-entry]"),
+    );
+
+    let currentScrollY = 0;
+    Object.defineProperty(window, "scrollY", {
+      get: () => currentScrollY,
+      configurable: true,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      value: 900,
+      configurable: true,
+    });
+
+    const headerRectSpy = vi.fn(
+      () =>
+        ({
+          top: 0,
+          bottom: 73,
+          left: 0,
+          right: 1440,
+          width: 1440,
+          height: 73,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        }) as DOMRect,
+    );
+    const rulerRectSpy = vi.fn(
+      () =>
+        ({
+          top: 73,
+          bottom: 163,
+          left: 0,
+          right: 1440,
+          width: 1440,
+          height: 90,
+          x: 0,
+          y: 73,
+          toJSON: () => ({}),
+        }) as DOMRect,
+    );
+    if (header) header.getBoundingClientRect = headerRectSpy;
+    if (ruler) ruler.getBoundingClientRect = rulerRectSpy;
+
+    const events: string[] = [];
+    const entryRectSpies = entries.map((entry, idx) => {
+      const docTop = 400 + idx * 600;
+      const spy = vi.fn(() => {
+        events.push(`read:entry:${idx}`);
+        return {
+          top: docTop - currentScrollY,
+          bottom: docTop + 500 - currentScrollY,
+          left: 272,
+          right: 1168,
+          width: 896,
+          height: 500,
+          x: 272,
+          y: docTop - currentScrollY,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+      entry.getBoundingClientRect = spy;
+      return spy;
+    });
+
+    if (track) {
+      Object.defineProperty(track, "scrollWidth", {
+        value: 2400,
+        configurable: true,
+      });
+      Object.defineProperty(track, "clientWidth", {
+        value: 900,
+        configurable: true,
+      });
+      track.scrollTo = vi.fn();
+      track.getBoundingClientRect = vi.fn(() => {
+        events.push("read:track");
+        return {
+          top: 100,
+          bottom: 150,
+          left: 100,
+          right: 1000,
+          width: 900,
+          height: 50,
+          x: 100,
+          y: 100,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+    }
+
+    const cleanup = initReleaseRuler();
+    try {
+      headerRectSpy.mockClear();
+      rulerRectSpy.mockClear();
+      for (const s of entryRectSpies) s.mockClear();
+      events.length = 0;
+
+      const origSetAttr = Element.prototype.setAttribute;
+      const origRemoveAttr = Element.prototype.removeAttribute;
+      const setAttrSpy = vi
+        .spyOn(Element.prototype, "setAttribute")
+        .mockImplementation(function (
+          this: Element,
+          name: string,
+          value: string,
+        ) {
+          if (name === "aria-current") events.push("write:set-aria-current");
+          return origSetAttr.call(this, name, value);
+        });
+      const removeAttrSpy = vi
+        .spyOn(Element.prototype, "removeAttribute")
+        .mockImplementation(function (this: Element, name: string) {
+          if (name === "aria-current") events.push("write:remove-aria-current");
+          return origRemoveAttr.call(this, name);
+        });
+
+      // 5 burst scroll events within the same entry (entry 0): coalesced to 1 rAF read,
+      // 0 aria-current DOM writes, and 0 header/ruler layout reads.
+      for (let i = 0; i < 5; i += 1) {
+        currentScrollY = 10 + i * 5;
+        window.dispatchEvent(new Event("scroll"));
+      }
+      expect(rafQueue).toHaveLength(1);
+      flushFrame();
+
+      expect(entryRectSpies[0]).toHaveBeenCalledTimes(1);
+      expect(headerRectSpy).toHaveBeenCalledTimes(0);
+      expect(rulerRectSpy).toHaveBeenCalledTimes(0);
+      expect(
+        setAttrSpy.mock.calls.filter(([name]) => name === "aria-current"),
+      ).toHaveLength(0);
+      expect(
+        removeAttrSpy.mock.calls.filter(([name]) => name === "aria-current"),
+      ).toHaveLength(0);
+
+      // Scroll into entry 2: only 1 removeAttribute (old) + 1 setAttribute (new),
+      // and track layout read happens before any aria-current DOM write (no read-after-write).
+      events.length = 0;
+      currentScrollY = 400 + 2 * 600 - 40;
+      window.dispatchEvent(new Event("scroll"));
+      flushFrame();
+
+      expect(chips[2].getAttribute("aria-current")).toBe("location");
+      expect(
+        removeAttrSpy.mock.calls.filter(([name]) => name === "aria-current"),
+      ).toHaveLength(1);
+      expect(
+        setAttrSpy.mock.calls.filter(([name]) => name === "aria-current"),
+      ).toHaveLength(1);
+      const firstWriteIdx = events.findIndex((e) => e.startsWith("write:"));
+      const lastReadIdx = events.reduce(
+        (acc, e, idx) => (e.startsWith("read:") ? idx : acc),
+        -1,
+      );
+      expect(firstWriteIdx).toBeGreaterThan(-1);
+      expect(lastReadIdx).toBeLessThan(firstWriteIdx);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("changelog scroll lock: holds across long smooth scrolls until scrollend (and via idle fallback when scrollend is absent)", () => {
+    vi.useFakeTimers();
+    loadBuiltDocument(changelogHtml);
+
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    const chips = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("[data-release-chip]"),
+    );
+    const entries = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-release-entry]"),
+    );
+
+    let currentScrollY = 0;
+    Object.defineProperty(window, "scrollY", {
+      get: () => currentScrollY,
+      configurable: true,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      value: 900,
+      configurable: true,
+    });
+    vi.stubGlobal("scrollTo", vi.fn());
+
+    entries.forEach((entry, idx) => {
+      const docTop = 400 + idx * 600;
+      entry.getBoundingClientRect = () =>
+        ({
+          top: docTop - currentScrollY,
+          bottom: docTop + 500 - currentScrollY,
+          left: 272,
+          right: 1168,
+          width: 896,
+          height: 500,
+          x: 272,
+          y: docTop - currentScrollY,
+          toJSON: () => ({}),
+        }) as DOMRect;
+    });
+
+    // Part 1: Browser with native scrollend support (Chromium / Firefox).
+    Object.defineProperty(window, "onscrollend", {
+      value: null,
+      configurable: true,
+      writable: true,
+    });
+    const cleanup = initReleaseRuler();
+    try {
+      chips[5].click();
+      expect(chips[5].getAttribute("aria-current")).toBe("location");
+
+      // Advance well past the old 650 ms fixed lock (900 ms) while emitting intermediate scrolls:
+      // chip 5 must remain marked without flickering to intermediate entries.
+      for (let step = 1; step <= 9; step += 1) {
+        vi.advanceTimersByTime(100);
+        currentScrollY = 400 + Math.min(3, Math.floor(step / 2)) * 600;
+        window.dispatchEvent(new Event("scroll"));
+        vi.advanceTimersByTime(20);
+        expect(chips[5].getAttribute("aria-current")).toBe("location");
+      }
+
+      // Firing scrollend when scroll ended elsewhere (interrupted smooth scroll)
+      // immediately releases the lock and syncs to the resting position.
+      currentScrollY = 400 + 1 * 600 - 40;
+      window.dispatchEvent(new Event("scrollend"));
+      vi.advanceTimersByTime(20);
+      expect(chips[1].getAttribute("aria-current")).toBe("location");
+      expect(chips[5].hasAttribute("aria-current")).toBe(false);
+
+      // Part 2: Browser without native scrollend support (WebKit fallback).
+      delete (window as unknown as { onscrollend?: unknown }).onscrollend;
+      chips[6].click();
+      expect(chips[6].getAttribute("aria-current")).toBe("location");
+
+      // Continuous intermediate scroll events past 650 ms keep extending the idle fallback:
+      // zero flicker during a 900 ms smooth scroll.
+      for (let step = 1; step <= 9; step += 1) {
+        vi.advanceTimersByTime(100);
+        currentScrollY = 400 + 2 * 600;
+        window.dispatchEvent(new Event("scroll"));
+        vi.advanceTimersByTime(20);
+        expect(chips[6].getAttribute("aria-current")).toBe("location");
+      }
+
+      // Once scrolling stops and the idle window elapses, the lock releases cleanly.
+      vi.advanceTimersByTime(250);
+      currentScrollY = 400 + 1 * 600 - 40;
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(20);
+      expect(chips[1].getAttribute("aria-current")).toBe("location");
+    } finally {
+      cleanup();
+      delete (window as unknown as { onscrollend?: unknown }).onscrollend;
+    }
   });
 });
