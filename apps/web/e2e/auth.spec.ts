@@ -136,7 +136,7 @@ test("home hero composer multi-line draft survives magic-link sign-in in a new t
   const magicTab = await context.newPage();
   watchUrls(magicTab);
   await magicTab.goto(confirmUrl.href);
-  await expect(magicTab).toHaveURL(/\/create\?draft=1$/u);
+  await expect(magicTab).toHaveURL(/\/create$/u);
 
   const studioPrompt = magicTab.locator("#simple-prompt");
   await expect(studioPrompt).toHaveValue(twoLines);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
+import { clearComposerDraft } from "@/lib/site/composer-draft";
 import { st } from "@/lib/studio/i18n";
 import { createClient } from "@/lib/supabase/browser";
 import { useGlass } from "./ambient-backdrop";
@@ -103,6 +104,7 @@ export function SettingsPanel({
           <button
             type="button"
             onClick={async () => {
+              clearComposerDraft();
               await createClient().auth.signOut();
               router.push("/login");
               router.refresh();

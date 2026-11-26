@@ -55,6 +55,7 @@ const nextConfig: NextConfig = {
       "./inputs.js": "../../packages/shared/src/ops/inputs.ts",
       "../stages.js": "../../packages/shared/src/stages.ts",
       "../lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
+      "../prompt-limits.js": "../../packages/shared/src/prompt-limits.ts",
       "../song-settings.js": "../../packages/shared/src/song-settings.ts",
       "../visualizer/viz-params.js":
         "../../packages/shared/src/visualizer/viz-params.ts",
@@ -70,6 +71,7 @@ const nextConfig: NextConfig = {
       "./start.js": "../../packages/shared/src/recipes/start.ts",
       "./i18n.js": "../../packages/shared/src/i18n.ts",
       "./lyric-pack.js": "../../packages/shared/src/lyric-pack.ts",
+      "./prompt-limits.js": "../../packages/shared/src/prompt-limits.ts",
       "./publication-defaults.js":
         "../../packages/shared/src/publication-defaults.ts",
       "./lyrics-assist.js": "../../packages/shared/src/lyrics-assist.ts",

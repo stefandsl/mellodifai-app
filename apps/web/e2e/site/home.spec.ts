@@ -408,9 +408,10 @@ test("keyboard only: skip link, pick a prompt chip, focus composer, submit to si
   expect(landed.searchParams.get("next")).toBe("/create?draft=1");
   expect(page.url()).not.toContain(expectedPrompt.slice(0, 12));
   expect(
-    await page.evaluate(() =>
-      window.localStorage.getItem("mellodifai:composer-draft"),
-    ),
+    await page.evaluate(() => {
+      const raw = window.localStorage.getItem("mellodifai:composer-draft");
+      return raw ? (JSON.parse(raw) as { text: string }).text : null;
+    }),
   ).toBe(expectedPrompt);
   expect(posts).toEqual([]);
 });
@@ -457,9 +458,10 @@ for (const [width, height] of [
     expect(page.url()).not.toContain("First");
     expect(page.url()).not.toContain("Second");
     expect(
-      await page.evaluate(() =>
-        window.localStorage.getItem("mellodifai:composer-draft"),
-      ),
+      await page.evaluate(() => {
+        const raw = window.localStorage.getItem("mellodifai:composer-draft");
+        return raw ? (JSON.parse(raw) as { text: string }).text : null;
+      }),
     ).toBe(twoLines);
     expect(posts).toEqual([]);
   });

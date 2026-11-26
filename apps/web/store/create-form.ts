@@ -4,6 +4,7 @@ import {
   BPM_RANGE,
   type Lang,
   MAX_SONGS_PER_CLICK,
+  PROMPT_MAX_LENGTH,
   SEED_MAX,
   SONG_KEYS,
   SOURCE_MODES,
@@ -15,7 +16,6 @@ import {
 } from "@mellodifai/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { COMPOSER_PROMPT_MAX_LENGTH } from "@/lib/site/composer-draft";
 
 export type VideoMode =
   | "off"
@@ -148,7 +148,7 @@ export function initialForm(lang: Lang = "it"): CreateFormState {
 }
 
 export const LIMITS = {
-  prompt: COMPOSER_PROMPT_MAX_LENGTH,
+  prompt: PROMPT_MAX_LENGTH,
   lyrics: 5000,
   styles: 1000,
   exclude: 1000,

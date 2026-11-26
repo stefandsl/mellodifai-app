@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "@/components/locale-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  COMPOSER_DRAFT_KEY,
+  saveComposerDraft,
+} from "@/lib/site/composer-draft";
 import { PlaylistsProvider, type PlaylistsState } from "./playlists-context";
+import { SettingsPanel } from "./settings-panel";
 import { MobileTopBar, StudioSidebar } from "./sidebar";
 
 const mock = vi.hoisted(() => ({
@@ -203,5 +208,31 @@ describe("playlist list", () => {
     expect(
       within(screen.getByRole("dialog")).getByLabelText("Nome della playlist"),
     ).toHaveValue("   Notte");
+  });
+});
+
+describe("sign-out clears home composer draft", () => {
+  it("removes mellodifai:composer-draft when signing out from the sidebar", async () => {
+    saveComposerDraft("Draft from home page");
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).not.toBeNull();
+    sidebar(STATE, "en");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Sign out (a@b.test)" }),
+    );
+    await waitFor(() => expect(mock.push).toHaveBeenCalledWith("/login"));
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
+  });
+
+  it("removes mellodifai:composer-draft when signing out from settings", async () => {
+    saveComposerDraft("Draft from home page");
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).not.toBeNull();
+    render(
+      <LocaleProvider value="en">
+        <SettingsPanel email="a@b.test" />
+      </LocaleProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(mock.push).toHaveBeenCalledWith("/login"));
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
   });
 });

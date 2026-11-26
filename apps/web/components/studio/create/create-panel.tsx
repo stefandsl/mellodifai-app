@@ -23,7 +23,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { consumeComposerDraft } from "@/lib/site/composer-draft";
+import {
+  consumeComposerDraft,
+  hasDraftQueryParam,
+  stripDraftQueryParam,
+} from "@/lib/site/composer-draft";
 import {
   engineControls,
   engineLabel,
@@ -186,9 +190,16 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     void Promise.resolve(useCreateForm.persist.rehydrate()).then(() => {
-      const draft = consumeComposerDraft();
-      if (draft) {
-        useCreateForm.getState().set({ mode: "simple", prompt: draft });
+      if (hasDraftQueryParam(window.location.search)) {
+        const draft = consumeComposerDraft();
+        if (draft) {
+          useCreateForm.getState().set({ mode: "simple", prompt: draft });
+        }
+        window.history.replaceState(
+          window.history.state,
+          "",
+          stripDraftQueryParam(window.location),
+        );
       }
       setReady(true);
     });

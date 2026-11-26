@@ -1,7 +1,7 @@
+import { PROMPT_MAX_LENGTH } from "@mellodifai/shared";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import { LocaleProvider } from "@/components/locale-provider";
 import {
   NO_WORKER,
@@ -10,7 +10,7 @@ import {
 } from "@/components/studio/worker-state";
 import {
   COMPOSER_DRAFT_KEY,
-  COMPOSER_PROMPT_MAX_LENGTH,
+  COMPOSER_DRAFT_MAX_AGE_MS,
   saveComposerDraft,
 } from "@/lib/site/composer-draft";
 import { parseEngines } from "@/lib/studio/engines";
@@ -68,6 +68,7 @@ async function chooseEngine(name: RegExp) {
 beforeEach(() => {
   mock.create.mockClear();
   localStorage.clear();
+  window.history.replaceState(null, "", "/create");
   useCreateForm.setState({
     ...initialForm("it"),
     open: {
@@ -335,9 +336,10 @@ describe("when the engine stops qualifying", () => {
 });
 
 describe("home hero composer draft handoff", () => {
-  it("prefills a multi-line draft from localStorage once and clears it", async () => {
+  it("prefills a multi-line draft when ?draft=1 is present, clears storage, and removes draft=1 from the URL", async () => {
     const multiLine = "First verse line\nSecond chorus line";
     saveComposerDraft(multiLine);
+    window.history.replaceState(null, "", "/create?draft=1");
     useCreateForm.setState({ mode: "advanced", prompt: "" });
 
     const { unmount } = render(panel(worker({ isAdmin: false }), "en"));
@@ -348,6 +350,8 @@ describe("home hero composer draft handoff", () => {
       expect(box.value).toBe(multiLine);
     });
     expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
+    expect(window.location.pathname).toBe("/create");
+    expect(window.location.search).toBe("");
     unmount();
 
     // Clearing the form and remounting does not re-apply the already-consumed draft.
@@ -361,18 +365,61 @@ describe("home hero composer draft handoff", () => {
     });
   });
 
-  it("clamps an oversized localStorage draft to the shared prompt limit", async () => {
-    const oversized = `${"x".repeat(490)}\n${"y".repeat(40)}`;
-    window.localStorage.setItem(COMPOSER_DRAFT_KEY, oversized);
+  it("ignores localStorage draft on /create when ?draft=1 is absent and preserves user's saved prompt", async () => {
+    saveComposerDraft("Visitor A abandoned home prompt");
+    window.history.replaceState(null, "", "/create");
+    useCreateForm.setState({
+      mode: "simple",
+      prompt: "User B own saved prompt",
+    });
 
     render(panel(worker({ isAdmin: false }), "en"));
     await waitFor(() => {
       const box = screen.getByLabelText(
         "Describe the song",
       ) as HTMLTextAreaElement;
-      expect(box.value.length).toBe(COMPOSER_PROMPT_MAX_LENGTH);
-      expect(box.value).toBe(oversized.slice(0, COMPOSER_PROMPT_MAX_LENGTH));
+      expect(box.value).toBe("User B own saved prompt");
+    });
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).not.toBeNull();
+  });
+
+  it("drops a stale draft (>30 min) on /create?draft=1 without overwriting the user's saved prompt", async () => {
+    const staleAt = Date.now() - COMPOSER_DRAFT_MAX_AGE_MS - 60_000;
+    saveComposerDraft("Stale draft from an hour ago", undefined, staleAt);
+    window.history.replaceState(null, "", "/create?draft=1");
+    useCreateForm.setState({
+      mode: "simple",
+      prompt: "User own saved prompt",
+    });
+
+    render(panel(worker({ isAdmin: false }), "en"));
+    await waitFor(() => {
+      expect(window.location.search).toBe("");
+    });
+    const box = screen.getByLabelText(
+      "Describe the song",
+    ) as HTMLTextAreaElement;
+    expect(box.value).toBe("User own saved prompt");
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
+  });
+
+  it("clamps an oversized localStorage draft to PROMPT_MAX_LENGTH when ?draft=1 is present", async () => {
+    const oversized = `${"x".repeat(490)}\n${"y".repeat(40)}`;
+    window.localStorage.setItem(
+      COMPOSER_DRAFT_KEY,
+      JSON.stringify({ text: oversized, savedAt: Date.now() }),
+    );
+    window.history.replaceState(null, "", "/create?draft=1");
+
+    render(panel(worker({ isAdmin: false }), "en"));
+    await waitFor(() => {
+      const box = screen.getByLabelText(
+        "Describe the song",
+      ) as HTMLTextAreaElement;
+      expect(box.value.length).toBe(PROMPT_MAX_LENGTH);
+      expect(box.value).toBe(oversized.slice(0, PROMPT_MAX_LENGTH));
     });
     expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
+    expect(window.location.search).toBe("");
   });
 });

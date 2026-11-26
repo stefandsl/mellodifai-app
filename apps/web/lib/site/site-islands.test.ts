@@ -270,9 +270,17 @@ describe("public site vanilla islands on built static HTML", () => {
       expect(dest.searchParams.get("prompt")).toBeNull();
       expect(dest.searchParams.get("next")).toBe("/create?draft=1");
       expect(navigated[0]).not.toContain("Second verse");
-      const savedDraft = window.localStorage.getItem(COMPOSER_DRAFT_KEY);
-      expect(savedDraft).toBe(multiLine.slice(0, COMPOSER_PROMPT_MAX_LENGTH));
-      expect(savedDraft?.includes("\n")).toBe(true);
+      const savedRaw = window.localStorage.getItem(COMPOSER_DRAFT_KEY);
+      expect(savedRaw).not.toBeNull();
+      const savedDraft = JSON.parse(savedRaw as string) as {
+        text: string;
+        savedAt: number;
+      };
+      expect(savedDraft.text).toBe(
+        multiLine.slice(0, COMPOSER_PROMPT_MAX_LENGTH),
+      );
+      expect(typeof savedDraft.savedAt).toBe("number");
+      expect(savedDraft.text.includes("\n")).toBe(true);
       expect(window.sessionStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
       expect(fetchMock).not.toHaveBeenCalled();
 

@@ -4,6 +4,7 @@ export * from "./lyrics-assist.js";
 export * from "./music-video/index.js";
 export * from "./ops/index.js";
 export { JobStatus } from "./ops/index.js";
+export * from "./prompt-limits.js";
 export * from "./publication-defaults.js";
 export * from "./publishing/index.js";
 export * from "./recipes/index.js";
