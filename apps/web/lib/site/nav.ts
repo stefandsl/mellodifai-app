@@ -41,13 +41,16 @@ export function agentHref(agent: AgentName): string {
     : ROUTES.agents.fallback;
 }
 
-// Recipe detail page (C06) is not built yet; fall back to opening the recipe in the studio
-// so every link on the recipes index answers 200 (after the studio sign-in redirect).
-const RECIPE_DETAIL_BUILT = false;
+// Recipe detail page (C06) is built and prerendered per published recipe slug.
+const RECIPE_DETAIL_BUILT = true;
 
 export function recipeHref(slug: string): string {
   const safe = encodeURIComponent(slug);
   return RECIPE_DETAIL_BUILT ? `/recipes/${safe}` : `/create?recipe=${safe}`;
+}
+
+export function recipeTryHref(slug: string): string {
+  return `/recipes/${encodeURIComponent(slug)}/try`;
 }
 
 export function recipeStartHref(slug: string): string {
