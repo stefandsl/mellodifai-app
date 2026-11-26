@@ -11,6 +11,7 @@ const STATIC_FILES = [
   "app/(site)/recipes/[slug]/route.ts",
   "app/(site)/recipes/[slug]/try/route.ts",
   "components/site/home.tsx",
+  "components/site/not-found-body.tsx",
   "components/site/site-footer.tsx",
   "components/site/brand.tsx",
   "components/site/site-header.tsx",
