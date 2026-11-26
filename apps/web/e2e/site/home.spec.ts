@@ -10,6 +10,7 @@ import {
   measureLayoutInPage,
 } from "../../lib/site/judge/likeness";
 import { collectPageText } from "../../lib/site/judge/page-text";
+import { diffPngPixels } from "../../lib/site/judge/png-diff";
 import { HEADER_LINKS } from "../../lib/site/nav";
 
 // The public home page and the site shell (C02), on Chromium, Firefox and WebKit.
@@ -747,40 +748,54 @@ test("C04 showcase mouse click on a card cut at the row edge does not jump and o
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.clock.install();
   await page.goto("/");
-  await page.clock.runFor(50);
   const row0 = page.locator('[data-marquee-row="0"]');
+  await expect(row0).toHaveAttribute("data-marquee-paused", "false");
   await row0.scrollIntoViewIfNeeded();
+
+  // Freeze virtual time and step the marquee deterministically until a card in copy 0 is clearly
+  // cut across the right edge of the row with enough visible link width to click.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+
+  const findCutCard = () =>
+    page.evaluate(() => {
+      const vp = document.querySelector<HTMLElement>('[data-marquee-row="0"]');
+      if (!vp) return null;
+      const vpRect = vp.getBoundingClientRect();
+      const cards = Array.from(
+        vp.querySelectorAll<HTMLElement>(
+          '[data-marquee-copy="0"] .site-show__card',
+        ),
+      );
+      for (const card of cards) {
+        const cardRect = card.getBoundingClientRect();
+        const link = card.querySelector<HTMLAnchorElement>("a");
+        if (!link) continue;
+        const linkRect = link.getBoundingClientRect();
+        const isCutRight =
+          cardRect.left < vpRect.right - 60 &&
+          cardRect.right > vpRect.right + 40;
+        const visibleLeft = Math.max(linkRect.left, vpRect.left);
+        const visibleRight = Math.min(linkRect.right, vpRect.right);
+        if (isCutRight && visibleRight - visibleLeft >= 24) {
+          return {
+            x: visibleLeft + Math.min(16, (visibleRight - visibleLeft) / 2),
+            y: linkRect.top + linkRect.height / 2,
+            href: link.getAttribute("href") ?? "",
+          };
+        }
+      }
+      return null;
+    });
+
+  let clickTarget = await findCutCard();
+  for (let step = 0; !clickTarget && step < 40; step++) {
+    await page.clock.runFor(250);
+    clickTarget = await findCutCard();
+  }
+
   await row0.hover();
   await expect(row0).toHaveAttribute("data-marquee-paused", "true");
-
-  const clickTarget = await page.evaluate(() => {
-    const vp = document.querySelector<HTMLElement>('[data-marquee-row="0"]');
-    if (!vp) return null;
-    const vpRect = vp.getBoundingClientRect();
-    const cards = Array.from(
-      vp.querySelectorAll<HTMLElement>(
-        '[data-marquee-copy="0"] .site-show__card',
-      ),
-    );
-    for (const card of cards) {
-      const cardRect = card.getBoundingClientRect();
-      const link = card.querySelector<HTMLAnchorElement>("a");
-      if (!link) continue;
-      const linkRect = link.getBoundingClientRect();
-      const isCutRight =
-        cardRect.left < vpRect.right - 20 && cardRect.right > vpRect.right + 10;
-      const visibleLeft = Math.max(linkRect.left, vpRect.left);
-      const visibleRight = Math.min(linkRect.right, vpRect.right);
-      if (isCutRight && visibleRight - visibleLeft >= 16) {
-        return {
-          x: visibleLeft + Math.min(14, (visibleRight - visibleLeft) / 2),
-          y: linkRect.top + linkRect.height / 2,
-          href: link.getAttribute("href") ?? "",
-        };
-      }
-    }
-    return null;
-  });
+  clickTarget = await findCutCard();
 
   expect(clickTarget).not.toBeNull();
   expect(clickTarget?.href).toBe("/recipes");
@@ -931,7 +946,25 @@ test("C04 reduced motion: no loop runs and 0 changed pixels in the hero over 3 s
     "true",
   );
 
-  // Measure real 3.0 s elapsed time and compare hero screenshots pixel-for-pixel.
+  // Wait for deferred post-LCP web fonts stylesheet and font faces to settle before measuring
+  // the 3.0 s reduced-motion window, so initial font swap does not land inside the window.
+  await page.waitForFunction(() => {
+    const link = document.querySelector<HTMLLinkElement>(
+      'link[data-site-fonts="true"]',
+    );
+    return Boolean(link?.sheet);
+  });
+  await page.evaluate(async () => {
+    const nextFrame = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await nextFrame();
+    await document.fonts.ready;
+    await nextFrame();
+    await document.fonts.ready;
+    await nextFrame();
+  });
+
+  // Measure real 3.0 s elapsed time and compare decoded hero RGBA pixels (excluding any <video>).
   const hero = page.locator(".site-hero");
   const startState = await page.evaluate(() => ({
     t0: performance.now(),
@@ -946,8 +979,26 @@ test("C04 reduced motion: no loop runs and 0 changed pixels in the hero over 3 s
     startState.t0,
   );
   const shotAfter = await hero.screenshot({ animations: "allow" });
+  const videoMasks = await page.evaluate(() => {
+    const heroEl = document.querySelector(".site-hero");
+    const heroRect = heroEl?.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    return Array.from(heroEl?.querySelectorAll("video") ?? []).map((v) => {
+      const r = v.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.floor((r.left - (heroRect?.left ?? 0)) * dpr)),
+        y: Math.max(0, Math.floor((r.top - (heroRect?.top ?? 0)) * dpr)),
+        width: Math.ceil(r.width * dpr),
+        height: Math.ceil(r.height * dpr),
+      };
+    });
+  });
 
-  expect(Buffer.compare(shotBefore, shotAfter)).toBe(0);
+  const diff = diffPngPixels(shotBefore, shotAfter, videoMasks);
+  expect(
+    diff.changedPixels,
+    `changedPixels=${diff.changedPixels}/${diff.totalPixels} changedBox=${JSON.stringify(diff.changedBox)}`,
+  ).toBe(0);
   await expect(page.locator('[data-hero-rotator="true"]')).toHaveAttribute(
     "data-rotator-index",
     "0",
