@@ -177,6 +177,8 @@ describe("serve-static-site in dev", () => {
     for (const rel of [
       "content/recipes",
       "apps/web/public/site/assets.manifest.json",
+      "apps/web/public/site/brand-mark.png",
+      "apps/web/public/site/recipes",
       "apps/web/src/site-primitives.tsx",
       "apps/web/src/site-table-primitives.tsx",
       "apps/web/lib/theme.ts",
