@@ -185,6 +185,8 @@ describe("buildSiteStatic prerender pipeline", () => {
           "home-it.html",
           "pricing-en.html",
           "pricing-it.html",
+          "changelog-en.html",
+          "changelog-it.html",
           "not-found-en.html",
           "not-found-it.html",
           "recipes-canvas-en.html",
@@ -205,12 +207,13 @@ describe("buildSiteStatic prerender pipeline", () => {
       // Island and fonts filenames are content-hashed.
       expect(result.fontsFile).toMatch(/^fonts\.[0-9a-f]{12}\.css$/u);
       expect(result.fontsUrl).toBe(`/site/styles/${result.fontsFile}`);
-      expect(result.islands).toHaveLength(4);
+      expect(result.islands).toHaveLength(5);
       for (const base of [
         "home",
         "pricing",
         "recipes",
         "recipe-detail",
+        "changelog",
       ] as const) {
         const hashed = result.islandFiles[base];
         expect(hashed).toMatch(
@@ -247,11 +250,13 @@ describe("buildSiteStatic prerender pipeline", () => {
           ? result.islandUrls.home
           : page.startsWith("pricing-")
             ? result.islandUrls.pricing
-            : page.startsWith("recipe-")
-              ? result.islandUrls["recipe-detail"]
-              : page.startsWith("not-found-")
-                ? null
-                : result.islandUrls.recipes;
+            : page.startsWith("changelog-")
+              ? result.islandUrls.changelog
+              : page.startsWith("recipe-")
+                ? result.islandUrls["recipe-detail"]
+                : page.startsWith("not-found-")
+                  ? null
+                  : result.islandUrls.recipes;
         if (expectedIsland) {
           expect(html, page).toContain(expectedIsland);
         }

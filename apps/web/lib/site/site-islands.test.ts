@@ -24,6 +24,7 @@ import {
 (window as unknown as Record<string, unknown>).__SITE_ISLAND_MANUAL_INIT__ =
   true;
 
+const { initChangelog } = await import("./islands/changelog");
 const { initHome } = await import("./islands/home");
 const { initPricing } = await import("./islands/pricing");
 const { initRecipeDetail } = await import("./islands/recipe-detail");
@@ -51,6 +52,7 @@ describe("public site vanilla islands on built static HTML", () => {
   let built: { fontsUrl: string };
   let homeHtml = "";
   let pricingHtml = "";
+  let changelogHtml = "";
   let recipesCanvasHtml = "";
   let recipesGridHtml = "";
   let recipesCanvas24Html = "";
@@ -74,6 +76,7 @@ describe("public site vanilla islands on built static HTML", () => {
     };
     homeHtml = readFileSync(join(outDir, "home-en.html"), "utf8");
     pricingHtml = readFileSync(join(outDir, "pricing-en.html"), "utf8");
+    changelogHtml = readFileSync(join(outDir, "changelog-en.html"), "utf8");
     recipesCanvasHtml = readFileSync(
       join(outDir, "recipes-canvas-en.html"),
       "utf8",
@@ -727,5 +730,135 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(audioEl?.tagName).toBe("AUDIO");
     expect(audioEl?.autoplay).toBe(false);
     expect(audioEl?.preload).toBe("none");
+  });
+
+  it("changelog: chip click scrolls and marks aria-current, scroll updates chip, keyboard navigates chips, and reduced motion uses auto scroll", () => {
+    loadBuiltDocument(changelogHtml);
+
+    const chips = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("[data-release-chip]"),
+    );
+    const entries = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-release-entry]"),
+    );
+    expect(chips.length).toBeGreaterThanOrEqual(11);
+    expect(entries).toHaveLength(chips.length);
+
+    // Position entries vertically in jsdom so scroll tracking and click target math run realistically.
+    let currentScrollY = 0;
+    Object.defineProperty(window, "scrollY", {
+      get: () => currentScrollY,
+      configurable: true,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      value: 900,
+      configurable: true,
+    });
+    const scrollToMock = vi
+      .fn()
+      .mockImplementation((opts: { top?: number; behavior?: string }) => {
+        if (typeof opts?.top === "number") currentScrollY = opts.top;
+      });
+    vi.stubGlobal("scrollTo", scrollToMock);
+
+    entries.forEach((entry, idx) => {
+      const docTop = 400 + idx * 600;
+      entry.getBoundingClientRect = () =>
+        ({
+          top: docTop - currentScrollY,
+          bottom: docTop + 500 - currentScrollY,
+          left: 272,
+          right: 1168,
+          width: 896,
+          height: 500,
+          x: 272,
+          y: docTop - currentScrollY,
+          toJSON: () => ({}),
+        }) as DOMRect;
+    });
+
+    initChangelog();
+
+    // First chip starts marked.
+    expect(chips[0].getAttribute("aria-current")).toBe("location");
+    expect(chips[2].hasAttribute("aria-current")).toBe(false);
+
+    // With prefers-reduced-motion: reduce (stubbed true in beforeEach), chip click uses behavior: "auto".
+    chips[2].click();
+    expect(chips[2].getAttribute("aria-current")).toBe("location");
+    expect(chips[0].hasAttribute("aria-current")).toBe(false);
+    expect(scrollToMock).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: "auto" }),
+    );
+    expect(window.location.hash).toBe(
+      `#${chips[2].getAttribute("data-release-chip")}`,
+    );
+
+    // When reduced motion is off, chip click uses behavior: "smooth".
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    scrollToMock.mockClear();
+    chips[4].click();
+    expect(chips[4].getAttribute("aria-current")).toBe("location");
+    expect(chips[2].hasAttribute("aria-current")).toBe(false);
+    expect(scrollToMock).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: "smooth" }),
+    );
+
+    // Scroll position updates the marked chip (advance past lock window).
+    const nowSpy = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(performance.now() + 2000);
+    currentScrollY = 400 + 1 * 600 - 40;
+    window.dispatchEvent(new Event("scroll"));
+    expect(chips[1].getAttribute("aria-current")).toBe("location");
+    expect(chips[4].hasAttribute("aria-current")).toBe(false);
+    nowSpy.mockRestore();
+
+    // Keyboard: ArrowRight, ArrowLeft, End, Home move focus; Space activates chip.
+    chips[0].focus();
+    chips[0].dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(document.activeElement).toBe(chips[1]);
+
+    chips[1].dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "End",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(document.activeElement).toBe(chips[chips.length - 1]);
+
+    chips[chips.length - 1].dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Home",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(document.activeElement).toBe(chips[0]);
+
+    chips[3].focus();
+    chips[3].dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: " ",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(chips[3].getAttribute("aria-current")).toBe("location");
   });
 });

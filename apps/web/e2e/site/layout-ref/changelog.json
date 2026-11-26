@@ -1,0 +1,203 @@
+{
+  "slug": "changelog",
+  "route": "/changelog",
+  "sections": [
+    "Head: title, one line",
+    "Release ruler: tick strip with dated chips",
+    "Entries: dated rows, each a date column and a content column",
+    "Footer"
+  ],
+  "widths": {
+    "390": {
+      "pageHeight": 70708,
+      "sections": [
+        {
+          "name": "Head: title, one line",
+          "present": true,
+          "y": 0,
+          "h": 277,
+          "blocks": 1,
+          "contentLeft": 34,
+          "contentRight": 34,
+          "topInset": 112,
+          "bottomInset": 40,
+          "grid": null
+        },
+        {
+          "name": "Release ruler: tick strip with dated chips",
+          "present": true,
+          "y": 277,
+          "h": 175,
+          "blocks": 1,
+          "contentLeft": 14,
+          "contentRight": 14,
+          "topInset": 7,
+          "bottomInset": 21,
+          "grid": null
+        },
+        {
+          "name": "Entries: dated rows, each a date column and a content column",
+          "present": true,
+          "y": 452,
+          "h": 68883,
+          "blocks": 1,
+          "contentLeft": 14,
+          "contentRight": 14,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 69433,
+          "h": 1275,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 42,
+            "rowGap": 42,
+            "itemW": 348,
+            "x": 21,
+            "w": 348
+          }
+        }
+      ]
+    },
+    "1024": {
+      "pageHeight": 60704,
+      "sections": [
+        {
+          "name": "Head: title, one line",
+          "present": true,
+          "y": 0,
+          "h": 339,
+          "blocks": 1,
+          "contentLeft": 346,
+          "contentRight": 346,
+          "topInset": 169,
+          "bottomInset": 56,
+          "grid": null
+        },
+        {
+          "name": "Release ruler: tick strip with dated chips",
+          "present": true,
+          "y": 339,
+          "h": 175,
+          "blocks": 1,
+          "contentLeft": 14,
+          "contentRight": 14,
+          "topInset": 7,
+          "bottomInset": 21,
+          "grid": null
+        },
+        {
+          "name": "Entries: dated rows, each a date column and a content column",
+          "present": true,
+          "y": 514,
+          "h": 59153,
+          "blocks": 1,
+          "contentLeft": 64,
+          "contentRight": 64,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 59765,
+          "h": 939,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 324,
+            "x": 35,
+            "w": 954
+          }
+        }
+      ]
+    },
+    "1440": {
+      "pageHeight": 60722,
+      "sections": [
+        {
+          "name": "Head: title, one line",
+          "present": true,
+          "y": 0,
+          "h": 339,
+          "blocks": 1,
+          "contentLeft": 554,
+          "contentRight": 554,
+          "topInset": 169,
+          "bottomInset": 56,
+          "grid": null
+        },
+        {
+          "name": "Release ruler: tick strip with dated chips",
+          "present": true,
+          "y": 339,
+          "h": 175,
+          "blocks": 1,
+          "contentLeft": 14,
+          "contentRight": 14,
+          "topInset": 7,
+          "bottomInset": 21,
+          "grid": null
+        },
+        {
+          "name": "Entries: dated rows, each a date column and a content column",
+          "present": true,
+          "y": 514,
+          "h": 59153,
+          "blocks": 1,
+          "contentLeft": 272,
+          "contentRight": 272,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 56,
+            "rowGap": 56,
+            "itemW": 220,
+            "x": 272,
+            "w": 896
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 59765,
+          "h": 957,
+          "blocks": 1,
+          "contentLeft": 115,
+          "contentRight": 115,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 411,
+            "x": 115,
+            "w": 1210
+          }
+        }
+      ]
+    }
+  }
+}
