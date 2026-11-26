@@ -15,6 +15,8 @@ export const EXPECTED_STATIC_PAGES = [
   "home-it.html",
   "pricing-en.html",
   "pricing-it.html",
+  "not-found-en.html",
+  "not-found-it.html",
   "recipes-canvas-en.html",
   "recipes-canvas-it.html",
   "recipes-grid-en.html",
@@ -25,7 +27,28 @@ export const EXPECTED_STATIC_PAGES = [
   "recipes-grid-24-it.html",
 ];
 
-export const EXPECTED_STATIC_ISLANDS = ["home", "pricing", "recipes"];
+export const EXPECTED_STATIC_ISLANDS = [
+  "home",
+  "pricing",
+  "recipes",
+  "recipe-detail",
+];
+
+function listPublishedRecipeSlugs() {
+  const recipesDir = path.join(REPO_ROOT, "content", "recipes");
+  if (!fs.existsSync(recipesDir)) return [];
+  const slugs = [];
+  for (const entry of fs.readdirSync(recipesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const jsonPath = path.join(recipesDir, entry.name, "recipe.json");
+    if (!fs.existsSync(jsonPath)) continue;
+    const parsed = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+    if (parsed?.status === "published" && typeof parsed.slug === "string") {
+      slugs.push(parsed.slug);
+    }
+  }
+  return slugs.sort();
+}
 
 function contentHash(content) {
   return createHash("sha256").update(content).digest("hex").slice(0, 12);
@@ -155,7 +178,15 @@ export function verifySiteStaticOutput(outDir = OUT_DIR) {
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
-  for (const page of EXPECTED_STATIC_PAGES) {
+  const expectedPages = [
+    ...EXPECTED_STATIC_PAGES,
+    ...listPublishedRecipeSlugs().flatMap((slug) => [
+      `recipe-${slug}-en.html`,
+      `recipe-${slug}-it.html`,
+    ]),
+  ];
+
+  for (const page of expectedPages) {
     if (!isNonEmptyFile(path.join(outDir, page))) {
       missing.push(page);
     }
@@ -341,10 +372,20 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
   let fontsCss = "";
   let fontsFile = "";
   let fontsUrl = "";
-  /** @type {{ home: string; pricing: string; recipes: string }} */
-  const islandFiles = { home: "", pricing: "", recipes: "" };
-  /** @type {{ home: string; pricing: string; recipes: string }} */
-  const islandUrls = { home: "", pricing: "", recipes: "" };
+  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string }} */
+  const islandFiles = {
+    home: "",
+    pricing: "",
+    recipes: "",
+    "recipe-detail": "",
+  };
+  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string }} */
+  const islandUrls = {
+    home: "",
+    pricing: "",
+    recipes: "",
+    "recipe-detail": "",
+  };
 
   try {
     const mod = await import(
@@ -382,9 +423,10 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
     collectInputs(islandBuild);
 
     for (const outputFile of islandBuild.outputFiles) {
-      const base = /** @type {"home" | "pricing" | "recipes"} */ (
-        path.basename(outputFile.path, ".js")
-      );
+      const base =
+        /** @type {"home" | "pricing" | "recipes" | "recipe-detail"} */ (
+          path.basename(outputFile.path, ".js")
+        );
       const hash = contentHash(outputFile.contents);
       const hashedName = `${base}.${hash}.js`;
       fs.writeFileSync(

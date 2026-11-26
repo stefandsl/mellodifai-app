@@ -16,10 +16,16 @@ import { Home } from "@/components/site/home";
 import {
   ArrowGlyph,
   CloseGlyph,
+  ExitFullscreenGlyph,
+  FullscreenGlyph,
   PauseGlyph,
   PlayGlyph,
+  VolumeGlyph,
+  VolumeMuteGlyph,
 } from "@/components/site/icons";
+import { NotFoundBody } from "@/components/site/not-found-body";
 import { PricingPlans } from "@/components/site/pricing-plans";
+import { RecipeDetail } from "@/components/site/recipe-detail";
 import {
   RecipesIndex,
   type RecipesViewMode,
@@ -30,7 +36,11 @@ import { SITE_COPY, type SiteLang } from "@/lib/site/copy";
 import { href } from "@/lib/site/nav";
 import { COMPARE } from "@/lib/site/plans";
 import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
-import { getPublishedRecipes, type LoadedRecipe } from "@/lib/site/recipes";
+import {
+  getMoreRecipes,
+  getPublishedRecipes,
+  type LoadedRecipe,
+} from "@/lib/site/recipes";
 import { getRecipeTestFixture } from "@/lib/site/recipes.fixture";
 import {
   SiteButtonLink,
@@ -47,6 +57,7 @@ export type StaticAssetUrls = {
     home: string;
     pricing: string;
     recipes: string;
+    "recipe-detail": string;
   };
 };
 
@@ -56,6 +67,7 @@ const DEFAULT_ASSET_URLS: StaticAssetUrls = {
     home: "/site/islands/home.js",
     pricing: "/site/islands/pricing.js",
     recipes: "/site/islands/recipes.js",
+    "recipe-detail": "/site/islands/recipe-detail.js",
   },
 };
 
@@ -142,7 +154,7 @@ function coverToDataUri(coverUrl: string): string {
 
 function renderDocument(options: {
   lang: SiteLang;
-  page: "home" | "pricing" | "recipes";
+  page: "home" | "pricing" | "recipes" | "recipe-detail" | "not-found";
   title: string;
   description: string;
   fontsUrl: string;
@@ -151,20 +163,23 @@ function renderDocument(options: {
   extraCssClasses?: readonly string[];
   scripts: readonly string[];
   deferScriptsUntilAfterLcp?: boolean;
-  children: ReactNode;
+  customBody?: ReactNode;
+  children?: ReactNode;
 }): { html: string; fontsCss: string; bodyHtml: string } {
   const copy = SITE_COPY[options.lang];
   const bodyHtml = renderToStaticMarkup(
-    <VStack className="site">
-      <SiteLink href="#main" className="site-skip" color="inherit">
-        {copy.skip}
-      </SiteLink>
-      <SiteHeader copy={copy} />
-      <VStack as="main" id="main" className="site-main" tabIndex={-1}>
-        {options.children}
+    options.customBody ?? (
+      <VStack className="site">
+        <SiteLink href="#main" className="site-skip" color="inherit">
+          {copy.skip}
+        </SiteLink>
+        <SiteHeader copy={copy} />
+        <VStack as="main" id="main" className="site-main" tabIndex={-1}>
+          {options.children}
+        </VStack>
+        <SiteFooter copy={copy} />
       </VStack>
-      <SiteFooter copy={copy} />
-    </VStack>,
+    ),
   );
 
   const fullBody = `${bodyHtml}${options.extraBodyTail ?? ""}`;
@@ -550,11 +565,79 @@ export function renderRecipesStatic(
   });
 }
 
+function renderRecipeDetailTemplates(): string {
+  const icons = [
+    ["play", PlayGlyph],
+    ["pause", PauseGlyph],
+    ["volume", VolumeGlyph],
+    ["mute", VolumeMuteGlyph],
+    ["fullscreen", FullscreenGlyph],
+    ["exit-fullscreen", ExitFullscreenGlyph],
+  ] as const;
+  return icons
+    .map(([name, Glyph]) => {
+      const markup = renderToStaticMarkup(
+        <SiteIcon icon={Glyph} size="sm" color="inherit" />,
+      );
+      return `<template data-clip-icon="${name}">${markup}</template>`;
+    })
+    .join("");
+}
+
+export function renderRecipeDetailStatic(
+  recipe: LoadedRecipe,
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): { html: string; fontsCss: string; bodyHtml: string } {
+  const copy = SITE_COPY[lang];
+  const title = `${recipe.title[lang]} - MellodifAI`;
+  const description = recipe.summary[lang];
+  const moreRecipes = getMoreRecipes(recipe.slug, 12);
+  const heroCoverSrc = coverToDataUri(recipe.mediaUrls.cover);
+
+  return renderDocument({
+    lang,
+    page: "recipe-detail",
+    title,
+    description,
+    fontsUrl: assets.fontsUrl,
+    extraBodyTail: renderRecipeDetailTemplates(),
+    scripts: [assets.islandUrls["recipe-detail"]],
+    deferScriptsUntilAfterLcp: true,
+    children: (
+      <RecipeDetail
+        recipe={recipe}
+        moreRecipes={moreRecipes}
+        heroCoverSrc={heroCoverSrc}
+        lang={lang}
+        copy={copy}
+      />
+    ),
+  });
+}
+
+export function renderNotFoundStatic(
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): { html: string; fontsCss: string; bodyHtml: string } {
+  const copy = SITE_COPY[lang];
+  return renderDocument({
+    lang,
+    page: "not-found",
+    title: copy.notFound.meta.title,
+    description: copy.notFound.meta.description,
+    fontsUrl: assets.fontsUrl,
+    scripts: [],
+    customBody: <NotFoundBody copy={copy} />,
+  });
+}
+
 export function renderAllStaticPages(
   assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
 ) {
   const pages: Record<string, string> = {};
   let fontsCss = "";
+  const publishedRecipes = getPublishedRecipes();
 
   for (const lang of ["en", "it"] as const) {
     const home = renderHomeStatic(lang, assets);
@@ -564,12 +647,20 @@ export function renderAllStaticPages(
     pages[`pricing-${lang}.html`] = pricing.html;
     if (!fontsCss) fontsCss = pricing.fontsCss;
 
+    const notFound = renderNotFoundStatic(lang, assets);
+    pages[`not-found-${lang}.html`] = notFound.html;
+
     for (const view of ["canvas", "grid"] as const) {
       const regular = renderRecipesStatic(lang, view, false, [], assets);
       pages[`recipes-${view}-${lang}.html`] = regular.html;
 
       const fix24 = renderRecipesStatic(lang, view, true, [], assets);
       pages[`recipes-${view}-24-${lang}.html`] = fix24.html;
+    }
+
+    for (const recipe of publishedRecipes) {
+      const detail = renderRecipeDetailStatic(recipe, lang, assets);
+      pages[`recipe-${recipe.slug}-${lang}.html`] = detail.html;
     }
   }
   return { pages, fontsCss };

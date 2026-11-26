@@ -82,3 +82,53 @@ export function SearchGlyph(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function ChevronLeftGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M10 3.5 5.5 8l4.5 4.5" />
+    </svg>
+  );
+}
+
+export function ChevronRightGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M6 3.5 10.5 8 6 12.5" />
+    </svg>
+  );
+}
+
+export function VolumeGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M2.5 6.25h2.5l3.25-2.75v9L5 9.75H2.5z" />
+      <path d="M11 5.75a3.25 3.25 0 0 1 0 4.5M12.75 4a5.75 5.75 0 0 1 0 8" />
+    </svg>
+  );
+}
+
+export function VolumeMuteGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M2.5 6.25h2.5l3.25-2.75v9L5 9.75H2.5z" />
+      <path d="M10.75 6 14 9.25M14 6l-3.25 3.25" />
+    </svg>
+  );
+}
+
+export function FullscreenGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M2.75 6V2.75H6M10 2.75h3.25V6M13.25 10v3.25H10M6 13.25H2.75V10" />
+    </svg>
+  );
+}
+
+export function ExitFullscreenGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M6 2.75V6H2.75M13.25 6H10V2.75M10 13.25V10h3.25M2.75 10H6v3.25" />
+    </svg>
+  );
+}

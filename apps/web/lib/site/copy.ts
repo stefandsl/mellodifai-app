@@ -1,6 +1,11 @@
 // Words of the public site, in Italian and English. All of it is ours (clean room: no text of the
 // reference site; the clean-room judge checks it). Agent names are product names and stay as is.
-import type { RecipeKind } from "@mellodifai/shared";
+import type {
+  RecipeForm,
+  RecipeInputKind,
+  RecipeKind,
+  RecipeOutput,
+} from "@mellodifai/shared";
 import type { AgentName, RouteName } from "./nav";
 import type { CellText, CompareGroup, CompareRow } from "./plans";
 
@@ -135,6 +140,48 @@ export type SiteCopy = {
     gridLabel: string;
     openAction: string;
     kinds: Record<RecipeKind, string>;
+  };
+  recipeDetail: {
+    back: string;
+    tryHint: string;
+    tryAction: string;
+    metaGenre: string;
+    metaLanguages: string;
+    metaLength: string;
+    metaOutput: string;
+    metaVoice: string;
+    outputs: Record<RecipeOutput, string>;
+    forms: Record<RecipeForm, string>;
+    voices: { m: string; f: string; any: string };
+    inputsTitle: string;
+    inputRequired: string;
+    inputOptional: string;
+    inputCharsLimit: string;
+    inputAudioLimit: string;
+    inputOptionsLimit: string;
+    inputDefaultHints: Record<RecipeInputKind, string>;
+    moreTitle: string;
+    morePrev: string;
+    moreNext: string;
+    moreTrackLabel: string;
+    moreBrowseTitle: string;
+    moreBrowseKind: string;
+    player: {
+      regionLabel: string;
+      play: string;
+      pause: string;
+      seek: string;
+      speed: string;
+      mute: string;
+      volume: string;
+      fullscreen: string;
+      exitFullscreen: string;
+      audioOnlyNote: string;
+      readyStatus: string;
+      playingStatus: string;
+      pausedStatus: string;
+      of: string;
+    };
   };
   footer: {
     tagline: string;
@@ -547,6 +594,65 @@ const en: SiteCopy = {
       cover: "Cover",
       pantomime: "Pantomime",
       satire: "Satire",
+    },
+  },
+  recipeDetail: {
+    back: "Back to songbook",
+    tryHint: "Opens with the example track. No account needed.",
+    tryAction: "Open in the editor",
+    metaGenre: "Genre",
+    metaLanguages: "Languages",
+    metaLength: "Length",
+    metaOutput: "Output",
+    metaVoice: "Voice",
+    outputs: {
+      audio: "Audio track",
+      "lyric-video": "Lyric video",
+      visualizer: "Visualizer",
+    },
+    forms: {
+      hook: "Short hook",
+      full: "Full song",
+    },
+    voices: {
+      m: "Male voice",
+      f: "Female voice",
+      any: "Any voice",
+    },
+    inputsTitle: "What you bring",
+    inputRequired: "Required",
+    inputOptional: "Optional",
+    inputCharsLimit: "Up to {n} chars",
+    inputAudioLimit: "1 audio file",
+    inputOptionsLimit: "{n} choices",
+    inputDefaultHints: {
+      link: "Paste a song link to pull its melody and timing.",
+      audio: "Upload a track or vocal clip from your device.",
+      lyrics: "Write or paste the lines you want sung.",
+      text: "Describe the twist, mood, or target in a few words.",
+      select: "Pick one of the presets or keep the default.",
+    },
+    moreTitle: "More song recipes",
+    morePrev: "Previous recipes",
+    moreNext: "Next recipes",
+    moreTrackLabel: "Related song recipes",
+    moreBrowseTitle: "Explore the songbook",
+    moreBrowseKind: "All song recipes",
+    player: {
+      regionLabel: "Recipe preview player",
+      play: "Play clip",
+      pause: "Pause clip",
+      seek: "Seek clip timeline",
+      speed: "Preview speed",
+      mute: "Mute audio",
+      volume: "Audio volume",
+      fullscreen: "Enter full screen",
+      exitFullscreen: "Exit full screen",
+      audioOnlyNote: "Audio preview with lyric highlight",
+      readyStatus: "Paused. Press play to listen.",
+      playingStatus: "Playing clip",
+      pausedStatus: "Clip paused",
+      of: "of",
     },
   },
   footer: {
@@ -970,6 +1076,65 @@ const it: SiteCopy = {
       cover: "Cover",
       pantomime: "Pantomima",
       satire: "Satira",
+    },
+  },
+  recipeDetail: {
+    back: "Torna al canzoniere",
+    tryHint: "Si apre con il brano di esempio. Senza account.",
+    tryAction: "Apri nell'editor",
+    metaGenre: "Genere",
+    metaLanguages: "Lingue",
+    metaLength: "Durata",
+    metaOutput: "Uscita",
+    metaVoice: "Voce",
+    outputs: {
+      audio: "Traccia audio",
+      "lyric-video": "Video del testo",
+      visualizer: "Visualizzatore",
+    },
+    forms: {
+      hook: "Ritornello",
+      full: "Brano completo",
+    },
+    voices: {
+      m: "Voce maschile",
+      f: "Voce femminile",
+      any: "Qualsiasi voce",
+    },
+    inputsTitle: "Cosa porti",
+    inputRequired: "Obbligatorio",
+    inputOptional: "Opzionale",
+    inputCharsLimit: "Fino a {n} caratteri",
+    inputAudioLimit: "1 file audio",
+    inputOptionsLimit: "{n} scelte",
+    inputDefaultHints: {
+      link: "Incolla il link di un brano per mantenere melodia e tempo.",
+      audio: "Carica una traccia o un frammento vocale dal tuo dispositivo.",
+      lyrics: "Scrivi o incolla i versi che vuoi far cantare.",
+      text: "Indica in poche parole il tema, il tono o il destinatario.",
+      select: "Scegli una delle opzioni o tieni quella predefinita.",
+    },
+    moreTitle: "Altre ricette musicali",
+    morePrev: "Ricette precedenti",
+    moreNext: "Ricette successive",
+    moreTrackLabel: "Ricette musicali correlate",
+    moreBrowseTitle: "Esplora il canzoniere",
+    moreBrowseKind: "Tutte le ricette",
+    player: {
+      regionLabel: "Lettore anteprima della ricetta",
+      play: "Riproduci clip",
+      pause: "Metti in pausa",
+      seek: "Sposta nella linea temporale",
+      speed: "Velocita anteprima",
+      mute: "Disattiva audio",
+      volume: "Volume audio",
+      fullscreen: "Schermo intero",
+      exitFullscreen: "Esci da schermo intero",
+      audioOnlyNote: "Anteprima audio con strofa in evidenza",
+      readyStatus: "In pausa. Premi play per ascoltare.",
+      playingStatus: "Clip in riproduzione",
+      pausedStatus: "Clip in pausa",
+      of: "di",
     },
   },
   footer: {

@@ -58,9 +58,10 @@ describe("public site loads only the Astryx CSS it uses", () => {
     expect(pricingCss).toContain(".site-price-compare");
   });
 
-  it("does not hard-code StyleX class hashes in home.ts or render-static-entry.tsx", () => {
+  it("does not hard-code StyleX class hashes in home.ts, recipe-detail.ts, or render-static-entry.tsx", () => {
     for (const rel of [
       "lib/site/islands/home.ts",
+      "lib/site/islands/recipe-detail.ts",
       "lib/site/render-static-entry.tsx",
     ]) {
       const src = readFileSync(join(WEB, rel), "utf8");

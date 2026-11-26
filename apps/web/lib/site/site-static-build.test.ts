@@ -185,6 +185,8 @@ describe("buildSiteStatic prerender pipeline", () => {
           "home-it.html",
           "pricing-en.html",
           "pricing-it.html",
+          "not-found-en.html",
+          "not-found-it.html",
           "recipes-canvas-en.html",
           "recipes-canvas-it.html",
           "recipes-grid-en.html",
@@ -193,14 +195,23 @@ describe("buildSiteStatic prerender pipeline", () => {
           "recipes-canvas-24-it.html",
           "recipes-grid-24-en.html",
           "recipes-grid-24-it.html",
+          "recipe-acoustic-voice-swap-en.html",
+          "recipe-acoustic-voice-swap-it.html",
+          "recipe-group-chat-ballad-en.html",
+          "recipe-group-chat-ballad-it.html",
         ]),
       );
 
       // Island and fonts filenames are content-hashed.
       expect(result.fontsFile).toMatch(/^fonts\.[0-9a-f]{12}\.css$/u);
       expect(result.fontsUrl).toBe(`/site/styles/${result.fontsFile}`);
-      expect(result.islands).toHaveLength(3);
-      for (const base of ["home", "pricing", "recipes"] as const) {
+      expect(result.islands).toHaveLength(4);
+      for (const base of [
+        "home",
+        "pricing",
+        "recipes",
+        "recipe-detail",
+      ] as const) {
         const hashed = result.islandFiles[base];
         expect(hashed).toMatch(
           new RegExp(`^${base}\\.[0-9a-f]{12}\\.js$`, "u"),
@@ -236,8 +247,14 @@ describe("buildSiteStatic prerender pipeline", () => {
           ? result.islandUrls.home
           : page.startsWith("pricing-")
             ? result.islandUrls.pricing
-            : result.islandUrls.recipes;
-        expect(html, page).toContain(expectedIsland);
+            : page.startsWith("recipe-")
+              ? result.islandUrls["recipe-detail"]
+              : page.startsWith("not-found-")
+                ? null
+                : result.islandUrls.recipes;
+        if (expectedIsland) {
+          expect(html, page).toContain(expectedIsland);
+        }
       }
 
       const recipesCanvas = readFileSync(
@@ -270,6 +287,16 @@ describe("buildSiteStatic prerender pipeline", () => {
       expect(() => verifySiteStaticOutput(outDir)).toThrow(/home-en\.html/u);
 
       writeFileSync(join(outDir, "home-en.html"), "<html></html>", "utf8");
+      rmSync(join(outDir, "recipe-acoustic-voice-swap-en.html"));
+      expect(() => verifySiteStaticOutput(outDir)).toThrow(
+        /recipe-acoustic-voice-swap-en\.html/u,
+      );
+
+      writeFileSync(
+        join(outDir, "recipe-acoustic-voice-swap-en.html"),
+        "<html></html>",
+        "utf8",
+      );
       rmSync(join(outDir, "islands", result.islandFiles.home));
       expect(() => verifySiteStaticOutput(outDir)).toThrow(
         new RegExp(result.islandFiles.home.replaceAll(".", "\\."), "u"),
