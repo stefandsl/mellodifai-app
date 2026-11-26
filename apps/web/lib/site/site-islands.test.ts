@@ -604,7 +604,7 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(media.playbackRate).toBe(1.25);
     expect(shell.getAttribute("data-speed")).toBe("1.25");
     expect(speedBtn?.querySelector("span > span")?.textContent).toBe("1.25x");
-    expect(speedBtn?.getAttribute("aria-label")).toBe("Playback speed: 1.25x");
+    expect(speedBtn?.getAttribute("aria-label")).toBe("Preview speed: 1.25x");
     speedBtn?.dispatchEvent(
       new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
     );
