@@ -140,16 +140,6 @@ function coverToDataUri(coverUrl: string): string {
   return uri;
 }
 
-let cachedFaviconDataUri: string | null = null;
-function getFaviconDataUri(): string {
-  if (cachedFaviconDataUri) return cachedFaviconDataUri;
-  const icoPath = path.join(WEB_DIR, "app/favicon.ico");
-  if (!fs.existsSync(icoPath)) return "/favicon.ico";
-  const b64 = fs.readFileSync(icoPath).toString("base64");
-  cachedFaviconDataUri = `data:image/x-icon;base64,${b64}`;
-  return cachedFaviconDataUri;
-}
-
 function renderDocument(options: {
   lang: SiteLang;
   page: "home" | "pricing" | "recipes";
@@ -194,12 +184,6 @@ function renderDocument(options: {
         )
         .join("");
 
-  // Keep the exact app/favicon.ico brand icon everywhere. On /recipes (where LCP is an
-  // inline cover image), inline the exact favicon.ico bytes so the browser never stalls
-  // an extra Slow 4G round-trip for /favicon.ico before LCP.
-  const faviconHref =
-    options.page === "recipes" ? getFaviconDataUri() : "/favicon.ico";
-
   const html = [
     "<!DOCTYPE html>",
     `<html lang="${options.lang}" data-theme="dark" data-astryx-theme="mesh" data-site-fonts-url="${escapeHtml(options.fontsUrl)}">`,
@@ -209,7 +193,8 @@ function renderDocument(options: {
     `<title>${escapeHtml(options.title)}</title>`,
     `<meta name="description" content="${escapeHtml(options.description)}"/>`,
     options.extraHead ?? "",
-    `<link rel="icon" href="${faviconHref}" sizes="64x64" type="image/x-icon"/>`,
+    // app/favicon.ico on every page: one cached request, off the LCP path.
+    '<link rel="icon" href="/favicon.ico" sizes="64x64" type="image/x-icon"/>',
     `<script>${THEME_INIT_SCRIPT}</script>`,
     `<style>${inlineCss}</style>`,
     `<noscript><link rel="stylesheet" href="${escapeHtml(options.fontsUrl)}"/></noscript>`,

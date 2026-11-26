@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -188,17 +188,94 @@ export function verifySiteStaticOutput(outDir = OUT_DIR) {
   return manifest;
 }
 
-export async function buildSiteStatic(outDir = OUT_DIR) {
+function isInside(parent, child) {
+  const rel = path.relative(parent, child);
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+const OUTPUT_MARKER = ".site-static-output";
+
+/**
+ * Refuses an output folder that `buildSiteStatic()` must not empty: one outside the repo,
+ * the repo or `apps/web` themselves (or any of their ancestors), anything in `.git` or
+ * `node_modules`, and an existing non-empty folder that is not a previous static build.
+ * @param {string} outDir
+ */
+export function assertSafeOutDir(outDir) {
+  const resolved = path.resolve(outDir);
+  const repoRoot = path.resolve(REPO_ROOT);
+  if (!isInside(repoRoot, resolved)) {
+    throw new Error(
+      `build-site-static: refusing an output folder outside the repo: ${resolved}`,
+    );
+  }
+  if (resolved === path.resolve(WEB_DIR) || isInside(resolved, WEB_DIR)) {
+    throw new Error(
+      `build-site-static: refusing a dangerous output folder: ${resolved}`,
+    );
+  }
+  const segments = path.relative(repoRoot, resolved).split(path.sep);
+  if (segments.some((s) => s === ".git" || s === "node_modules")) {
+    throw new Error(
+      `build-site-static: refusing a dangerous output folder: ${resolved}`,
+    );
+  }
+  if (fs.existsSync(resolved)) {
+    if (!fs.statSync(resolved).isDirectory()) {
+      throw new Error(
+        `build-site-static: refusing an output path that is not a folder: ${resolved}`,
+      );
+    }
+    const entries = fs.readdirSync(resolved);
+    if (
+      entries.length > 0 &&
+      !entries.includes("manifest.json") &&
+      !entries.includes(OUTPUT_MARKER)
+    ) {
+      throw new Error(
+        `build-site-static: refusing to empty ${resolved}: it is not a previous static site build`,
+      );
+    }
+  }
+  return resolved;
+}
+
+/**
+ * @param {string} [outDir]
+ * @param {{ beforeVerify?: (outDir: string) => void }} [options] beforeVerify is a test seam
+ *   that runs after every output is written and before the output check.
+ */
+export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
   const esbuild = resolveEsbuild();
+  outDir = assertSafeOutDir(outDir);
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(path.join(outDir, "islands"), { recursive: true });
+  fs.writeFileSync(path.join(outDir, OUTPUT_MARKER), "", "utf8");
 
   // 1. Bundle the SSR prerenderer first so we can compute the hashed fonts.css URL
   //    before bundling the islands (shell embeds the hashed fonts stylesheet URL).
-  const runnerPath = path.join(outDir, "_prerender-runner.mjs");
-  await esbuild.build({
+  //    The runner lives in apps/web so its bare imports resolve from apps/web/node_modules.
+  const runnerPath = path.join(
+    WEB_DIR,
+    `.tmp-site-prerender-${process.pid}-${randomUUID().slice(0, 8)}.mjs`,
+  );
+  /** @type {Set<string>} repo-relative source files esbuild bundled, without node_modules */
+  const sourceInputs = new Set();
+  /** @param {{ metafile?: { inputs: Record<string, unknown> } }} result */
+  const collectInputs = (result) => {
+    for (const input of Object.keys(result.metafile?.inputs ?? {})) {
+      // Plugin namespaces (next-image-shim:, empty-css:) are not files.
+      if (/^[a-z][a-z-]+:/u.test(input) || input.includes("node_modules/")) {
+        continue;
+      }
+      sourceInputs.add(input);
+    }
+  };
+  const prerenderBuild = await esbuild.build({
     entryPoints: [path.join(WEB_DIR, "lib/site/render-static-entry.tsx")],
     outfile: runnerPath,
+    absWorkingDir: REPO_ROOT,
+    metafile: true,
     bundle: true,
     format: "esm",
     platform: "node",
@@ -206,6 +283,7 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
     packages: "external",
     plugins: [makeAliasPlugin()],
   });
+  collectInputs(prerenderBuild);
 
   const prevWebDir = process.env.SITE_STATIC_WEB_DIR;
   process.env.SITE_STATIC_WEB_DIR = WEB_DIR;
@@ -239,6 +317,8 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
     const islandBuild = await esbuild.build({
       entryPoints: islandEntries,
       outdir: path.join(outDir, "islands"),
+      absWorkingDir: REPO_ROOT,
+      metafile: true,
       bundle: true,
       minify: true,
       write: false,
@@ -250,6 +330,7 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
       },
       plugins: [makeAliasPlugin()],
     });
+    collectInputs(islandBuild);
 
     for (const outputFile of islandBuild.outputFiles) {
       const base = /** @type {"home" | "pricing" | "recipes"} */ (
@@ -295,11 +376,13 @@ export async function buildSiteStatic(outDir = OUT_DIR) {
     "utf8",
   );
 
+  options.beforeVerify?.(outDir);
   verifySiteStaticOutput(outDir);
 
   return {
     outDir,
     ...manifest,
+    sourceInputs: [...sourceInputs].sort(),
   };
 }
 

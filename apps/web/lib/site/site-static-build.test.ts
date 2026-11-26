@@ -4,17 +4,21 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  assertSafeOutDir,
   buildSiteStatic,
   verifySiteStaticOutput,
 } from "../../scripts/build-site-static.mjs";
+import { SITE_STATIC_SOURCES } from "./serve-static-site";
 import {
   normalizeMeshLightDarkShadows,
   pruneAstryxCssForHtml,
@@ -24,7 +28,10 @@ import {
 } from "./site-static-css";
 
 const WEB_DIR = resolve(import.meta.dirname, "../..");
-const TEST_TMP_PARENT = join(WEB_DIR, ".tmp-site-static-tests");
+const REPO_ROOT = resolve(WEB_DIR, "../..");
+// At the repo root, outside apps/web: the root node_modules has no @astryxdesign/core, so a
+// build here fails if the prerender runner is written into the output folder.
+const TEST_TMP_PARENT = join(REPO_ROOT, ".tmp-site-static-tests");
 
 function makeRepoTmpDir(prefix: string): string {
   mkdirSync(TEST_TMP_PARENT, { recursive: true });
@@ -129,6 +136,8 @@ describe("static site CSS helpers", () => {
 describe("buildSiteStatic prerender pipeline", () => {
   it("generates hashed assets, cleans stale files, keeps favicon.ico, and fails verification on missing output", async () => {
     const outDir = makeRepoTmpDir("build-");
+    // A previous build's folder (it has a manifest) with a stale file left in it.
+    writeFileSync(join(outDir, "manifest.json"), "{}", "utf8");
     const staleFile = join(outDir, "stale-old-page.html");
     writeFileSync(staleFile, "stale", "utf8");
 
@@ -137,6 +146,20 @@ describe("buildSiteStatic prerender pipeline", () => {
 
       // Old files from previous builds must be removed.
       expect(existsSync(staleFile)).toBe(false);
+      // The prerender runner never lands in the output folder.
+      expect(readdirSync(outDir).filter((f) => f.endsWith(".mjs"))).toEqual([]);
+
+      // Every bundled source file sits under a path the dev server watches.
+      expect(result.sourceInputs).toContain(
+        "apps/web/lib/site/render-static-entry.tsx",
+      );
+      const unwatched = result.sourceInputs.filter(
+        (input) =>
+          !SITE_STATIC_SOURCES.some(
+            (src) => input === src || input.startsWith(`${src}/`),
+          ),
+      );
+      expect(unwatched).toEqual([]);
 
       expect(result.pages).toEqual(
         expect.arrayContaining([
@@ -170,10 +193,6 @@ describe("buildSiteStatic prerender pipeline", () => {
       const fontsCss = readFileSync(join(outDir, result.fontsFile), "utf8");
       expect(fontsCss).toContain("/site/fonts/");
 
-      const expectedFaviconB64 = readFileSync(
-        join(WEB_DIR, "app/favicon.ico"),
-      ).toString("base64");
-
       for (const page of result.pages) {
         const html = readFileSync(join(outDir, page), "utf8");
         const lang = page.endsWith("-it.html") ? "it" : "en";
@@ -187,14 +206,11 @@ describe("buildSiteStatic prerender pipeline", () => {
         expect(html, page).toContain(
           `data-site-fonts-url="${result.fontsUrl}"`,
         );
-        // Restore app/favicon.ico (never replace with an inline SVG icon).
-        if (page.startsWith("recipes-")) {
-          expect(html, page).toContain(
-            `href="data:image/x-icon;base64,${expectedFaviconB64}"`,
-          );
-        } else {
-          expect(html, page).toContain('href="/favicon.ico"');
-        }
+        // app/favicon.ico on every page, never inlined.
+        expect(html, page).toContain(
+          '<link rel="icon" href="/favicon.ico" sizes="64x64" type="image/x-icon"/>',
+        );
+        expect(html, page).not.toContain("data:image/x-icon");
         expect(html, page).not.toContain("data:image/svg+xml");
         expect(html, page).not.toContain("/_next/static/chunks/");
 
@@ -245,6 +261,62 @@ describe("buildSiteStatic prerender pipeline", () => {
       rmSync(TEST_TMP_PARENT, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("rejects when an expected output is missing at the output check", async () => {
+    const outDir = makeRepoTmpDir("verify-");
+    try {
+      await expect(
+        buildSiteStatic(outDir, {
+          beforeVerify: (dir: string) => rmSync(join(dir, "pricing-it.html")),
+        }),
+      ).rejects.toThrow(/missing expected output .*pricing-it\.html/u);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+      rmSync(TEST_TMP_PARENT, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("refuses an output folder outside the repo or a dangerous path before removing anything", async () => {
+    const outside = mkdtempSync(join(tmpdir(), "site-static-guard-"));
+    const outsideSentinel = join(outside, "keep.txt");
+    writeFileSync(outsideSentinel, "keep", "utf8");
+    const notABuild = makeRepoTmpDir("not-a-build-");
+    const notABuildSentinel = join(notABuild, "keep.txt");
+    writeFileSync(notABuildSentinel, "keep", "utf8");
+    try {
+      await expect(buildSiteStatic(outside)).rejects.toThrow(
+        /outside the repo/u,
+      );
+      expect(existsSync(outsideSentinel)).toBe(true);
+
+      await expect(buildSiteStatic(notABuild)).rejects.toThrow(
+        /not a previous static site build/u,
+      );
+      expect(existsSync(notABuildSentinel)).toBe(true);
+
+      for (const dangerous of [
+        REPO_ROOT,
+        resolve(REPO_ROOT, ".."),
+        join(REPO_ROOT, "apps"),
+        WEB_DIR,
+        join(WEB_DIR, "lib"),
+        join(WEB_DIR, "node_modules", "site-static"),
+        join(REPO_ROOT, ".git", "site-static"),
+        join(WEB_DIR, "package.json"),
+      ]) {
+        expect(() => assertSafeOutDir(dangerous), dangerous).toThrow(
+          /build-site-static: refusing/u,
+        );
+      }
+      expect(assertSafeOutDir(join(WEB_DIR, ".next", "site-static"))).toBe(
+        join(WEB_DIR, ".next", "site-static"),
+      );
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+      rmSync(notABuild, { recursive: true, force: true });
+      rmSync(TEST_TMP_PARENT, { recursive: true, force: true });
+    }
+  });
 
   it("runs as a CLI entrypoint even when invoked through a directory junction or symlink", () => {
     const tmpRoot = makeRepoTmpDir("junction-");
