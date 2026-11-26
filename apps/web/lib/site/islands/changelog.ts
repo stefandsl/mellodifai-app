@@ -143,10 +143,10 @@ export function initReleaseRuler(): () => void {
       passive: true,
       once: true,
     });
-    maxLockTimer = window.setTimeout(unlockScroll, SCROLL_LOCK_MAX_MS);
+    maxLockTimer = window.setTimeout(onScrollEnd, SCROLL_LOCK_MAX_MS);
     if (!supportsScrollEnd()) {
       idleLockTimer = window.setTimeout(
-        unlockScroll,
+        onScrollEnd,
         SCROLL_LOCK_NO_EVENT_FALLBACK_MS,
       );
     }
@@ -267,7 +267,7 @@ export function initReleaseRuler(): () => void {
         if (idleLockTimer !== null) {
           window.clearTimeout(idleLockTimer);
         }
-        idleLockTimer = window.setTimeout(unlockScroll, SCROLL_LOCK_IDLE_MS);
+        idleLockTimer = window.setTimeout(onScrollEnd, SCROLL_LOCK_IDLE_MS);
       }
       return;
     }

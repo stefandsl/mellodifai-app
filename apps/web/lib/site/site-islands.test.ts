@@ -1120,6 +1120,15 @@ describe("public site vanilla islands on built static HTML", () => {
       expect(chips[1].getAttribute("aria-current")).toBe("location");
       expect(chips[5].hasAttribute("aria-current")).toBe(false);
 
+      // Part 1b: 3 s cap unlock when smooth scroll was interrupted with NO scrollend
+      // and NO follow-up scroll event still syncs to the visible entry.
+      chips[5].click();
+      expect(chips[5].getAttribute("aria-current")).toBe("location");
+      currentScrollY = 400 + 2 * 600 - 40;
+      vi.advanceTimersByTime(3050);
+      expect(chips[2].getAttribute("aria-current")).toBe("location");
+      expect(chips[5].hasAttribute("aria-current")).toBe(false);
+
       // Part 2: Browser without native scrollend support (WebKit fallback).
       delete (window as unknown as { onscrollend?: unknown }).onscrollend;
       chips[6].click();
@@ -1135,12 +1144,12 @@ describe("public site vanilla islands on built static HTML", () => {
         expect(chips[6].getAttribute("aria-current")).toBe("location");
       }
 
-      // Once scrolling stops and the idle window elapses, the lock releases cleanly.
+      // Once an interrupted smooth scroll stops away from chip 6 (at entry 2) with NO
+      // scrollend and NO extra scroll event, the idle fallback unlocks and immediately
+      // marks chip 2.
       vi.advanceTimersByTime(250);
-      currentScrollY = 400 + 1 * 600 - 40;
-      window.dispatchEvent(new Event("scroll"));
-      vi.advanceTimersByTime(20);
-      expect(chips[1].getAttribute("aria-current")).toBe("location");
+      expect(chips[2].getAttribute("aria-current")).toBe("location");
+      expect(chips[6].hasAttribute("aria-current")).toBe(false);
     } finally {
       cleanup();
       delete (window as unknown as { onscrollend?: unknown }).onscrollend;
