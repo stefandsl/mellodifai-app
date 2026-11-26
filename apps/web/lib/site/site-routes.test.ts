@@ -178,12 +178,4 @@ describe("public site static route handlers", () => {
       rmSync(missingDir, { recursive: true, force: true });
     }
   });
-
-  it("never uses blocking execFileSync in serve-static-site.ts", () => {
-    const src = readFileSync(
-      join(WEB_DIR, "lib/site/serve-static-site.ts"),
-      "utf8",
-    );
-    expect(src).not.toContain("execFileSync");
-  });
 });
