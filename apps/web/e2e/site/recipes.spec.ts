@@ -30,7 +30,6 @@ const itCopy = SITE_COPY.it;
 
 async function open(page: Page, path = "/recipes") {
   await page.goto(path);
-  await page.evaluate(() => document.fonts.ready);
   await expect(page.locator(".site-header")).toHaveAttribute(
     "data-scrolled",
     "false",
@@ -40,6 +39,16 @@ async function open(page: Page, path = "/recipes") {
       page.locator('[data-recipes-canvas-stage="true"]'),
     ).toHaveAttribute("data-ready", "true");
   }
+  await page.waitForFunction(() => {
+    if (!document.documentElement.hasAttribute("data-site-fonts-url")) {
+      return true;
+    }
+    const link = document.querySelector<HTMLLinkElement>(
+      'link[data-site-fonts="true"]',
+    );
+    return Boolean(link?.sheet);
+  });
+  await page.evaluate(() => document.fonts.ready);
 }
 
 async function cardBoxes(page: Page) {
