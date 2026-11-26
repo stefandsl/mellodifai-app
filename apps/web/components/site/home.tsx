@@ -11,8 +11,9 @@ import {
   SiteLink,
   SiteText,
 } from "@/src/site-primitives";
-import { Cover, type CoverKind, Wave } from "./art";
-import { HeroStudio } from "./hero-studio";
+import { Cover, type CoverKind, Rule, Wave } from "./art";
+import { FeatureReel } from "./feature-reel";
+import { HeroComposer } from "./hero-composer";
 import { KindsStage } from "./home-client";
 import { ArrowGlyph, CheckGlyph } from "./icons";
 import { PeriodProvider, PlanUnits } from "./period-context";
@@ -32,6 +33,14 @@ const SHOW_ART: CoverKind[] = [
   "translation",
   "karaoke",
   "video",
+  "pantomime",
+];
+const HERO_CARDS: CoverKind[] = [
+  "remix",
+  "cover",
+  "pantomime",
+  "satire",
+  "karaoke",
 ];
 
 // The home page. Each block carries `data-ref-section` with the index of the reference section
@@ -40,7 +49,7 @@ export function Home({ copy }: { copy: SiteCopy }) {
   const h = copy.hero;
   return (
     <>
-      {/* 0. Hero: title, one line, the main action, and the studio with one editable line */}
+      {/* 0. Hero: rotating title, composer, chip row, agent links, 5 tilted covers, ruler strip */}
       <VStack
         as="section"
         className="site-hero"
@@ -49,6 +58,16 @@ export function Home({ copy }: { copy: SiteCopy }) {
       >
         <VStack className="site-mesh site-mesh--sky" aria-hidden="true" />
         <VStack className="site-mesh site-mesh--stage" aria-hidden="true" />
+        <VStack className="site-hero__cards" aria-hidden="true">
+          {HERO_CARDS.map((kind, i) => (
+            <VStack
+              key={kind}
+              className={`site-hero__card site-hero__card--${i}`}
+            >
+              <Cover kind={kind} className="site-hero__card-cover" />
+            </VStack>
+          ))}
+        </VStack>
         <VStack className="site-hero__copy" hAlign="center">
           <SiteHeading
             level={1}
@@ -57,12 +76,36 @@ export function Home({ copy }: { copy: SiteCopy }) {
             justify="center"
             className="site-hero__title"
           >
-            <SiteText className="site-hero__title-line" color="inherit">
-              {h.titleA}
-            </SiteText>{" "}
-            <SiteText className="site-hero__title-line" color="inherit">
-              {h.titleB} <em className="site-accent">{h.accent}</em>
-              {h.titleEnd}
+            <SiteText className="site-sr-only" color="inherit">
+              {h.fixedTitle}
+            </SiteText>
+            <SiteText
+              className="site-hero__rotator"
+              color="inherit"
+              aria-hidden="true"
+              data-hero-rotator="true"
+              data-rotator-index="0"
+            >
+              {h.rotatorLines.map((line, i) => (
+                <SiteText
+                  key={`${line.a}-${line.b}`}
+                  className="site-hero__rotator-line"
+                  color="inherit"
+                  data-rotator-line={String(i)}
+                  data-active={i === 0 ? "true" : "false"}
+                >
+                  <SiteText className="site-hero__title-line" color="inherit">
+                    {line.a}
+                  </SiteText>{" "}
+                  <SiteText className="site-hero__title-line" color="inherit">
+                    {line.b}{" "}
+                    {line.accent ? (
+                      <em className="site-accent">{line.accent}</em>
+                    ) : null}
+                    {line.end ?? ""}
+                  </SiteText>
+                </SiteText>
+              ))}
             </SiteText>
           </SiteHeading>
           <SiteText
@@ -74,65 +117,38 @@ export function Home({ copy }: { copy: SiteCopy }) {
           >
             {h.lede}
           </SiteText>
-          <HStack gap={3} justify="center" className="site-hero__actions">
-            <SiteButtonLink
-              label={h.primary}
-              href={href("start")}
-              variant="secondary"
-              size="lg"
-              className="site-hero__primary site-button--inverted"
-            />
-          </HStack>
         </VStack>
         <VStack className="site-hero__stage">
-          <HeroStudio copy={h} />
+          <HeroComposer copy={h} />
           <HStack
             className="site-hero__links"
-            gap={6}
-            justify="center"
+            gap={2}
+            align="center"
             wrap="wrap"
+            justify="center"
+            id="agents"
           >
-            <HStack gap={2} align="center" wrap="wrap" justify="center">
-              <SiteText type="supporting" color="secondary">
-                {h.kindsLabel}
-              </SiteText>
-              {copy.kinds.items.slice(0, 6).map((k) => (
-                <SiteLink
-                  key={k.name}
-                  href={href("songbook")}
-                  color="inherit"
-                  className="site-pill"
-                >
-                  {k.name}
-                </SiteLink>
-              ))}
-            </HStack>
-            <HStack
-              gap={2}
-              align="center"
-              wrap="wrap"
-              justify="center"
-              id="agents"
-            >
-              <SiteText type="supporting" color="secondary">
-                {h.agentsLabel}
-              </SiteText>
-              {AGENTS.map((a) => (
-                <SiteLink
-                  key={a}
-                  href={agentHref(a)}
-                  color="inherit"
-                  className="site-pill"
-                >
-                  {AGENT_TITLES[a]}
-                </SiteLink>
-              ))}
-            </HStack>
+            <SiteText type="supporting" color="secondary">
+              {h.agentsLabel}
+            </SiteText>
+            {AGENTS.map((a) => (
+              <SiteLink
+                key={a}
+                href={agentHref(a)}
+                color="inherit"
+                className="site-pill"
+              >
+                {AGENT_TITLES[a]}
+              </SiteLink>
+            ))}
           </HStack>
+          <VStack className="site-hero__rule" aria-hidden="true">
+            <Rule />
+          </VStack>
         </VStack>
       </VStack>
 
-      {/* 1. Showcase: title, two rows of example songs, the main action */}
+      {/* 1. Showcase: title, two moving rows of song cards, the main action */}
       <VStack
         as="section"
         className="site-show"
@@ -164,33 +180,64 @@ export function Home({ copy }: { copy: SiteCopy }) {
           className="site-show__rows"
           gap={4}
           aria-label={copy.showcase.examples}
-          role="list"
         >
-          {[0, 1].map((row) => (
-            <HStack
-              key={row}
-              className={`site-show__row site-show__row--${row}`}
-              gap={4}
-            >
-              {copy.showcase.songs.map((song, i) => (
-                <VStack
-                  key={song.title}
-                  className="site-show__card"
-                  role="listitem"
-                  gap={3}
-                  aria-hidden={row === 1 ? true : undefined}
-                >
-                  <Cover kind={SHOW_ART[(i + row * 3) % SHOW_ART.length]} />
-                  <VStack gap={0.5}>
-                    <SiteText weight="medium">{song.title}</SiteText>
-                    <SiteText type="supporting" color="secondary">
-                      {song.meta}
-                    </SiteText>
-                  </VStack>
-                </VStack>
-              ))}
-            </HStack>
-          ))}
+          {[0, 1].map((row) => {
+            const base = copy.showcase.songs.slice(0, 6);
+            const ordered =
+              row === 0 ? base : [...base.slice(3), ...base.slice(0, 3)];
+            return (
+              <VStack
+                key={row}
+                className="site-show__viewport"
+                data-marquee-row={String(row)}
+                data-marquee-direction={row === 0 ? "-1" : "1"}
+                data-marquee-paused="false"
+              >
+                <HStack className="site-show__track" data-marquee-track="true">
+                  {[0, 1].map((copyIdx) => (
+                    <HStack
+                      key={copyIdx}
+                      className="site-show__copy"
+                      gap={4}
+                      role={copyIdx === 0 ? "list" : undefined}
+                      aria-hidden={copyIdx === 1 ? true : undefined}
+                      data-marquee-copy={String(copyIdx)}
+                    >
+                      {ordered.map((song, i) => (
+                        <VStack
+                          key={`${copyIdx}-${song.title}`}
+                          className="site-show__card"
+                          role={copyIdx === 0 ? "listitem" : undefined}
+                          gap={3}
+                        >
+                          <Cover
+                            kind={
+                              (song.kind as CoverKind) ??
+                              SHOW_ART[(i + row * 3) % SHOW_ART.length]
+                            }
+                          />
+                          <VStack gap={0.5}>
+                            <SiteLink
+                              href={href("songbook")}
+                              color="primary"
+                              weight="medium"
+                              className="site-show__card-link"
+                              tabIndex={copyIdx === 1 ? -1 : undefined}
+                            >
+                              {song.title}
+                            </SiteLink>
+                            <SiteText type="supporting" color="secondary">
+                              {song.meta}
+                            </SiteText>
+                          </VStack>
+                        </VStack>
+                      ))}
+                    </HStack>
+                  ))}
+                </HStack>
+              </VStack>
+            );
+          })}
         </VStack>
         <SiteButtonLink
           label={copy.showcase.action}
@@ -273,53 +320,9 @@ export function Home({ copy }: { copy: SiteCopy }) {
         </SiteText>
       </VStack>
 
-      {/* 4-6. Features: number, title, points, and a picture of the part */}
+      {/* 4-6. Features: number, title, self-advancing points, and 3-panel carousel */}
       {copy.features.items.map((f, i) => (
-        <VStack
-          as="article"
-          key={f.label}
-          className="site-block site-feature"
-          data-ref-section={String(4 + i)}
-          aria-labelledby={`feature-${i}`}
-        >
-          <HStack className="site-feature__grid" data-ref-grid>
-            <SiteText
-              as="p"
-              type="code"
-              color="secondary"
-              className="site-feature__note site-eyebrow"
-            >
-              {f.label}
-            </SiteText>
-            <VStack className="site-feature__text" gap={6}>
-              <SiteHeading level={3} id={`feature-${i}`} className="site-title">
-                {f.title}
-              </SiteHeading>
-              <VStack as="ol" className="site-feature__points">
-                {f.points.map((p) => (
-                  <VStack as="li" key={p} className="site-feature__point">
-                    <SiteText>{p}</SiteText>
-                  </VStack>
-                ))}
-              </VStack>
-            </VStack>
-            <VStack
-              as="figure"
-              className="site-feature__stage site-halo"
-              gap={3}
-            >
-              <FeaturePicture copy={copy} index={i} />
-              <SiteText
-                as="p"
-                type="supporting"
-                color="secondary"
-                className="site-feature__caption"
-              >
-                {f.caption}
-              </SiteText>
-            </VStack>
-          </HStack>
-        </VStack>
+        <FeatureReel key={f.label} copy={copy} index={i} />
       ))}
 
       {/* 7. Platform panel: title, link, a picture of the studio, three notes */}
@@ -555,115 +558,6 @@ function HomePlans({ copy }: { copy: SiteCopy["plans"] }) {
         </SiteLink>
       </VStack>
     </PeriodProvider>
-  );
-}
-
-function FeaturePicture({ copy, index }: { copy: SiteCopy; index: number }) {
-  const f = copy.features;
-  if (index === 0) {
-    const s = f.sheet;
-    return (
-      <Card className="site-sheet" padding={6} aria-hidden="true">
-        <VStack gap={4}>
-          <HStack justify="between">
-            <SiteText type="code" color="secondary" className="site-eyebrow">
-              {s.bar}
-            </SiteText>
-            <SiteText type="code" color="secondary" className="site-eyebrow">
-              {copy.hero.take}
-            </SiteText>
-          </HStack>
-          <VStack as="ol" gap={2} className="site-sheet__lines">
-            {s.lines.map((line, i) => (
-              <SiteText
-                as="p"
-                key={line}
-                className={`site-sheet__line ${i === s.editLine ? "is-editing" : ""}`}
-              >
-                {i === s.editLine ? (
-                  <>
-                    {line.replace(`${s.to},`, "")}
-                    <del className="site-studio__old">{s.from}</del>{" "}
-                    <ins className="site-studio__new">{s.to}</ins>,
-                  </>
-                ) : (
-                  line
-                )}
-              </SiteText>
-            ))}
-          </VStack>
-          <SiteText type="supporting" color="secondary">
-            {s.foot}
-          </SiteText>
-        </VStack>
-      </Card>
-    );
-  }
-  if (index === 1) {
-    return (
-      <Card className="site-sheet" padding={6} aria-hidden="true">
-        <VStack gap={3}>
-          {f.voice.lanes.map((lane, i) => (
-            <HStack
-              key={lane}
-              gap={3}
-              align="center"
-              className="site-studio__lane"
-            >
-              <SiteText
-                type="code"
-                color="secondary"
-                className="site-studio__lane-name site-eyebrow"
-              >
-                {lane}
-              </SiteText>
-              <Wave
-                seed={51 + i * 3}
-                phrases={i === 1 ? 0 : 3}
-                className={
-                  i === 1
-                    ? "site-wave--band"
-                    : i === 2
-                      ? "site-wave--accent"
-                      : ""
-                }
-              />
-            </HStack>
-          ))}
-          <SiteText type="supporting" color="secondary">
-            {f.voice.foot}
-          </SiteText>
-        </VStack>
-      </Card>
-    );
-  }
-  return (
-    <Card className="site-sheet" padding={6} aria-hidden="true">
-      <VStack gap={3}>
-        {f.out.rows.map((row, i) => (
-          <HStack
-            key={row.name}
-            gap={3}
-            align="center"
-            className="site-out__row"
-          >
-            <Cover
-              kind={(["video", "karaoke", "remix"] as CoverKind[])[i]}
-              className="site-out__cover"
-            />
-            <VStack gap={0.5}>
-              <SiteText weight="medium">{row.name}</SiteText>
-              <SiteText type="supporting" color="secondary">
-                {row.meta}
-              </SiteText>
-            </VStack>
-          </HStack>
-        ))}
-        <SiteText type="supporting" color="secondary">
-          {f.out.foot}
-        </SiteText>
-      </VStack>
-    </Card>
   );
 }
 

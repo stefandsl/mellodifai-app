@@ -24,7 +24,15 @@ import {
 (window as unknown as Record<string, unknown>).__SITE_ISLAND_MANUAL_INIT__ =
   true;
 
-const { initHome } = await import("./islands/home");
+const {
+  COMPOSER_DRAFT_KEY,
+  COMPOSER_PROMPT_MAX_LENGTH,
+  FEATURE_REEL_MS,
+  HERO_ROTATE_MS,
+  initHome,
+  MARQUEE_FOCUS_INSET_PX,
+  MARQUEE_SPEED_PX_PER_SEC,
+} = await import("./islands/home");
 const { initPricing } = await import("./islands/pricing");
 const { initRecipeDetail } = await import("./islands/recipe-detail");
 const { initRecipes } = await import("./islands/recipes");
@@ -202,131 +210,539 @@ describe("public site vanilla islands on built static HTML", () => {
     vi.useRealTimers();
   });
 
-  it("home: swaps hero play/pause icons from icons.tsx, switches chips, handles missing sample, kinds stage, period switch, and FAQ", async () => {
+  it("home: chips fill and focus composer, submit routes to login without POST, and kinds/period/FAQ work", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
+    const navigated: string[] = [];
     loadBuiltDocument(homeHtml);
 
-    const audio = document.querySelector<HTMLAudioElement>(
-      "audio.site-studio__audio",
-    );
-    expect(audio).not.toBeNull();
-    if (audio) {
-      audio.play = vi.fn().mockResolvedValue(undefined);
-      audio.pause = vi.fn();
-    }
-
-    initHome();
-
-    // Word chip click marks word edited with del/ins and wave take highlight.
-    const chips = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(
-        ".site-studio__words .site-chip",
-      ),
-    );
-    expect(chips.length).toBeGreaterThan(1);
-    chips[1].click();
-    expect(chips[1].getAttribute("aria-pressed")).toBe("true");
-    expect(chips[0].getAttribute("aria-pressed")).toBe("false");
-    expect(document.querySelector(".site-studio__word del")).not.toBeNull();
-    expect(document.querySelector("rect.site-wave__take")).not.toBeNull();
-
-    // Play/pause click swaps in exact PlayGlyph and PauseGlyph paths from components/site/icons.tsx.
-    const playBtn =
-      document.querySelector<HTMLButtonElement>(".site-studio__play");
-    expect(playBtn).not.toBeNull();
-    playBtn?.click();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(playBtn?.getAttribute("data-state")).toBe("playing");
-    const pauseSvgHtml = playBtn?.querySelector("svg")?.innerHTML ?? "";
-    expect(pauseSvgHtml).toContain("M5.5 3.5v9M10.5 3.5v9");
-    expect(pauseSvgHtml).not.toContain("<rect");
-
-    playBtn?.click();
-    await Promise.resolve();
-    expect(playBtn?.getAttribute("data-state")).toBe("idle");
-    const playSvgHtml = playBtn?.querySelector("svg")?.innerHTML ?? "";
-    expect(playSvgHtml).toContain("M5 3.5v9l7-4.5z");
-    expect(playSvgHtml).not.toContain("M4.5 3 13 8l-8.5 5z");
-
-    // Audio error transitions hero to missing state with derived disabled class and status text.
-    audio?.dispatchEvent(new Event("error"));
-    expect(playBtn?.disabled).toBe(true);
-    expect(playBtn?.getAttribute("aria-disabled")).toBe("true");
-    expect(
-      document
-        .querySelector(".site-dot")
-        ?.classList.contains("site-dot--muted"),
-    ).toBe(true);
-    const statusText =
-      document.querySelector('.site-studio__foot [role="status"]')
-        ?.textContent ?? "";
-    expect(statusText.length).toBeGreaterThan(0);
-
-    // Kinds stage toggles cover class, title, and live caption.
-    const kindBtns = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".site-kinds__name"),
-    );
-    expect(kindBtns.length).toBeGreaterThan(1);
-    const beforeTitle =
-      document.querySelector(".site-kinds__title")?.textContent;
-    kindBtns[1].click();
-    expect(kindBtns[1].getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelector(".site-kinds__title")?.textContent).not.toBe(
-      beforeTitle,
-    );
-
-    // Period switch responds to click and keyboard arrows.
-    const radios = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(
-        '.site-segmented[role="radiogroup"] [role="radio"][data-value]',
-      ),
-    );
-    expect(radios.length).toBe(2);
-    const planUnit = document.querySelector<HTMLElement>(
-      "[data-plan-unit-monthly]",
-    );
-    const yearlyText = planUnit?.getAttribute("data-plan-unit-yearly");
-    const monthlyText = planUnit?.getAttribute("data-plan-unit-monthly");
-    radios[1].click();
-    expect(radios[1].getAttribute("aria-checked")).toBe("true");
-    if (planUnit && yearlyText) {
-      expect(planUnit.textContent).toBe(yearlyText);
-    }
-    radios[1]
-      .closest('[role="radiogroup"]')
-      ?.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
+    const stopHome = initHome({ navigate: (url) => navigated.push(url) });
+    try {
+      // Fixed screen-reader heading text stays present and separate from visual rotator.
+      const srTitle = document.querySelector("#hero-title .site-sr-only");
+      const rotator = document.querySelector<HTMLElement>(
+        '[data-hero-rotator="true"]',
       );
-    expect(radios[0].getAttribute("aria-checked")).toBe("true");
-    if (planUnit && monthlyText) {
-      expect(planUnit.textContent).toBe(monthlyText);
-    }
+      expect(srTitle?.textContent?.trim()).toBe("Change a word. Hear it sung.");
+      expect(rotator?.getAttribute("aria-hidden")).toBe("true");
+      // Reduced motion default in beforeEach: no loop runs.
+      expect(rotator?.getAttribute("data-rotator-running")).toBe("false");
+      vi.advanceTimersByTime(HERO_ROTATE_MS * 2);
+      expect(rotator?.getAttribute("data-rotator-index")).toBe("0");
 
-    // Home FAQ collapsible toggles aria-expanded, panel hidden class, and derived chevron classes.
-    const faqBtn = document.querySelector<HTMLButtonElement>(
-      ".site-faq__item .astryx-collapsible-trigger[aria-controls]",
+      // Chip click fills composer, marks chip pressed, and focuses the textarea.
+      const chips = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          ".site-composer__chips .site-chip[data-chip-prompt]",
+        ),
+      );
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        "textarea#hero-composer-input",
+      );
+      const form = document.querySelector<HTMLFormElement>(
+        'form[data-hero-composer="true"]',
+      );
+      expect(chips.length).toBe(6);
+      expect(textarea).not.toBeNull();
+      expect(textarea?.maxLength).toBe(COMPOSER_PROMPT_MAX_LENGTH);
+      expect(textarea?.getAttribute("name")).toBeNull();
+      expect(form).not.toBeNull();
+
+      const expectedPrompt = chips[1].getAttribute("data-chip-prompt") ?? "";
+      expect(expectedPrompt.length).toBeGreaterThan(10);
+      chips[1].click();
+      expect(textarea?.value).toBe(expectedPrompt);
+      expect(document.activeElement).toBe(textarea);
+      expect(chips[1].getAttribute("aria-pressed")).toBe("true");
+      expect(chips[0].getAttribute("aria-pressed")).toBe("false");
+
+      // Multi-line text over 500 chars is clamped and saved to localStorage, never placed in the URL.
+      const multiLine = `${expectedPrompt}\nSecond verse line ${"z".repeat(COMPOSER_PROMPT_MAX_LENGTH)}`;
+      if (textarea) textarea.value = multiLine;
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+      form?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
+      expect(navigated).toHaveLength(1);
+      const dest = new URL(navigated[0], "http://127.0.0.1");
+      expect(dest.pathname).toBe("/login");
+      expect(dest.searchParams.get("prompt")).toBeNull();
+      expect(dest.searchParams.get("next")).toBe("/create?draft=1");
+      expect(navigated[0]).not.toContain("Second verse");
+      const savedRaw = window.localStorage.getItem(COMPOSER_DRAFT_KEY);
+      expect(savedRaw).not.toBeNull();
+      const savedDraft = JSON.parse(savedRaw as string) as {
+        text: string;
+        savedAt: number;
+      };
+      expect(savedDraft.text).toBe(
+        multiLine.slice(0, COMPOSER_PROMPT_MAX_LENGTH),
+      );
+      expect(typeof savedDraft.savedAt).toBe("number");
+      expect(savedDraft.text.includes("\n")).toBe(true);
+      expect(window.sessionStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      // Kinds stage toggles cover class, title, and live caption.
+      const kindBtns = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(".site-kinds__name"),
+      );
+      expect(kindBtns.length).toBeGreaterThan(1);
+      const beforeTitle =
+        document.querySelector(".site-kinds__title")?.textContent;
+      kindBtns[1].click();
+      expect(kindBtns[1].getAttribute("aria-pressed")).toBe("true");
+      expect(
+        document.querySelector(".site-kinds__title")?.textContent,
+      ).not.toBe(beforeTitle);
+
+      // Period switch responds to click and keyboard arrows.
+      const radios = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          '.site-segmented[role="radiogroup"] [role="radio"][data-value]',
+        ),
+      );
+      expect(radios.length).toBe(2);
+      const planUnit = document.querySelector<HTMLElement>(
+        "[data-plan-unit-monthly]",
+      );
+      const yearlyText = planUnit?.getAttribute("data-plan-unit-yearly");
+      const monthlyText = planUnit?.getAttribute("data-plan-unit-monthly");
+      radios[1].click();
+      expect(radios[1].getAttribute("aria-checked")).toBe("true");
+      if (planUnit && yearlyText) {
+        expect(planUnit.textContent).toBe(yearlyText);
+      }
+      radios[1]
+        .closest('[role="radiogroup"]')
+        ?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
+        );
+      expect(radios[0].getAttribute("aria-checked")).toBe("true");
+      if (planUnit && monthlyText) {
+        expect(planUnit.textContent).toBe(monthlyText);
+      }
+
+      // Home FAQ collapsible toggles aria-expanded, panel hidden class, and derived chevron classes.
+      const faqBtn = document.querySelector<HTMLButtonElement>(
+        ".site-faq__item .astryx-collapsible-trigger[aria-controls]",
+      );
+      expect(faqBtn).not.toBeNull();
+      const panelId = faqBtn?.getAttribute("aria-controls") ?? "";
+      const panel = document.getElementById(panelId);
+      const chevron = faqBtn?.querySelector<HTMLElement>(".astryx-icon");
+      const closedPanelClass = panel?.className ?? "";
+      const closedChevronClass = chevron?.className ?? "";
+      expect(faqBtn?.getAttribute("aria-expanded")).toBe("false");
+      faqBtn?.click();
+      expect(faqBtn?.getAttribute("aria-expanded")).toBe("true");
+      expect(panel?.hidden).toBe(false);
+      expect(panel?.className).not.toBe(closedPanelClass);
+      expect(chevron?.className).not.toBe(closedChevronClass);
+      faqBtn?.click();
+      expect(faqBtn?.getAttribute("aria-expanded")).toBe("false");
+      expect(panel?.hidden).toBe(true);
+      expect(panel?.className).toBe(closedPanelClass);
+      expect(chevron?.className).toBe(closedChevronClass);
+    } finally {
+      stopHome();
+      vi.useRealTimers();
+    }
+  });
+
+  it("home islands (motion enabled): rotates title every 6.0 s, moves marquee at 32 px/s with hover/focus pause, and steps feature reels every 5.0 s with hover pause", () => {
+    vi.useFakeTimers();
+    // Enable motion (reduced-motion: false) and drive requestAnimationFrame manually.
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
     );
-    expect(faqBtn).not.toBeNull();
-    const panelId = faqBtn?.getAttribute("aria-controls") ?? "";
-    const panel = document.getElementById(panelId);
-    const chevron = faqBtn?.querySelector<HTMLElement>(".astryx-icon");
-    const closedPanelClass = panel?.className ?? "";
-    const closedChevronClass = chevron?.className ?? "";
-    expect(faqBtn?.getAttribute("aria-expanded")).toBe("false");
-    faqBtn?.click();
-    expect(faqBtn?.getAttribute("aria-expanded")).toBe("true");
-    expect(panel?.hidden).toBe(false);
-    expect(panel?.className).not.toBe(closedPanelClass);
-    expect(chevron?.className).not.toBe(closedChevronClass);
-    faqBtn?.click();
-    expect(faqBtn?.getAttribute("aria-expanded")).toBe("false");
-    expect(panel?.hidden).toBe(true);
-    expect(panel?.className).toBe(closedPanelClass);
-    expect(chevron?.className).toBe(closedChevronClass);
-    vi.useRealTimers();
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const stepRaf = (ts: number) => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(ts);
+    };
+
+    loadBuiltDocument(homeHtml);
+    const stopHome = initHome();
+    try {
+      // 1. Rotating hero line advances at 6000 ms while sr-only text stays fixed.
+      const rotator = document.querySelector<HTMLElement>(
+        '[data-hero-rotator="true"]',
+      );
+      const srTitle = document.querySelector("#hero-title .site-sr-only");
+      expect(rotator?.getAttribute("data-rotator-running")).toBe("true");
+      expect(rotator?.getAttribute("data-rotator-index")).toBe("0");
+
+      vi.advanceTimersByTime(HERO_ROTATE_MS - 100);
+      expect(rotator?.getAttribute("data-rotator-index")).toBe("0");
+      vi.advanceTimersByTime(100);
+      expect(rotator?.getAttribute("data-rotator-index")).toBe("1");
+      expect(srTitle?.textContent?.trim()).toBe("Change a word. Hear it sung.");
+
+      // 2. Showcase marquee moves at 32 px/s and pauses on hover and on focus inside.
+      const row0 = document.querySelector<HTMLElement>(
+        '[data-marquee-row="0"]',
+      );
+      const track0 = row0?.querySelector<HTMLElement>(
+        '[data-marquee-track="true"]',
+      );
+      const row1 = document.querySelector<HTMLElement>(
+        '[data-marquee-row="1"]',
+      );
+      const track1 = row1?.querySelector<HTMLElement>(
+        '[data-marquee-track="true"]',
+      );
+      expect(row0).not.toBeNull();
+      expect(row1).not.toBeNull();
+
+      stepRaf(0);
+      const parseX = (t: string) =>
+        Number(t.match(/translate3d\(([-\d.]+)px/u)?.[1] ?? "NaN");
+      const x0Start = parseX(track0?.style.transform ?? "");
+      const x1Start = parseX(track1?.style.transform ?? "");
+
+      stepRaf(1000);
+      const x0After1s = parseX(track0?.style.transform ?? "");
+      const x1After1s = parseX(track1?.style.transform ?? "");
+      expect(x0Start - x0After1s).toBeCloseTo(MARQUEE_SPEED_PX_PER_SEC, 1);
+      expect(x1After1s - x1Start).toBeCloseTo(MARQUEE_SPEED_PX_PER_SEC, 1);
+
+      // Hover stops row 0 immediately.
+      row0?.dispatchEvent(new Event("mouseenter"));
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("true");
+      stepRaf(2000);
+      expect(parseX(track0?.style.transform ?? "")).toBeCloseTo(x0After1s, 2);
+
+      // Leave resumes row 0.
+      row0?.dispatchEvent(new Event("mouseleave"));
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("false");
+      stepRaf(2500);
+      stepRaf(3500);
+      expect(x0After1s - parseX(track0?.style.transform ?? "")).toBeCloseTo(
+        MARQUEE_SPEED_PX_PER_SEC,
+        1,
+      );
+
+      // Focus inside stops row 1 immediately, brings off-screen card into viewport without scrollLeft, and blur resumes it.
+      const copy0Row1 = row1?.querySelector<HTMLElement>(
+        '[data-marquee-copy="0"]',
+      );
+      const cardsRow1 = Array.from(
+        row1?.querySelectorAll<HTMLElement>(
+          '[data-marquee-copy="0"] .site-show__card',
+        ) ?? [],
+      );
+      const linkInRow1 = cardsRow1[0]?.querySelector<HTMLAnchorElement>("a");
+      expect(linkInRow1).not.toBeNull();
+      expect(copy0Row1).not.toBeNull();
+
+      // Mock real 1440px-like geometry on row 1 where card 0 starts off screen at x = -1200.
+      const rect = (left: number, width: number): DOMRect =>
+        ({
+          left,
+          right: left + width,
+          width,
+          top: 0,
+          bottom: 200,
+          height: 200,
+          x: left,
+          y: 0,
+          toJSON: () => ({}),
+        }) as DOMRect;
+      if (row1 && copy0Row1 && cardsRow1[0] && cardsRow1[5]) {
+        row1.getBoundingClientRect = () => rect(0, 1000);
+        copy0Row1.getBoundingClientRect = () => rect(-1200, 1200);
+        cardsRow1[0].getBoundingClientRect = () => rect(-1200, 180);
+        cardsRow1[5].getBoundingClientRect = () => rect(-200, 180);
+        row1.scrollLeft = 420;
+      }
+
+      const link5Row1 = cardsRow1[5]?.querySelector<HTMLAnchorElement>("a");
+      expect(link5Row1).not.toBeNull();
+
+      // Mouse focus (:focus-visible = false) pauses row 1 without jumping its transform.
+      const x1BeforeMouseFocus = parseX(track1?.style.transform ?? "");
+      if (linkInRow1) {
+        linkInRow1.matches = () => false;
+      }
+      linkInRow1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      expect(row1?.getAttribute("data-marquee-paused")).toBe("true");
+      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(
+        x1BeforeMouseFocus,
+        2,
+      );
+      row1?.dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: null }),
+      );
+
+      // Keyboard focus (:focus-visible = true) on card 0 shifts track to x = +8 px inset so outline shows, and resets scrollLeft = 0.
+      if (row1) row1.scrollLeft = 420;
+      if (linkInRow1) {
+        linkInRow1.matches = (sel: string) => sel === ":focus-visible";
+      }
+      linkInRow1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      expect(row1?.getAttribute("data-marquee-paused")).toBe("true");
+      expect(row1?.scrollLeft).toBe(0);
+      const x1OnFocus0 = parseX(track1?.style.transform ?? "");
+      expect(x1OnFocus0).toBeCloseTo(MARQUEE_FOCUS_INSET_PX, 1);
+      stepRaf(4500);
+      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(x1OnFocus0, 2);
+
+      // Keyboard focus on card 5 (left 1000..1180) shifts track to x = 1000 - 8 - 1180 = -188 so right outline has 8 px clearance.
+      if (link5Row1) {
+        link5Row1.matches = (sel: string) => sel === ":focus-visible";
+      }
+      link5Row1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(
+        -180 - MARQUEE_FOCUS_INSET_PX,
+        1,
+      );
+      expect(row1?.scrollLeft).toBe(0);
+
+      row1?.dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: null }),
+      );
+      expect(row1?.getAttribute("data-marquee-paused")).toBe("false");
+
+      // 3. Feature reels step every 5000 ms, pause on hover, and support manual bullet/dot clicks.
+      const reel0 = document.querySelector<HTMLElement>(
+        '[data-feature-reel="0"]',
+      );
+      const reelTrack0 = reel0?.querySelector<HTMLElement>(
+        '[data-reel-track="true"]',
+      );
+      expect(reel0).not.toBeNull();
+      // Already advanced 6000 ms above -> reel 0 stepped once at 5000 ms (now at step 1).
+      expect(reel0?.getAttribute("data-reel-step")).toBe("1");
+      expect(reelTrack0?.style.transform).toContain("-33.33");
+
+      // Next step at +4000 ms (total 10000 ms).
+      vi.advanceTimersByTime(4000);
+      expect(reel0?.getAttribute("data-reel-step")).toBe("2");
+
+      // Hover pauses reel 0 even across multiple intervals.
+      reel0?.dispatchEvent(new Event("mouseenter"));
+      expect(reel0?.getAttribute("data-reel-paused")).toBe("true");
+      vi.advanceTimersByTime(FEATURE_REEL_MS * 2);
+      expect(reel0?.getAttribute("data-reel-step")).toBe("2");
+
+      // Leave resumes stepping after 5000 ms.
+      reel0?.dispatchEvent(new Event("mouseleave"));
+      expect(reel0?.getAttribute("data-reel-paused")).toBe("false");
+      vi.advanceTimersByTime(FEATURE_REEL_MS);
+      expect(reel0?.getAttribute("data-reel-step")).toBe("0");
+
+      // Manual dot click selects step 2 immediately.
+      const dot2 = reel0?.querySelector<HTMLButtonElement>(
+        '[data-reel-dot="2"]',
+      );
+      dot2?.click();
+      expect(reel0?.getAttribute("data-reel-step")).toBe("2");
+      expect(dot2?.getAttribute("aria-pressed")).toBe("true");
+    } finally {
+      stopHome();
+      vi.useRealTimers();
+    }
+  });
+
+  it("home marquee: caches row width without per-frame layout reads and omits grab cursor", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const stepRaf = (ts: number) => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(ts);
+    };
+
+    loadBuiltDocument(homeHtml);
+    const stopHome = initHome();
+    try {
+      const copy0Row0 = document.querySelector<HTMLElement>(
+        '[data-marquee-row="0"] [data-marquee-copy="0"]',
+      );
+      expect(copy0Row0).not.toBeNull();
+      const rectSpy = vi.spyOn(
+        copy0Row0 as HTMLElement,
+        "getBoundingClientRect",
+      );
+      stepRaf(0);
+      stepRaf(16);
+      stepRaf(32);
+      stepRaf(48);
+      expect(rectSpy).not.toHaveBeenCalled();
+
+      const styleText = document.head.querySelector("style")?.textContent ?? "";
+      expect(styleText).not.toContain("cursor:grab");
+      expect(styleText).not.toContain("cursor: grab");
+    } finally {
+      stopHome();
+    }
+  });
+
+  it("home islands: hidden tab pauses rotator, showcase marquee, and feature reels, and resumes when visible", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const stepRaf = (ts: number) => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(ts);
+    };
+    const setHidden = (hidden: boolean) => {
+      Object.defineProperty(document, "hidden", {
+        value: hidden,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+
+    loadBuiltDocument(homeHtml);
+    setHidden(false);
+    const stopHome = initHome();
+    try {
+      const rotator = document.querySelector<HTMLElement>(
+        '[data-hero-rotator="true"]',
+      );
+      const row0 = document.querySelector<HTMLElement>(
+        '[data-marquee-row="0"]',
+      );
+      const track0 = row0?.querySelector<HTMLElement>(
+        '[data-marquee-track="true"]',
+      );
+      const reel0 = document.querySelector<HTMLElement>(
+        '[data-feature-reel="0"]',
+      );
+      stepRaf(0);
+      stepRaf(500);
+      const xBeforeHide = track0?.style.transform ?? "";
+      const rotBeforeHide = rotator?.getAttribute("data-rotator-index");
+      const reelBeforeHide = reel0?.getAttribute("data-reel-step");
+
+      // Hide tab: all three pause and stay frozen across long intervals and frames.
+      setHidden(true);
+      expect(rotator?.getAttribute("data-rotator-running")).toBe("false");
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("true");
+      expect(reel0?.getAttribute("data-reel-paused")).toBe("true");
+
+      vi.advanceTimersByTime(HERO_ROTATE_MS * 2 + FEATURE_REEL_MS * 2);
+      stepRaf(2500);
+      stepRaf(4500);
+      expect(rotator?.getAttribute("data-rotator-index")).toBe(rotBeforeHide);
+      expect(reel0?.getAttribute("data-reel-step")).toBe(reelBeforeHide);
+      expect(track0?.style.transform).toBe(xBeforeHide);
+
+      // Show tab again: all three resume cleanly.
+      setHidden(false);
+      expect(rotator?.getAttribute("data-rotator-running")).toBe("true");
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("false");
+      expect(reel0?.getAttribute("data-reel-paused")).toBe("false");
+
+      vi.advanceTimersByTime(HERO_ROTATE_MS);
+      stepRaf(5000);
+      stepRaf(6000);
+      expect(rotator?.getAttribute("data-rotator-index")).not.toBe(
+        rotBeforeHide,
+      );
+      expect(reel0?.getAttribute("data-reel-step")).not.toBe(reelBeforeHide);
+      expect(track0?.style.transform).not.toBe(xBeforeHide);
+    } finally {
+      setHidden(false);
+      stopHome();
+      vi.useRealTimers();
+    }
+  });
+
+  it("feature reels: step bullets expose only aria-pressed and only inactive slides are aria-hidden", () => {
+    loadBuiltDocument(homeHtml);
+    const stopHome = initHome();
+    try {
+      const reel0 = document.querySelector<HTMLElement>(
+        '[data-feature-reel="0"]',
+      );
+      const bullets = Array.from(
+        reel0?.querySelectorAll<HTMLButtonElement>("[data-reel-bullet]") ?? [],
+      );
+      const slides = Array.from(
+        reel0?.querySelectorAll<HTMLElement>(".site-feature__slide") ?? [],
+      );
+      expect(bullets.length).toBe(3);
+      expect(slides.length).toBe(3);
+
+      // Initial state: step 0 pressed, no aria-current on any bullet, only inactive slides aria-hidden.
+      expect(bullets[0].getAttribute("aria-pressed")).toBe("true");
+      expect(bullets[1].getAttribute("aria-pressed")).toBe("false");
+      for (const b of bullets) {
+        expect(b.hasAttribute("aria-current")).toBe(false);
+      }
+      expect(slides[0].hasAttribute("aria-hidden")).toBe(false);
+      expect(slides[1].getAttribute("aria-hidden")).toBe("true");
+      expect(slides[2].getAttribute("aria-hidden")).toBe("true");
+
+      // Selecting bullet 1 updates aria-pressed (without aria-current) and flips slide aria-hidden.
+      bullets[1].click();
+      expect(bullets[0].getAttribute("aria-pressed")).toBe("false");
+      expect(bullets[1].getAttribute("aria-pressed")).toBe("true");
+      for (const b of bullets) {
+        expect(b.hasAttribute("aria-current")).toBe(false);
+      }
+      expect(slides[0].getAttribute("aria-hidden")).toBe("true");
+      expect(slides[1].hasAttribute("aria-hidden")).toBe(false);
+      expect(slides[2].getAttribute("aria-hidden")).toBe("true");
+    } finally {
+      stopHome();
+    }
   });
 
   it("pricing: switches billing period and toggles exclusive FAQ accordion with inert panels", () => {

@@ -24,6 +24,7 @@ import { useEffect, useState } from "react";
 
 import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/components/theme-provider";
+import { clearComposerDraft } from "@/lib/site/composer-draft";
 import { st } from "@/lib/studio/i18n";
 import { createClient } from "@/lib/supabase/browser";
 import { NewPlaylistDialog } from "./new-playlist-dialog";
@@ -357,6 +358,7 @@ export function StudioSidebar({ email }: { email: string }) {
               type="button"
               aria-label={`${st(lang, "nav.signOut")} (${email})`}
               onClick={async () => {
+                clearComposerDraft();
                 await createClient().auth.signOut();
                 router.push("/login");
                 router.refresh();

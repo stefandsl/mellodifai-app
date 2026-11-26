@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LyricPackSchema } from "../lyric-pack.js";
+import { PROMPT_MAX_LENGTH } from "../prompt-limits.js";
 import { MAX_SONGS_PER_CLICK, SongSettingsSchema } from "../song-settings.js";
 import { LANGS } from "../stages.js";
 import { VisualizerParamsSchema } from "../visualizer/viz-params.js";
@@ -8,7 +9,7 @@ const Id = z.string().uuid();
 export const CookieCreateSongInput = z
   .object({
     mode: z.enum(["simple", "advanced"]),
-    prompt: z.string().trim().max(500),
+    prompt: z.string().trim().max(PROMPT_MAX_LENGTH),
     lyrics: z.string().trim().max(5000),
     styles: z.string().trim().max(1000),
     languages: z.array(z.enum(LANGS)).min(1),

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
-
-import { serviceClient } from "./support";
+import { signInLink } from "../../../ops/sign-in-link";
+import { COMPOSER_DRAFT_KEY } from "../lib/site/composer-draft";
+import { E2E_ADMIN_EMAIL, serviceClient } from "./support";
 
 test("sign in with the 6-digit code from the mail catcher", async ({
   page,
@@ -94,4 +95,63 @@ test("non-allowlisted addresses receive the neutral login response without a ses
     .eq("email", email);
   if (error) throw error;
   expect(data).toHaveLength(0);
+});
+
+test("home hero composer multi-line draft survives magic-link sign-in in a new tab without putting text in any URL", async ({
+  page,
+  context,
+}) => {
+  const twoLines =
+    "Keep the acoustic guitar at 94 BPM\nRewrite the chorus in warm Italian";
+  const seenUrls: string[] = [];
+  const watchUrls = (p: typeof page) => {
+    p.on("framenavigated", (frame) => {
+      if (frame === p.mainFrame()) seenUrls.push(frame.url());
+    });
+  };
+  watchUrls(page);
+
+  await page.goto("/");
+  const heroInput = page.locator("#hero-composer-input");
+  await heroInput.fill(twoLines);
+  await page.locator(".site-composer .site-hero__primary").click();
+  await page.waitForURL(/\/login\?/u);
+
+  const loginUrl = new URL(page.url());
+  expect(loginUrl.pathname).toBe("/login");
+  expect(loginUrl.searchParams.get("prompt")).toBeNull();
+  const nextParam = loginUrl.searchParams.get("next");
+  expect(nextParam).toBe("/create?draft=1");
+
+  // Simulate opening the magic link from email in a brand-new tab.
+  const confirmUrl = new URL(
+    await signInLink(
+      serviceClient().auth.admin,
+      E2E_ADMIN_EMAIL,
+      loginUrl.origin,
+    ),
+  );
+  confirmUrl.searchParams.set("next", nextParam ?? "/create?draft=1");
+
+  const magicTab = await context.newPage();
+  watchUrls(magicTab);
+  await magicTab.goto(confirmUrl.href);
+  await expect(magicTab).toHaveURL(/\/create$/u);
+
+  const studioPrompt = magicTab.locator("#simple-prompt");
+  await expect(studioPrompt).toHaveValue(twoLines);
+  expect(
+    await magicTab.evaluate(
+      (key) => window.localStorage.getItem(key),
+      COMPOSER_DRAFT_KEY,
+    ),
+  ).toBeNull();
+
+  // No URL in the whole flow ever carried either line of the user's prompt.
+  for (const url of seenUrls) {
+    expect(url).not.toContain("acoustic");
+    expect(url).not.toContain("Italian");
+    expect(url).not.toContain("prompt=");
+  }
+  await magicTab.close();
 });

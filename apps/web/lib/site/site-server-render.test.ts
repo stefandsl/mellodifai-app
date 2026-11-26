@@ -1,6 +1,8 @@
+// @vitest-environment node
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { renderHomeStatic } from "./render-static-entry";
 
 const WEB = join(import.meta.dirname, "../..");
 
@@ -55,7 +57,8 @@ describe("public site renders static parts on the server", () => {
 
   it("removes client-only Text/Heading/Link/Icon/Table/Theme imports from all interactive site islands", () => {
     const islands = [
-      "components/site/hero-studio.tsx",
+      "components/site/hero-composer.tsx",
+      "components/site/feature-reel.tsx",
       "components/site/home-client.tsx",
       "components/site/site-menu.tsx",
       "components/site/site-theme.tsx",
@@ -73,11 +76,17 @@ describe("public site renders static parts on the server", () => {
 
   it("keeps Astryx components for interactive controls", () => {
     const hero = readFileSync(
-      join(WEB, "components/site/hero-studio.tsx"),
+      join(WEB, "components/site/hero-composer.tsx"),
       "utf8",
     );
     expect(hero).toContain("@astryxdesign/core/Button");
     expect(hero).toContain("@astryxdesign/core/ToggleButton");
+
+    const reel = readFileSync(
+      join(WEB, "components/site/feature-reel.tsx"),
+      "utf8",
+    );
+    expect(reel).toContain("@astryxdesign/core/ToggleButton");
 
     const segmented = readFileSync(
       join(WEB, "components/site/segmented.tsx"),
@@ -102,5 +111,30 @@ describe("public site renders static parts on the server", () => {
 
     const home = readFileSync(join(WEB, "components/site/home.tsx"), "utf8");
     expect(home).toContain("@astryxdesign/core/Collapsible");
+  });
+
+  it("renders feature reel bullets without aria-current and exposes only slide 0 in SSR HTML", () => {
+    const { html } = renderHomeStatic("en");
+
+    const bulletTags = [
+      ...html.matchAll(/<button\b[^>]*data-reel-bullet=[^>]*>/gu),
+    ].map((m) => m[0]);
+    expect(bulletTags).toHaveLength(9);
+    for (const tag of bulletTags) {
+      expect(tag).toContain("aria-pressed=");
+      expect(tag).not.toContain("aria-current");
+    }
+
+    const slideTags = [
+      ...html.matchAll(/<div\b[^>]*data-reel-slide="(\d+)"[^>]*>/gu),
+    ];
+    expect(slideTags).toHaveLength(9);
+    for (const [tag, idx] of slideTags) {
+      if (idx === "0") {
+        expect(tag).not.toContain("aria-hidden");
+      } else {
+        expect(tag).toContain('aria-hidden="true"');
+      }
+    }
   });
 });
