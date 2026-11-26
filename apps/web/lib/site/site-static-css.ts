@@ -484,6 +484,73 @@ export function buildMinifiedFontsCss(): string {
   }).code;
 }
 
+function splitTopLevelCommas(selectorList: string): string[] {
+  const out: string[] = [];
+  let paren = 0;
+  let bracket = 0;
+  let start = 0;
+  for (let i = 0; i < selectorList.length; i++) {
+    const ch = selectorList[i];
+    if (ch === "(") paren++;
+    else if (ch === ")") paren = Math.max(0, paren - 1);
+    else if (ch === "[") bracket++;
+    else if (ch === "]") bracket = Math.max(0, bracket - 1);
+    else if (ch === "," && paren === 0 && bracket === 0) {
+      out.push(selectorList.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  out.push(selectorList.slice(start).trim());
+  return out.filter(Boolean);
+}
+
+function hasNonMediaRule(cssBlock: string): boolean {
+  let i = 0;
+  const len = cssBlock.length;
+  while (i < len) {
+    while (i < len && /\s/u.test(cssBlock[i])) i++;
+    if (i >= len) break;
+    let brace = i;
+    let semi = -1;
+    while (brace < len && cssBlock[brace] !== "{") {
+      if (cssBlock[brace] === ";" && semi === -1) semi = brace;
+      brace++;
+    }
+    if (semi !== -1 && (brace >= len || semi < brace)) {
+      return true;
+    }
+    if (brace >= len) return true;
+    const prelude = cssBlock.slice(i, brace).trim();
+    let depth = 1;
+    let j = brace + 1;
+    while (j < len && depth > 0) {
+      if (cssBlock[j] === "{") depth++;
+      else if (cssBlock[j] === "}") depth--;
+      j++;
+    }
+    if (depth !== 0) return true;
+    const inner = cssBlock.slice(brace + 1, j - 1);
+    i = j;
+
+    if (
+      prelude.startsWith("@layer") ||
+      prelude.startsWith("@scope") ||
+      prelude.startsWith("@media")
+    ) {
+      if (hasNonMediaRule(inner)) return true;
+      continue;
+    }
+    if (prelude.startsWith("@")) return true;
+
+    const selectors = splitTopLevelCommas(prelude);
+    if (selectors.length === 0) return true;
+    for (const sel of selectors) {
+      if (!sel.includes("[data-astryx-media")) return true;
+    }
+  }
+  return false;
+}
+
 function stripBalancedMediaLayerBlocks(css: string): string {
   let out = css;
   const marker = "[data-astryx-media";
@@ -504,13 +571,7 @@ function stripBalancedMediaLayerBlocks(css: string): string {
     }
     if (depth !== 0) break;
     const block = out.slice(layerIdx, endIdx);
-    const remainder = block
-      .replaceAll(/@layer\s+astryx-theme\s*\{/gu, "")
-      .replaceAll(/@scope\s*\([^)]*\)(?:\s*to\s*\([^)]*\))?\s*\{/gu, "")
-      .replaceAll(/@media\s*\([^)]*\)\s*\{/gu, "")
-      .replaceAll(/[^;{}]*\[data-astryx-media[^\]]*\][^{]*\{[^}]*\}/gu, "")
-      .replaceAll(/[\s}]/gu, "");
-    if (remainder.length > 0) {
+    if (hasNonMediaRule(block)) {
       throw new Error(
         "pruneUnusedMeshBlocks: unexpected non-media rules inside data-astryx-media @layer astryx-theme block",
       );

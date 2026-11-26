@@ -158,6 +158,15 @@ describe("static site CSS helpers", () => {
     expect(() => pruneUnusedMeshBlocks(mixedBlock, "<h1>Title</h1>")).toThrow(
       /non-media rules/u,
     );
+
+    const mixedSelectorList = [
+      '@layer astryx-theme { @scope ([data-astryx-theme="mesh"]) {',
+      '  .keep-me, [data-astryx-media="dark"] .x { color: red; }',
+      "} }",
+    ].join("\n");
+    expect(() =>
+      pruneUnusedMeshBlocks(mixedSelectorList, "<h1>Title</h1>"),
+    ).toThrow(/non-media rules/u);
   });
 
   it("prunes Astryx StyleX rules to used classes, drops data-astryx-press, and omits shadowed :root vars", () => {

@@ -1,6 +1,8 @@
+// @vitest-environment node
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { renderHomeStatic } from "./render-static-entry";
 
 const WEB = join(import.meta.dirname, "../..");
 
@@ -109,5 +111,30 @@ describe("public site renders static parts on the server", () => {
 
     const home = readFileSync(join(WEB, "components/site/home.tsx"), "utf8");
     expect(home).toContain("@astryxdesign/core/Collapsible");
+  });
+
+  it("renders feature reel bullets without aria-current and exposes only slide 0 in SSR HTML", () => {
+    const { html } = renderHomeStatic("en");
+
+    const bulletTags = [
+      ...html.matchAll(/<button\b[^>]*data-reel-bullet=[^>]*>/gu),
+    ].map((m) => m[0]);
+    expect(bulletTags).toHaveLength(9);
+    for (const tag of bulletTags) {
+      expect(tag).toContain("aria-pressed=");
+      expect(tag).not.toContain("aria-current");
+    }
+
+    const slideTags = [
+      ...html.matchAll(/<div\b[^>]*data-reel-slide="(\d+)"[^>]*>/gu),
+    ];
+    expect(slideTags).toHaveLength(9);
+    for (const [tag, idx] of slideTags) {
+      if (idx === "0") {
+        expect(tag).not.toContain("aria-hidden");
+      } else {
+        expect(tag).toContain('aria-hidden="true"');
+      }
+    }
   });
 });
