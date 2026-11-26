@@ -338,6 +338,36 @@ test("unknown slug returns HTTP 404 with the site 404 page in EN and IT", async 
   await expect(page.locator("h1")).toHaveText(itCopy.notFound.title);
 });
 
+test("action button /recipes/<slug>/try redirects (307) to /create?recipe=<slug> and reaches a 200 page; unknown slug returns 404", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  const rawRedirect = await request.get(`/recipes/${SAMPLE_SLUG}/try`, {
+    maxRedirects: 0,
+  });
+  expect(rawRedirect.status()).toBe(307);
+  expect(rawRedirect.headers().location).toBe(`/create?recipe=${SAMPLE_SLUG}`);
+
+  await open(page);
+  const finalDoc = page.waitForResponse(
+    (res) =>
+      res.request().resourceType() === "document" &&
+      res.status() >= 200 &&
+      res.status() < 300 &&
+      /^\/(create|login)$/u.test(new URL(res.url()).pathname),
+  );
+  await page.locator('[data-recipe-try="true"]').click();
+  const navRes = await finalDoc;
+  expect(navRes.status()).toBe(200);
+  await expect(page).toHaveURL(/\/(create|login)(?:\?|$)/u);
+
+  const badTry = await page.goto("/recipes/does-not-exist-anywhere/try");
+  expect(badTry?.status()).toBe(404);
+  await expect(page.locator("h1")).toHaveText(en.notFound.title);
+});
+
 test("Italian page renders Italian copy, inputs, and action link", async ({
   page,
   baseURL,

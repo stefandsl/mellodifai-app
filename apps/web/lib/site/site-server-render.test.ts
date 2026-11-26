@@ -9,6 +9,7 @@ const STATIC_FILES = [
   "app/(site)/pricing/route.ts",
   "app/(site)/recipes/route.ts",
   "app/(site)/recipes/[slug]/route.ts",
+  "app/(site)/recipes/[slug]/try/route.ts",
   "components/site/home.tsx",
   "components/site/site-footer.tsx",
   "components/site/brand.tsx",

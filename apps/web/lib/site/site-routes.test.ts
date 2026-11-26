@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { GET as getPricing } from "@/app/(site)/pricing/route";
 import { GET as getRecipeDetail } from "@/app/(site)/recipes/[slug]/route";
+import { GET as getRecipeTry } from "@/app/(site)/recipes/[slug]/try/route";
 import { GET as getRecipes } from "@/app/(site)/recipes/route";
 import { GET as getHome } from "@/app/(site)/route";
 import { GET as getIsland } from "@/app/site/islands/[name]/route";
@@ -207,6 +208,47 @@ describe("public site static route handlers", () => {
 
       const it404 = await getRecipeDetail(
         makeRequest(`http://127.0.0.1:3239/recipes/${encodeURIComponent(bad)}`),
+        { params: Promise.resolve({ slug: bad }) },
+      );
+      expect(it404.status, `${bad} it`).toBe(404);
+      expect(await it404.text()).toContain('<html lang="it"');
+    }
+  });
+
+  it("redirects /recipes/<slug>/try (307) to /create?recipe=<slug> and returns site 404 for unknown slugs", async () => {
+    for (const slug of ["acoustic-voice-swap", "group-chat-ballad"]) {
+      const res = await getRecipeTry(
+        makeRequest(
+          `http://127.0.0.1:3239/recipes/${slug}/try`,
+          "mellodifai_lang=en",
+        ),
+        { params: Promise.resolve({ slug }) },
+      );
+      expect(res.status, `${slug} try`).toBe(307);
+      expect(res.headers.get("location"), `${slug} location`).toBe(
+        `/create?recipe=${slug}`,
+      );
+      expect(res.headers.get("cache-control")).toBe("private, no-cache");
+      expect(res.headers.get("vary")).toBe("Cookie");
+    }
+
+    for (const bad of ["does-not-exist", "../home-en", "UPPER_CASE"]) {
+      const en404 = await getRecipeTry(
+        makeRequest(
+          `http://127.0.0.1:3239/recipes/${encodeURIComponent(bad)}/try`,
+          "mellodifai_lang=en",
+        ),
+        { params: Promise.resolve({ slug: bad }) },
+      );
+      expect(en404.status, `${bad} en`).toBe(404);
+      const enHtml = await en404.text();
+      expect(enHtml).toContain('<html lang="en"');
+      expect(enHtml).toContain("404");
+
+      const it404 = await getRecipeTry(
+        makeRequest(
+          `http://127.0.0.1:3239/recipes/${encodeURIComponent(bad)}/try`,
+        ),
         { params: Promise.resolve({ slug: bad }) },
       );
       expect(it404.status, `${bad} it`).toBe(404);
