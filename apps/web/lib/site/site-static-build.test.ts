@@ -6,12 +6,12 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertSafeOutDir,
@@ -36,6 +36,24 @@ const TEST_TMP_PARENT = join(REPO_ROOT, ".tmp-site-static-tests");
 function makeRepoTmpDir(prefix: string): string {
   mkdirSync(TEST_TMP_PARENT, { recursive: true });
   return mkdtempSync(join(TEST_TMP_PARENT, prefix));
+}
+
+function outsideTmpParent(): string {
+  const realRepo = realpathSync.native(REPO_ROOT);
+  for (const candidate of [
+    process.env.TEMP,
+    process.env.TMP,
+    process.env.RUNNER_TEMP,
+  ]) {
+    if (!candidate || !existsSync(candidate)) continue;
+    if (process.platform === "win32" && /^[cC]:/u.test(candidate)) continue;
+    const realCandidate = realpathSync.native(candidate);
+    const rel = relative(realRepo, realCandidate);
+    const insideRepo =
+      rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+    if (!insideRepo) return realCandidate;
+  }
+  return resolve(REPO_ROOT, "..");
 }
 
 describe("static site CSS helpers", () => {
@@ -136,8 +154,8 @@ describe("static site CSS helpers", () => {
 describe("buildSiteStatic prerender pipeline", () => {
   it("generates hashed assets, cleans stale files, keeps favicon.ico, and fails verification on missing output", async () => {
     const outDir = makeRepoTmpDir("build-");
-    // A previous build's folder (it has a manifest) with a stale file left in it.
-    writeFileSync(join(outDir, "manifest.json"), "{}", "utf8");
+    // A previous build's folder (marked with .site-static-output) with a stale file left in it.
+    writeFileSync(join(outDir, ".site-static-output"), "", "utf8");
     const staleFile = join(outDir, "stale-old-page.html");
     writeFileSync(staleFile, "stale", "utf8");
 
@@ -276,13 +294,23 @@ describe("buildSiteStatic prerender pipeline", () => {
     }
   }, 30_000);
 
-  it("refuses an output folder outside the repo or a dangerous path before removing anything", async () => {
-    const outside = mkdtempSync(join(tmpdir(), "site-static-guard-"));
+  it("refuses an output folder outside the repo, tracked folders, or bare manifest folders before removing anything", async () => {
+    const outside = mkdtempSync(
+      join(outsideTmpParent(), ".tmp-site-static-guard-"),
+    );
     const outsideSentinel = join(outside, "keep.txt");
     writeFileSync(outsideSentinel, "keep", "utf8");
     const notABuild = makeRepoTmpDir("not-a-build-");
     const notABuildSentinel = join(notABuild, "keep.txt");
     writeFileSync(notABuildSentinel, "keep", "utf8");
+    const bareManifest = makeRepoTmpDir("bare-manifest-");
+    writeFileSync(join(bareManifest, "manifest.json"), "{}", "utf8");
+    const bareManifestSentinel = join(bareManifest, "keep.txt");
+    writeFileSync(bareManifestSentinel, "keep", "utf8");
+    const junctionParent = mkdtempSync(
+      join(outsideTmpParent(), ".tmp-site-static-junction-"),
+    );
+    const checkoutLink = join(junctionParent, "repo-link");
     try {
       await expect(buildSiteStatic(outside)).rejects.toThrow(
         /outside the repo/u,
@@ -293,6 +321,17 @@ describe("buildSiteStatic prerender pipeline", () => {
         /not a previous static site build/u,
       );
       expect(existsSync(notABuildSentinel)).toBe(true);
+
+      await expect(buildSiteStatic(bareManifest)).rejects.toThrow(
+        /not a previous static site build/u,
+      );
+      expect(existsSync(bareManifestSentinel)).toBe(true);
+
+      const trackedWithManifest = join(REPO_ROOT, "ops", "lib", "native");
+      expect(existsSync(join(trackedWithManifest, "manifest.json"))).toBe(true);
+      expect(() => assertSafeOutDir(trackedWithManifest)).toThrow(
+        /git-tracked/u,
+      );
 
       for (const dangerous of [
         REPO_ROOT,
@@ -308,12 +347,35 @@ describe("buildSiteStatic prerender pipeline", () => {
           /build-site-static: refusing/u,
         );
       }
+
+      const realWebDir = realpathSync.native(WEB_DIR);
       expect(assertSafeOutDir(join(WEB_DIR, ".next", "site-static"))).toBe(
-        join(WEB_DIR, ".next", "site-static"),
+        join(realWebDir, ".next", "site-static"),
       );
+
+      symlinkSync(
+        REPO_ROOT,
+        checkoutLink,
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      const viaJunction = join(
+        checkoutLink,
+        "apps",
+        "web",
+        ".next",
+        "site-static-via-junction",
+      );
+      expect(assertSafeOutDir(viaJunction)).toBe(
+        join(realWebDir, ".next", "site-static-via-junction"),
+      );
+      expect(() =>
+        assertSafeOutDir(join(checkoutLink, "ops", "lib", "native")),
+      ).toThrow(/git-tracked/u);
     } finally {
+      rmSync(junctionParent, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });
       rmSync(notABuild, { recursive: true, force: true });
+      rmSync(bareManifest, { recursive: true, force: true });
       rmSync(TEST_TMP_PARENT, { recursive: true, force: true });
     }
   });

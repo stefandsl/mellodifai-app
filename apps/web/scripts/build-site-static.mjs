@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -193,23 +194,70 @@ function isInside(parent, child) {
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
+function resolveRealPath(targetPath) {
+  let current = path.resolve(targetPath);
+  const missingSegments = [];
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    missingSegments.unshift(path.basename(current));
+    current = parent;
+  }
+  const realBase = fs.existsSync(current)
+    ? fs.realpathSync.native(current)
+    : current;
+  return missingSegments.length > 0
+    ? path.join(realBase, ...missingSegments)
+    : realBase;
+}
+
+function hasGitTrackedFiles(repoRoot, targetDir) {
+  if (!fs.existsSync(path.join(repoRoot, ".git"))) {
+    return false;
+  }
+  const relPosix = path.relative(repoRoot, targetDir).split(path.sep).join("/");
+  if (!relPosix || relPosix.startsWith("..")) {
+    return false;
+  }
+  try {
+    const out = execFileSync("git", ["ls-files", "--", relPosix], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return out.trim().length > 0;
+  } catch (error) {
+    if (
+      error &&
+      /** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT"
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 const OUTPUT_MARKER = ".site-static-output";
 
 /**
  * Refuses an output folder that `buildSiteStatic()` must not empty: one outside the repo,
  * the repo or `apps/web` themselves (or any of their ancestors), anything in `.git` or
- * `node_modules`, and an existing non-empty folder that is not a previous static build.
+ * `node_modules`, any path with git-tracked files, and an existing non-empty folder without
+ * the `.site-static-output` marker written by our build.
  * @param {string} outDir
  */
 export function assertSafeOutDir(outDir) {
-  const resolved = path.resolve(outDir);
-  const repoRoot = path.resolve(REPO_ROOT);
+  const resolved = resolveRealPath(outDir);
+  const repoRoot = resolveRealPath(REPO_ROOT);
+  const webDir = resolveRealPath(WEB_DIR);
   if (!isInside(repoRoot, resolved)) {
     throw new Error(
       `build-site-static: refusing an output folder outside the repo: ${resolved}`,
     );
   }
-  if (resolved === path.resolve(WEB_DIR) || isInside(resolved, WEB_DIR)) {
+  if (resolved === webDir || isInside(resolved, webDir)) {
     throw new Error(
       `build-site-static: refusing a dangerous output folder: ${resolved}`,
     );
@@ -220,6 +268,11 @@ export function assertSafeOutDir(outDir) {
       `build-site-static: refusing a dangerous output folder: ${resolved}`,
     );
   }
+  if (hasGitTrackedFiles(repoRoot, resolved)) {
+    throw new Error(
+      `build-site-static: refusing to empty ${resolved}: it contains git-tracked files`,
+    );
+  }
   if (fs.existsSync(resolved)) {
     if (!fs.statSync(resolved).isDirectory()) {
       throw new Error(
@@ -227,11 +280,7 @@ export function assertSafeOutDir(outDir) {
       );
     }
     const entries = fs.readdirSync(resolved);
-    if (
-      entries.length > 0 &&
-      !entries.includes("manifest.json") &&
-      !entries.includes(OUTPUT_MARKER)
-    ) {
+    if (entries.length > 0 && !entries.includes(OUTPUT_MARKER)) {
       throw new Error(
         `build-site-static: refusing to empty ${resolved}: it is not a previous static site build`,
       );
