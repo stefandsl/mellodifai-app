@@ -98,7 +98,6 @@ const DYNAMIC_SITE_CLASSES = [
   "site-agents-popover__item",
   "site-agents-popover__title",
   "site-agents-popover__desc",
-  "site-dot--muted",
   "site-studio__old",
   "site-wave__take",
   "site-cover--remix",
@@ -438,6 +437,34 @@ export function buildMinifiedFontsCss(): string {
   }).code;
 }
 
+export function pruneUnusedMeshBlocks(
+  meshCss: string,
+  bodyHtml: string,
+): string {
+  let out = meshCss;
+  if (!bodyHtml.includes("data-astryx-media")) {
+    const mediaIdx = out.indexOf('[data-astryx-media="dark"]');
+    if (mediaIdx !== -1) {
+      const layerIdx = out.lastIndexOf("@layer astryx-theme", mediaIdx);
+      if (layerIdx !== -1) {
+        out = out.slice(0, layerIdx).trimEnd();
+      }
+    }
+  }
+  for (const tag of ["h4", "h5", "h6", "small", "hr"] as const) {
+    if (!new RegExp(`<${tag}\\b`, "iu").test(bodyHtml)) {
+      out = out.replace(
+        new RegExp(`\\s*:where\\(${tag}\\)\\s*\\{[^}]*\\}`, "gu"),
+        "",
+      );
+    }
+  }
+  if (!/<(?:code|pre)\b/iu.test(bodyHtml)) {
+    out = out.replace(/\s*:where\(code,\s*pre\)\s*\{[^}]*\}/gu, "");
+  }
+  return out;
+}
+
 export function buildMinifiedPageCss(options: {
   page: "home" | "pricing" | "recipes";
   bodyHtml: string;
@@ -448,10 +475,11 @@ export function buildMinifiedPageCss(options: {
     path.join(WEB_DIR, "src/site-astryx.css"),
     "utf8",
   );
-  const meshCss = fs.readFileSync(
+  const rawMeshCss = fs.readFileSync(
     path.join(WEB_DIR, "src/themes/mesh/mesh.css"),
     "utf8",
   );
+  const meshCss = pruneUnusedMeshBlocks(rawMeshCss, options.bodyHtml);
   const rawSiteCss = fs.readFileSync(
     path.join(WEB_DIR, "app/(site)/site.css"),
     "utf8",

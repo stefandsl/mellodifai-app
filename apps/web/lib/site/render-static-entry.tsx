@@ -6,6 +6,7 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Text } from "@astryxdesign/core/Text";
+import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -13,12 +14,7 @@ import { Cover, type CoverKind } from "@/components/site/art";
 import { CompareTable } from "@/components/site/compare-table";
 import { Faq } from "@/components/site/faq";
 import { Home } from "@/components/site/home";
-import {
-  ArrowGlyph,
-  CloseGlyph,
-  PauseGlyph,
-  PlayGlyph,
-} from "@/components/site/icons";
+import { ArrowGlyph, CloseGlyph } from "@/components/site/icons";
 import { PricingPlans } from "@/components/site/pricing-plans";
 import {
   RecipesIndex,
@@ -289,6 +285,8 @@ export type HomeAstryxStateClasses = {
   panelOpen: string[];
   chevronOpen: string[];
   chevronClosed: string[];
+  chipPressed: string[];
+  chipUnpressed: string[];
 };
 
 function extractElementClasses(markup: string, pattern: RegExp): Set<string> {
@@ -313,6 +311,21 @@ export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
   const enabledClasses = extractElementClasses(enabledBtn, /<button\b[^>]*>/u);
   const disabledClasses = extractElementClasses(
     disabledBtn,
+    /<button\b[^>]*>/u,
+  );
+
+  const pressedToggle = renderToStaticMarkup(
+    <ToggleButton label="x" isPressed={true} />,
+  );
+  const unpressedToggle = renderToStaticMarkup(
+    <ToggleButton label="x" isPressed={false} />,
+  );
+  const pressedToggleClasses = extractElementClasses(
+    pressedToggle,
+    /<button\b[^>]*>/u,
+  );
+  const unpressedToggleClasses = extractElementClasses(
+    unpressedToggle,
     /<button\b[^>]*>/u,
   );
 
@@ -351,22 +364,14 @@ export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
     panelOpen: diffClassSets(openPanelClasses, closedPanelClasses),
     chevronOpen: diffClassSets(openChevronClasses, closedChevronClasses),
     chevronClosed: diffClassSets(closedChevronClasses, openChevronClasses),
+    chipPressed: diffClassSets(pressedToggleClasses, unpressedToggleClasses),
+    chipUnpressed: diffClassSets(unpressedToggleClasses, pressedToggleClasses),
   };
   return cachedHomeClasses;
 }
 
 function renderHomeTemplates(stateClasses: HomeAstryxStateClasses): string {
-  const playMarkup = renderToStaticMarkup(
-    <SiteIcon icon={PlayGlyph} size="sm" color="inherit" />,
-  );
-  const pauseMarkup = renderToStaticMarkup(
-    <SiteIcon icon={PauseGlyph} size="sm" color="inherit" />,
-  );
-  return [
-    `<template data-hero-icon="play">${playMarkup}</template>`,
-    `<template data-hero-icon="pause">${pauseMarkup}</template>`,
-    `<script type="application/json" id="site-home-classes">${safeJsonForScript(stateClasses)}</script>`,
-  ].join("");
+  return `<script type="application/json" id="site-home-classes">${safeJsonForScript(stateClasses)}</script>`;
 }
 
 export function renderHomeStatic(
@@ -384,6 +389,8 @@ export function renderHomeStatic(
     ...stateClasses.panelOpen,
     ...stateClasses.chevronOpen,
     ...stateClasses.chevronClosed,
+    ...stateClasses.chipPressed,
+    ...stateClasses.chipUnpressed,
   ];
   return renderDocument({
     lang,
