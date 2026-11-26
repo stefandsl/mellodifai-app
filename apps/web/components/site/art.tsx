@@ -118,6 +118,10 @@ const RINGS: Record<CoverKind, [number, number, number][]> = {
   pantomime: [[170, 100, 6]],
 };
 
+export function coverRings(kind: CoverKind): [number, number, number][] {
+  return RINGS[kind];
+}
+
 /** A record sleeve: a mesh field in a dark frame with thin rings. */
 export function Cover({
   kind,

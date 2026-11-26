@@ -3,15 +3,72 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { computeSiteAstryxCss } from "../../scripts/build-site-astryx-css.mjs";
+import {
+  deriveHomeAstryxStateClasses,
+  renderHomeStatic,
+  renderPricingStatic,
+} from "./render-static-entry";
 
 const WEB = join(import.meta.dirname, "../..");
 
 describe("public site loads only the Astryx CSS it uses", () => {
-  it("does not import the full 304 KB @astryxdesign/core/astryx.css in the site layout", () => {
-    const layout = readFileSync(join(WEB, "app/(site)/layout.tsx"), "utf8");
-    expect(layout).not.toContain("@astryxdesign/core/astryx.css");
-    expect(layout).not.toContain("@astryxdesign/core/reset.css");
-    expect(layout).toContain("site-astryx.css");
+  it("prunes inline page CSS to used Astryx rules and excludes unused full-Astryx classes", () => {
+    const fullAstryx = readFileSync(
+      join(WEB, "node_modules/@astryxdesign/core/dist/astryx.css"),
+      "utf8",
+    );
+    const { html: homeHtml } = renderHomeStatic("en");
+    const { html: pricingHtml } = renderPricingStatic("en");
+
+    const homeStyleMatch = homeHtml.match(/<style>([\s\S]*?)<\/style>/u);
+    const pricingStyleMatch = pricingHtml.match(/<style>([\s\S]*?)<\/style>/u);
+    expect(homeStyleMatch).not.toBeNull();
+    expect(pricingStyleMatch).not.toBeNull();
+    const homeCss = homeStyleMatch?.[1] ?? "";
+    const pricingCss = pricingStyleMatch?.[1] ?? "";
+
+    // Real pruned CSS is a small fraction of the 304 KB full astryx.css.
+    expect(Buffer.byteLength(homeCss)).toBeLessThan(
+      Buffer.byteLength(fullAstryx) * 0.25,
+    );
+    expect(Buffer.byteLength(pricingCss)).toBeLessThan(
+      Buffer.byteLength(fullAstryx) * 0.3,
+    );
+
+    // Every derived Home state (disabled button, collapsible panel/chevron) has active rules in pruned CSS.
+    const derived = deriveHomeAstryxStateClasses();
+    for (const [label, classes] of [
+      ["disabledButton", derived.disabledButton],
+      ["panelClosed", derived.panelClosed],
+      ["chevronOpen", derived.chevronOpen],
+      ["chevronClosed", derived.chevronClosed],
+    ] as const) {
+      expect(classes.length, `${label} should derive classes`).toBeGreaterThan(
+        0,
+      );
+      const presentInCss = classes.filter((cls) => homeCss.includes(`.${cls}`));
+      expect(
+        presentInCss.length,
+        `${label} (${classes.join(", ")}) missing from pruned home CSS`,
+      ).toBeGreaterThan(0);
+    }
+
+    // Home must not pull in pricing-only table CSS.
+    expect(homeCss).not.toContain(".site-price-compare");
+    expect(pricingCss).toContain(".site-price-compare");
+  });
+
+  it("does not hard-code StyleX class hashes in home.ts or render-static-entry.tsx", () => {
+    for (const rel of [
+      "lib/site/islands/home.ts",
+      "lib/site/render-static-entry.tsx",
+    ]) {
+      const src = readFileSync(join(WEB, rel), "utf8");
+      const hardcoded = [...src.matchAll(/["']x[0-9a-z]{6,7}["']/gu)].map(
+        (m) => m[0],
+      );
+      expect(hardcoded, `${rel} has hardcoded StyleX hashes`).toEqual([]);
+    }
   });
 
   it("keeps generated site Astryx CSS in sync with site imports and smaller than half of astryx.css", () => {

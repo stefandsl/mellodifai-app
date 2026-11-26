@@ -4,18 +4,29 @@ import { describe, expect, it } from "vitest";
 
 const WEB = join(import.meta.dirname, "../..");
 
-describe("public site has its own root layout", () => {
-  it("splits (site) and (studio) into two root layouts without a shared app/layout.tsx", () => {
+describe("public site has its own document shell separate from studio", () => {
+  it("keeps (site) static documents free of studio globals, Toaster, LocaleProvider and bootstrap scripts", () => {
     expect(existsSync(join(WEB, "app/layout.tsx"))).toBe(false);
+    expect(existsSync(join(WEB, "app/(site)/layout.tsx"))).toBe(false);
     expect(existsSync(join(WEB, "app/(studio)/layout.tsx"))).toBe(true);
-    const siteLayout = readFileSync(join(WEB, "app/(site)/layout.tsx"), "utf8");
-    expect(siteLayout).toContain("<html");
-    expect(siteLayout).toContain("<body");
-    expect(siteLayout).not.toContain("globals.css");
-    expect(siteLayout).not.toContain("Toaster");
-    expect(siteLayout).not.toContain("LocaleProvider");
-    expect(siteLayout).not.toContain("THEME_SCRIPT");
-    expect(siteLayout).not.toContain("GLASS_SCRIPT");
+    for (const rel of [
+      "app/(site)/route.ts",
+      "app/(site)/pricing/route.ts",
+      "app/(site)/recipes/route.ts",
+    ]) {
+      expect(existsSync(join(WEB, rel)), `${rel} exists`).toBe(true);
+    }
+    const staticEntry = readFileSync(
+      join(WEB, "lib/site/render-static-entry.tsx"),
+      "utf8",
+    );
+    expect(staticEntry).toContain("<html");
+    expect(staticEntry).toContain("<body");
+    expect(staticEntry).not.toContain("globals.css");
+    expect(staticEntry).not.toContain("Toaster");
+    expect(staticEntry).not.toContain("LocaleProvider");
+    expect(staticEntry).not.toContain("THEME_SCRIPT");
+    expect(staticEntry).not.toContain("GLASS_SCRIPT");
   });
 
   it("keeps the studio root layout with Tailwind, Toaster, LocaleProvider and bootstrap scripts", () => {

@@ -1,6 +1,32 @@
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type { NextConfig } from "next";
 
+const importEsm = new Function("u", "return import(u)") as <T>(
+  specifier: string,
+) => Promise<T>;
+
 const nextConfig: NextConfig = {
+  compiler: {
+    runAfterProductionCompile: async ({ projectDir }) => {
+      const mod = await importEsm<{
+        buildSiteStatic: (outDir: string) => Promise<{
+          outDir: string;
+          pages: string[];
+          islands: string[];
+        }>;
+      }>(
+        pathToFileURL(path.join(projectDir, "scripts", "build-site-static.mjs"))
+          .href,
+      );
+      const res = await mod.buildSiteStatic(
+        path.join(projectDir, ".next", "site-static"),
+      );
+      console.log(
+        `build-site-static: wrote ${res.pages.length} pages and ${res.islands.length} islands to ${res.outDir}`,
+      );
+    },
+  },
   experimental: {
     globalNotFound: true,
     // The desktop app builds unattended on the owner's PC: Next's upgrade nudge for coding

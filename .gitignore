@@ -12,5 +12,8 @@ dist/
 *.tsbuildinfo
 packages/*/src/**/*.js
 
+# throwaway output of the static site build tests and its prerender runner
+.tmp-site-*
+
 # agent worktrees (each is a full checkout with its own biome.json)
 .claude/worktrees/

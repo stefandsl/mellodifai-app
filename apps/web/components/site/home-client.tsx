@@ -6,7 +6,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import { useState } from "react";
 import type { SiteCopy } from "@/lib/site/copy";
 import { SiteHeading, SiteText } from "@/src/site-primitives";
-import { Cover, type CoverKind } from "./art";
+import { Cover, type CoverKind, coverRings } from "./art";
 
 const KIND_ART: CoverKind[] = [
   "remix",
@@ -22,8 +22,16 @@ const KIND_ART: CoverKind[] = [
 export function KindsStage({ copy }: { copy: SiteCopy["kinds"] }) {
   const [active, setActive] = useState(0);
   const kind = copy.items[active];
+  const stageConfig = JSON.stringify(
+    copy.items.map((k, i) => ({
+      name: k.name,
+      line: k.line,
+      kind: KIND_ART[i],
+      rings: coverRings(KIND_ART[i]),
+    })),
+  );
   return (
-    <HStack className="site-kinds__body">
+    <HStack className="site-kinds__body" data-kinds-stage={stageConfig}>
       <VStack role="group" aria-label={copy.label} className="site-kinds__list">
         {copy.items.map((k, i) => (
           <ToggleButton
