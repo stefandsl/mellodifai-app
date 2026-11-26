@@ -628,20 +628,23 @@ describe("public site vanilla islands on built static HTML", () => {
     );
     expect(currentTimeVal).toBe(0);
 
-    // Mute toggle and volume slider keyboard controls.
+    // Mute toggle keeps a fixed accessible name while toggling aria-pressed and media.muted.
     const muteBtn = shell.querySelector<HTMLButtonElement>("[data-clip-mute]");
     const vol = shell.querySelector<HTMLElement>("[data-clip-volume]");
     expect(muteBtn?.getAttribute("aria-pressed")).toBe("false");
+    expect(muteBtn?.getAttribute("aria-label")).toBe("Mute audio");
     muteBtn?.click();
     expect(media.muted).toBe(true);
     expect(muteBtn?.getAttribute("aria-pressed")).toBe("true");
-    expect(muteBtn?.getAttribute("aria-label")).toBe("Unmute audio");
+    expect(muteBtn?.getAttribute("aria-label")).toBe("Mute audio");
     expect(vol?.getAttribute("aria-valuenow")).toBe("0");
 
     vol?.dispatchEvent(
       new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
     );
     expect(media.muted).toBe(false);
+    expect(muteBtn?.getAttribute("aria-pressed")).toBe("false");
+    expect(muteBtn?.getAttribute("aria-label")).toBe("Mute audio");
     expect(media.volume).toBeCloseTo(0.1, 2);
     expect(vol?.getAttribute("aria-valuenow")).toBe("10");
 

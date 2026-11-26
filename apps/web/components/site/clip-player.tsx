@@ -51,7 +51,6 @@ export function ClipPlayer({
       pause: copy.pause,
       speed: copy.speed,
       mute: copy.mute,
-      unmute: copy.unmute,
       fullscreen: copy.fullscreen,
       exitFullscreen: copy.exitFullscreen,
       readyStatus: copy.readyStatus,

@@ -173,7 +173,6 @@ export type SiteCopy = {
       seek: string;
       speed: string;
       mute: string;
-      unmute: string;
       volume: string;
       fullscreen: string;
       exitFullscreen: string;
@@ -646,7 +645,6 @@ const en: SiteCopy = {
       seek: "Seek clip timeline",
       speed: "Preview speed",
       mute: "Mute audio",
-      unmute: "Unmute audio",
       volume: "Audio volume",
       fullscreen: "Enter full screen",
       exitFullscreen: "Exit full screen",
@@ -1129,7 +1127,6 @@ const it: SiteCopy = {
       seek: "Sposta nella linea temporale",
       speed: "Velocita anteprima",
       mute: "Disattiva audio",
-      unmute: "Attiva audio",
       volume: "Volume audio",
       fullscreen: "Schermo intero",
       exitFullscreen: "Esci da schermo intero",

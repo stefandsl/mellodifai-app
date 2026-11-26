@@ -13,7 +13,6 @@ type ClipPlayerConfig = {
     pause: string;
     speed: string;
     mute: string;
-    unmute: string;
     fullscreen: string;
     exitFullscreen: string;
     readyStatus: string;
@@ -224,10 +223,7 @@ export function initClipPlayer(): void {
       shell.setAttribute("data-muted", String(muted));
       if (muteBtn) {
         muteBtn.setAttribute("aria-pressed", String(muted));
-        muteBtn.setAttribute(
-          "aria-label",
-          muted ? config.copy.unmute : config.copy.mute,
-        );
+        muteBtn.setAttribute("aria-label", config.copy.mute);
         swapButtonIcon(muteBtn, muted ? "mute" : "volume");
       }
       if (volFill) {

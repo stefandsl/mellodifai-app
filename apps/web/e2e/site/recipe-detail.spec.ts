@@ -239,7 +239,7 @@ test("clip player: no autoplay, no sound before click, play/pause, speed playbac
   await expect(muteBtn).toHaveAttribute("aria-pressed", "true");
   await expect(muteBtn).toHaveAttribute(
     "aria-label",
-    en.recipeDetail.player.unmute,
+    en.recipeDetail.player.mute,
   );
 
   // Volume slider works by keyboard ArrowUp and Home/End.
