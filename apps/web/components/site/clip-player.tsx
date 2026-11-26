@@ -1,9 +1,8 @@
 import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
 import Image from "next/image";
-import type { SiteCopy, SiteLang } from "@/lib/site/copy";
+import type { SiteCopy } from "@/lib/site/copy";
 import {
-  buildClipCaptionDataUri,
   CLIP_HERO_IMAGE_SIZES,
   CLIP_SPEEDS,
   formatClipTime,
@@ -25,7 +24,6 @@ export type ClipPlayerProps = {
   mediaSrc: string;
   isVideo: boolean;
   estimatedSeconds: number;
-  lang: SiteLang;
   copy: SiteCopy["recipeDetail"]["player"];
 };
 
@@ -41,11 +39,9 @@ export function ClipPlayer({
   mediaSrc,
   isVideo,
   estimatedSeconds,
-  lang,
   copy,
 }: ClipPlayerProps) {
   const initialDurationLabel = formatClipTime(0);
-  const captionUri = buildClipCaptionDataUri(title, lyricLine);
   const playerConfig = JSON.stringify({
     slug,
     isVideo,
@@ -94,20 +90,14 @@ export function ClipPlayer({
             data-clip-poster="true"
           />
           {isVideo ? (
+            /* biome-ignore lint/a11y/useMediaCaption: synthetic placeholder clip has no timed transcript; lyric highlight is rendered on screen. */
             <video
               className="site-clip__media"
               src={mediaSrc}
               preload="none"
               playsInline
               data-clip-media="true"
-            >
-              <track
-                kind="captions"
-                srcLang={lang}
-                label={title}
-                src={captionUri}
-              />
-            </video>
+            />
           ) : (
             <>
               <VStack className="site-clip__audio-visual" aria-hidden="true">

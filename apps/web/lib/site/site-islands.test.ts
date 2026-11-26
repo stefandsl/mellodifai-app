@@ -518,10 +518,12 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(media).not.toBeNull();
     if (!shell || !media) return;
 
-    // Never autoplays and preloads nothing before a click.
+    // Never autoplays, preloads nothing before a click, and omits fake caption tracks when recipes have no timed cues.
     expect(media.autoplay).toBe(false);
     expect(media.preload).toBe("none");
     expect(media.paused).toBe(true);
+    expect(media.querySelector("track")).toBeNull();
+    expect(recipeDetailVideoHtml).not.toContain("data:text/vtt");
 
     let isPaused = true;
     let currentTimeVal = 0;

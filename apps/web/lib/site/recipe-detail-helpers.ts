@@ -19,19 +19,6 @@ export function formatClipTime(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-export function buildClipCaptionDataUri(title: string, line: string): string {
-  const cleanTitle = title.replaceAll(/[\r\n]+/gu, " ").trim();
-  const cleanLine = line.replaceAll(/[\r\n]+/gu, " ").trim();
-  const vtt = [
-    "WEBVTT",
-    "",
-    "00:00.000 --> 00:30.000",
-    cleanLine || cleanTitle,
-    "",
-  ].join("\n");
-  return `data:text/vtt;charset=utf-8,${encodeURIComponent(vtt)}`;
-}
-
 export type RecipeMetaItem = { key: string; text: string };
 
 export function formatRecipeMeta(

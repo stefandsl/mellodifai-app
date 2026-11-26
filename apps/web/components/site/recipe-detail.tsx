@@ -156,7 +156,6 @@ export function RecipeDetail({
           mediaSrc={recipe.mediaUrls.example}
           isVideo={video}
           estimatedSeconds={recipe.estimate.seconds}
-          lang={lang}
           copy={detail.player}
         />
 
