@@ -583,11 +583,31 @@ for (const [width, height] of [
     await page.mouse.move(1, 1);
     await expect(row0).toHaveAttribute("data-marquee-paused", "false");
 
-    // Focus inside stops row 1; blurring resumes it.
+    // Focus inside stops row 1, keeps the focused link inside the viewport without scrollLeft, and blur resumes it.
     const row1 = page.locator('[data-marquee-row="1"]');
     const row1Link = row1.locator("a").first();
     await row1Link.focus();
     await expect(row1).toHaveAttribute("data-marquee-paused", "true");
+    const focusedBounds = await page.evaluate(() => {
+      const vp = document.querySelector<HTMLElement>('[data-marquee-row="1"]');
+      const link = document.activeElement as HTMLElement | null;
+      const vpRect = vp?.getBoundingClientRect();
+      const linkRect = link?.getBoundingClientRect();
+      return {
+        scrollLeft: vp?.scrollLeft ?? -1,
+        insideRow:
+          Boolean(vpRect && linkRect) &&
+          (linkRect?.left ?? -1) >= (vpRect?.left ?? 0) - 1 &&
+          (linkRect?.right ?? 99999) <= (vpRect?.right ?? 0) + 1,
+        insideViewport:
+          Boolean(linkRect) &&
+          (linkRect?.left ?? -1) >= -1 &&
+          (linkRect?.right ?? 99999) <= window.innerWidth + 1,
+      };
+    });
+    expect(focusedBounds.scrollLeft).toBe(0);
+    expect(focusedBounds.insideRow).toBe(true);
+    expect(focusedBounds.insideViewport).toBe(true);
     const f0 = await readX(1);
     await page.clock.runFor(1000);
     const f1 = await readX(1);
@@ -597,6 +617,57 @@ for (const [width, height] of [
     await expect(row1).toHaveAttribute("data-marquee-paused", "false");
   });
 }
+
+test("C04 showcase keyboard tabbing at 1440 keeps every focused card link inside the row and viewport", async ({
+  page,
+  browserName,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.clock.install();
+  await page.goto("/");
+  await page.clock.runFor(500);
+
+  for (const rowIdx of [0, 1]) {
+    const row = page.locator(`[data-marquee-row="${rowIdx}"]`);
+    await row.scrollIntoViewIfNeeded();
+    const links = row.locator('[data-marquee-copy="0"] a');
+    const count = await links.count();
+    expect(count).toBe(6);
+
+    for (let i = 0; i < count; i++) {
+      if (i === 0 || browserName === "webkit") {
+        await links.nth(i).focus();
+      } else {
+        await page.keyboard.press("Tab");
+      }
+      await expect(links.nth(i)).toBeFocused();
+      await expect(row).toHaveAttribute("data-marquee-paused", "true");
+      const check = await page.evaluate((idx) => {
+        const vp = document.querySelector<HTMLElement>(
+          `[data-marquee-row="${idx}"]`,
+        );
+        const active = document.activeElement as HTMLElement | null;
+        const vpRect = vp?.getBoundingClientRect();
+        const linkRect = active?.getBoundingClientRect();
+        return {
+          scrollLeft: vp?.scrollLeft ?? -1,
+          vpLeft: vpRect?.left ?? 0,
+          vpRight: vpRect?.right ?? 0,
+          linkLeft: linkRect?.left ?? -9999,
+          linkRight: linkRect?.right ?? 9999,
+          winW: window.innerWidth,
+        };
+      }, rowIdx);
+      expect(check.scrollLeft).toBe(0);
+      expect(check.linkLeft).toBeGreaterThanOrEqual(check.vpLeft - 1);
+      expect(check.linkRight).toBeLessThanOrEqual(check.vpRight + 1);
+      expect(check.linkLeft).toBeGreaterThanOrEqual(-1);
+      expect(check.linkRight).toBeLessThanOrEqual(check.winW + 1);
+    }
+    await links.last().evaluate((el: HTMLElement) => el.blur());
+    await expect(row).toHaveAttribute("data-marquee-paused", "false");
+  }
+});
 
 for (const [width, height] of [
   [1440, 900],

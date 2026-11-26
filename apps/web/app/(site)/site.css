@@ -871,7 +871,6 @@ html.site-menu-open {
 .site-show__viewport {
   width: 100%;
   overflow: hidden;
-  cursor: grab;
 }
 
 .site-show__track {

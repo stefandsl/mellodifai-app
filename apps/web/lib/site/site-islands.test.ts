@@ -421,17 +421,55 @@ describe("public site vanilla islands on built static HTML", () => {
         1,
       );
 
-      // Focus inside stops row 1 immediately and blur resumes it.
-      const linkInRow1 = row1?.querySelector<HTMLAnchorElement>("a");
-      expect(linkInRow1).not.toBeNull();
-      const x1BeforeFocus = parseX(track1?.style.transform ?? "");
-      row1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-      expect(row1?.getAttribute("data-marquee-paused")).toBe("true");
-      stepRaf(4500);
-      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(
-        x1BeforeFocus,
-        2,
+      // Focus inside stops row 1 immediately, brings off-screen card into viewport without scrollLeft, and blur resumes it.
+      const copy0Row1 = row1?.querySelector<HTMLElement>(
+        '[data-marquee-copy="0"]',
       );
+      const cardsRow1 = Array.from(
+        row1?.querySelectorAll<HTMLElement>(
+          '[data-marquee-copy="0"] .site-show__card',
+        ) ?? [],
+      );
+      const linkInRow1 = cardsRow1[0]?.querySelector<HTMLAnchorElement>("a");
+      expect(linkInRow1).not.toBeNull();
+      expect(copy0Row1).not.toBeNull();
+
+      // Mock real 1440px-like geometry on row 1 where card 0 starts off screen at x = -1200.
+      const rect = (left: number, width: number): DOMRect =>
+        ({
+          left,
+          right: left + width,
+          width,
+          top: 0,
+          bottom: 200,
+          height: 200,
+          x: left,
+          y: 0,
+          toJSON: () => ({}),
+        }) as DOMRect;
+      if (row1 && copy0Row1 && cardsRow1[0] && cardsRow1[5]) {
+        row1.getBoundingClientRect = () => rect(0, 1000);
+        copy0Row1.getBoundingClientRect = () => rect(-1200, 1200);
+        cardsRow1[0].getBoundingClientRect = () => rect(-1200, 180);
+        cardsRow1[5].getBoundingClientRect = () => rect(-200, 180);
+        row1.scrollLeft = 420;
+      }
+
+      // Focusing card 0 on row 1 shifts track to x = 0 so card 0 is inside [0, 1000], and resets scrollLeft = 0.
+      linkInRow1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      expect(row1?.getAttribute("data-marquee-paused")).toBe("true");
+      expect(row1?.scrollLeft).toBe(0);
+      const x1OnFocus0 = parseX(track1?.style.transform ?? "");
+      expect(x1OnFocus0).toBeCloseTo(0, 1);
+      stepRaf(4500);
+      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(x1OnFocus0, 2);
+
+      // Focusing card 5 (left 1000..1180) shifts track to x = -180 so card 5 is inside [0, 1000].
+      const link5Row1 = cardsRow1[5]?.querySelector<HTMLAnchorElement>("a");
+      link5Row1?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      expect(parseX(track1?.style.transform ?? "")).toBeCloseTo(-180, 1);
+      expect(row1?.scrollLeft).toBe(0);
+
       row1?.dispatchEvent(
         new FocusEvent("focusout", { bubbles: true, relatedTarget: null }),
       );
@@ -475,6 +513,57 @@ describe("public site vanilla islands on built static HTML", () => {
     } finally {
       stopHome();
       vi.useRealTimers();
+    }
+  });
+
+  it("home marquee: caches row width without per-frame layout reads and omits grab cursor", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const stepRaf = (ts: number) => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(ts);
+    };
+
+    loadBuiltDocument(homeHtml);
+    const stopHome = initHome();
+    try {
+      const copy0Row0 = document.querySelector<HTMLElement>(
+        '[data-marquee-row="0"] [data-marquee-copy="0"]',
+      );
+      expect(copy0Row0).not.toBeNull();
+      const rectSpy = vi.spyOn(
+        copy0Row0 as HTMLElement,
+        "getBoundingClientRect",
+      );
+      stepRaf(0);
+      stepRaf(16);
+      stepRaf(32);
+      stepRaf(48);
+      expect(rectSpy).not.toHaveBeenCalled();
+
+      const styleText = document.head.querySelector("style")?.textContent ?? "";
+      expect(styleText).not.toContain("cursor:grab");
+      expect(styleText).not.toContain("cursor: grab");
+    } finally {
+      stopHome();
     }
   });
 

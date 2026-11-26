@@ -296,10 +296,11 @@ export function initShowcaseMarquee(): () => void {
     let hovered = false;
     let focused = false;
     let reduced = prefersReducedMotion();
+    let disposed = false;
     let lastTs: number | null = null;
     let rafId: number | null = null;
 
-    const getSetWidth = () => {
+    const measureSetWidth = () => {
       const measured =
         copy0.getBoundingClientRect().width ||
         copy0.offsetWidth ||
@@ -309,15 +310,51 @@ export function initShowcaseMarquee(): () => void {
       return Number.isFinite(fallback) && fallback > 0 ? fallback : 1200;
     };
 
+    let setWidth = measureSetWidth();
+
     const isPaused = () => reduced || hovered || focused || document.hidden;
 
     const syncPaused = () => {
       viewport.setAttribute("data-marquee-paused", String(isPaused()));
     };
 
-    const applyTransform = (setWidth: number) => {
+    const applyTransform = () => {
       const x = direction < 0 ? -offset : offset - setWidth;
       track.style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
+    };
+
+    const bringFocusedCardIntoView = (target: HTMLElement | null) => {
+      viewport.scrollLeft = 0;
+      const card = target?.closest<HTMLElement>(".site-show__card") ?? target;
+      if (!card || !copy0.contains(card)) return;
+      setWidth = measureSetWidth();
+      const vpRect = viewport.getBoundingClientRect();
+      const vpWidth = vpRect.width > 0 ? vpRect.width : viewport.clientWidth;
+      if (vpWidth <= 0) return;
+
+      const copyRect = copy0.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const cardLeft =
+        cardRect.width > 0 ? cardRect.left - copyRect.left : card.offsetLeft;
+      const cardWidth = cardRect.width > 0 ? cardRect.width : card.offsetWidth;
+      const currentX = track.style.transform
+        ? direction < 0
+          ? -offset
+          : offset - setWidth
+        : 0;
+      const visualLeft = currentX + cardLeft;
+      const visualRight = visualLeft + cardWidth;
+
+      let targetX = currentX;
+      if (visualLeft < 0 || cardWidth > vpWidth) {
+        targetX = -cardLeft;
+      } else if (visualRight > vpWidth) {
+        targetX = vpWidth - (cardLeft + cardWidth);
+      }
+      targetX = Math.min(0, Math.max(-setWidth, targetX));
+      offset = direction < 0 ? -targetX : targetX + setWidth;
+      applyTransform();
+      viewport.scrollLeft = 0;
     };
 
     const tick = (ts: number) => {
@@ -327,12 +364,11 @@ export function initShowcaseMarquee(): () => void {
         syncPaused();
         return;
       }
-      const setWidth = getSetWidth();
       if (lastTs !== null) {
         const dtSec = Math.max(0, (ts - lastTs) / 1000);
         offset = (offset + MARQUEE_SPEED_PX_PER_SEC * dtSec) % setWidth;
       }
-      applyTransform(setWidth);
+      applyTransform();
       lastTs = ts;
       rafId = window.requestAnimationFrame(tick);
     };
@@ -361,14 +397,21 @@ export function initShowcaseMarquee(): () => void {
       hovered = false;
       start();
     };
-    const onFocusIn = () => {
+    const onFocusIn = (event: FocusEvent) => {
       focused = true;
       stop();
+      bringFocusedCardIntoView(event.target as HTMLElement | null);
     };
     const onFocusOut = (event: FocusEvent) => {
       if (!viewport.contains(event.relatedTarget as Node | null)) {
         focused = false;
+        viewport.scrollLeft = 0;
         start();
+      }
+    };
+    const onScroll = () => {
+      if (viewport.scrollLeft !== 0) {
+        viewport.scrollLeft = 0;
       }
     };
     const onVisibility = () => {
@@ -376,12 +419,27 @@ export function initShowcaseMarquee(): () => void {
       else start();
     };
 
+    const resizeObserver =
+      typeof ResizeObserver === "function"
+        ? new ResizeObserver(() => {
+            if (!disposed) setWidth = measureSetWidth();
+          })
+        : null;
+    resizeObserver?.observe(copy0);
+
+    document.fonts?.ready
+      ?.then(() => {
+        if (!disposed) setWidth = measureSetWidth();
+      })
+      .catch(() => {});
+
     viewport.addEventListener("pointerenter", onEnter);
     viewport.addEventListener("mouseenter", onEnter);
     viewport.addEventListener("pointerleave", onLeave);
     viewport.addEventListener("mouseleave", onLeave);
     viewport.addEventListener("focusin", onFocusIn);
     viewport.addEventListener("focusout", onFocusOut);
+    viewport.addEventListener("scroll", onScroll);
     document.addEventListener("visibilitychange", onVisibility);
 
     const stopMotionWatch = watchReducedMotion((nextReduced) => {
@@ -393,13 +451,16 @@ export function initShowcaseMarquee(): () => void {
     start();
 
     cleanups.push(() => {
+      disposed = true;
       stop();
+      resizeObserver?.disconnect();
       viewport.removeEventListener("pointerenter", onEnter);
       viewport.removeEventListener("mouseenter", onEnter);
       viewport.removeEventListener("pointerleave", onLeave);
       viewport.removeEventListener("mouseleave", onLeave);
       viewport.removeEventListener("focusin", onFocusIn);
       viewport.removeEventListener("focusout", onFocusOut);
+      viewport.removeEventListener("scroll", onScroll);
       document.removeEventListener("visibilitychange", onVisibility);
       stopMotionWatch();
     });
