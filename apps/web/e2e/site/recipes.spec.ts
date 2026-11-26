@@ -812,6 +812,32 @@ for (const [width, height, expectedCols] of WIDTHS) {
     // Footer is visible in grid view; zoom bar is absent.
     await expect(page.locator(".site-footer")).toBeVisible();
     await expect(page.locator('[data-recipes-zoom="true"]')).toHaveCount(0);
+
+    if (width === 390) {
+      const spacing = await page.evaluate(() => {
+        const section = document.querySelector(".site-recipes-grid-section");
+        const list = document.querySelector(".site-recipes-grid-list");
+        const item = document.querySelector(".site-recipes-grid-item");
+        if (!section || !list || !item) return null;
+        const ss = getComputedStyle(section);
+        const ls = getComputedStyle(list);
+        const is = getComputedStyle(item);
+        return {
+          padLeft: Number.parseFloat(ss.paddingLeft),
+          padRight: Number.parseFloat(ss.paddingRight),
+          colGap: Number.parseFloat(ls.columnGap),
+          rowGap: Number.parseFloat(ls.rowGap),
+          itemMarginBottom: Number.parseFloat(is.marginBottom),
+        };
+      });
+      expect(spacing).toEqual({
+        padLeft: 14,
+        padRight: 14,
+        colGap: 18,
+        rowGap: 18,
+        itemMarginBottom: 18,
+      });
+    }
   });
 }
 
@@ -1115,6 +1141,18 @@ test("likeness judge (J1): canvas layout matches reference within one spacing st
   }
   const gridResult = compareLayout(gridRef, gridCand, { stepPx: step });
   expect(gridResult.failures).toEqual([]);
+  expect(gridCand.widths["390"].sections[1]).toMatchObject({
+    contentLeft: 14,
+    contentRight: 14,
+    grid: {
+      perRow: 2,
+      colGap: 18,
+      rowGap: 18,
+      itemW: 172,
+      x: 14,
+      w: 362,
+    },
+  });
 });
 
 const CAPTURE =
