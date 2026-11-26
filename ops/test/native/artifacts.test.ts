@@ -1,10 +1,19 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import {
   type ArtifactDownload,
+  installArtifact,
   loadManifest,
+  type Manifest,
   obtainArchive,
 } from "../../lib/native/artifacts.js";
 import { fixture, zip } from "./fixtures.js";
@@ -90,4 +99,177 @@ it("pins ffmpeg for win32-x64 from GyanD/codexffmpeg with its bin folder and lic
   expect(win?.strip).toBe(1);
   expect(win?.include).toEqual(["bin/", "LICENSE"]);
   expect(win?.notices).toEqual(["LICENSE"]);
+});
+
+const installManifest: Manifest = {
+  schema: 1,
+  artifacts: {
+    tool: {
+      version: "1.0.0",
+      kind: "binary",
+      licence: "MIT",
+      project: "test-tool",
+      entry: { "win32-x64": "file" },
+      downloads: {
+        "win32-x64": {
+          ...expected,
+          notices: ["file"],
+        },
+      },
+    },
+  },
+};
+
+function renameError(
+  code: string,
+  from: string,
+  to: string,
+): NodeJS.ErrnoException {
+  return Object.assign(
+    new Error(`${code}: operation not permitted, rename '${from}' -> '${to}'`),
+    { code, syscall: "rename", path: from, dest: to },
+  );
+}
+
+it("retries the staging folder rename on EPERM and succeeds once unlocked", async () => {
+  const root = fixture();
+  const fetchImpl = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(new Uint8Array(bytes)));
+  const waits: number[] = [];
+  let failures = 0;
+  const renameImpl = vi.fn((from: string, to: string) => {
+    if (failures < 2) {
+      failures++;
+      throw renameError("EPERM", from, to);
+    }
+    renameSync(from, to);
+  });
+
+  const target = await installArtifact("tool", {
+    manifest: installManifest,
+    platform: "win32-x64",
+    cache: root,
+    fetchImpl,
+    renameImpl,
+    sleepImpl: async (ms) => {
+      waits.push(ms);
+    },
+  });
+
+  expect(readFileSync(join(target, "file"), "utf8")).toBe("verified bytes");
+  expect(renameImpl).toHaveBeenCalledTimes(3);
+  expect(waits).toEqual([100, 200]);
+});
+
+it("retries both the stale-target move and the staging rename on EBUSY and EACCES", async () => {
+  const root = fixture();
+  const staleTarget = join(root, "tool", "1.0.0", "win32-x64");
+  mkdirSync(staleTarget, { recursive: true });
+  writeFileSync(join(staleTarget, "stale"), "old");
+
+  const fetchImpl = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(new Uint8Array(bytes)));
+  const waits: number[] = [];
+  let failedOld = false;
+  let failedStaging = false;
+  const renameImpl = vi.fn((from: string, to: string) => {
+    if (from === staleTarget && !failedOld) {
+      failedOld = true;
+      throw renameError("EBUSY", from, to);
+    }
+    if (to === staleTarget && !failedStaging) {
+      failedStaging = true;
+      throw renameError("EACCES", from, to);
+    }
+    renameSync(from, to);
+  });
+
+  const target = await installArtifact("tool", {
+    manifest: installManifest,
+    platform: "win32-x64",
+    cache: root,
+    fetchImpl,
+    renameImpl,
+    sleepImpl: async (ms) => {
+      waits.push(ms);
+    },
+  });
+
+  expect(target).toBe(staleTarget);
+  expect(readFileSync(join(target, "file"), "utf8")).toBe("verified bytes");
+  expect(existsSync(join(target, "stale"))).toBe(false);
+  expect(renameImpl).toHaveBeenCalledTimes(4);
+  expect(waits).toEqual([100, 100]);
+});
+
+it("throws the original error naming the path after reaching the rename retry cap", async () => {
+  const root = fixture();
+  const fetchImpl = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(new Uint8Array(bytes)));
+  const waits: number[] = [];
+  let lastError: NodeJS.ErrnoException | undefined;
+  const renameImpl = vi.fn((from: string, to: string) => {
+    lastError = renameError("EPERM", from, to);
+    throw lastError;
+  });
+
+  let thrown: unknown;
+  try {
+    await installArtifact("tool", {
+      manifest: installManifest,
+      platform: "win32-x64",
+      cache: root,
+      fetchImpl,
+      renameImpl,
+      sleepImpl: async (ms) => {
+        waits.push(ms);
+      },
+    });
+  } catch (error) {
+    thrown = error;
+  }
+
+  expect(thrown).toBe(lastError);
+  expect((thrown as NodeJS.ErrnoException).code).toBe("EPERM");
+  expect((thrown as Error).message).toContain(".staging-");
+  expect(renameImpl).toHaveBeenCalledTimes(10);
+  expect(waits).toEqual([100, 200, 300, 400, 500, 600, 700, 800, 900]);
+  expect(existsSync(join(root, "tool", "1.0.0", "win32-x64"))).toBe(false);
+});
+
+it("does not retry ENOENT on rename", async () => {
+  const root = fixture();
+  const fetchImpl = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(new Uint8Array(bytes)));
+  const waits: number[] = [];
+  let originalError: NodeJS.ErrnoException | undefined;
+  const renameImpl = vi.fn((from: string, to: string) => {
+    originalError = renameError("ENOENT", from, to);
+    throw originalError;
+  });
+
+  let thrown: unknown;
+  try {
+    await installArtifact("tool", {
+      manifest: installManifest,
+      platform: "win32-x64",
+      cache: root,
+      fetchImpl,
+      renameImpl,
+      sleepImpl: async (ms) => {
+        waits.push(ms);
+      },
+    });
+  } catch (error) {
+    thrown = error;
+  }
+
+  expect(thrown).toBe(originalError);
+  expect((thrown as NodeJS.ErrnoException).code).toBe("ENOENT");
+  expect(renameImpl).toHaveBeenCalledTimes(1);
+  expect(waits).toEqual([]);
 });
