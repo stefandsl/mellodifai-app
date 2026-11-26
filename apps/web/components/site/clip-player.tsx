@@ -22,7 +22,6 @@ export type ClipPlayerProps = {
   title: string;
   lyricLine: string;
   coverSrc: string;
-  backdropSrc: string;
   mediaSrc: string;
   isVideo: boolean;
   estimatedSeconds: number;
@@ -39,7 +38,6 @@ export function ClipPlayer({
   title,
   lyricLine,
   coverSrc,
-  backdropSrc,
   mediaSrc,
   isVideo,
   estimatedSeconds,
@@ -85,16 +83,6 @@ export function ClipPlayer({
       >
         <VStack className="site-clip__stage" data-clip-stage="true">
           <Image
-            src={backdropSrc}
-            alt=""
-            fill
-            unoptimized
-            loading="lazy"
-            aria-hidden="true"
-            sizes={CLIP_HERO_IMAGE_SIZES}
-            className="site-clip__backdrop"
-          />
-          <Image
             src={coverSrc}
             alt={title}
             fill
@@ -109,7 +97,6 @@ export function ClipPlayer({
             <video
               className="site-clip__media"
               src={mediaSrc}
-              poster={backdropSrc}
               preload="none"
               playsInline
               data-clip-media="true"

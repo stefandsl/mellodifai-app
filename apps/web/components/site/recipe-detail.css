@@ -126,19 +126,8 @@
   aspect-ratio: 16 / 9;
   overflow: hidden;
   cursor: pointer;
-  background: var(--mesh-cover-base);
-}
-
-.site-clip__backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scale(1.12);
-  filter: blur(var(--mesh-cover-blur)) saturate(1.2);
-  opacity: 0.55;
-  pointer-events: none;
+  background-color: var(--mesh-cover-base);
+  background-image: var(--mesh-halo-warm), var(--mesh-halo-cool);
 }
 
 .site-clip__poster {

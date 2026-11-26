@@ -153,7 +153,6 @@ export function RecipeDetail({
           title={title}
           lyricLine={lyricLine}
           coverSrc={heroCoverSrc}
-          backdropSrc={recipe.mediaUrls.cover}
           mediaSrc={recipe.mediaUrls.example}
           isVideo={video}
           estimatedSeconds={recipe.estimate.seconds}
