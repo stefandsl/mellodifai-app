@@ -1245,7 +1245,7 @@ for (const [width, height, perRow] of [
       en.plans.price,
       en.plans.price,
     ]);
-    const plansText = await plansSection.innerText();
+    const plansText = (await plansSection.textContent()) ?? "";
     expect(plansText).not.toMatch(/[$€£]|\d+[.,]\d{2}/u);
     await expect(
       plansSection.getByRole("link", { name: en.plans.compare }),
