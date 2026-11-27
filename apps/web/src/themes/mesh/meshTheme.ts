@@ -316,6 +316,9 @@ export const meshTheme = defineTheme({
     "--site-platform-width-md": "45rem", // 720
     "--site-feature-text-md": "16rem",
     "--site-kinds-cover": "40rem",
+    "--site-kinds-travel": "2700px",
+    "--site-kinds-list": "22rem",
+    "--site-shot-takes": "12rem",
     "--site-hero-end": "var(--site-section-y-show)",
     "--site-hero-top-sm": "clamp(5.5rem, 12vh, 7rem)",
     "--site-lyric-size": "clamp(1.5rem, 4vw, 2rem)",

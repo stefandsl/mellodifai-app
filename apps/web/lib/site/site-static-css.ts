@@ -353,10 +353,16 @@ export function pruneAstryxCssForHtml(
     }
     // Static islands never set Astryx's React press state machine attribute.
     if (t.includes("data-astryx-press")) continue;
-    // Static pages without disabled controls never match disabled focus-visible wrappers.
+    // Static pages without disabled controls or container-corner markers never match these rules.
     if (
       !html.includes('aria-disabled="true"') &&
-      t.includes('[aria-disabled="true"]:focus-visible')
+      t.includes('[aria-disabled="true"]')
+    ) {
+      continue;
+    }
+    if (
+      !html.includes("data-container-corner") &&
+      t.includes("[data-container-corner")
     ) {
       continue;
     }
@@ -637,7 +643,17 @@ export function buildMinifiedPageCss(options: {
   let extraPageCss = "";
   let combinedAstryx = siteAstryx;
 
-  if (options.page === "pricing") {
+  if (options.page === "home") {
+    const rawPartsCss = fs.readFileSync(
+      path.join(WEB_DIR, "components/site/parts.css"),
+      "utf8",
+    );
+    extraPageCss = pruneUnusedSiteCss(
+      rawPartsCss,
+      options.bodyHtml,
+      options.extraClasses,
+    );
+  } else if (options.page === "pricing") {
     const tableAstryx = fs.readFileSync(
       path.join(WEB_DIR, "src/site-astryx-table.css"),
       "utf8",
