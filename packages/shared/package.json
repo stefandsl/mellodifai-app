@@ -8,6 +8,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./prompt-limits": {
+      "types": "./src/prompt-limits.ts",
+      "default": "./src/prompt-limits.ts"
+    },
     "./recipes/search": {
       "types": "./src/recipes/search.ts",
       "default": "./src/recipes/search.ts"

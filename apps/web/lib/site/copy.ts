@@ -28,25 +28,16 @@ export type SiteCopy = {
     titleB: string;
     accent: string;
     titleEnd: string;
+    fixedTitle: string;
+    rotatorLines: { a: string; b: string; accent?: string; end?: string }[];
     lede: string;
     primary: string;
-    studioLabel: string;
-    song: string;
-    key: string;
-    tempo: string;
     take: string;
-    lineLabel: string;
-    lineStart: string;
-    lineEnd: string;
-    wordLabel: string;
-    words: { word: string; take: string }[];
-    play: string;
-    pause: string;
-    nowPlaying: string;
-    ready: string;
-    missing: string;
-    status: string;
-    lanes: [string, string, string];
+    composerLabel: string;
+    composerPlaceholder: string;
+    composerHint: string;
+    chipsLabel: string;
+    chips: { label: string; prompt: string }[];
     kindsLabel: string;
     agentsLabel: string;
   };
@@ -55,12 +46,14 @@ export type SiteCopy = {
     line: string;
     action: string;
     examples: string;
-    songs: { title: string; meta: string }[];
+    songs: { title: string; meta: string; kind: string }[];
   };
   steps: { title: string; items: { title: string; line: string }[] };
   features: {
     title: string;
     line: string;
+    stepLabel: string;
+    dotsLabel: string;
     items: {
       label: string;
       title: string;
@@ -74,9 +67,32 @@ export type SiteCopy = {
       to: string;
       bar: string;
       foot: string;
+      takesTitle: string;
+      takes: { tag: string; line: string; state: string }[];
+      undoTitle: string;
+      undoBefore: string;
+      undoAfter: string;
+      undoFoot: string;
     };
-    voice: { lanes: [string, string, string]; foot: string };
-    out: { rows: { name: string; meta: string }[]; foot: string };
+    voice: {
+      lanes: [string, string, string];
+      foot: string;
+      swapTitle: string;
+      swapRoles: { tag: string; detail: string }[];
+      swapFoot: string;
+      timingTitle: string;
+      timingBars: string[];
+      timingFoot: string;
+    };
+    out: {
+      rows: { name: string; meta: string }[];
+      foot: string;
+      karaokeTitle: string;
+      karaokeLine: string;
+      karaokeMeta: string;
+      formatsTitle: string;
+      formats: { tag: string; detail: string }[];
+    };
   };
   platform: {
     title: string;
@@ -236,29 +252,64 @@ const en: SiteCopy = {
     titleB: "Hear it",
     accent: "sung",
     titleEnd: ".",
+    fixedTitle: "Change a word. Hear it sung.",
+    rotatorLines: [
+      { a: "Change a word.", b: "Hear it", accent: "sung", end: "." },
+      {
+        a: "Rewrite the chorus",
+        b: "of my song in",
+        accent: "Italian",
+        end: ".",
+      },
+      { a: "Keep the melody,", b: "pick a warmer", accent: "voice", end: "." },
+      { a: "Turn a link into", b: "a midnight", accent: "remix", end: "." },
+      {
+        a: "Cut a lyric video",
+        b: "locked to every",
+        accent: "beat",
+        end: ".",
+      },
+    ],
     lede: "MellodifAI makes songs you can edit like text: rewrite a line, remake a track from a link, publish the video.",
     primary: "Start a song",
-    studioLabel: "Try one edit: pick the last word of the line, then play it.",
-    song: "Edge of town",
-    key: "A minor",
-    tempo: "96 BPM",
     take: "Take 03",
-    lineLabel: "Verse 2, line 3",
-    lineStart: "you sing along to a song I",
-    lineEnd: ",",
-    wordLabel: "Last word of the line",
-    words: [
-      { word: "hate", take: "as recorded" },
-      { word: "love", take: "sung again" },
+    composerLabel: "Describe your song edit",
+    composerPlaceholder:
+      "Paste a song link or describe the line, voice or arrangement to change...",
+    composerHint: "Draft here, sign in when you are ready to run it.",
+    chipsLabel: "Song edit ideas",
+    chips: [
+      {
+        label: "Remix",
+        prompt:
+          "Lift the tempo to 122 BPM and turn the chorus into a late-night synth remix.",
+      },
+      {
+        label: "Cover",
+        prompt:
+          "Keep the melody and words, sing the whole song as an acoustic duet.",
+      },
+      {
+        label: "Pantomime",
+        prompt:
+          "Rewrite verse two for a family dinner while keeping every rhyme and beat.",
+      },
+      {
+        label: "Satire",
+        prompt:
+          "Keep the hook, change the lyrics into a playful roast for Monday meetings.",
+      },
+      {
+        label: "Translation",
+        prompt:
+          "Translate the chorus into Italian and keep the original syllable count.",
+      },
+      {
+        label: "Karaoke",
+        prompt:
+          "Lower the lead vocal to 10 percent and time every lyric line for karaoke.",
+      },
     ],
-    play: "Play the line",
-    pause: "Pause",
-    nowPlaying: "Playing",
-    ready: "Same voice, same band. Only the word changes.",
-    missing:
-      "The sample clip is not online yet. Start a song to hear your own line.",
-    status: "Line 3 sung again in the same voice",
-    lanes: ["Words", "Voice", "Band"],
     kindsLabel: "Recipes",
     agentsLabel: "or from your agent",
   },
@@ -268,12 +319,38 @@ const en: SiteCopy = {
     action: "Start a song",
     examples: "Example songs",
     songs: [
-      { title: "Edge of town, faster", meta: "Remix, 124 BPM" },
-      { title: "Our wedding song, slow", meta: "Cover, 72 BPM" },
-      { title: "Happy birthday, Dana", meta: "Satire, 108 BPM" },
-      { title: "Night bus, in Italian", meta: "Translation, 90 BPM" },
-      { title: "Kitchen radio", meta: "Karaoke, 100 BPM" },
-      { title: "Twelve floors up", meta: "Lyric video, 118 BPM" },
+      { title: "Edge of town, faster", meta: "Remix, 124 BPM", kind: "remix" },
+      {
+        title: "Our wedding song, slow",
+        meta: "Cover, 72 BPM",
+        kind: "cover",
+      },
+      {
+        title: "Happy birthday, Dana",
+        meta: "Satire, 108 BPM",
+        kind: "satire",
+      },
+      {
+        title: "Night bus, in Italian",
+        meta: "Translation, 90 BPM",
+        kind: "translation",
+      },
+      { title: "Kitchen radio", meta: "Karaoke, 100 BPM", kind: "karaoke" },
+      {
+        title: "Twelve floors up",
+        meta: "Lyric video, 118 BPM",
+        kind: "video",
+      },
+      {
+        title: "Sunday table chorus",
+        meta: "Pantomime, 96 BPM",
+        kind: "pantomime",
+      },
+      {
+        title: "Harbor lights, acoustic",
+        meta: "Cover, 84 BPM",
+        kind: "cover",
+      },
     ],
   },
   steps: {
@@ -296,6 +373,8 @@ const en: SiteCopy = {
   features: {
     title: "Three parts of a song, each one yours to change",
     line: "The words, the voice and what you do with the finished take.",
+    stepLabel: "Slide",
+    dotsLabel: "Choose slide",
     items: [
       {
         label: "01 Words",
@@ -340,10 +419,30 @@ const en: SiteCopy = {
       to: "love",
       bar: "Verse 2",
       foot: "The other three lines stay as they are.",
+      takesTitle: "Saved takes",
+      takes: [
+        { tag: "Take 01", line: "Original recording", state: "Kept" },
+        { tag: "Take 02", line: "Chorus wording edit", state: "Kept" },
+        { tag: "Take 03", line: "Verse 2, line 3 edit", state: "Active" },
+      ],
+      undoTitle: "One-step undo",
+      undoBefore: "Take 03: you sing along to a song I love,",
+      undoAfter: "Take 02: you sing along to a song I hate,",
+      undoFoot: "Switch back without re-rendering the whole track.",
     },
     voice: {
       lanes: ["Voice", "Band", "New voice"],
       foot: "Stems ready: voice and band.",
+      swapTitle: "Singer swap",
+      swapRoles: [
+        { tag: "Original", detail: "Lead vocal, A minor, 96 BPM" },
+        { tag: "Alternate", detail: "Warm baritone, same phrasing" },
+        { tag: "Band", detail: "Drums, bass and keys untouched" },
+      ],
+      swapFoot: "Only the vocal lane re-renders.",
+      timingTitle: "Word-by-word timing",
+      timingBars: ["you", "sing", "along", "to a", "song", "I love"],
+      timingFoot: "Every syllable locks to the original downbeat.",
     },
     out: {
       rows: [
@@ -352,6 +451,15 @@ const en: SiteCopy = {
         { name: "Audio and stems", meta: "WAV and MP3" },
       ],
       foot: "Ready to post.",
+      karaokeTitle: "Karaoke mix",
+      karaokeLine: "you sing along to a song I love,",
+      karaokeMeta: "Lead vocal lowered to 10 percent, full band intact.",
+      formatsTitle: "Export sizes",
+      formats: [
+        { tag: "Portrait 9:16", detail: "Vertical clip for Shorts and Reels" },
+        { tag: "Wide 16:9", detail: "Widescreen lyric video for YouTube" },
+        { tag: "WAV", detail: "Lossless master plus separated stems" },
+      ],
     },
   },
   platform: {
@@ -724,30 +832,74 @@ const it: SiteCopy = {
     titleB: "Sentila",
     accent: "cantata",
     titleEnd: ".",
+    fixedTitle: "Cambia una parola. Sentila cantata.",
+    rotatorLines: [
+      { a: "Cambia una parola.", b: "Sentila", accent: "cantata", end: "." },
+      {
+        a: "Riscrivi il ritornello",
+        b: "del mio brano in",
+        accent: "inglese",
+        end: ".",
+      },
+      {
+        a: "Tieni la melodia,",
+        b: "scegli un'altra",
+        accent: "voce",
+        end: ".",
+      },
+      {
+        a: "Trasforma un link",
+        b: "in un remix di",
+        accent: "notte",
+        end: ".",
+      },
+      {
+        a: "Crea un video testo",
+        b: "legato a ogni",
+        accent: "battito",
+        end: ".",
+      },
+    ],
     lede: "Con MellodifAI una canzone si modifica come un testo: riscrivi un verso, rifai un brano da un link, pubblica il video.",
     primary: "Inizia una canzone",
-    studioLabel:
-      "Prova una modifica: scegli l'ultima parola del verso, poi ascoltalo.",
-    song: "Edge of town",
-    key: "La minore",
-    tempo: "96 BPM",
     take: "Take 03",
-    lineLabel: "Strofa 2, verso 3",
-    lineStart: "you sing along to a song I",
-    lineEnd: ",",
-    wordLabel: "Ultima parola del verso",
-    words: [
-      { word: "hate", take: "come registrata" },
-      { word: "love", take: "cantata di nuovo" },
+    composerLabel: "Descrivi la modifica alla canzone",
+    composerPlaceholder:
+      "Incolla il link di un brano o descrivi verso, voce o arrangiamento da cambiare...",
+    composerHint: "Scrivi qui la bozza, accedi quando vuoi avviarla.",
+    chipsLabel: "Idee per iniziare",
+    chips: [
+      {
+        label: "Remix",
+        prompt:
+          "Porta il tempo a 122 BPM e trasforma il ritornello in un remix synth notturno.",
+      },
+      {
+        label: "Cover",
+        prompt:
+          "Tieni melodia e parole, canta tutto il brano come un duetto acustico.",
+      },
+      {
+        label: "Pantomima",
+        prompt:
+          "Riscrivi la seconda strofa per una cena in famiglia tenendo rime e metrica.",
+      },
+      {
+        label: "Satira",
+        prompt:
+          "Tieni il ritornello, cambia il testo in una satira leggera sulle riunioni del lunedì.",
+      },
+      {
+        label: "Traduzione",
+        prompt:
+          "Traduci il ritornello in italiano rispettando il numero di sillabe originale.",
+      },
+      {
+        label: "Karaoke",
+        prompt:
+          "Abbassa la voce principale al 10 per cento e sincronizza ogni verso per il karaoke.",
+      },
     ],
-    play: "Ascolta il verso",
-    pause: "Pausa",
-    nowPlaying: "In ascolto",
-    ready: "Stessa voce, stessa band. Cambia solo la parola.",
-    missing:
-      "Il campione audio non è ancora online. Inizia una canzone per ascoltare il tuo verso.",
-    status: "Verso 3 cantato di nuovo con la stessa voce",
-    lanes: ["Parole", "Voce", "Band"],
     kindsLabel: "Ricette",
     agentsLabel: "oppure dal tuo agente",
   },
@@ -757,12 +909,46 @@ const it: SiteCopy = {
     action: "Inizia una canzone",
     examples: "Canzoni di esempio",
     songs: [
-      { title: "Edge of town, più veloce", meta: "Remix, 124 BPM" },
-      { title: "La nostra canzone, lenta", meta: "Cover, 72 BPM" },
-      { title: "Buon compleanno, Dana", meta: "Satira, 108 BPM" },
-      { title: "Autobus di notte, in italiano", meta: "Traduzione, 90 BPM" },
-      { title: "Radio in cucina", meta: "Karaoke, 100 BPM" },
-      { title: "Dodici piani più su", meta: "Video del testo, 118 BPM" },
+      {
+        title: "Edge of town, più veloce",
+        meta: "Remix, 124 BPM",
+        kind: "remix",
+      },
+      {
+        title: "La nostra canzone, lenta",
+        meta: "Cover, 72 BPM",
+        kind: "cover",
+      },
+      {
+        title: "Buon compleanno, Dana",
+        meta: "Satira, 108 BPM",
+        kind: "satire",
+      },
+      {
+        title: "Autobus di notte, in italiano",
+        meta: "Traduzione, 90 BPM",
+        kind: "translation",
+      },
+      {
+        title: "Radio in cucina",
+        meta: "Karaoke, 100 BPM",
+        kind: "karaoke",
+      },
+      {
+        title: "Dodici piani più su",
+        meta: "Video del testo, 118 BPM",
+        kind: "video",
+      },
+      {
+        title: "Coro della domenica",
+        meta: "Pantomima, 96 BPM",
+        kind: "pantomime",
+      },
+      {
+        title: "Luci sul porto, acustica",
+        meta: "Cover, 84 BPM",
+        kind: "cover",
+      },
     ],
   },
   steps: {
@@ -785,6 +971,8 @@ const it: SiteCopy = {
   features: {
     title: "Tre parti della canzone, ognuna da cambiare",
     line: "Le parole, la voce e quello che fai con la take finita.",
+    stepLabel: "Scheda",
+    dotsLabel: "Scegli scheda",
     items: [
       {
         label: "01 Parole",
@@ -830,10 +1018,30 @@ const it: SiteCopy = {
       to: "love",
       bar: "Strofa 2",
       foot: "Gli altri tre versi restano come sono.",
+      takesTitle: "Take salvate",
+      takes: [
+        { tag: "Take 01", line: "Registrazione iniziale", state: "Salvata" },
+        { tag: "Take 02", line: "Modifica del ritornello", state: "Salvata" },
+        { tag: "Take 03", line: "Strofa 2, verso 3", state: "Attiva" },
+      ],
+      undoTitle: "Annulla di un passo",
+      undoBefore: "Take 03: you sing along to a song I love,",
+      undoAfter: "Take 02: you sing along to a song I hate,",
+      undoFoot: "Torni indietro senza rifare l'intero brano.",
     },
     voice: {
       lanes: ["Voce", "Band", "Nuova voce"],
       foot: "Tracce pronte: voce e band.",
+      swapTitle: "Cambio voce",
+      swapRoles: [
+        { tag: "Originale", detail: "Voce principale, La minore, 96 BPM" },
+        { tag: "Alternativa", detail: "Baritono caldo, stesso fraseggio" },
+        { tag: "Band", detail: "Batteria, basso e tastiere invariati" },
+      ],
+      swapFoot: "Si rigenera solo la corsia della voce.",
+      timingTitle: "Tempo parola per parola",
+      timingBars: ["you", "sing", "along", "to a", "song", "I love"],
+      timingFoot: "Ogni sillaba resta agganciata al battito iniziale.",
     },
     out: {
       rows: [
@@ -842,6 +1050,18 @@ const it: SiteCopy = {
         { name: "Audio e tracce", meta: "WAV e MP3" },
       ],
       foot: "Pronto da pubblicare.",
+      karaokeTitle: "Mix karaoke",
+      karaokeLine: "you sing along to a song I love,",
+      karaokeMeta: "Voce principale al 10 per cento, band intera.",
+      formatsTitle: "Formati di esportazione",
+      formats: [
+        { tag: "Verticale 9:16", detail: "Clip verticale per Shorts e Reels" },
+        {
+          tag: "Panoramico 16:9",
+          detail: "Video del testo panoramico per YouTube",
+        },
+        { tag: "WAV", detail: "Master senza perdita e tracce separate" },
+      ],
     },
   },
   platform: {

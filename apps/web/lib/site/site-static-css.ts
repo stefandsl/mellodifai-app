@@ -98,7 +98,6 @@ const DYNAMIC_SITE_CLASSES = [
   "site-agents-popover__item",
   "site-agents-popover__title",
   "site-agents-popover__desc",
-  "site-dot--muted",
   "site-studio__old",
   "site-wave__take",
   "site-cover--remix",
@@ -354,6 +353,13 @@ export function pruneAstryxCssForHtml(
     }
     // Static islands never set Astryx's React press state machine attribute.
     if (t.includes("data-astryx-press")) continue;
+    // Static pages without disabled controls never match disabled focus-visible wrappers.
+    if (
+      !html.includes('aria-disabled="true"') &&
+      t.includes('[aria-disabled="true"]:focus-visible')
+    ) {
+      continue;
+    }
     const sel = unwrapSelector(t);
     const cls = [...sel.matchAll(/\.(x[0-9a-z]{5,7})\b/gu)].map((m) => m[1]);
     if (!cls.length) continue;
@@ -403,14 +409,54 @@ export function pruneAstryxCssForHtml(
     .join(";");
   if (filteredRoot) headerLines.push(`:root{${filteredRoot}}`);
 
+  const prunedReset = pruneUnusedResetCss(resetLines.join("\n"), html);
+
   return [
     "@layer reset, astryx-base, astryx-theme;",
-    ...resetLines,
+    prunedReset,
     "@layer astryx-base {",
     ...headerLines,
     ...ruleLines,
     "}",
   ].join("\n");
+}
+
+function pruneUnusedResetCss(resetCss: string, html: string): string {
+  let out = resetCss;
+  const tagRules: Array<[RegExp, RegExp]> = [
+    [/<(?:b|strong)\b/iu, /:where\(b,\s*strong\)\s*\{[^}]*\}/gu],
+    [
+      /<(?:code|kbd|samp|pre)\b/iu,
+      /:where\(code,\s*kbd,\s*samp,\s*pre\)\s*\{[^}]*\}/gu,
+    ],
+    [/<small\b/iu, /:where\(small\)\s*\{[^}]*\}/gu],
+    [/<(?:sub|sup)\b/iu, /:where\(sub,\s*sup\)\s*\{[^}]*\}/gu],
+    [/<sub\b/iu, /:where\(sub\)\s*\{[^}]*\}/gu],
+    [/<sup\b/iu, /:where\(sup\)\s*\{[^}]*\}/gu],
+    [/<fieldset\b/iu, /:where\(fieldset\)\s*\{[^}]*\}/gu],
+    [/<legend\b/iu, /:where\(legend\)\s*\{[^}]*\}/gu],
+    [/<table\b/iu, /:where\(table\)\s*\{[^}]*\}/gu],
+    [/<hr\b/iu, /:where\(hr\)\s*\{[^}]*\}/gu],
+    [/<summary\b/iu, /:where\(summary\)\s*\{[^}]*\}/gu],
+    [
+      /\blist=/iu,
+      /:where\(\[list\]\)::-webkit-calendar-picker-indicator\s*\{[^}]*\}/gu,
+    ],
+    [
+      /type=["']search["']/iu,
+      /:where\(\[type='search'\]\)::-webkit-search-decoration,\s*:where\(\[type='search'\]\)::-webkit-search-cancel-button\s*\{[^}]*\}/gu,
+    ],
+    [
+      /data-astryx-media/iu,
+      /:where\(\[data-astryx-media="(?:dark|light)"\]\)\s*\{[^}]*\}/gu,
+    ],
+  ];
+  for (const [presentRe, ruleRe] of tagRules) {
+    if (!presentRe.test(html)) {
+      out = out.replace(ruleRe, "");
+    }
+  }
+  return out;
 }
 
 // Popover styles for the lightweight Agents menu island (uses only mesh tokens).
@@ -438,6 +484,128 @@ export function buildMinifiedFontsCss(): string {
   }).code;
 }
 
+function splitTopLevelCommas(selectorList: string): string[] {
+  const out: string[] = [];
+  let paren = 0;
+  let bracket = 0;
+  let start = 0;
+  for (let i = 0; i < selectorList.length; i++) {
+    const ch = selectorList[i];
+    if (ch === "(") paren++;
+    else if (ch === ")") paren = Math.max(0, paren - 1);
+    else if (ch === "[") bracket++;
+    else if (ch === "]") bracket = Math.max(0, bracket - 1);
+    else if (ch === "," && paren === 0 && bracket === 0) {
+      out.push(selectorList.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  out.push(selectorList.slice(start).trim());
+  return out.filter(Boolean);
+}
+
+function hasNonMediaRule(cssBlock: string): boolean {
+  let i = 0;
+  const len = cssBlock.length;
+  while (i < len) {
+    while (i < len && /\s/u.test(cssBlock[i])) i++;
+    if (i >= len) break;
+    let brace = i;
+    let semi = -1;
+    while (brace < len && cssBlock[brace] !== "{") {
+      if (cssBlock[brace] === ";" && semi === -1) semi = brace;
+      brace++;
+    }
+    if (semi !== -1 && (brace >= len || semi < brace)) {
+      return true;
+    }
+    if (brace >= len) return true;
+    const prelude = cssBlock.slice(i, brace).trim();
+    let depth = 1;
+    let j = brace + 1;
+    while (j < len && depth > 0) {
+      if (cssBlock[j] === "{") depth++;
+      else if (cssBlock[j] === "}") depth--;
+      j++;
+    }
+    if (depth !== 0) return true;
+    const inner = cssBlock.slice(brace + 1, j - 1);
+    i = j;
+
+    if (
+      prelude.startsWith("@layer") ||
+      prelude.startsWith("@scope") ||
+      prelude.startsWith("@media")
+    ) {
+      if (hasNonMediaRule(inner)) return true;
+      continue;
+    }
+    if (prelude.startsWith("@")) return true;
+
+    const selectors = splitTopLevelCommas(prelude);
+    if (selectors.length === 0) return true;
+    for (const sel of selectors) {
+      if (!sel.includes("[data-astryx-media")) return true;
+    }
+  }
+  return false;
+}
+
+function stripBalancedMediaLayerBlocks(css: string): string {
+  let out = css;
+  const marker = "[data-astryx-media";
+  let searchFrom = 0;
+  while (true) {
+    const mediaIdx = out.indexOf(marker, searchFrom);
+    if (mediaIdx === -1) break;
+    const layerIdx = out.lastIndexOf("@layer astryx-theme", mediaIdx);
+    if (layerIdx === -1) break;
+    const openBrace = out.indexOf("{", layerIdx);
+    if (openBrace === -1 || openBrace > mediaIdx) break;
+    let depth = 1;
+    let endIdx = openBrace + 1;
+    while (endIdx < out.length && depth > 0) {
+      if (out[endIdx] === "{") depth++;
+      else if (out[endIdx] === "}") depth--;
+      endIdx++;
+    }
+    if (depth !== 0) break;
+    const block = out.slice(layerIdx, endIdx);
+    if (hasNonMediaRule(block)) {
+      throw new Error(
+        "pruneUnusedMeshBlocks: unexpected non-media rules inside data-astryx-media @layer astryx-theme block",
+      );
+    }
+    const before = out.slice(0, layerIdx).trimEnd();
+    const after = out.slice(endIdx).trimStart();
+    out = before && after ? `${before}\n${after}` : `${before}${after}`;
+    searchFrom = layerIdx;
+  }
+  return out;
+}
+
+export function pruneUnusedMeshBlocks(
+  meshCss: string,
+  bodyHtml: string,
+): string {
+  let out = meshCss;
+  if (!bodyHtml.includes("data-astryx-media")) {
+    out = stripBalancedMediaLayerBlocks(out);
+  }
+  for (const tag of ["h4", "h5", "h6", "small", "hr"] as const) {
+    if (!new RegExp(`<${tag}\\b`, "iu").test(bodyHtml)) {
+      out = out.replace(
+        new RegExp(`\\s*:where\\(${tag}\\)\\s*\\{[^}]*\\}`, "gu"),
+        "",
+      );
+    }
+  }
+  if (!/<(?:code|pre)\b/iu.test(bodyHtml)) {
+    out = out.replace(/\s*:where\(code,\s*pre\)\s*\{[^}]*\}/gu, "");
+  }
+  return out;
+}
+
 export function buildMinifiedPageCss(options: {
   page:
     | "home"
@@ -454,10 +622,11 @@ export function buildMinifiedPageCss(options: {
     path.join(WEB_DIR, "src/site-astryx.css"),
     "utf8",
   );
-  const meshCss = fs.readFileSync(
+  const rawMeshCss = fs.readFileSync(
     path.join(WEB_DIR, "src/themes/mesh/mesh.css"),
     "utf8",
   );
+  const meshCss = pruneUnusedMeshBlocks(rawMeshCss, options.bodyHtml);
   const rawSiteCss = fs.readFileSync(
     path.join(WEB_DIR, "app/(site)/site.css"),
     "utf8",

@@ -4,6 +4,7 @@ import {
   BPM_RANGE,
   type Lang,
   MAX_SONGS_PER_CLICK,
+  PROMPT_MAX_LENGTH,
   SEED_MAX,
   SONG_KEYS,
   SOURCE_MODES,
@@ -147,7 +148,7 @@ export function initialForm(lang: Lang = "it"): CreateFormState {
 }
 
 export const LIMITS = {
-  prompt: 500,
+  prompt: PROMPT_MAX_LENGTH,
   lyrics: 5000,
   styles: 1000,
   exclude: 1000,

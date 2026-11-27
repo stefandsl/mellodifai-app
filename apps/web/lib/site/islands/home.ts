@@ -1,19 +1,25 @@
 // Interactive islands for the public home page:
 // shell (header scroll, agents menu, phone menu, deferred fonts),
-// hero lyric word chips + audio preview, recipe kinds stage, period switch, and FAQ collapsibles.
+// hero rotating title (6.0 s), hero composer + chips, showcase marquee (32 px/s),
+// feature reels (5.0 s), recipe kinds stage, period switch, and FAQ collapsibles.
+import {
+  buildComposerSignUpUrl,
+  COMPOSER_DRAFT_KEY,
+  COMPOSER_PROMPT_MAX_LENGTH,
+  saveComposerDraft,
+} from "../composer-draft";
 import { initPeriodSwitch } from "./period-switch";
-import { initShell, onAfterFirstPaint } from "./shell";
+import { initShell } from "./shell";
 
-type HeroConfig = {
-  first: string;
-  clips: Record<string, string>;
-  play: string;
-  pause: string;
-  ready: string;
-  missing: string;
-  nowPlaying: string;
-  lineStart: string;
+export {
+  buildComposerSignUpUrl,
+  COMPOSER_DRAFT_KEY,
+  COMPOSER_PROMPT_MAX_LENGTH,
 };
+export const HERO_ROTATE_MS = 6000;
+export const MARQUEE_SPEED_PX_PER_SEC = 32;
+export const MARQUEE_FOCUS_INSET_PX = 8;
+export const FEATURE_REEL_MS = 5000;
 
 type KindItem = {
   name: string;
@@ -28,9 +34,37 @@ type HomeStateClasses = {
   panelOpen: string[];
   chevronOpen: string[];
   chevronClosed: string[];
+  chipPressed: string[];
+  chipUnpressed: string[];
+};
+
+export type HomeInitOptions = {
+  navigate?: (url: string) => void;
 };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(REDUCED_MOTION_QUERY).matches
+  );
+}
+
+function watchReducedMotion(onChange: (reduced: boolean) => void): () => void {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return () => {};
+  }
+  const mq = window.matchMedia(REDUCED_MOTION_QUERY);
+  const handler = (event: MediaQueryListEvent) => onChange(event.matches);
+  mq.addEventListener?.("change", handler);
+  return () => mq.removeEventListener?.("change", handler);
+}
 
 function readHomeStateClasses(): HomeStateClasses {
   const el = document.getElementById("site-home-classes");
@@ -51,6 +85,12 @@ function readHomeStateClasses(): HomeStateClasses {
         chevronClosed: Array.isArray(parsed.chevronClosed)
           ? parsed.chevronClosed
           : [],
+        chipPressed: Array.isArray(parsed.chipPressed)
+          ? parsed.chipPressed
+          : [],
+        chipUnpressed: Array.isArray(parsed.chipUnpressed)
+          ? parsed.chipUnpressed
+          : [],
       };
     } catch {
       // Fall through to empty defaults.
@@ -62,6 +102,8 @@ function readHomeStateClasses(): HomeStateClasses {
     panelOpen: [],
     chevronOpen: [],
     chevronClosed: [],
+    chipPressed: [],
+    chipUnpressed: [],
   };
 }
 
@@ -94,187 +136,545 @@ function setTogglePressed(
   }
 }
 
-function initHeroStudio(stateClasses: HomeStateClasses): void {
-  const figure = document.querySelector<HTMLElement>(
-    "figure.site-studio[data-hero-studio]",
+export function initHeroRotator(): () => void {
+  const rotator = document.querySelector<HTMLElement>(
+    '[data-hero-rotator="true"]',
   );
-  if (!figure) return;
-  const raw = figure.getAttribute("data-hero-studio");
-  if (!raw) return;
+  if (!rotator) return () => {};
+  const lines = Array.from(
+    rotator.querySelectorAll<HTMLElement>("[data-rotator-line]"),
+  );
+  if (lines.length < 2) return () => {};
 
-  let cfg: HeroConfig;
-  try {
-    cfg = JSON.parse(raw) as HeroConfig;
-  } catch {
-    return;
-  }
+  let activeIdx = Math.max(
+    0,
+    lines.findIndex((el) => el.getAttribute("data-active") === "true"),
+  );
+  let reduced = prefersReducedMotion();
+  let timer: number | null = null;
 
-  const chips = Array.from(
-    figure.querySelectorAll<HTMLButtonElement>(
-      ".site-studio__words .site-chip",
-    ),
-  );
-  const playBtn = figure.querySelector<HTMLButtonElement>(".site-studio__play");
-  const audio = figure.querySelector<HTMLAudioElement>(
-    "audio.site-studio__audio",
-  );
-  const wordBox = figure.querySelector<HTMLElement>(".site-studio__word");
-  const dot = figure.querySelector<HTMLElement>(".site-dot");
-  const statusEl = figure.querySelector<HTMLElement>(
-    '.site-studio__foot [role="status"]',
-  );
-  const waves = Array.from(
-    figure.querySelectorAll<SVGSVGElement>("svg.site-wave"),
-  );
-  if (!chips.length || !playBtn || !audio || !wordBox) return;
-
-  const { pressedOnly, unpressedOnly } = diffToggleClasses(chips);
-  const playLabelSpan = playBtn.querySelector<HTMLElement>(
-    "span > span:last-child",
-  );
-  const playIconTpl = document.querySelector<HTMLTemplateElement>(
-    'template[data-hero-icon="play"]',
-  );
-  const pauseIconTpl = document.querySelector<HTMLTemplateElement>(
-    'template[data-hero-icon="pause"]',
-  );
-
-  let word = figure.dataset.word || cfg.first;
-  let state: "idle" | "playing" | "missing" = "idle";
-
-  const renderPlayIcon = (playing: boolean) => {
-    const tpl = playing ? pauseIconTpl : playIconTpl;
-    const nextSvg = tpl?.content.querySelector("svg");
-    const curSvg = playBtn.querySelector<SVGSVGElement>("svg");
-    if (!nextSvg || !curSvg) return;
-    curSvg.replaceWith(nextSvg.cloneNode(true));
+  const apply = (idx: number) => {
+    activeIdx = ((idx % lines.length) + lines.length) % lines.length;
+    rotator.setAttribute("data-rotator-index", String(activeIdx));
+    for (let i = 0; i < lines.length; i++) {
+      lines[i].setAttribute("data-active", String(i === activeIdx));
+    }
   };
 
-  const renderState = () => {
-    const label = state === "playing" ? cfg.pause : cfg.play;
-    playBtn.setAttribute("data-state", state);
-    const isMissing = state === "missing";
-    playBtn.disabled = isMissing;
-    if (isMissing) {
-      playBtn.setAttribute("aria-disabled", "true");
+  const clearTimer = () => {
+    if (timer !== null) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  const schedule = () => {
+    clearTimer();
+    if (reduced || document.hidden) {
+      rotator.setAttribute("data-rotator-running", "false");
+      return;
+    }
+    rotator.setAttribute("data-rotator-running", "true");
+    timer = window.setTimeout(() => {
+      apply(activeIdx + 1);
+      schedule();
+    }, HERO_ROTATE_MS);
+  };
+
+  const onVisibility = () => {
+    if (document.hidden) {
+      clearTimer();
+      rotator.setAttribute("data-rotator-running", "false");
     } else {
-      playBtn.removeAttribute("aria-disabled");
-    }
-    for (const cls of stateClasses.disabledButton) {
-      playBtn.classList.toggle(cls, isMissing);
-    }
-    if (playBtn.hasAttribute("aria-label")) {
-      playBtn.setAttribute("aria-label", label);
-    }
-    if (playLabelSpan) playLabelSpan.textContent = label;
-    renderPlayIcon(state === "playing");
-
-    if (dot) {
-      dot.classList.toggle("site-dot--muted", state === "missing");
-      dot.classList.toggle("site-dot--live", state !== "missing");
-    }
-    if (statusEl) {
-      statusEl.textContent =
-        state === "missing"
-          ? cfg.missing
-          : state === "playing"
-            ? `${cfg.nowPlaying}: ${cfg.lineStart} ${word}`
-            : cfg.ready;
+      schedule();
     }
   };
 
-  const renderWord = () => {
-    const edited = word !== cfg.first;
-    figure.dataset.word = word;
-    wordBox.classList.toggle("is-edited", edited);
-    wordBox.replaceChildren();
-    if (edited) {
-      const del = document.createElement("del");
-      del.className = "site-studio__old";
-      del.textContent = cfg.first;
-      wordBox.appendChild(del);
-    }
-    const ins = document.createElement("ins");
-    ins.className = "site-studio__new";
-    ins.textContent = word;
-    wordBox.appendChild(ins);
+  document.addEventListener("visibilitychange", onVisibility);
+  const stopMotionWatch = watchReducedMotion((nextReduced) => {
+    reduced = nextReduced;
+    schedule();
+  });
 
-    for (let i = 0; i < 2; i++) {
-      const wave = waves[i];
-      if (!wave) continue;
-      const existing = wave.querySelector("rect.site-wave__take");
-      if (edited && !existing) {
-        const rect = document.createElementNS(SVG_NS, "rect");
-        rect.setAttribute("class", "site-wave__take");
-        rect.setAttribute("x", String(0.62 * 960));
-        rect.setAttribute("width", String((0.79 - 0.62) * 960));
-        rect.setAttribute("y", "0");
-        rect.setAttribute("height", "100");
-        wave.appendChild(rect);
-      } else if (!edited && existing) {
-        existing.remove();
-      }
-    }
+  schedule();
+
+  return () => {
+    clearTimer();
+    document.removeEventListener("visibilitychange", onVisibility);
+    stopMotionWatch();
   };
+}
 
-  // Check sample availability after first paint so the HEAD probe never competes with LCP.
-  onAfterFirstPaint(() => {
-    fetch(cfg.clips[cfg.first], { method: "HEAD" })
-      .then((res) => {
-        if (!res.ok) {
-          state = "missing";
-          renderState();
-        }
-      })
-      .catch(() => {});
-  });
+export function initHeroComposer(
+  stateClasses: Pick<HomeStateClasses, "chipPressed" | "chipUnpressed">,
+  options?: HomeInitOptions,
+): void {
+  const form = document.querySelector<HTMLFormElement>(
+    'form[data-hero-composer="true"]',
+  );
+  if (!form) return;
+  const textarea = form.querySelector<HTMLTextAreaElement>(
+    "textarea.site-composer__input",
+  );
+  if (!textarea) return;
 
-  audio.addEventListener("ended", () => {
-    if (state === "playing") {
-      state = "idle";
-      renderState();
-    }
-  });
-  audio.addEventListener("error", () => {
-    state = "missing";
-    renderState();
-  });
+  const wrap = form.closest(".site-composer-wrap") ?? document;
+  const chips = Array.from(
+    wrap.querySelectorAll<HTMLButtonElement>(".site-chip[data-chip-prompt]"),
+  );
+
+  const navigate =
+    options?.navigate ??
+    ((url: string) => {
+      window.location.assign(url);
+    });
 
   for (let i = 0; i < chips.length; i++) {
     const chip = chips[i];
     chip.addEventListener("click", () => {
-      const next =
-        chip.querySelector(".site-chip__word")?.textContent?.trim() || "";
-      if (!next || next === word) return;
-      word = next;
-      setTogglePressed(chips, i, pressedOnly, unpressedOnly);
-      if (state === "playing") {
-        audio.pause();
-        state = "idle";
+      const prompt = chip.getAttribute("data-chip-prompt") ?? "";
+      textarea.value = prompt;
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      setTogglePressed(
+        chips,
+        i,
+        stateClasses.chipPressed,
+        stateClasses.chipUnpressed,
+      );
+      textarea.focus();
+      try {
+        textarea.setSelectionRange(prompt.length, prompt.length);
+      } catch {
+        // Some input environments restrict selection range updates.
       }
-      renderWord();
-      renderState();
     });
   }
 
-  playBtn.addEventListener("click", async () => {
-    if (state === "missing") return;
-    if (state === "playing") {
-      audio.pause();
-      state = "idle";
-      renderState();
-      return;
+  textarea.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+      } else {
+        form.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+      }
     }
-    const src = cfg.clips[word];
-    if (src && !audio.src.endsWith(src)) audio.src = src;
-    try {
-      await audio.play();
-      state = "playing";
-    } catch {
-      state = "missing";
-    }
-    renderState();
   });
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const saved = saveComposerDraft(textarea.value);
+    const target = buildComposerSignUpUrl(
+      form.getAttribute("action") || "/login",
+      saved,
+    );
+    navigate(target);
+  });
+}
+
+export function initShowcaseMarquee(): () => void {
+  const viewports = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-marquee-row]"),
+  );
+  if (!viewports.length) return () => {};
+
+  const cleanups: (() => void)[] = [];
+
+  for (const viewport of viewports) {
+    const track = viewport.querySelector<HTMLElement>(
+      '[data-marquee-track="true"]',
+    );
+    const copy0 = viewport.querySelector<HTMLElement>(
+      '[data-marquee-copy="0"]',
+    );
+    if (!track || !copy0) continue;
+
+    const direction =
+      Number(viewport.getAttribute("data-marquee-direction")) >= 0 ? 1 : -1;
+    let offset = 0;
+    let hovered = false;
+    let focused = false;
+    let pointerDown = false;
+    let reduced = prefersReducedMotion();
+    let disposed = false;
+    let lastTs: number | null = null;
+    let rafId: number | null = null;
+
+    const measureSetWidth = () => {
+      const measured =
+        copy0.getBoundingClientRect().width ||
+        copy0.offsetWidth ||
+        track.scrollWidth / 2;
+      if (measured > 0) return measured;
+      const fallback = Number(viewport.getAttribute("data-marquee-width"));
+      return Number.isFinite(fallback) && fallback > 0 ? fallback : 1200;
+    };
+
+    let setWidth = measureSetWidth();
+
+    const isPaused = () => reduced || hovered || focused || document.hidden;
+
+    const syncPaused = () => {
+      viewport.setAttribute("data-marquee-paused", String(isPaused()));
+    };
+
+    const applyTransform = () => {
+      const x = direction < 0 ? -offset : offset - setWidth;
+      track.style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
+    };
+
+    const isKeyboardFocus = (target: HTMLElement | null): boolean => {
+      if (!target) return false;
+      try {
+        return target.matches(":focus-visible");
+      } catch {
+        return false;
+      }
+    };
+
+    const bringFocusedCardIntoView = (target: HTMLElement | null) => {
+      viewport.scrollLeft = 0;
+      const card = target?.closest<HTMLElement>(".site-show__card") ?? target;
+      if (!card || !copy0.contains(card)) return;
+      setWidth = measureSetWidth();
+      const vpRect = viewport.getBoundingClientRect();
+      const vpWidth = vpRect.width > 0 ? vpRect.width : viewport.clientWidth;
+      if (vpWidth <= 0) return;
+
+      const copyRect = copy0.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const cardLeft =
+        cardRect.width > 0 ? cardRect.left - copyRect.left : card.offsetLeft;
+      const cardWidth = cardRect.width > 0 ? cardRect.width : card.offsetWidth;
+      const currentX = track.style.transform
+        ? direction < 0
+          ? -offset
+          : offset - setWidth
+        : 0;
+      const visualLeft = currentX + cardLeft;
+      const visualRight = visualLeft + cardWidth;
+
+      const inset = MARQUEE_FOCUS_INSET_PX;
+      let targetX = currentX;
+      if (cardWidth + inset * 2 > vpWidth) {
+        const leftInset = Math.min(inset, Math.max(0, vpWidth - cardWidth));
+        targetX = leftInset - cardLeft;
+      } else if (visualLeft < inset) {
+        targetX = inset - cardLeft;
+      } else if (visualRight > vpWidth - inset) {
+        targetX = vpWidth - inset - (cardLeft + cardWidth);
+      }
+      targetX = Math.min(inset, Math.max(-setWidth - inset, targetX));
+      offset = direction < 0 ? -targetX : targetX + setWidth;
+      applyTransform();
+      viewport.scrollLeft = 0;
+    };
+
+    const tick = (ts: number) => {
+      rafId = null;
+      if (isPaused()) {
+        lastTs = null;
+        syncPaused();
+        return;
+      }
+      if (lastTs !== null) {
+        const dtSec = Math.max(0, (ts - lastTs) / 1000);
+        offset =
+          (((offset + MARQUEE_SPEED_PX_PER_SEC * dtSec) % setWidth) +
+            setWidth) %
+          setWidth;
+      }
+      applyTransform();
+      lastTs = ts;
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    const stop = () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      lastTs = null;
+      syncPaused();
+    };
+
+    const start = () => {
+      syncPaused();
+      if (isPaused() || rafId !== null) return;
+      lastTs = null;
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    const onEnter = () => {
+      hovered = true;
+      stop();
+    };
+    const onLeave = () => {
+      hovered = false;
+      start();
+    };
+    const onPointerDown = () => {
+      pointerDown = true;
+    };
+    const onPointerUp = () => {
+      pointerDown = false;
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      focused = true;
+      stop();
+      const target = event.target as HTMLElement | null;
+      if (!pointerDown && isKeyboardFocus(target)) {
+        bringFocusedCardIntoView(target);
+      }
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if (!viewport.contains(event.relatedTarget as Node | null)) {
+        focused = false;
+        viewport.scrollLeft = 0;
+        start();
+      }
+    };
+    const onScroll = () => {
+      if (viewport.scrollLeft !== 0) {
+        viewport.scrollLeft = 0;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver === "function"
+        ? new ResizeObserver(() => {
+            if (!disposed) setWidth = measureSetWidth();
+          })
+        : null;
+    resizeObserver?.observe(copy0);
+
+    document.fonts?.ready
+      ?.then(() => {
+        if (!disposed) setWidth = measureSetWidth();
+      })
+      .catch(() => {});
+
+    viewport.addEventListener("pointerenter", onEnter);
+    viewport.addEventListener("mouseenter", onEnter);
+    viewport.addEventListener("pointerleave", onLeave);
+    viewport.addEventListener("mouseleave", onLeave);
+    viewport.addEventListener("pointerdown", onPointerDown);
+    viewport.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("mouseup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    viewport.addEventListener("focusin", onFocusIn);
+    viewport.addEventListener("focusout", onFocusOut);
+    viewport.addEventListener("scroll", onScroll);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    const stopMotionWatch = watchReducedMotion((nextReduced) => {
+      reduced = nextReduced;
+      if (reduced) stop();
+      else start();
+    });
+
+    start();
+
+    cleanups.push(() => {
+      disposed = true;
+      stop();
+      resizeObserver?.disconnect();
+      viewport.removeEventListener("pointerenter", onEnter);
+      viewport.removeEventListener("mouseenter", onEnter);
+      viewport.removeEventListener("pointerleave", onLeave);
+      viewport.removeEventListener("mouseleave", onLeave);
+      viewport.removeEventListener("pointerdown", onPointerDown);
+      viewport.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("mouseup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      viewport.removeEventListener("focusin", onFocusIn);
+      viewport.removeEventListener("focusout", onFocusOut);
+      viewport.removeEventListener("scroll", onScroll);
+      document.removeEventListener("visibilitychange", onVisibility);
+      stopMotionWatch();
+    });
+  }
+
+  return () => {
+    for (const fn of cleanups) fn();
+  };
+}
+
+export function initFeatureReels(
+  stateClasses: Pick<HomeStateClasses, "chipPressed" | "chipUnpressed">,
+): () => void {
+  const articles = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-feature-reel]"),
+  );
+  if (!articles.length) return () => {};
+
+  const cleanups: (() => void)[] = [];
+
+  for (const article of articles) {
+    const bullets = Array.from(
+      article.querySelectorAll<HTMLButtonElement>("[data-reel-bullet]"),
+    );
+    const points = Array.from(
+      article.querySelectorAll<HTMLElement>(".site-feature__point"),
+    );
+    const dots = Array.from(
+      article.querySelectorAll<HTMLButtonElement>("[data-reel-dot]"),
+    );
+    const slides = Array.from(
+      article.querySelectorAll<HTMLElement>(".site-feature__slide"),
+    );
+    const track = article.querySelector<HTMLElement>(
+      '[data-reel-track="true"]',
+    );
+    const count = bullets.length;
+    if (count < 2) continue;
+
+    let step = 0;
+    let hovered = false;
+    let focused = false;
+    let reduced = prefersReducedMotion();
+    let timer: number | null = null;
+
+    const dotDiff =
+      stateClasses.chipPressed.length || stateClasses.chipUnpressed.length
+        ? {
+            pressedOnly: stateClasses.chipPressed,
+            unpressedOnly: stateClasses.chipUnpressed,
+          }
+        : diffToggleClasses(dots);
+
+    const applyStep = (nextIdx: number) => {
+      step = ((nextIdx % count) + count) % count;
+      article.setAttribute("data-reel-step", String(step));
+      for (let i = 0; i < count; i++) {
+        const active = i === step;
+        points[i]?.setAttribute("data-active", String(active));
+        bullets[i]?.setAttribute("data-active", String(active));
+      }
+      for (let i = 0; i < slides.length; i++) {
+        if (i === step) {
+          slides[i].removeAttribute("aria-hidden");
+        } else {
+          slides[i].setAttribute("aria-hidden", "true");
+        }
+      }
+      setTogglePressed(
+        bullets,
+        step,
+        dotDiff.pressedOnly,
+        dotDiff.unpressedOnly,
+      );
+      if (dots.length) {
+        setTogglePressed(
+          dots,
+          step,
+          dotDiff.pressedOnly,
+          dotDiff.unpressedOnly,
+        );
+      }
+      if (track) {
+        track.style.transform = `translate3d(-${(step * 100) / count}%, 0, 0)`;
+      }
+    };
+
+    const isPaused = () => reduced || hovered || focused || document.hidden;
+
+    const clearTimer = () => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const schedule = () => {
+      clearTimer();
+      article.setAttribute("data-reel-paused", String(isPaused()));
+      if (isPaused()) return;
+      timer = window.setTimeout(() => {
+        applyStep(step + 1);
+        schedule();
+      }, FEATURE_REEL_MS);
+    };
+
+    for (let i = 0; i < count; i++) {
+      bullets[i]?.addEventListener("click", () => {
+        applyStep(i);
+        schedule();
+      });
+      dots[i]?.addEventListener("click", () => {
+        applyStep(i);
+        schedule();
+      });
+    }
+
+    const onEnter = () => {
+      hovered = true;
+      clearTimer();
+      article.setAttribute("data-reel-paused", "true");
+    };
+    const onLeave = () => {
+      hovered = false;
+      schedule();
+    };
+    const onFocusIn = () => {
+      focused = true;
+      clearTimer();
+      article.setAttribute("data-reel-paused", "true");
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if (!article.contains(event.relatedTarget as Node | null)) {
+        focused = false;
+        schedule();
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        clearTimer();
+        article.setAttribute("data-reel-paused", "true");
+      } else {
+        schedule();
+      }
+    };
+
+    article.addEventListener("pointerenter", onEnter);
+    article.addEventListener("mouseenter", onEnter);
+    article.addEventListener("pointerleave", onLeave);
+    article.addEventListener("mouseleave", onLeave);
+    article.addEventListener("focusin", onFocusIn);
+    article.addEventListener("focusout", onFocusOut);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    const stopMotionWatch = watchReducedMotion((nextReduced) => {
+      reduced = nextReduced;
+      schedule();
+    });
+
+    schedule();
+
+    cleanups.push(() => {
+      clearTimer();
+      article.removeEventListener("pointerenter", onEnter);
+      article.removeEventListener("mouseenter", onEnter);
+      article.removeEventListener("pointerleave", onLeave);
+      article.removeEventListener("mouseleave", onLeave);
+      article.removeEventListener("focusin", onFocusIn);
+      article.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("visibilitychange", onVisibility);
+      stopMotionWatch();
+    });
+  }
+
+  return () => {
+    for (const fn of cleanups) fn();
+  };
 }
 
 function initKindsStage(): void {
@@ -374,13 +774,21 @@ function initHomeFaq(stateClasses: HomeStateClasses): void {
   }
 }
 
-export function initHome(): void {
+export function initHome(options?: HomeInitOptions): () => void {
   const stateClasses = readHomeStateClasses();
   initShell();
-  initHeroStudio(stateClasses);
+  const stopRotator = initHeroRotator();
+  initHeroComposer(stateClasses, options);
+  const stopMarquee = initShowcaseMarquee();
+  const stopReels = initFeatureReels(stateClasses);
   initKindsStage();
   initPeriodSwitch();
   initHomeFaq(stateClasses);
+  return () => {
+    stopRotator();
+    stopMarquee();
+    stopReels();
+  };
 }
 
 if (

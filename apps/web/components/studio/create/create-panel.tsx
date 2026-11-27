@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
+  consumeComposerDraft,
+  hasDraftQueryParam,
+  stripDraftQueryParam,
+} from "@/lib/site/composer-draft";
+import {
   engineControls,
   engineLabel,
   kieCredits,
@@ -184,9 +189,20 @@ export function CreatePanel({ onCreated }: { onCreated?: () => void }) {
   // The persisted draft loads after hydration; render the server default until then.
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    void Promise.resolve(useCreateForm.persist.rehydrate()).then(() =>
-      setReady(true),
-    );
+    void Promise.resolve(useCreateForm.persist.rehydrate()).then(() => {
+      if (hasDraftQueryParam(window.location.search)) {
+        const draft = consumeComposerDraft();
+        if (draft) {
+          useCreateForm.getState().set({ mode: "simple", prompt: draft });
+        }
+        window.history.replaceState(
+          window.history.state,
+          "",
+          stripDraftQueryParam(window.location),
+        );
+      }
+      setReady(true);
+    });
   }, []);
   // A song made from audio needs a mode the engine has, and kie takes at most 8 minutes.
   const audioBlock =
