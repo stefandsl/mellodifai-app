@@ -1,5 +1,5 @@
-import { spawn, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, mkdtempSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runtimePath } from "./lib/envs.js";
@@ -34,6 +34,32 @@ export function prepareE2EServer(source: string, runtime: string): string {
       );
     },
   });
+  const changelogDataScript = join(
+    source,
+    "apps",
+    "web",
+    "scripts",
+    "site-study",
+    "changelog-data.mjs",
+  );
+  if (existsSync(join(source, ".git")) && existsSync(changelogDataScript)) {
+    execFileSync(
+      process.execPath,
+      [
+        changelogDataScript,
+        "--write-snapshot",
+        "--repo-root",
+        source,
+        "--out",
+        join(target, "content", "changelog", "tags.json"),
+      ],
+      {
+        cwd: source,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+  }
   return target;
 }
 

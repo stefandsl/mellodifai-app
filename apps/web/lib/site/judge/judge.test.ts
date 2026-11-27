@@ -225,6 +225,44 @@ describe("clean-room judge", () => {
     expect(result.equalStrings.map((h) => h.match)).toEqual(["menu"]);
   });
 
+  it("exempts month-and-day calendar date strings while still failing non-date two-word copies", () => {
+    const result = cleanRoom({
+      ours: [
+        "Nov 20",
+        "Nov 14",
+        "20 nov",
+        "14 novembre",
+        "March 3",
+        "Nov release",
+        "Nov 32",
+        "Nov 20 2025",
+      ],
+      reference: [
+        "NOV 20",
+        "NOV 14",
+        "20 NOV",
+        "14 Novembre",
+        "March 3",
+        "Nov release",
+        "Nov 32",
+        "Nov 20 2025",
+      ],
+    });
+    expect(result.pass).toBe(false);
+    expect(result.equalStrings.map((h) => h.match)).toEqual([
+      "nov release",
+      "nov 32",
+      "nov 20 2025",
+    ]);
+
+    const datesOnly = cleanRoom({
+      ours: ["Nov 20", "Nov 14", "20 nov", "3 mar"],
+      reference: ["NOV 20", "NOV 14", "20 NOV", "3 MAR"],
+    });
+    expect(datesOnly.pass).toBe(true);
+    expect(datesOnly.equalStrings).toEqual([]);
+  });
+
   it("reads words the same way in every language and with typographic apostrophes", () => {
     expect(wordsOf("Cambia una parola, l’AI la canta: È facile!")).toEqual([
       "cambia",

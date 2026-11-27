@@ -19,6 +19,7 @@ const BUILD_SCRIPT = path.join(WEB_DIR, "scripts", "build-site-static.mjs");
  */
 export const SITE_STATIC_SOURCES = [
   "apps/web/scripts/build-site-static.mjs",
+  "apps/web/scripts/site-study/changelog-data.mjs",
   "apps/web/lib/site",
   "apps/web/lib/theme.ts",
   "apps/web/components/site",
@@ -31,14 +32,69 @@ export const SITE_STATIC_SOURCES = [
   "apps/web/public/site/assets.manifest.json",
   "apps/web/public/site/brand-mark.png",
   "apps/web/public/site/recipes",
+  "content/changelog",
   "content/recipes",
   // The whole package, not only recipes/: the prerender bundles its index barrel.
   "packages/shared/src",
 ] as const;
 
-const WATCHED_PATHS = SITE_STATIC_SOURCES.map((rel) =>
-  path.join(REPO_ROOT, ...rel.split("/")),
-);
+/**
+ * Resolve git tag ref locations (`packed-refs` and `refs/tags`) for dev rebuild watching.
+ * Supports standard `.git` directories, git worktree `.git` pointer files, and returns `[]`
+ * when no `.git` metadata exists (such as an extracted `git archive`).
+ */
+export function resolveGitTagWatchPaths(repoRoot: string): string[] {
+  const gitEntry = path.join(/*turbopackIgnore: true*/ repoRoot, ".git");
+  try {
+    const stat = fs.statSync(/*turbopackIgnore: true*/ gitEntry);
+    let commonDir: string | null = null;
+    if (stat.isDirectory()) {
+      commonDir = gitEntry;
+    } else if (stat.isFile()) {
+      const content = fs.readFileSync(
+        /*turbopackIgnore: true*/ gitEntry,
+        "utf8",
+      );
+      const match = /^gitdir:\s*(.+)$/mu.exec(content);
+      if (match) {
+        const gitDir = path.resolve(
+          /*turbopackIgnore: true*/ repoRoot,
+          match[1].trim(),
+        );
+        const commonDirFile = path.join(
+          /*turbopackIgnore: true*/ gitDir,
+          "commondir",
+        );
+        if (fs.existsSync(/*turbopackIgnore: true*/ commonDirFile)) {
+          const relCommon = fs
+            .readFileSync(/*turbopackIgnore: true*/ commonDirFile, "utf8")
+            .trim();
+          commonDir = path.resolve(/*turbopackIgnore: true*/ gitDir, relCommon);
+        } else {
+          commonDir = gitDir;
+        }
+      }
+    }
+    if (!commonDir) return [];
+    return [
+      path.join(/*turbopackIgnore: true*/ commonDir, "packed-refs"),
+      path.join(/*turbopackIgnore: true*/ commonDir, "refs", "tags"),
+    ];
+  } catch {
+    return [];
+  }
+}
+
+export function getWatchedPaths(repoRoot: string = REPO_ROOT): string[] {
+  return [
+    ...SITE_STATIC_SOURCES.map((rel) =>
+      path.join(/*turbopackIgnore: true*/ repoRoot, ...rel.split("/")),
+    ),
+    ...resolveGitTagWatchPaths(repoRoot),
+  ];
+}
+
+const WATCHED_PATHS = getWatchedPaths(REPO_ROOT);
 
 type StaticManifest = {
   pages: string[];
@@ -70,6 +126,7 @@ function latestMtimeMs(target: string): number {
     const stat = fs.statSync(/*turbopackIgnore: true*/ target);
     if (stat.isFile()) return stat.mtimeMs;
     if (stat.isDirectory()) {
+      latest = stat.mtimeMs;
       for (const entry of fs.readdirSync(/*turbopackIgnore: true*/ target, {
         withFileTypes: true,
       })) {
@@ -86,8 +143,11 @@ function latestMtimeMs(target: string): number {
   return latest;
 }
 
-function sourcesChangedSince(sinceMs: number): boolean {
-  for (const p of WATCHED_PATHS) {
+export function sourcesChangedSince(
+  sinceMs: number,
+  watchedPaths: readonly string[] = WATCHED_PATHS,
+): boolean {
+  for (const p of watchedPaths) {
     if (latestMtimeMs(p) > sinceMs) return true;
   }
   return false;

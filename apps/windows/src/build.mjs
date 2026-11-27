@@ -14,6 +14,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeTagSnapshot } from "../../web/scripts/site-study/changelog-data.mjs";
 import { pngToIco } from "./icon.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -133,6 +134,10 @@ function main(argv) {
   execFileSync(windowsTar, ["-xf", tar, "-C", join(stage, "app")]);
   rmSync(tar);
   writeFileSync(join(stage, "app", "VERSION"), `${version}\n`);
+  writeTagSnapshot({
+    repoRoot: repo,
+    outPath: join(stage, "app", "content", "changelog", "tags.json"),
+  });
   for (const lang of FONT_LANGS)
     cpSync(join(fonts, lang), join(stage, "app", "fonts", lang), {
       recursive: true,

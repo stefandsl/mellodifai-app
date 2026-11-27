@@ -28,6 +28,72 @@ export function wordsOf(text: string): string[] {
 
 const key = (text: string) => wordsOf(text).join(" ");
 
+// Month names (short and full, English and Italian) for month-and-day calendar labels
+// such as "Nov 20" or "20 nov" on changelog ruler chips.
+const CALENDAR_MONTHS = new Set([
+  "jan",
+  "january",
+  "gen",
+  "gennaio",
+  "feb",
+  "february",
+  "febbraio",
+  "mar",
+  "march",
+  "marzo",
+  "apr",
+  "april",
+  "aprile",
+  "may",
+  "mag",
+  "maggio",
+  "jun",
+  "june",
+  "giu",
+  "giugno",
+  "jul",
+  "july",
+  "lug",
+  "luglio",
+  "aug",
+  "august",
+  "ago",
+  "agosto",
+  "sep",
+  "sept",
+  "september",
+  "set",
+  "sett",
+  "settembre",
+  "oct",
+  "october",
+  "ott",
+  "ottobre",
+  "nov",
+  "november",
+  "novembre",
+  "dec",
+  "december",
+  "dic",
+  "dicembre",
+]);
+
+function isDayOfMonth(word: string): boolean {
+  if (!/^\d{1,2}$/u.test(word)) return false;
+  const n = Number(word);
+  return n >= 1 && n <= 31;
+}
+
+/** True when a tokenized string is solely a month-and-day calendar date (e.g. "Nov 20", "20 nov"). */
+export function isMonthDayDate(words: readonly string[]): boolean {
+  if (words.length !== 2) return false;
+  const [a, b] = words;
+  return (
+    (CALENDAR_MONTHS.has(a) && isDayOfMonth(b)) ||
+    (isDayOfMonth(a) && CALENDAR_MONTHS.has(b))
+  );
+}
+
 export function cleanRoom(input: {
   ours: string[];
   reference: string[];
@@ -59,7 +125,7 @@ export function cleanRoom(input: {
     seen.add(k);
     const same = whole.get(k);
     const counts = w.length >= 2 || strict.has(k);
-    if (same !== undefined && counts && !allow.has(k))
+    if (same !== undefined && counts && !allow.has(k) && !isMonthDayDate(w))
       equalStrings.push({ ours, reference: same, match: k });
     for (let i = 0; i + n <= w.length; i++) {
       const run = w.slice(i, i + n).join(" ");
