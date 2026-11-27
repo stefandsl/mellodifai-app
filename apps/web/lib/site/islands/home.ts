@@ -1,13 +1,15 @@
 // Interactive islands for the public home page:
 // shell (header scroll, agents menu, phone menu, deferred fonts),
 // hero rotating title (6.0 s), hero composer + chips, showcase marquee (32 px/s),
-// feature reels (5.0 s), recipe kinds stage, period switch, and FAQ collapsibles.
+// feature reels (5.0 s), sticky recipe kinds stage (2700 px desktop scroll),
+// period switch, and exclusive FAQ accordion.
 import {
   buildComposerSignUpUrl,
   COMPOSER_DRAFT_KEY,
   COMPOSER_PROMPT_MAX_LENGTH,
   saveComposerDraft,
 } from "../composer-draft";
+import { initFaq } from "./faq";
 import { initPeriodSwitch } from "./period-switch";
 import { initShell } from "./shell";
 
@@ -20,20 +22,15 @@ export const HERO_ROTATE_MS = 6000;
 export const MARQUEE_SPEED_PX_PER_SEC = 32;
 export const MARQUEE_FOCUS_INSET_PX = 8;
 export const FEATURE_REEL_MS = 5000;
+export const KIND_STAGE_DESKTOP_QUERY = "(min-width: 48em)";
 
 type KindItem = {
   name: string;
   line: string;
   kind: string;
-  rings: [number, number, number][];
 };
 
 type HomeStateClasses = {
-  disabledButton: string[];
-  panelClosed: string[];
-  panelOpen: string[];
-  chevronOpen: string[];
-  chevronClosed: string[];
   chipPressed: string[];
   chipUnpressed: string[];
 };
@@ -42,7 +39,6 @@ export type HomeInitOptions = {
   navigate?: (url: string) => void;
 };
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 function prefersReducedMotion(): boolean {
@@ -72,19 +68,6 @@ function readHomeStateClasses(): HomeStateClasses {
     try {
       const parsed = JSON.parse(el.textContent) as Partial<HomeStateClasses>;
       return {
-        disabledButton: Array.isArray(parsed.disabledButton)
-          ? parsed.disabledButton
-          : [],
-        panelClosed: Array.isArray(parsed.panelClosed)
-          ? parsed.panelClosed
-          : [],
-        panelOpen: Array.isArray(parsed.panelOpen) ? parsed.panelOpen : [],
-        chevronOpen: Array.isArray(parsed.chevronOpen)
-          ? parsed.chevronOpen
-          : [],
-        chevronClosed: Array.isArray(parsed.chevronClosed)
-          ? parsed.chevronClosed
-          : [],
         chipPressed: Array.isArray(parsed.chipPressed)
           ? parsed.chipPressed
           : [],
@@ -97,11 +80,6 @@ function readHomeStateClasses(): HomeStateClasses {
     }
   }
   return {
-    disabledButton: [],
-    panelClosed: [],
-    panelOpen: [],
-    chevronOpen: [],
-    chevronClosed: [],
     chipPressed: [],
     chipUnpressed: [],
   };
@@ -296,7 +274,6 @@ export function initShowcaseMarquee(): () => void {
     let offset = 0;
     let hovered = false;
     let focused = false;
-    let pointerDown = false;
     let reduced = prefersReducedMotion();
     let disposed = false;
     let lastTs: number | null = null;
@@ -415,17 +392,11 @@ export function initShowcaseMarquee(): () => void {
       hovered = false;
       start();
     };
-    const onPointerDown = () => {
-      pointerDown = true;
-    };
-    const onPointerUp = () => {
-      pointerDown = false;
-    };
     const onFocusIn = (event: FocusEvent) => {
       focused = true;
       stop();
       const target = event.target as HTMLElement | null;
-      if (!pointerDown && isKeyboardFocus(target)) {
+      if (isKeyboardFocus(target)) {
         bringFocusedCardIntoView(target);
       }
     };
@@ -464,11 +435,6 @@ export function initShowcaseMarquee(): () => void {
     viewport.addEventListener("mouseenter", onEnter);
     viewport.addEventListener("pointerleave", onLeave);
     viewport.addEventListener("mouseleave", onLeave);
-    viewport.addEventListener("pointerdown", onPointerDown);
-    viewport.addEventListener("mousedown", onPointerDown);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("mouseup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
     viewport.addEventListener("focusin", onFocusIn);
     viewport.addEventListener("focusout", onFocusOut);
     viewport.addEventListener("scroll", onScroll);
@@ -490,11 +456,6 @@ export function initShowcaseMarquee(): () => void {
       viewport.removeEventListener("mouseenter", onEnter);
       viewport.removeEventListener("pointerleave", onLeave);
       viewport.removeEventListener("mouseleave", onLeave);
-      viewport.removeEventListener("pointerdown", onPointerDown);
-      viewport.removeEventListener("mousedown", onPointerDown);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("mouseup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
       viewport.removeEventListener("focusin", onFocusIn);
       viewport.removeEventListener("focusout", onFocusOut);
       viewport.removeEventListener("scroll", onScroll);
@@ -677,101 +638,188 @@ export function initFeatureReels(
   };
 }
 
-function initKindsStage(): void {
+export function initKindsStage(): () => void {
   const body = document.querySelector<HTMLElement>(
     ".site-kinds__body[data-kinds-stage]",
   );
-  if (!body) return;
+  if (!body) return () => {};
   const raw = body.getAttribute("data-kinds-stage");
-  if (!raw) return;
+  if (!raw) return () => {};
 
   let items: KindItem[];
   try {
     items = JSON.parse(raw) as KindItem[];
   } catch {
-    return;
+    return () => {};
   }
+  if (!items.length) return () => {};
 
+  const track = document.querySelector<HTMLElement>(
+    '[data-kinds-track="true"]',
+  );
+  const sticky = document.querySelector<HTMLElement>(
+    '[data-kinds-sticky="true"]',
+  );
   const buttons = Array.from(
     body.querySelectorAll<HTMLButtonElement>(".site-kinds__name"),
   );
-  const cover = body.querySelector<HTMLElement>(".site-kinds__cover");
-  const coverSvg = cover?.querySelector<SVGSVGElement>("svg.site-cover__art");
+  const slides = Array.from(
+    body.querySelectorAll<HTMLElement>("[data-kind-slide]"),
+  );
   const titleEl = body.querySelector<HTMLElement>(".site-kinds__title");
   const lineEl = body.querySelector<HTMLElement>(
     '.site-kinds__caption [aria-live="polite"]',
   );
-  if (!buttons.length || !cover || !coverSvg || !titleEl || !lineEl) return;
+  if (!buttons.length || !titleEl || !lineEl) return () => {};
 
   const { pressedOnly, unpressedOnly } = diffToggleClasses(buttons);
 
+  let activeIdx = 0;
+  let disposed = false;
+  let rafId: number | null = null;
+  let trackDocTop = 0;
+  let stickyTop = 73;
+  let travel = 0;
+
+  const desktopMq =
+    typeof window.matchMedia === "function"
+      ? window.matchMedia(KIND_STAGE_DESKTOP_QUERY)
+      : null;
+  let desktopMatches = desktopMq ? desktopMq.matches : true;
+
+  const isDesktopSticky = () => Boolean(track && sticky && desktopMatches);
+
+  const setActive = (nextIdx: number) => {
+    const clamped = Math.max(0, Math.min(items.length - 1, nextIdx));
+    const item = items[clamped];
+    if (!item) return;
+    if (
+      clamped === activeIdx &&
+      body.getAttribute("data-kind-active") === String(clamped)
+    ) {
+      return;
+    }
+    activeIdx = clamped;
+    body.setAttribute("data-kind-active", String(activeIdx));
+    setTogglePressed(buttons, activeIdx, pressedOnly, unpressedOnly);
+    for (let i = 0; i < slides.length; i++) {
+      slides[i].setAttribute("data-active", String(i === activeIdx));
+    }
+    titleEl.textContent = item.name;
+    lineEl.textContent = item.line;
+  };
+
+  const measureGeometry = () => {
+    if (!track || !sticky || !isDesktopSticky()) {
+      travel = 0;
+      return;
+    }
+    const trackRect = track.getBoundingClientRect();
+    const stickyRect = sticky.getBoundingClientRect();
+    const parsedTop = Number.parseFloat(getComputedStyle(sticky).top);
+    stickyTop = Number.isFinite(parsedTop) ? parsedTop : 73;
+    trackDocTop = trackRect.top + window.scrollY;
+    travel = Math.max(0, trackRect.height - stickyRect.height);
+  };
+
+  const syncFromScroll = () => {
+    rafId = null;
+    if (disposed || document.hidden || !isDesktopSticky() || travel <= 0) {
+      return;
+    }
+    const scrolled = window.scrollY + stickyTop - trackDocTop;
+    const progress = Math.max(0, Math.min(1, scrolled / travel));
+    const nextIdx = Math.min(
+      items.length - 1,
+      Math.floor(progress * items.length),
+    );
+    setActive(nextIdx);
+  };
+
+  const cancelPendingFrame = () => {
+    if (rafId !== null) {
+      window.cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  };
+
+  const onScroll = () => {
+    if (document.hidden || !isDesktopSticky() || travel <= 0) return;
+    if (rafId !== null) return;
+    rafId = window.requestAnimationFrame(syncFromScroll);
+  };
+
+  const onResize = () => {
+    if (disposed) return;
+    measureGeometry();
+    if (!document.hidden && isDesktopSticky() && travel > 0) {
+      syncFromScroll();
+    }
+  };
+
+  const onVisibility = () => {
+    if (document.hidden) {
+      cancelPendingFrame();
+    } else if (isDesktopSticky() && travel > 0) {
+      syncFromScroll();
+    }
+  };
+
+  const buttonCleanups: (() => void)[] = [];
   for (let i = 0; i < buttons.length; i++) {
-    buttons[i].addEventListener("click", () => {
-      const item = items[i];
-      if (!item) return;
-      setTogglePressed(buttons, i, pressedOnly, unpressedOnly);
-
-      for (const cls of [...cover.classList]) {
-        if (cls.startsWith("site-cover--")) cover.classList.remove(cls);
-      }
-      cover.classList.add(`site-cover--${item.kind}`);
-
-      coverSvg.replaceChildren();
-      for (const [cx, cy, n] of item.rings) {
-        const g = document.createElementNS(SVG_NS, "g");
-        for (let k = 0; k < n; k++) {
-          const c = document.createElementNS(SVG_NS, "circle");
-          c.setAttribute("cx", String(cx));
-          c.setAttribute("cy", String(cy));
-          c.setAttribute("r", String((k + 1) * 16));
-          g.appendChild(c);
-        }
-        const dot = document.createElementNS(SVG_NS, "circle");
-        dot.setAttribute("class", "site-cover__dot");
-        dot.setAttribute("cx", String(cx));
-        dot.setAttribute("cy", String(cy));
-        dot.setAttribute("r", "3");
-        g.appendChild(dot);
-        coverSvg.appendChild(g);
-      }
-
-      titleEl.textContent = item.name;
-      lineEl.textContent = item.line;
-    });
+    const onClick = () => {
+      setActive(i);
+    };
+    buttons[i].addEventListener("click", onClick);
+    buttonCleanups.push(() => buttons[i].removeEventListener("click", onClick));
   }
-}
 
-function initHomeFaq(stateClasses: HomeStateClasses): void {
-  const triggers = document.querySelectorAll<HTMLButtonElement>(
-    ".site-faq__item .astryx-collapsible-trigger[aria-controls]",
-  );
-  for (const btn of triggers) {
-    const panelId = btn.getAttribute("aria-controls");
-    if (!panelId) continue;
-    const panel = document.getElementById(panelId);
-    if (!panel) continue;
-    const chevron = btn.querySelector<HTMLElement>(".astryx-icon");
+  const resizeObserver =
+    typeof ResizeObserver === "function"
+      ? new ResizeObserver(() => {
+          if (!disposed) measureGeometry();
+        })
+      : null;
+  if (track) resizeObserver?.observe(track);
+  if (sticky) resizeObserver?.observe(sticky);
+  if (document.body) resizeObserver?.observe(document.body);
 
-    btn.addEventListener("click", () => {
-      const nextOpen = btn.getAttribute("aria-expanded") !== "true";
-      btn.setAttribute("aria-expanded", String(nextOpen));
-      for (const cls of stateClasses.panelClosed) {
-        panel.classList.toggle(cls, !nextOpen);
-      }
-      for (const cls of stateClasses.panelOpen) {
-        panel.classList.toggle(cls, nextOpen);
-      }
-      panel.hidden = !nextOpen;
-      if (chevron) {
-        for (const cls of stateClasses.chevronOpen) {
-          chevron.classList.toggle(cls, nextOpen);
-        }
-        for (const cls of stateClasses.chevronClosed) {
-          chevron.classList.toggle(cls, !nextOpen);
-        }
-      }
-    });
+  document.fonts?.ready
+    ?.then(() => {
+      if (!disposed) measureGeometry();
+    })
+    .catch(() => {});
+
+  const onBreakpoint = (event: MediaQueryListEvent) => {
+    desktopMatches = event.matches;
+    onResize();
+  };
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onResize, { passive: true });
+  document.addEventListener("visibilitychange", onVisibility);
+  desktopMq?.addEventListener?.("change", onBreakpoint);
+
+  measureGeometry();
+  if (
+    !document.hidden &&
+    isDesktopSticky() &&
+    travel > 0 &&
+    window.scrollY > 0
+  ) {
+    syncFromScroll();
   }
+
+  return () => {
+    disposed = true;
+    cancelPendingFrame();
+    resizeObserver?.disconnect();
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onResize);
+    document.removeEventListener("visibilitychange", onVisibility);
+    desktopMq?.removeEventListener?.("change", onBreakpoint);
+    for (const fn of buttonCleanups) fn();
+  };
 }
 
 export function initHome(options?: HomeInitOptions): () => void {
@@ -781,13 +829,15 @@ export function initHome(options?: HomeInitOptions): () => void {
   initHeroComposer(stateClasses, options);
   const stopMarquee = initShowcaseMarquee();
   const stopReels = initFeatureReels(stateClasses);
-  initKindsStage();
+  const stopKinds = initKindsStage();
   initPeriodSwitch();
-  initHomeFaq(stateClasses);
+  const stopFaq = initFaq();
   return () => {
     stopRotator();
     stopMarquee();
     stopReels();
+    stopKinds();
+    stopFaq();
   };
 }
 

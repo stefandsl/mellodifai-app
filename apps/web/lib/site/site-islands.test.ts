@@ -30,6 +30,8 @@ const {
   FEATURE_REEL_MS,
   HERO_ROTATE_MS,
   initHome,
+  initKindsStage,
+  KIND_STAGE_DESKTOP_QUERY,
   MARQUEE_FOCUS_INSET_PX,
   MARQUEE_SPEED_PX_PER_SEC,
 } = await import("./islands/home");
@@ -285,35 +287,52 @@ describe("public site vanilla islands on built static HTML", () => {
       expect(window.sessionStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
       expect(fetchMock).not.toHaveBeenCalled();
 
-      // Kinds stage toggles cover class, title, and live caption.
+      // Kinds stage toggles active slide, button pressed state, title, and live caption.
       const kindBtns = Array.from(
         document.querySelectorAll<HTMLButtonElement>(".site-kinds__name"),
       );
-      expect(kindBtns.length).toBeGreaterThan(1);
+      const kindSlides = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-kind-slide]"),
+      );
+      expect(kindBtns.length).toBe(7);
+      expect(kindSlides.length).toBe(7);
       const beforeTitle =
         document.querySelector(".site-kinds__title")?.textContent;
       kindBtns[1].click();
       expect(kindBtns[1].getAttribute("aria-pressed")).toBe("true");
+      expect(kindBtns[0].getAttribute("aria-pressed")).toBe("false");
+      expect(kindSlides[1].getAttribute("data-active")).toBe("true");
+      expect(kindSlides[0].getAttribute("data-active")).toBe("false");
       expect(
         document.querySelector(".site-kinds__title")?.textContent,
       ).not.toBe(beforeTitle);
 
-      // Period switch responds to click and keyboard arrows.
+      // Period switch responds to click and keyboard arrows on stacked C03 PlanCard units.
       const radios = Array.from(
         document.querySelectorAll<HTMLButtonElement>(
           '.site-segmented[role="radiogroup"] [role="radio"][data-value]',
         ),
       );
       expect(radios.length).toBe(2);
-      const planUnit = document.querySelector<HTMLElement>(
-        "[data-plan-unit-monthly]",
+      const yearlyUnits = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.site-plan-card__unit[data-period="yearly"]',
+        ),
       );
-      const yearlyText = planUnit?.getAttribute("data-plan-unit-yearly");
-      const monthlyText = planUnit?.getAttribute("data-plan-unit-monthly");
+      const monthlyUnits = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.site-plan-card__unit[data-period="monthly"]',
+        ),
+      );
+      expect(yearlyUnits.length).toBe(4);
+      expect(monthlyUnits.length).toBe(4);
       radios[1].click();
       expect(radios[1].getAttribute("aria-checked")).toBe("true");
-      if (planUnit && yearlyText) {
-        expect(planUnit.textContent).toBe(yearlyText);
+      for (const u of yearlyUnits) {
+        expect(u.getAttribute("data-shown")).toBe("true");
+      }
+      for (const u of monthlyUnits) {
+        expect(u.getAttribute("data-shown")).toBe("false");
       }
       radios[1]
         .closest('[role="radiogroup"]')
@@ -321,31 +340,52 @@ describe("public site vanilla islands on built static HTML", () => {
           new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
         );
       expect(radios[0].getAttribute("aria-checked")).toBe("true");
-      if (planUnit && monthlyText) {
-        expect(planUnit.textContent).toBe(monthlyText);
+      for (const u of monthlyUnits) {
+        expect(u.getAttribute("data-shown")).toBe("true");
       }
 
-      // Home FAQ collapsible toggles aria-expanded, panel hidden class, and derived chevron classes.
-      const faqBtn = document.querySelector<HTMLButtonElement>(
-        ".site-faq__item .astryx-collapsible-trigger[aria-controls]",
+      // Home FAQ uses the shared exclusive C03 accordion (item 0 open at load, inert when closed, keyboard arrows).
+      const faqItems = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          ".site-faq__list .site-faq__item",
+        ),
       );
-      expect(faqBtn).not.toBeNull();
-      const panelId = faqBtn?.getAttribute("aria-controls") ?? "";
-      const panel = document.getElementById(panelId);
-      const chevron = faqBtn?.querySelector<HTMLElement>(".astryx-icon");
-      const closedPanelClass = panel?.className ?? "";
-      const closedChevronClass = chevron?.className ?? "";
-      expect(faqBtn?.getAttribute("aria-expanded")).toBe("false");
-      faqBtn?.click();
-      expect(faqBtn?.getAttribute("aria-expanded")).toBe("true");
-      expect(panel?.hidden).toBe(false);
-      expect(panel?.className).not.toBe(closedPanelClass);
-      expect(chevron?.className).not.toBe(closedChevronClass);
-      faqBtn?.click();
-      expect(faqBtn?.getAttribute("aria-expanded")).toBe("false");
-      expect(panel?.hidden).toBe(true);
-      expect(panel?.className).toBe(closedPanelClass);
-      expect(chevron?.className).toBe(closedChevronClass);
+      expect(faqItems.length).toBe(5);
+      const faqBtn0 =
+        faqItems[0].querySelector<HTMLButtonElement>(".site-faq__trigger");
+      const faqBtn1 =
+        faqItems[1].querySelector<HTMLButtonElement>(".site-faq__trigger");
+      const faqPanel0 =
+        faqItems[0].querySelector<HTMLElement>(".site-faq__panel");
+      const faqPanel1 =
+        faqItems[1].querySelector<HTMLElement>(".site-faq__panel");
+      expect(faqBtn0?.getAttribute("aria-expanded")).toBe("true");
+      expect(faqPanel0?.hasAttribute("inert")).toBe(false);
+      expect(faqBtn1?.getAttribute("aria-expanded")).toBe("false");
+      expect(faqPanel1?.hasAttribute("inert")).toBe(true);
+
+      faqBtn1?.click();
+      expect(faqBtn1?.getAttribute("aria-expanded")).toBe("true");
+      expect(faqItems[1].getAttribute("data-open")).toBe("true");
+      expect(faqPanel1?.hasAttribute("inert")).toBe(false);
+      expect(faqBtn0?.getAttribute("aria-expanded")).toBe("false");
+      expect(faqItems[0].getAttribute("data-open")).toBe("false");
+      expect(faqPanel0?.hasAttribute("inert")).toBe(true);
+
+      // ArrowDown moves focus from trigger 1 to trigger 2 without changing open state.
+      faqBtn1?.focus();
+      faqBtn1?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
+      const faqBtn2 =
+        faqItems[2].querySelector<HTMLButtonElement>(".site-faq__trigger");
+      expect(document.activeElement).toBe(faqBtn2);
+
+      // Clicking the open item closes it cleanly.
+      faqBtn1?.click();
+      expect(faqBtn1?.getAttribute("aria-expanded")).toBe("false");
+      expect(faqItems[1].getAttribute("data-open")).toBe("false");
+      expect(faqPanel1?.hasAttribute("inert")).toBe(true);
     } finally {
       stopHome();
       vi.useRealTimers();
@@ -521,6 +561,34 @@ describe("public site vanilla islands on built static HTML", () => {
         new FocusEvent("focusout", { bubbles: true, relatedTarget: null }),
       );
       expect(row1?.getAttribute("data-marquee-paused")).toBe("false");
+
+      // After a focus shift that leaves offset < 0 (card 0 at +8 on row 0), the next tick
+      // normalizes offset cleanly into [0, setWidth) via the double modulo.
+      const row0Copy0 = row0?.querySelector<HTMLElement>(
+        '[data-marquee-copy="0"]',
+      );
+      const row0Card0 =
+        row0Copy0?.querySelector<HTMLElement>(".site-show__card");
+      const row0Link0 = row0Card0?.querySelector<HTMLAnchorElement>("a");
+      if (row0 && row0Copy0 && row0Card0 && row0Link0) {
+        row0.getBoundingClientRect = () => rect(0, 1000);
+        row0Copy0.getBoundingClientRect = () => rect(0, 1200);
+        row0Card0.getBoundingClientRect = () => rect(0, 180);
+        row0Link0.matches = (sel: string) => sel === ":focus-visible";
+        row0Link0.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+        expect(parseX(track0?.style.transform ?? "")).toBeCloseTo(
+          MARQUEE_FOCUS_INSET_PX,
+          1,
+        );
+        row0.dispatchEvent(
+          new FocusEvent("focusout", { bubbles: true, relatedTarget: null }),
+        );
+        stepRaf(5000);
+        stepRaf(5016);
+        const wrappedX = parseX(track0?.style.transform ?? "");
+        expect(wrappedX).toBeLessThanOrEqual(0);
+        expect(wrappedX).toBeGreaterThan(-1200);
+      }
 
       // 3. Feature reels step every 5000 ms, pause on hover, and support manual bullet/dot clicks.
       const reel0 = document.querySelector<HTMLElement>(
@@ -742,6 +810,155 @@ describe("public site vanilla islands on built static HTML", () => {
       expect(slides[2].getAttribute("aria-hidden")).toBe("true");
     } finally {
       stopHome();
+    }
+  });
+
+  it("kind stage: desktop scroll drives all 7 kinds without per-frame layout reads, pauses when hidden, and ignores scroll on mobile", () => {
+    let desktopMatches = true;
+    const mqListeners: ((e: MediaQueryListEvent) => void)[] = [];
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        get matches() {
+          return query === KIND_STAGE_DESKTOP_QUERY
+            ? desktopMatches
+            : query.includes("prefers-reduced-motion");
+        },
+        media: query,
+        addEventListener: (
+          _type: string,
+          cb: (e: MediaQueryListEvent) => void,
+        ) => {
+          if (query === KIND_STAGE_DESKTOP_QUERY) mqListeners.push(cb);
+        },
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const flushRaf = () => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(0);
+    };
+    const setScrollY = (y: number) => {
+      Object.defineProperty(window, "scrollY", {
+        value: y,
+        configurable: true,
+      });
+    };
+    const setHidden = (hidden: boolean) => {
+      Object.defineProperty(document, "hidden", {
+        value: hidden,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+
+    loadBuiltDocument(homeHtml);
+    setScrollY(0);
+    setHidden(false);
+
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    const body = document.querySelector<HTMLElement>("[data-kinds-stage]");
+    expect(track).not.toBeNull();
+    expect(sticky).not.toBeNull();
+    expect(body).not.toBeNull();
+
+    // Simulate desktop geometry: track top = 6000, sticky height = 700, runway = 2700 -> track height = 3400.
+    const makeRect = (top: number, height: number): DOMRect =>
+      ({
+        top,
+        bottom: top + height,
+        height,
+        left: 80,
+        right: 1360,
+        width: 1280,
+        x: 80,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    if (track && sticky) {
+      track.getBoundingClientRect = () => makeRect(6000 - window.scrollY, 3400);
+      sticky.getBoundingClientRect = () => makeRect(73, 700);
+      sticky.style.top = "73px";
+    }
+
+    const stopKinds = initKindsStage();
+    try {
+      const trackSpy = vi.spyOn(track as HTMLElement, "getBoundingClientRect");
+      const stickySpy = vi.spyOn(
+        sticky as HTMLElement,
+        "getBoundingClientRect",
+      );
+
+      // Scroll through the 2700 px sticky travel (start at 6000 - 73 = 5927) across all 7 kinds.
+      const seenIndices: string[] = [];
+      for (let step = 0; step < 7; step++) {
+        const y = 5927 + Math.round(((step + 0.5) / 7) * 2700);
+        setScrollY(y);
+        window.dispatchEvent(new Event("scroll"));
+        flushRaf();
+        seenIndices.push(body?.getAttribute("data-kind-active") ?? "");
+      }
+      expect(seenIndices).toEqual(["0", "1", "2", "3", "4", "5", "6"]);
+      // Zero per-frame layout reads during scroll!
+      expect(trackSpy).not.toHaveBeenCalled();
+      expect(stickySpy).not.toHaveBeenCalled();
+
+      // Active slide and button match kind 6.
+      expect(
+        document
+          .querySelector('[data-kind-slide="6"]')
+          ?.getAttribute("data-active"),
+      ).toBe("true");
+      expect(
+        document
+          .querySelector('[data-kind-slide="0"]')
+          ?.getAttribute("data-active"),
+      ).toBe("false");
+
+      // Hidden tab cancels/pauses scroll updates; showing tab re-syncs.
+      setHidden(true);
+      setScrollY(5927 + 50);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("6");
+
+      setHidden(false);
+      expect(body?.getAttribute("data-kind-active")).toBe("0");
+
+      // Mobile (< 48em): scroll does not override manual click selection.
+      desktopMatches = false;
+      for (const listener of mqListeners) {
+        listener({ matches: false } as MediaQueryListEvent);
+      }
+      const btn4 = document.querySelector<HTMLButtonElement>(
+        '.site-kinds__name[data-kind-index="4"]',
+      );
+      btn4?.click();
+      expect(body?.getAttribute("data-kind-active")).toBe("4");
+      setScrollY(5927 + 2600);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("4");
+    } finally {
+      setHidden(false);
+      setScrollY(0);
+      stopKinds();
     }
   });
 
