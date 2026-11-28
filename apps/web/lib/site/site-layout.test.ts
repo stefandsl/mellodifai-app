@@ -36,6 +36,7 @@ describe("public site has its own document shell separate from studio", () => {
     for (const rel of [
       "app/(site)/route.ts",
       "app/(site)/pricing/route.ts",
+      "app/(site)/changelog/route.ts",
       "app/(site)/recipes/route.ts",
       "app/(site)/recipes/[slug]/route.ts",
       "app/(site)/recipes/[slug]/try/route.ts",

@@ -66,7 +66,7 @@ One per-user NSIS installer (`apps/windows/installer.nsi`), no administrator rig
 the committed HEAD by `node apps/windows/src/build.mjs` (or `pnpm --filter @mellodifai/windows
 build:installer`). It carries:
 
-- `app\`: `git archive HEAD` plus a `VERSION` file;
+- `app\`: `git archive HEAD` plus a `VERSION` file and the generated `content/changelog/tags.json` (the release tags for the changelog page, since the archive has no `.git`);
 - `app\fonts\`: the worker's Japanese, Korean and Chinese lyric fonts (OFL, not in git), taken
   from `MELLODIFAI_FONTS`, else `<MELLODIFAI_ROOT>\fonts` (default `E:\mellodifai\fonts`). The
   build fails if a language or its `LICENSES.txt` is missing. The controller points the

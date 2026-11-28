@@ -4,7 +4,7 @@ import { serveStaticAsset } from "@/lib/site/serve-static-site";
 export const runtime = "nodejs";
 
 const ISLAND_PATTERN =
-  /^(home|pricing|recipes|recipe-detail)\.[0-9a-f]{12}\.js$/u;
+  /^(home|pricing|recipes|recipe-detail|changelog)\.[0-9a-f]{12}\.js$/u;
 
 export async function GET(
   request: NextRequest,

@@ -60,6 +60,7 @@ describe("public site loads only the Astryx CSS it uses", () => {
     for (const rel of [
       "lib/site/islands/home.ts",
       "lib/site/islands/recipe-detail.ts",
+      "lib/site/islands/changelog.ts",
       "lib/site/render-static-entry.tsx",
     ]) {
       const src = readFileSync(join(WEB, rel), "utf8");
