@@ -851,9 +851,9 @@ const en: SiteCopy = {
       watchPill: "Compare platforms",
     },
     ctaLabel: {
-      windows: "Windows installer guide",
-      macos: "macOS planned - see platforms",
-      linux: "Linux planned - see platforms",
+      windows: "Windows guide",
+      macos: "macOS planned",
+      linux: "Linux planned",
     },
     heroNote: {
       windows:
@@ -1636,7 +1636,7 @@ const it: SiteCopy = {
         "Usa MellodifAI in locale sul tuo computer: installer Windows dal repository, macOS e Linux in programma, studio browser sempre aperto.",
     },
     hero: {
-      title: "MellodifAI sul tuo computer",
+      title: "Lo studio MellodifAI sul tuo computer",
       line: "Tieni canzoni, take e motori locali sul tuo disco, con lo stesso studio che apri nel browser.",
       browserAction: "Usa nel browser",
       allPlatforms: "Vedi tutte le piattaforme",
@@ -1646,9 +1646,9 @@ const it: SiteCopy = {
       watchPill: "Confronta le piattaforme",
     },
     ctaLabel: {
-      windows: "Guida installer Windows",
-      macos: "macOS in programma - vedi piattaforme",
-      linux: "Linux in programma - vedi piattaforme",
+      windows: "Guida Windows",
+      macos: "macOS previsto",
+      linux: "Linux previsto",
     },
     heroNote: {
       windows:

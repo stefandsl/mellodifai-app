@@ -4,6 +4,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import type { SiteCopy } from "@/lib/site/copy";
 import {
   DEFAULT_DESKTOP_PLATFORM,
+  DESKTOP_PLATFORMS,
   resolveDesktopCta,
 } from "@/lib/site/downloads";
 import { href } from "@/lib/site/nav";
@@ -112,17 +113,31 @@ export function DesktopPage({ copy }: { copy: SiteCopy }) {
                   {d.hero.notes[1]}
                 </SiteText>
               </HStack>
-              <SiteText
-                as="p"
-                type="supporting"
-                color="secondary"
-                justify="center"
-                className="site-desk-hero__platform-note"
-                data-desktop-platform-note="true"
-                aria-live="polite"
-              >
-                {defaultCta.note}
-              </SiteText>
+              <VStack className="site-desk-hero__note-slot">
+                <SiteText
+                  as="p"
+                  type="supporting"
+                  color="secondary"
+                  justify="center"
+                  className="site-desk-hero__platform-note"
+                  data-desktop-platform-note="true"
+                  aria-live="polite"
+                >
+                  {defaultCta.note}
+                </SiteText>
+                {DESKTOP_PLATFORMS.map((id) => (
+                  <SiteText
+                    key={id}
+                    as="p"
+                    type="supporting"
+                    justify="center"
+                    aria-hidden="true"
+                    className="site-desk-hero__platform-note site-desk-hero__platform-note--sizer"
+                  >
+                    {d.heroNote[id]}
+                  </SiteText>
+                ))}
+              </VStack>
               <SiteLink href="#platforms" className="site-link">
                 {d.hero.allPlatforms}
               </SiteLink>
@@ -185,7 +200,11 @@ export function DesktopPage({ copy }: { copy: SiteCopy }) {
         aria-labelledby="desktop-included-title"
         gap={10}
       >
-        <HStack className="site-desk-included__row">
+        <HStack
+          className="site-desk-included__row"
+          data-ref-grid
+          data-ref-grid-widths="390"
+        >
           <VStack className="site-desk-included__copy" data-ref-content gap={4}>
             <SiteHeading
               level={2}
