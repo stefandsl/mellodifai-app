@@ -12,12 +12,14 @@ import {
   SiteText,
 } from "@/src/site-primitives";
 import { Cover, type CoverKind, Rule, Wave } from "./art";
+import { ClosingBand } from "./closing-band";
 import { FeatureReel } from "./feature-reel";
 import { HeroComposer } from "./hero-composer";
 import { KindsStage } from "./home-client";
-import { ArrowGlyph, CheckGlyph } from "./icons";
+import { CheckGlyph } from "./icons";
 import { PeriodProvider, PlanUnits } from "./period-context";
 import { PeriodSwitch } from "./period-switch";
+import { StepCard } from "./step-card";
 
 const AGENT_TITLES = {
   claude: "Claude",
@@ -270,37 +272,19 @@ export function Home({ copy }: { copy: SiteCopy }) {
           role="list"
         >
           {copy.steps.items.map((step, i) => (
-            <Card
+            <StepCard
               key={step.title}
-              className="site-step"
-              padding={4}
-              role="listitem"
-            >
-              <VStack gap={4}>
-                <VStack className="site-step__art" aria-hidden="true">
-                  <Wave
-                    seed={31 + i * 5}
-                    phrases={i + 2}
-                    take={i === 1 ? [0.55, 0.75] : undefined}
-                  />
-                </VStack>
-                <VStack gap={1}>
-                  <SiteText
-                    type="code"
-                    color="secondary"
-                    className="site-eyebrow"
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </SiteText>
-                  <SiteHeading level={3} className="site-step__title">
-                    {step.title}
-                  </SiteHeading>
-                  <SiteText as="p" color="secondary">
-                    {step.line}
-                  </SiteText>
-                </VStack>
-              </VStack>
-            </Card>
+              index={i}
+              title={step.title}
+              line={step.line}
+              art={
+                <Wave
+                  seed={31 + i * 5}
+                  phrases={i + 2}
+                  take={i === 1 ? [0.55, 0.75] : undefined}
+                />
+              }
+            />
           ))}
         </HStack>
       </VStack>
@@ -451,46 +435,14 @@ export function Home({ copy }: { copy: SiteCopy }) {
       </HStack>
 
       {/* 11. Closing band: covers around a centred title and the main action */}
-      <VStack
-        as="section"
-        className="site-close"
-        data-ref-section="11"
-        aria-labelledby="close-title"
-      >
-        <VStack className="site-close__band">
-          <HStack className="site-close__mosaic" aria-hidden="true">
-            {SHOW_ART.map((k) => (
-              <Cover key={k} kind={k} className="site-close__cover" />
-            ))}
-          </HStack>
-          <VStack
-            className="site-close__column"
-            data-ref-content
-            gap={8}
-            hAlign="center"
-          >
-            <SiteHeading
-              level={2}
-              id="close-title"
-              type="display-2"
-              justify="center"
-              className="site-close__title"
-            >
-              {copy.closing.title}
-            </SiteHeading>
-            <SiteButtonLink
-              label={copy.closing.action}
-              href={href("start")}
-              variant="primary"
-              size="lg"
-              icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
-            />
-            <SiteText type="supporting" color="secondary" justify="center">
-              {copy.closing.note}
-            </SiteText>
-          </VStack>
-        </VStack>
-      </VStack>
+      <ClosingBand
+        sectionIndex="11"
+        titleId="close-title"
+        title={copy.closing.title}
+        primaryAction={{ label: copy.closing.action, href: href("start") }}
+        note={copy.closing.note}
+        covers={SHOW_ART}
+      />
     </>
   );
 }

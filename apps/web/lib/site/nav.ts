@@ -10,7 +10,7 @@ export const ROUTES = {
   signIn: { route: "/login", built: true, fallback: "/login" },
   songbook: { route: "/recipes", built: true, fallback: "/#kinds" },
   desktop: { route: "/desktop", built: false, fallback: "/#studio" },
-  agents: { route: "/agents", built: false, fallback: "/#agents" },
+  agents: { route: "/agents", built: true, fallback: "/#agents" },
   plans: { route: "/pricing", built: true, fallback: "/#plans" },
   changelog: { route: "/changelog", built: true, fallback: "/#steps" },
   guides: { route: "/learn", built: false, fallback: "/#features" },
@@ -34,6 +34,16 @@ export const AGENTS = [
   "cursor",
 ] as const;
 export type AgentName = (typeof AGENTS)[number];
+
+export const DEFAULT_AGENT: AgentName = "claude";
+
+export function parseAgentParam(raw: string | null | undefined): AgentName {
+  if (!raw) return DEFAULT_AGENT;
+  const normalized = raw.trim().toLowerCase();
+  return (AGENTS as readonly string[]).includes(normalized)
+    ? (normalized as AgentName)
+    : DEFAULT_AGENT;
+}
 
 export function agentHref(agent: AgentName): string {
   return ROUTES.agents.built

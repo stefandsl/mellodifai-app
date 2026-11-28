@@ -207,6 +207,53 @@ export type SiteCopy = {
     rulerNavLabel: string;
     entriesLabel: string;
   };
+  agents: {
+    meta: { title: string; description: string };
+    switchLabel: string;
+    secondaryCta: string;
+    heroNote: string;
+    mockWindowLabel: string;
+    mockToolLabel: string;
+    connectTitle: string;
+    copyButton: string;
+    copiedButton: string;
+    copiedStatus: string;
+    copyFailedStatus: string;
+    agentSelectedStatus: string;
+    toolsTitle: string;
+    toolsLine: string;
+    toolsFilterLabel: string;
+    toolsShowAll: string;
+    toolsShowLess: string;
+    toolScopeRead: string;
+    toolScopeCreate: string;
+    toolScopeSpend: string;
+    toolCategories: {
+      all: string;
+      songs: string;
+      remake: string;
+      voice_video: string;
+      publish: string;
+      jobs: string;
+    };
+    devicesTitle: string;
+    devicesLine: string;
+    devices: [
+      { title: string; line: string; tag: string },
+      { title: string; line: string; tag: string },
+      { title: string; line: string; tag: string },
+    ];
+    promptsTitle: string;
+    promptsListLabel: string;
+    promptsCopyLabel: string;
+    prompts: string[];
+    closingTitle: string;
+    closingPrimary: string;
+    closingSecondary: string;
+    closingNote: string;
+    faqTitle: string;
+    faq: Question[];
+  };
   footer: {
     tagline: string;
     heads: { make: string; learn: string; legal: string };
@@ -782,6 +829,113 @@ const en: SiteCopy = {
     rulerLabel: "Release timeline",
     rulerNavLabel: "Jump to a release",
     entriesLabel: "Tagged releases",
+  },
+  agents: {
+    meta: {
+      title: "Agents and MCP - MellodifAI",
+      description:
+        "Connect Claude, ChatGPT, Gemini, Codex, or Cursor to MellodifAI using our audited Streamable HTTP MCP server and CLI bridge.",
+    },
+    switchLabel: "Choose an agent client",
+    secondaryCta: "Setup steps",
+    heroNote:
+      "Works with OAuth or a scoped personal token. Every spend cap and publish approval stays on the server.",
+    mockWindowLabel: "Example agent session calling MellodifAI MCP tools",
+    mockToolLabel: "MCP tool call",
+    connectTitle: "Three steps to link your client",
+    copyButton: "Copy",
+    copiedButton: "Copied",
+    copiedStatus: "Copied to clipboard: {label}",
+    copyFailedStatus: "Could not copy automatically. Select the command text.",
+    agentSelectedStatus: "Showing setup steps for {agent}",
+    toolsTitle: "Real tools from our MCP server",
+    toolsLine:
+      "{count} audited tools read directly from the server registry, with scopes and idempotency keys enforced on every write.",
+    toolsFilterLabel: "Filter MCP tools by workflow",
+    toolsShowAll: "Show all {count} tools",
+    toolsShowLess: "Show fewer tools",
+    toolScopeRead: "read",
+    toolScopeCreate: "create",
+    toolScopeSpend: "spend",
+    toolCategories: {
+      all: "All tools",
+      songs: "Songs",
+      remake: "Remake",
+      voice_video: "Voice & Video",
+      publish: "Publish",
+      jobs: "Jobs & Costs",
+    },
+    devicesTitle: "Same studio from browser, desktop, or phone",
+    devicesLine:
+      "Your agent calls the exact same project state you open in the web studio or Windows desktop app.",
+    devices: [
+      {
+        title: "Browser studio",
+        line: "Review rewritten verses, compare takes, and approve public uploads in any modern browser.",
+        tag: "Web",
+      },
+      {
+        title: "Windows desktop app",
+        line: "Run the local studio on your own PC and bridge local CLI commands over stdio without leaving your machine.",
+        tag: "Desktop",
+      },
+      {
+        title: "Phone approvals",
+        line: "Check a job status or veto a scheduled YouTube upload from your mobile browser before it goes live.",
+        tag: "Mobile",
+      },
+    ],
+    promptsTitle: "Prompts people hand to their agent",
+    promptsListLabel: "Example prompts for your agent",
+    promptsCopyLabel: "Copy prompt",
+    prompts: [
+      "Check my remaining spend cap today, then start an Italian remake from this YouTube link.",
+      "Read the lyrics of my latest track and tighten verse two without changing its syllable count.",
+      "Compare the takes on my acoustic cover and pick take 2 so the lyric video renders.",
+      "Split voice and band stems on my approved track and poll job_status until it finishes.",
+      "Plan a private YouTube draft with title, description, and tags, then stop for my approval.",
+      "Generate a free music-video storyboard plan and quote shot 3 without spending credits.",
+    ],
+    closingTitle: "Hand your agent the tools, keep the keys",
+    closingPrimary: "Open Agent Settings",
+    closingSecondary: "Jump to connect steps",
+    closingNote:
+      "Revoke any token or turn off remote MCP in one click inside Settings -> Agents.",
+    faqTitle: "Agent access, answered",
+    faq: [
+      {
+        q: "How does this client connect to MellodifAI?",
+        a: "Connect over Streamable HTTP at https://app.mellodifai.com/api/mcp with OAuth, or run the local mellodifai mcp stdio bridge from packages/cli.",
+      },
+      {
+        q: "Which permissions can an agent request?",
+        a: "Three explicit scopes exist: read (list songs, jobs, costs, remakes), create (pick takes, split stems, plan drafts, render videos), and spend (paid lyric rewrites and song takes).",
+      },
+      {
+        q: "Can an agent publish a video publicly on its own?",
+        a: "No. An agent can draft metadata, set a slot, and request approval, but the upload stays private until you approve it in the app or a standing rule you wrote covers it.",
+      },
+      {
+        q: "How are spending limits enforced?",
+        a: "Caps are checked on the server before any paid job starts, and every mutating tool requires an 8-100 character idempotency_key so retries never double-charge.",
+      },
+      {
+        q: "Where do personal access tokens live?",
+        a: "Create a token once in Settings -> Agents, pipe it over stdin to mellodifai login, or reference an environment variable. Never paste a token into a shared config file.",
+      },
+      {
+        q: "How do I stop or revoke an agent?",
+        a: "Open Settings -> Agents to revoke any individual token immediately or switch off Remote MCP to block all remote OAuth and token traffic at once.",
+      },
+      {
+        q: "Does the CLI work alongside MCP?",
+        a: "Yes. The mellodifai CLI supports direct commands like songs, remake, tools, and call, plus mellodifai mcp as a local stdio bridge that handles idempotency keys automatically.",
+      },
+      {
+        q: "Are the listed MCP tools real or examples?",
+        a: "Every tool card on this page is generated at build time directly from TOKEN_OPS in the repository's MCP server registry.",
+      },
+    ],
   },
   footer: {
     tagline: "Every song is a draft.",
@@ -1388,6 +1542,115 @@ const it: SiteCopy = {
     rulerLabel: "Linea temporale dei rilasci",
     rulerNavLabel: "Vai a un rilascio",
     entriesLabel: "Rilasci con tag",
+  },
+  agents: {
+    meta: {
+      title: "Agenti e MCP - MellodifAI",
+      description:
+        "Collega Claude, ChatGPT, Gemini, Codex o Cursor a MellodifAI con il nostro server Streamable HTTP MCP e il ponte CLI locale.",
+    },
+    switchLabel: "Scegli il client agente",
+    secondaryCta: "Come collegare",
+    heroNote:
+      "Funziona con OAuth o con un token personale a permessi ridotti. Limiti di spesa e approvazioni restano sul server.",
+    mockWindowLabel:
+      "Esempio di sessione agente che chiama gli strumenti MCP di MellodifAI",
+    mockToolLabel: "Chiamata strumento MCP",
+    connectTitle: "Collega in tre passaggi",
+    copyButton: "Copia",
+    copiedButton: "Copiato",
+    copiedStatus: "Copiato negli appunti: {label}",
+    copyFailedStatus:
+      "Copia automatica non disponibile. Seleziona il comando manualmente.",
+    agentSelectedStatus: "Passaggi di collegamento per {agent}",
+    toolsTitle: "Strumenti reali dal nostro server MCP",
+    toolsLine:
+      "{count} strumenti controllati letti direttamente dal registro del server, con permessi e chiavi di idempotenza su ogni scrittura.",
+    toolsFilterLabel: "Filtra gli strumenti MCP per area",
+    toolsShowAll: "Mostra tutti i {count} strumenti",
+    toolsShowLess: "Mostra meno strumenti",
+    toolScopeRead: "read",
+    toolScopeCreate: "create",
+    toolScopeSpend: "spend",
+    toolCategories: {
+      all: "Tutti",
+      songs: "Brani",
+      remake: "Rifacimento",
+      voice_video: "Voce e video",
+      publish: "Pubblica",
+      jobs: "Job e costi",
+    },
+    devicesTitle: "Lo stesso studio da browser, desktop o telefono",
+    devicesLine:
+      "Il tuo agente lavora sugli stessi progetti che apri nello studio web o nell'app desktop Windows.",
+    devices: [
+      {
+        title: "Studio nel browser",
+        line: "Controlla le strofe riscritte, confronta le take e approva le pubblicazioni da qualsiasi browser moderno.",
+        tag: "Web",
+      },
+      {
+        title: "App desktop Windows",
+        line: "Avvia lo studio in locale sul tuo PC e collega i comandi CLI su stdio senza uscire dalla macchina.",
+        tag: "Desktop",
+      },
+      {
+        title: "Approvazioni da telefono",
+        line: "Segui lo stato di un job o ferma una pubblicazione YouTube programmata prima che diventi pubblica.",
+        tag: "Mobile",
+      },
+    ],
+    promptsTitle: "Richieste pronte per il tuo agente",
+    promptsListLabel: "Esempi di richieste per l'agente",
+    promptsCopyLabel: "Copia richiesta",
+    prompts: [
+      "Controlla il mio limite di spesa di oggi e avvia un rifacimento in italiano da questo link YouTube.",
+      "Leggi il testo del mio ultimo brano e riscrivi la seconda strofa tenendo lo stesso numero di sillabe.",
+      "Confronta le take della cover acustica e scegli la take 2 per generare il lyric video.",
+      "Separa gli stem voce e base del brano approvato e segui job_status fino al termine.",
+      "Prepara una bozza YouTube privata con titolo, descrizione e tag, poi fermati per la mia approvazione.",
+      "Crea il piano storyboard gratuito per il video musicale e stima la scena 3 senza spendere crediti.",
+    ],
+    closingTitle: "Dai gli strumenti all'agente, tieni tu le chiavi",
+    closingPrimary: "Apri Impostazioni Agenti",
+    closingSecondary: "Vai ai passaggi",
+    closingNote:
+      "Revoca qualsiasi token o spegni MCP remoto con un clic da Impostazioni -> Agenti.",
+    faqTitle: "Accesso agenti, domande frequenti",
+    faq: [
+      {
+        q: "Come si collega questo client a MellodifAI?",
+        a: "Si collega via Streamable HTTP su https://app.mellodifai.com/api/mcp con OAuth, oppure con il ponte stdio locale mellodifai mcp da packages/cli.",
+      },
+      {
+        q: "Quali permessi puo chiedere un agente?",
+        a: "Esistono tre permessi espliciti: read (leggere brani, job, costi e rifacimenti), create (scegliere take, stem, bozze e video) e spend (riscritture e generazioni a pagamento).",
+      },
+      {
+        q: "Un agente puo pubblicare un video da solo?",
+        a: "No. L'agente prepara metadati, imposta uno slot e chiede conferma, ma il video resta privato finche non lo approvi nell'app o non esiste una regola scritta da te.",
+      },
+      {
+        q: "Come vengono applicati i limiti di spesa?",
+        a: "I limiti sono verificati dal server prima di ogni lavoro a pagamento e ogni operazione di scrittura richiede una idempotency_key di 8-100 caratteri.",
+      },
+      {
+        q: "Dove vanno salvati i token personali?",
+        a: "Crea il token in Impostazioni -> Agenti, passalo da stdin a mellodifai login o usa una variabile d'ambiente. Non incollare mai un token in un file di configurazione.",
+      },
+      {
+        q: "Come posso bloccare o revocare un agente?",
+        a: "In Impostazioni -> Agenti puoi revocare subito un singolo token oppure disattivare MCP remoto per fermare all'istante ogni accesso esterno.",
+      },
+      {
+        q: "La CLI funziona insieme a MCP?",
+        a: "Si. La CLI mellodifai offre comandi diretti come songs, remake, tools e call, oltre a mellodifai mcp come ponte stdio con chiavi di idempotenza automatiche.",
+      },
+      {
+        q: "Gli strumenti MCP elencati qui sono reali?",
+        a: "Ogni scheda in questa pagina viene generata al build direttamente da TOKEN_OPS nel registro reale del server MCP del repository.",
+      },
+    ],
   },
   footer: {
     tagline: "Ogni canzone è una bozza.",

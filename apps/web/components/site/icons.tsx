@@ -132,3 +132,29 @@ export function ExitFullscreenGlyph(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function CopyGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.5" />
+      <path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
+    </svg>
+  );
+}
+
+export function TerminalGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <rect x="2" y="3" width="12" height="10" rx="2" />
+      <path d="M5 6.5 7.25 8 5 9.5M8.5 9.5h2.5" />
+    </svg>
+  );
+}
+
+export function SparkGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M8 2.25 9.4 6.6 13.75 8 9.4 9.4 8 13.75 6.6 9.4 2.25 8 6.6 6.6z" />
+    </svg>
+  );
+}
