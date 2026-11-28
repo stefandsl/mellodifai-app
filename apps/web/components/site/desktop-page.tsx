@@ -363,78 +363,88 @@ export function DesktopPage({ copy }: { copy: SiteCopy }) {
         data-ref-section="7"
         aria-labelledby="desktop-agents-title"
       >
-        <VStack className="site-desk-agents__panel" gap={10}>
-          <HStack className="site-desk-agents__top" data-ref-grid>
-            <VStack className="site-desk-agents__copy" gap={4}>
-              <SiteHeading
-                level={2}
-                id="desktop-agents-title"
-                className="site-title"
-              >
-                {d.agents.title}
-              </SiteHeading>
-              <SiteText as="p" type="large" color="secondary">
-                {d.agents.line}
-              </SiteText>
-              <SiteLink href={href("agents")} className="site-link">
-                {d.agents.link}
-              </SiteLink>
-            </VStack>
-            <VStack className="site-desk-agents__shot-wrap" data-ref-content>
-              <Card className="site-desk-agents__shot" padding={6}>
-                <VStack gap={4}>
-                  <SiteText
-                    type="code"
-                    color="secondary"
-                    className="site-eyebrow"
-                  >
-                    {d.agents.shotTitle}
-                  </SiteText>
-                  <VStack gap={2}>
-                    {d.agents.shotLines.map((line) => (
-                      <SiteText
-                        key={line}
-                        type="code"
-                        className="site-desk-agents__cmd"
-                      >
-                        {line}
-                      </SiteText>
-                    ))}
-                  </VStack>
-                  <Wave seed={91} phrases={3} take={[0.35, 0.7]} />
-                </VStack>
-              </Card>
-            </VStack>
-          </HStack>
-
-          <VStack gap={6} className="site-desk-agents__connect">
-            <SiteHeading level={3} className="site-desk-agents__sub">
-              {d.agents.connectTitle}
-            </SiteHeading>
-            <HStack className="site-desk-agents__steps" role="list">
-              {d.agents.steps.map((step, i) => (
-                <VStack
-                  key={step.title}
-                  className="site-desk-agents__step"
-                  role="listitem"
-                  gap={2}
+        <VStack className="site-desk-agents__surface">
+          <VStack
+            className="site-desk-agents__panel"
+            data-ref-grid
+            data-ref-grid-widths="1024"
+          >
+            <HStack
+              className="site-desk-agents__top"
+              data-ref-grid
+              data-ref-grid-widths="1440,390"
+            >
+              <VStack className="site-desk-agents__copy" gap={4}>
+                <SiteHeading
+                  level={2}
+                  id="desktop-agents-title"
+                  className="site-title"
                 >
-                  <SiteText
-                    type="code"
-                    color="secondary"
-                    className="site-eyebrow"
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </SiteText>
-                  <SiteHeading level={4} className="site-step__title">
-                    {step.title}
-                  </SiteHeading>
-                  <SiteText as="p" color="secondary">
-                    {step.line}
-                  </SiteText>
-                </VStack>
-              ))}
+                  {d.agents.title}
+                </SiteHeading>
+                <SiteText as="p" type="large" color="secondary">
+                  {d.agents.line}
+                </SiteText>
+                <SiteLink href={href("agents")} className="site-link">
+                  {d.agents.link}
+                </SiteLink>
+              </VStack>
+              <VStack className="site-desk-agents__shot-wrap" data-ref-content>
+                <Card className="site-desk-agents__shot" padding={6}>
+                  <VStack gap={4}>
+                    <SiteText
+                      type="code"
+                      color="secondary"
+                      className="site-eyebrow"
+                    >
+                      {d.agents.shotTitle}
+                    </SiteText>
+                    <VStack gap={2}>
+                      {d.agents.shotLines.map((line) => (
+                        <SiteText
+                          key={line}
+                          type="code"
+                          className="site-desk-agents__cmd"
+                        >
+                          {line}
+                        </SiteText>
+                      ))}
+                    </VStack>
+                    <Wave seed={91} phrases={3} take={[0.35, 0.7]} />
+                  </VStack>
+                </Card>
+              </VStack>
             </HStack>
+
+            <VStack gap={6} className="site-desk-agents__connect">
+              <SiteHeading level={3} className="site-desk-agents__sub">
+                {d.agents.connectTitle}
+              </SiteHeading>
+              <HStack className="site-desk-agents__steps" role="list">
+                {d.agents.steps.map((step, i) => (
+                  <VStack
+                    key={step.title}
+                    className="site-desk-agents__step"
+                    role="listitem"
+                    gap={2}
+                  >
+                    <SiteText
+                      type="code"
+                      color="secondary"
+                      className="site-eyebrow"
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </SiteText>
+                    <SiteHeading level={4} className="site-step__title">
+                      {step.title}
+                    </SiteHeading>
+                    <SiteText as="p" color="secondary">
+                      {step.line}
+                    </SiteText>
+                  </VStack>
+                ))}
+              </HStack>
+            </VStack>
           </VStack>
         </VStack>
       </VStack>
