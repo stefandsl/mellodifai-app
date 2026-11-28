@@ -416,84 +416,167 @@ for (const lang of ["en", "it"] as const) {
 }
 
 for (const lang of ["it", "en"] as const) {
-  test(`at 390 (${lang}): delayed web fonts keep hero heading height and lede position stable with CLS < 0.05`, async ({
-    page,
+  test(`at 390, 412, 600, 767 (${lang}): delayed web fonts match fallback heading height with no empty line and CLS < 0.05`, async ({
+    browser,
     baseURL,
     browserName,
   }) => {
     const origin = baseURL ?? "http://127.0.0.1";
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page
-      .context()
-      .addCookies([{ name: "mellodifai_lang", value: lang, url: origin }]);
-    await page.route(/\/site\/fonts\//u, async (route) => {
-      await new Promise((r) => setTimeout(r, 800));
-      await route.continue();
-    });
-    await page.addInitScript(() => {
-      const w = window as unknown as { __clsFontDelay?: number };
-      w.__clsFontDelay = 0;
-      try {
-        if (
-          typeof PerformanceObserver !== "undefined" &&
-          PerformanceObserver.supportedEntryTypes?.includes("layout-shift")
-        ) {
-          new PerformanceObserver((list) => {
-            for (const entry of list.getEntries() as Array<
-              PerformanceEntry & { hadRecentInput?: boolean; value?: number }
-            >) {
-              if (!entry.hadRecentInput && typeof entry.value === "number") {
-                w.__clsFontDelay = (w.__clsFontDelay ?? 0) + entry.value;
+
+    for (const width of [390, 412, 600, 767] as const) {
+      // Fresh context per width guarantees a cold font cache so fallback -> web-font swap runs every time.
+      const context = await browser.newContext({
+        viewport: { width, height: 844 },
+      });
+      await context.addCookies([
+        { name: "mellodifai_lang", value: lang, url: origin },
+      ]);
+      const page = await context.newPage();
+
+      let releaseFonts = () => {};
+      const fontGate = new Promise<void>((resolve) => {
+        releaseFonts = resolve;
+      });
+      await page.route(/\/site\/fonts\//u, async (route) => {
+        await fontGate;
+        await route.continue();
+      });
+      await page.addInitScript(() => {
+        const w = window as unknown as { __clsFontDelay?: number };
+        w.__clsFontDelay = 0;
+        try {
+          if (
+            typeof PerformanceObserver !== "undefined" &&
+            PerformanceObserver.supportedEntryTypes?.includes("layout-shift")
+          ) {
+            new PerformanceObserver((list) => {
+              for (const entry of list.getEntries() as Array<
+                PerformanceEntry & { hadRecentInput?: boolean; value?: number }
+              >) {
+                if (!entry.hadRecentInput && typeof entry.value === "number") {
+                  w.__clsFontDelay = (w.__clsFontDelay ?? 0) + entry.value;
+                }
               }
-            }
-          }).observe({ type: "layout-shift", buffered: true });
+            }).observe({ type: "layout-shift", buffered: true });
+          }
+        } catch {
+          // Non-Chromium engines may not expose layout-shift entries.
         }
-      } catch {
-        // Non-Chromium engines may not expose layout-shift entries.
-      }
-    });
+      });
 
-    await page.goto("/desktop");
-    const titleBefore = await page.locator("#desktop-hero-title").boundingBox();
-    const ledeBefore = await page
-      .locator(".site-desk-hero .site-lede")
-      .boundingBox();
-
-    await page.waitForFunction(() => {
-      const link = document.querySelector<HTMLLinkElement>(
-        'link[data-site-fonts="true"]',
-      );
-      return Boolean(link?.sheet);
-    });
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForTimeout(300);
-
-    const titleAfter = await page.locator("#desktop-hero-title").boundingBox();
-    const ledeAfter = await page
-      .locator(".site-desk-hero .site-lede")
-      .boundingBox();
-
-    expect(titleBefore).not.toBeNull();
-    expect(titleAfter).not.toBeNull();
-    expect(ledeBefore).not.toBeNull();
-    expect(ledeAfter).not.toBeNull();
-    expect(
-      Math.abs((titleAfter?.height ?? 0) - (titleBefore?.height ?? 0)),
-      `${lang} title height shifted from ${titleBefore?.height} to ${titleAfter?.height}`,
-    ).toBeLessThanOrEqual(4);
-    expect(
-      Math.abs((ledeAfter?.y ?? 0) - (ledeBefore?.y ?? 0)),
-      `${lang} lede top shifted from ${ledeBefore?.y} to ${ledeAfter?.y}`,
-    ).toBeLessThanOrEqual(4);
-    if (browserName === "chromium") {
-      const cls = await page.evaluate(
+      await page.goto(`${origin}/desktop`, { waitUntil: "domcontentloaded" });
+      await page.waitForSelector("#desktop-hero-title");
+      // Wait for at least one paint with the fallback face before releasing the web font files.
+      await page.evaluate(
         () =>
-          (window as unknown as { __clsFontDelay?: number }).__clsFontDelay ??
-          0,
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
       );
-      expect(cls, `${lang} delayed-font CLS`).toBeLessThan(0.05);
+
+      const measureTitle = () =>
+        page.evaluate(() => {
+          const title = document.querySelector<HTMLElement>(
+            "#desktop-hero-title",
+          );
+          const lede = document.querySelector<HTMLElement>(
+            ".site-desk-hero .site-lede",
+          );
+          if (!title || !lede) return null;
+          const range = document.createRange();
+          range.selectNodeContents(title);
+          const lineTops = new Set(
+            [...range.getClientRects()].map((r) => Math.round(r.top)),
+          );
+          const style = getComputedStyle(title);
+          const fontSize = Number.parseFloat(style.fontSize);
+          const lineHeight = Number.parseFloat(style.lineHeight) || fontSize;
+          const webFontLoaded = [...document.fonts].some(
+            (f) =>
+              f.family.replaceAll('"', "") === "Instrument Serif" &&
+              /U\+0{1,4}-0{0,2}FF/iu.test(f.unicodeRange) &&
+              f.status === "loaded",
+          );
+          return {
+            titleHeight: title.getBoundingClientRect().height,
+            ledeY: lede.getBoundingClientRect().y,
+            lines: lineTops.size,
+            lineHeight,
+            webFontLoaded,
+          };
+        });
+
+      const before = await measureTitle();
+      expect(before).not.toBeNull();
+      expect(
+        before?.webFontLoaded,
+        `${lang} @ ${width}px must measure fallback before web font loads`,
+      ).toBe(false);
+
+      // Release blocked font files and wait for Instrument Serif to load and settle.
+      releaseFonts();
+      await page.waitForFunction(() => {
+        const link = document.querySelector<HTMLLinkElement>(
+          'link[data-site-fonts="true"]',
+        );
+        return Boolean(link?.sheet);
+      });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForFunction(() =>
+        [...document.fonts].some(
+          (f) =>
+            f.family.replaceAll('"', "") === "Instrument Serif" &&
+            /U\+0{1,4}-0{0,2}FF/iu.test(f.unicodeRange) &&
+            f.status === "loaded",
+        ),
+      );
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+
+      const after = await measureTitle();
+      expect(after).not.toBeNull();
+      expect(after?.webFontLoaded).toBe(true);
+      expect(
+        Math.abs((after?.titleHeight ?? 0) - (before?.titleHeight ?? 0)),
+        `${lang} @ ${width}px title height shifted from ${before?.titleHeight} to ${after?.titleHeight}`,
+      ).toBeLessThanOrEqual(2);
+      expect(
+        after?.lines,
+        `${lang} @ ${width}px line count changed from ${before?.lines} to ${after?.lines}`,
+      ).toBe(before?.lines);
+      expect(
+        Math.abs((after?.ledeY ?? 0) - (before?.ledeY ?? 0)),
+        `${lang} @ ${width}px lede top shifted from ${before?.ledeY} to ${after?.ledeY}`,
+      ).toBeLessThanOrEqual(2);
+      // No empty reserved line: box height must match its actual wrapped line count.
+      const expectedBoxHeight = (after?.lines ?? 1) * (after?.lineHeight ?? 0);
+      expect(
+        Math.abs((after?.titleHeight ?? 0) - expectedBoxHeight),
+        `${lang} @ ${width}px title box height ${after?.titleHeight} has empty space vs ${after?.lines} line(s) * ${after?.lineHeight}px`,
+      ).toBeLessThanOrEqual(4);
+      // At 412, 600, and 767 (and 390 for Italian), the title fits on 1 line with no empty second line.
+      if (width >= 412 || lang === "it") {
+        expect(
+          after?.lines,
+          `${lang} @ ${width}px should fit on one line`,
+        ).toBe(1);
+      }
+
+      if (browserName === "chromium") {
+        const cls = await page.evaluate(
+          () =>
+            (window as unknown as { __clsFontDelay?: number }).__clsFontDelay ??
+            0,
+        );
+        expect(cls, `${lang} @ ${width}px delayed-font CLS`).toBeLessThan(0.05);
+      }
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+      await context.close();
     }
-    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 }
 
