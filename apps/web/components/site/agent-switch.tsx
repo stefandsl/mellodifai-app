@@ -44,9 +44,12 @@ export function AgentMark({
   );
 }
 
-// Five-way agent switch. Renders plain links with role="tab" so the page works without JS
-// from ?agent=<id>, while the vanilla island animates the sliding thumb and updates the URL
-// via history.pushState without reload. Scrolls horizontally inside its own track at 390 px.
+// Five-way agent switch.
+// Server markup renders plain Tab-reachable links with aria-current="page" on the active agent
+// (no role="tab" and no tabIndex=-1) so keyboard users can reach every agent without JS.
+// The connect variant keeps #how-to-connect so no-JS clicks land on the steps section.
+// When the vanilla island initializes (data-enhanced="true"), it promotes the list to an ARIA
+// tablist with roving tabIndex, arrow-key navigation, and a sliding thumb.
 export function AgentSwitch({
   activeAgent,
   label,
@@ -63,6 +66,7 @@ export function AgentSwitch({
       className="site-agent-switch"
       data-agent-switch={variant}
       data-active-agent={activeAgent}
+      data-agent-controls={controlsId}
     >
       <VStack
         className="site-agent-switch__track"
@@ -76,22 +80,22 @@ export function AgentSwitch({
             data-animating="false"
           />
           <HStack
-            role="tablist"
             aria-label={label}
             className="site-agent-switch__list"
             data-agent-tablist="true"
           >
             {AGENTS.map((id) => {
               const selected = id === activeAgent;
+              const tabHref =
+                variant === "connect"
+                  ? `/agents?agent=${id}#how-to-connect`
+                  : `/agents?agent=${id}`;
               return (
                 <SiteLink
                   key={id}
                   id={`agent-tab-${variant}-${id}`}
-                  role="tab"
-                  aria-selected={selected}
-                  aria-controls={controlsId}
-                  tabIndex={selected ? 0 : -1}
-                  href={`/agents?agent=${id}`}
+                  aria-current={selected ? "page" : undefined}
+                  href={tabHref}
                   color="inherit"
                   className="site-agent-switch__tab"
                   data-agent-tab={id}

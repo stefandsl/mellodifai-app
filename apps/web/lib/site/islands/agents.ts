@@ -1,10 +1,11 @@
 // Interactive island for /agents:
-// - 5-way agent switch with rAF-driven sliding thumb (zero per-frame layout reads, pauses when hidden)
-// - URL sync via history.pushState + popstate without reload
+// - Promotes plain SSR agent links to ARIA tablists with roving tabIndex and sliding thumb
+// - rAF-driven sliding thumb (zero per-frame layout reads, pauses when hidden, 0 ms reduced motion)
+// - URL sync: clicks pushState, arrow keys replaceState, popstate restores without reload
 // - Copy buttons with screen-reader announcements in the SSR role="status" region
 // - Real MCP tool catalog filter + show-more toggle
 // - Prompt cloud chip selector + composer bar copy
-// - #how-to-connect scroll + shared FAQ accordion
+// - #how-to-connect scroll (deduplicated history entries) + shared FAQ accordion
 import { AGENTS, type AgentName, parseAgentParam } from "../nav";
 import { initFaq } from "./faq";
 import { initShell } from "./shell";
@@ -15,9 +16,12 @@ const COPY_RESET_MS = 1800;
 type AgentStepPayload = {
   title: string;
   line: string;
+  statusBadge?: string;
+  docHref?: string;
+  docLabel?: string;
   copyText?: string;
   copyLabel?: string;
-  copyKind?: "mcp" | "cli" | "config";
+  copyKind?: "mcp-url" | "cli";
 };
 
 type AgentProfilePayload = {
@@ -62,6 +66,8 @@ type RectCache = {
 type SwitchController = {
   root: HTMLElement;
   variant: string;
+  controlsId: string | null;
+  tablist: HTMLElement | null;
   track: HTMLElement | null;
   shell: HTMLElement | null;
   thumb: HTMLElement | null;
@@ -141,6 +147,10 @@ function createSwitchController(
   initialAgent: AgentName,
 ): SwitchController {
   const variant = root.getAttribute("data-agent-switch") ?? "hero";
+  const controlsId = root.getAttribute("data-agent-controls");
+  const tablist = root.querySelector<HTMLElement>(
+    '[data-agent-tablist="true"]',
+  );
   const track = root.querySelector<HTMLElement>(
     '[data-agent-switch-track="true"]',
   );
@@ -164,6 +174,29 @@ function createSwitchController(
   let rafId: number | null = null;
   let activeAgent = initialAgent;
   let destroyed = false;
+
+  // Promote SSR plain links to an ARIA tablist with roving tabIndex now that JS is active.
+  tablist?.setAttribute("role", "tablist");
+  for (const [id, tab] of tabs) {
+    const selected = id === initialAgent;
+    tab.removeAttribute("aria-current");
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(selected));
+    if (controlsId) {
+      tab.setAttribute("aria-controls", controlsId);
+    }
+    tab.tabIndex = selected ? 0 : -1;
+  }
+  const controlledPanel = controlsId
+    ? document.getElementById(controlsId)
+    : null;
+  if (controlledPanel) {
+    controlledPanel.setAttribute("role", "tabpanel");
+    controlledPanel.setAttribute(
+      "aria-labelledby",
+      `agent-tab-${variant}-${initialAgent}`,
+    );
+  }
 
   const applyThumb = (x: number, w: number) => {
     currentX = x;
@@ -298,6 +331,8 @@ function createSwitchController(
   return {
     root,
     variant,
+    controlsId,
+    tablist,
     track,
     shell,
     thumb,
@@ -322,6 +357,22 @@ function createSwitchController(
         typeof document.fonts.removeEventListener === "function"
       ) {
         document.fonts.removeEventListener("loadingdone", syncAfterLayout);
+      }
+      tablist?.removeAttribute("role");
+      for (const [id, tab] of tabs) {
+        tab.removeAttribute("role");
+        tab.removeAttribute("aria-selected");
+        tab.removeAttribute("aria-controls");
+        tab.removeAttribute("tabindex");
+        if (id === activeAgent) {
+          tab.setAttribute("aria-current", "page");
+        } else {
+          tab.removeAttribute("aria-current");
+        }
+      }
+      if (controlledPanel) {
+        controlledPanel.removeAttribute("role");
+        controlledPanel.removeAttribute("aria-labelledby");
       }
       root.removeAttribute("data-enhanced");
     },
@@ -473,7 +524,7 @@ export function initAgents(): () => void {
   const renderAgent = (
     agent: AgentName,
     options: {
-      pushHistory: boolean;
+      historyMode: "push" | "replace" | "none";
       animate: boolean;
       announce: boolean;
     },
@@ -583,6 +634,25 @@ export function initAgents(): () => void {
       );
       if (lineEl) lineEl.textContent = step.line;
 
+      const badgeEl = document.querySelector<HTMLElement>(
+        `[data-step-badge="${i}"]`,
+      );
+      if (badgeEl) {
+        badgeEl.hidden = !step.statusBadge;
+        badgeEl.textContent = step.statusBadge ?? "";
+      }
+
+      const docEl = document.querySelector<HTMLAnchorElement>(
+        `[data-step-doc="${i}"]`,
+      );
+      if (docEl) {
+        docEl.hidden = !step.docHref;
+        if (step.docHref) docEl.setAttribute("href", step.docHref);
+        const docText =
+          docEl.querySelector<HTMLElement>(".astryx-text") ?? docEl;
+        docText.textContent = step.docLabel ?? "";
+      }
+
       const copyBox = document.querySelector<HTMLElement>(
         `[data-step-copy-box="${i}"]`,
       );
@@ -626,15 +696,17 @@ export function initAgents(): () => void {
       firstFaqAnswer.textContent = profile.faqClientAnswer;
     }
 
-    if (options.pushHistory) {
+    if (options.historyMode !== "none") {
       const url = new URL(window.location.href);
       url.searchParams.set("agent", agent);
       const nextHref = `${url.pathname}${url.search}${url.hash}`;
-      if (
-        `${window.location.pathname}${window.location.search}${window.location.hash}` !==
-        nextHref
-      ) {
-        window.history.pushState({ agent }, "", nextHref);
+      const curHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (curHref !== nextHref) {
+        if (options.historyMode === "push") {
+          window.history.pushState({ agent }, "", nextHref);
+        } else {
+          window.history.replaceState({ agent }, "", nextHref);
+        }
       }
     }
 
@@ -648,7 +720,7 @@ export function initAgents(): () => void {
   // If URL already differed from SSR default, align immediately without animating.
   if (initialAgent !== data.activeAgent) {
     renderAgent(initialAgent, {
-      pushHistory: false,
+      historyMode: "none",
       animate: false,
       announce: false,
     });
@@ -670,7 +742,7 @@ export function initAgents(): () => void {
         event.preventDefault();
         if (id === activeAgent) return;
         renderAgent(id, {
-          pushHistory: true,
+          historyMode: "push",
           animate: true,
           announce: true,
         });
@@ -691,11 +763,14 @@ export function initAgents(): () => void {
 
         event.preventDefault();
         const nextAgent = AGENTS[nextIdx];
-        renderAgent(nextAgent, {
-          pushHistory: true,
-          animate: true,
-          announce: true,
-        });
+        if (nextAgent !== activeAgent) {
+          // Arrow-key moves use replaceState so stepping across tabs never floods Back history.
+          renderAgent(nextAgent, {
+            historyMode: "replace",
+            animate: true,
+            announce: true,
+          });
+        }
         const nextTab = ctrl.tabs.get(nextAgent);
         if (nextTab) {
           nextTab.focus();
@@ -719,7 +794,7 @@ export function initAgents(): () => void {
     );
     if (next !== activeAgent) {
       renderAgent(next, {
-        pushHistory: false,
+        historyMode: "none",
         animate: true,
         announce: false,
       });
@@ -728,7 +803,7 @@ export function initAgents(): () => void {
   window.addEventListener("popstate", onPopState);
   cleanups.push(() => window.removeEventListener("popstate", onPopState));
 
-  // #how-to-connect smooth scroll
+  // #how-to-connect smooth scroll (deduplicate history: never push when hash is already present).
   const onAnchorClick = (event: MouseEvent) => {
     const link = event.currentTarget as HTMLAnchorElement | null;
     if (!link) return;
@@ -741,13 +816,15 @@ export function initAgents(): () => void {
         block: "start",
       });
     }
-    const url = new URL(window.location.href);
-    url.hash = "#how-to-connect";
-    window.history.pushState(
-      { agent: activeAgent },
-      "",
-      `${url.pathname}${url.search}${url.hash}`,
-    );
+    if (window.location.hash !== "#how-to-connect") {
+      const url = new URL(window.location.href);
+      url.hash = "#how-to-connect";
+      window.history.replaceState(
+        { agent: activeAgent },
+        "",
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+    }
   };
   for (const link of document.querySelectorAll<HTMLAnchorElement>(
     'a[href="#how-to-connect"]',

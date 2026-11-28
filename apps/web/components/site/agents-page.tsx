@@ -172,8 +172,6 @@ export function AgentsPage({
 
           <VStack
             id="agents-hero-panel"
-            role="tabpanel"
-            aria-labelledby={`agent-tab-hero-${agent}`}
             className="site-agents-hero__stack"
             data-ref-grid
             hAlign="center"
