@@ -1,0 +1,750 @@
+{
+  "slug": "mcp-chatgpt",
+  "route": "/agents?agent=chatgpt",
+  "sections": [
+    "Hero: agent switch, two-line title with inline mark, one line, 2 buttons, note, chat window mock",
+    "How to connect: title, switch, 3 step cards, button",
+    "What it can do: title, one line, chip filter (6), media columns (4), show more",
+    "Devices: title, one line, 3 device cards",
+    "Prompt cloud: title, floating prompts around a composer",
+    "Closing band (2 buttons)",
+    "FAQ: title left, 8 questions right",
+    "Footer"
+  ],
+  "repairs": [
+    {
+      "width": 390,
+      "section": 0,
+      "field": "grid.colGap",
+      "old": 32,
+      "new": 40,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of 2-option agent switch width (grids[0]); ours has 5 agents",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 390,
+      "section": 0,
+      "field": "grid.rowGap",
+      "old": 32,
+      "new": 40,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of 2-option agent switch width (grids[0]); ours has 5 agents",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 390,
+      "section": 0,
+      "field": "grid.itemW",
+      "old": 226,
+      "new": 358,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of 2-option agent switch width (grids[0]); ours has 5 agents",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 1024,
+      "section": 0,
+      "field": "grid.colGap",
+      "old": 48,
+      "new": 56,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of 2-option agent switch width (grids[0]); ours has 5 agents",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 0,
+      "field": "grid.rowGap",
+      "old": 48,
+      "new": 56,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of 2-option agent switch width (grids[0]); ours has 5 agents",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 0,
+      "field": "grid.itemW",
+      "old": 226,
+      "new": 784,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of 2-option agent switch width (grids[0]); ours has 5 agents",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1440,
+      "section": 0,
+      "field": "grid.perRow",
+      "old": 2,
+      "new": 1,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of inline H1 line-2 word width (grids[5])",
+      "source": "pages/mcp-chatgpt/outline-1440.json"
+    },
+    {
+      "width": 1440,
+      "section": 0,
+      "field": "grid.colGap",
+      "old": 16,
+      "new": 56,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of inline H1 line-2 word width (grids[5])",
+      "source": "pages/mcp-chatgpt/outline-1440.json"
+    },
+    {
+      "width": 1440,
+      "section": 0,
+      "field": "grid.rowGap",
+      "old": 16,
+      "new": 56,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of inline H1 line-2 word width (grids[5])",
+      "source": "pages/mcp-chatgpt/outline-1440.json"
+    },
+    {
+      "width": 1440,
+      "section": 0,
+      "field": "grid.itemW",
+      "old": 194,
+      "new": 1200,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of inline H1 line-2 word width (grids[5])",
+      "source": "pages/mcp-chatgpt/outline-1440.json"
+    },
+    {
+      "width": 1440,
+      "section": 0,
+      "field": "grid.x",
+      "old": 452,
+      "new": 120,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of inline H1 line-2 word width (grids[5])",
+      "source": "pages/mcp-chatgpt/outline-1440.json"
+    },
+    {
+      "width": 1440,
+      "section": 0,
+      "field": "grid.w",
+      "old": 536,
+      "new": 1200,
+      "reason": "Use hero structural stack outline[0].grids[1] (copy+CTAs above chat mock) instead of inline H1 line-2 word width (grids[5])",
+      "source": "pages/mcp-chatgpt/outline-1440.json"
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "topInset",
+      "old": 0,
+      "new": 96,
+      "reason": "Section split into 2 blocks in study capture; vertical top gap from outline[1] bottom to outline[2] top is 96 px",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "bottomInset",
+      "old": 0,
+      "new": 120,
+      "reason": "Section split into 2 blocks in study capture; vertical bottom gap from outline[3] bottom to outline[4] top is 120 px",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "grid.items",
+      "old": 4,
+      "new": 3,
+      "reason": "Use 3-column grid outline[3].grids[3] instead of its single inner column outline[3].grids[4]",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "grid.perRow",
+      "old": 1,
+      "new": 3,
+      "reason": "Use 3-column grid outline[3].grids[3] instead of its single inner column outline[3].grids[4]",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "grid.w",
+      "old": 287,
+      "new": 886,
+      "reason": "Use 3-column grid outline[3].grids[3] instead of its single inner column outline[3].grids[4]",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "grid.perRow",
+      "old": 1,
+      "new": 2,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "grid.colGap",
+      "old": 40,
+      "new": 12,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "grid.rowGap",
+      "old": 40,
+      "new": 12,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "grid.itemW",
+      "old": 297,
+      "new": 276,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "grid.x",
+      "old": 0,
+      "new": 20,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "grid.w",
+      "old": 390,
+      "new": 350,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-390.json"
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "grid.perRow",
+      "old": 1,
+      "new": 2,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "grid.colGap",
+      "old": 40,
+      "new": 12,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "grid.rowGap",
+      "old": 40,
+      "new": 12,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "grid.itemW",
+      "old": 368,
+      "new": 403,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "grid.x",
+      "old": 0,
+      "new": 236,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "grid.w",
+      "old": 1024,
+      "new": 552,
+      "reason": "Use prompt composer bar outline[5].grids[2] (same element as 1440 outline[4].grids[1]) instead of outer stack first-child heading width",
+      "source": "pages/mcp-chatgpt/outline-1024.json"
+    }
+  ],
+  "widths": {
+    "390": {
+      "pageHeight": 9309,
+      "sections": [
+        {
+          "name": "Hero: agent switch, two-line title with inline mark, one line, 2 buttons, note, chat window mock",
+          "present": true,
+          "y": 0,
+          "h": 1011,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 64,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 40,
+            "rowGap": 40,
+            "itemW": 358,
+            "x": 16,
+            "w": 358
+          }
+        },
+        {
+          "name": "How to connect: title, switch, 3 step cards, button",
+          "present": true,
+          "y": 1011,
+          "h": 1954,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 1,
+            "colGap": 32,
+            "rowGap": 32,
+            "itemW": 358,
+            "x": 16,
+            "w": 358
+          }
+        },
+        {
+          "name": "What it can do: title, one line, chip filter (6), media columns (4), show more",
+          "present": true,
+          "y": 2965,
+          "h": 1095,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 120,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 164,
+            "x": 25,
+            "w": 340
+          }
+        },
+        {
+          "name": "Devices: title, one line, 3 device cards",
+          "present": true,
+          "y": 4156,
+          "h": 1373,
+          "blocks": 2,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 3,
+            "perRow": 1,
+            "colGap": 20,
+            "rowGap": 20,
+            "itemW": 358,
+            "x": 16,
+            "w": 358
+          }
+        },
+        {
+          "name": "Prompt cloud: title, floating prompts around a composer",
+          "present": true,
+          "y": 5625,
+          "h": 698,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 276,
+            "x": 20,
+            "w": 350
+          }
+        },
+        {
+          "name": "Closing band (2 buttons)",
+          "present": true,
+          "y": 6323,
+          "h": 812,
+          "blocks": 1,
+          "contentLeft": 32,
+          "contentRight": 32,
+          "topInset": 16,
+          "bottomInset": 16,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 8 questions right",
+          "present": true,
+          "y": 7135,
+          "h": 899,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 40,
+            "rowGap": 40,
+            "itemW": 358,
+            "x": 0,
+            "w": 390
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 8034,
+          "h": 1275,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 42,
+            "rowGap": 42,
+            "itemW": 348,
+            "x": 21,
+            "w": 348
+          }
+        }
+      ]
+    },
+    "1024": {
+      "pageHeight": 7368,
+      "sections": [
+        {
+          "name": "Hero: agent switch, two-line title with inline mark, one line, 2 buttons, note, chat window mock",
+          "present": true,
+          "y": 0,
+          "h": 1129,
+          "blocks": 1,
+          "contentLeft": 120,
+          "contentRight": 120,
+          "topInset": 112,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 56,
+            "rowGap": 56,
+            "itemW": 784,
+            "x": 120,
+            "w": 784
+          }
+        },
+        {
+          "name": "How to connect: title, switch, 3 step cards, button",
+          "present": true,
+          "y": 1129,
+          "h": 958,
+          "blocks": 1,
+          "contentLeft": 120,
+          "contentRight": 120,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 8,
+            "rowGap": 8,
+            "itemW": 256,
+            "x": 120,
+            "w": 784
+          }
+        },
+        {
+          "name": "What it can do: title, one line, chip filter (6), media columns (4), show more",
+          "present": true,
+          "y": 2183,
+          "h": 1078,
+          "blocks": 2,
+          "contentLeft": 84,
+          "contentRight": 84,
+          "topInset": 96,
+          "bottomInset": 120,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 287,
+            "x": 69,
+            "w": 886
+          }
+        },
+        {
+          "name": "Devices: title, one line, 3 device cards",
+          "present": true,
+          "y": 3381,
+          "h": 710,
+          "blocks": 1,
+          "contentLeft": 120,
+          "contentRight": 120,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 20,
+            "rowGap": 20,
+            "itemW": 248,
+            "x": 120,
+            "w": 784
+          }
+        },
+        {
+          "name": "Prompt cloud: title, floating prompts around a composer",
+          "present": true,
+          "y": 4092,
+          "h": 694,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 403,
+            "x": 236,
+            "w": 552
+          }
+        },
+        {
+          "name": "Closing band (2 buttons)",
+          "present": true,
+          "y": 4785,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 292,
+          "contentRight": 292,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 8 questions right",
+          "present": true,
+          "y": 5605,
+          "h": 824,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 96,
+            "rowGap": 96,
+            "itemW": 354,
+            "x": 0,
+            "w": 1024
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 6429,
+          "h": 939,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 324,
+            "x": 35,
+            "w": 954
+          }
+        }
+      ]
+    },
+    "1440": {
+      "pageHeight": 7419,
+      "sections": [
+        {
+          "name": "Hero: agent switch, two-line title with inline mark, one line, 2 buttons, note, chat window mock",
+          "present": true,
+          "y": 0,
+          "h": 1234,
+          "blocks": 1,
+          "contentLeft": 290,
+          "contentRight": 290,
+          "topInset": 112,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 56,
+            "rowGap": 56,
+            "itemW": 1200,
+            "x": 120,
+            "w": 1200
+          }
+        },
+        {
+          "name": "How to connect: title, switch, 3 step cards, button",
+          "present": true,
+          "y": 1234,
+          "h": 934,
+          "blocks": 1,
+          "contentLeft": 120,
+          "contentRight": 120,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 8,
+            "rowGap": 8,
+            "itemW": 395,
+            "x": 120,
+            "w": 1200
+          }
+        },
+        {
+          "name": "What it can do: title, one line, chip filter (6), media columns (4), show more",
+          "present": true,
+          "y": 2168,
+          "h": 1294,
+          "blocks": 1,
+          "contentLeft": 292,
+          "contentRight": 292,
+          "topInset": 96,
+          "bottomInset": 120,
+          "grid": {
+            "items": 4,
+            "perRow": 4,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 316,
+            "x": 70,
+            "w": 1301
+          }
+        },
+        {
+          "name": "Devices: title, one line, 3 device cards",
+          "present": true,
+          "y": 3462,
+          "h": 710,
+          "blocks": 1,
+          "contentLeft": 120,
+          "contentRight": 120,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 20,
+            "rowGap": 20,
+            "itemW": 387,
+            "x": 120,
+            "w": 1200
+          }
+        },
+        {
+          "name": "Prompt cloud: title, floating prompts around a composer",
+          "present": true,
+          "y": 4172,
+          "h": 694,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 403,
+            "x": 444,
+            "w": 552
+          }
+        },
+        {
+          "name": "Closing band (2 buttons)",
+          "present": true,
+          "y": 4866,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 500,
+          "contentRight": 500,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 8 questions right",
+          "present": true,
+          "y": 5686,
+          "h": 776,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 216,
+            "rowGap": 216,
+            "itemW": 354,
+            "x": 0,
+            "w": 1440
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 6461,
+          "h": 957,
+          "blocks": 1,
+          "contentLeft": 115,
+          "contentRight": 115,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 411,
+            "x": 115,
+            "w": 1210
+          }
+        }
+      ]
+    }
+  }
+}
