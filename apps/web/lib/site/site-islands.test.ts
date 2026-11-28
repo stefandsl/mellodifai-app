@@ -33,6 +33,7 @@ const {
   MARQUEE_FOCUS_INSET_PX,
   MARQUEE_SPEED_PX_PER_SEC,
 } = await import("./islands/home");
+const { initDesktop, initDesktopPlatform } = await import("./islands/desktop");
 const { initPricing } = await import("./islands/pricing");
 const { initRecipeDetail } = await import("./islands/recipe-detail");
 const { initRecipes } = await import("./islands/recipes");
@@ -59,6 +60,7 @@ describe("public site vanilla islands on built static HTML", () => {
   let built: { fontsUrl: string };
   let homeHtml = "";
   let pricingHtml = "";
+  let desktopHtml = "";
   let recipesCanvasHtml = "";
   let recipesGridHtml = "";
   let recipesCanvas24Html = "";
@@ -82,6 +84,7 @@ describe("public site vanilla islands on built static HTML", () => {
     };
     homeHtml = readFileSync(join(outDir, "home-en.html"), "utf8");
     pricingHtml = readFileSync(join(outDir, "pricing-en.html"), "utf8");
+    desktopHtml = readFileSync(join(outDir, "desktop-en.html"), "utf8");
     recipesCanvasHtml = readFileSync(
       join(outDir, "recipes-canvas-en.html"),
       "utf8",
@@ -1143,5 +1146,178 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(audioEl?.tagName).toBe("AUDIO");
     expect(audioEl?.autoplay).toBe(false);
     expect(audioEl?.preload).toBe("none");
+  });
+
+  it("desktop: detects Windows, macOS, and Linux, updates header and page CTAs, highlights current row, and toggles exclusive FAQ", () => {
+    loadBuiltDocument(desktopHtml);
+
+    // Header action is the desktop download CTA.
+    const headerCta = document.querySelector<HTMLAnchorElement>(
+      '.site-header__cta[data-desktop-download-cta="true"]',
+    );
+    expect(headerCta).not.toBeNull();
+
+    // macOS: planned, points to #platforms (no dead link), highlights macOS row only.
+    const stopMac = initDesktop({
+      navigator: { userAgentData: { platform: "macOS" } },
+    });
+    try {
+      const ctas = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>(
+          'a[data-desktop-download-cta="true"]',
+        ),
+      );
+      expect(ctas.length).toBeGreaterThanOrEqual(4);
+      for (const cta of ctas) {
+        expect(cta.getAttribute("href")).toBe("#platforms");
+        expect(cta.getAttribute("data-detected-platform")).toBe("macos");
+        expect(cta.getAttribute("data-platform-status")).toBe("planned");
+        expect(cta.textContent?.toLowerCase()).toContain("macos");
+        expect(cta.textContent?.toLowerCase()).toContain("planned");
+      }
+      expect(
+        document
+          .querySelector('[data-platform-row="macos"]')
+          ?.getAttribute("data-current-platform"),
+      ).toBe("true");
+      expect(
+        document
+          .querySelector('[data-platform-row="windows"]')
+          ?.getAttribute("data-current-platform"),
+      ).toBe("false");
+      expect(
+        document.querySelector<HTMLElement>(
+          '[data-platform-current-badge="macos"]',
+        )?.hidden,
+      ).toBe(false);
+      expect(
+        document.querySelector<HTMLElement>(
+          '[data-platform-current-badge="windows"]',
+        )?.hidden,
+      ).toBe(true);
+
+      // Linux: planned, points to #platforms, highlights Linux row only.
+      expect(
+        initDesktopPlatform({ platform: "Linux x86_64", userAgent: "" }),
+      ).toBe("linux");
+      expect(headerCta?.getAttribute("href")).toBe("#platforms");
+      expect(headerCta?.getAttribute("data-detected-platform")).toBe("linux");
+      expect(headerCta?.textContent?.toLowerCase()).toContain("linux");
+      expect(
+        document
+          .querySelector('[data-platform-row="linux"]')
+          ?.getAttribute("data-current-platform"),
+      ).toBe("true");
+
+      // Windows: real repo installer guide link, highlights Windows row.
+      expect(initDesktopPlatform({ platform: "Win32" })).toBe("windows");
+      expect(headerCta?.getAttribute("href")).toBe(
+        "https://github.com/stefandsl/mellodifai-app/blob/main/docs/windows-app.md",
+      );
+      expect(headerCta?.getAttribute("rel")).toBe("noopener noreferrer");
+      expect(headerCta?.getAttribute("data-detected-platform")).toBe("windows");
+      expect(headerCta?.getAttribute("data-platform-status")).toBe("source");
+      expect(
+        document
+          .querySelector('[data-platform-row="windows"]')
+          ?.getAttribute("data-current-platform"),
+      ).toBe("true");
+
+      // Exclusive FAQ accordion: 10 questions, opening item 2 closes item 1 and sets inert.
+      const faqItems = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          ".site-faq__list .site-faq__item",
+        ),
+      );
+      expect(faqItems.length).toBe(10);
+      const btn0 =
+        faqItems[0].querySelector<HTMLButtonElement>(".site-faq__trigger");
+      const btn1 =
+        faqItems[1].querySelector<HTMLButtonElement>(".site-faq__trigger");
+      const panel0 = faqItems[0].querySelector<HTMLElement>(".site-faq__panel");
+      const panel1 = faqItems[1].querySelector<HTMLElement>(".site-faq__panel");
+      expect(faqItems[0].getAttribute("data-open")).toBe("true");
+      expect(panel0?.hasAttribute("inert")).toBe(false);
+      btn1?.click();
+      expect(faqItems[0].getAttribute("data-open")).toBe("false");
+      expect(panel0?.hasAttribute("inert")).toBe(true);
+      expect(faqItems[1].getAttribute("data-open")).toBe("true");
+      expect(panel1?.hasAttribute("inert")).toBe(false);
+      btn0?.click();
+      expect(faqItems[0].getAttribute("data-open")).toBe("true");
+    } finally {
+      stopMac();
+    }
+  });
+
+  it("desktop marquee: moves at 32 px/s without per-frame layout reads and pauses on hidden tab", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const stepRaf = (ts: number) => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(ts);
+    };
+    const setHidden = (hidden: boolean) => {
+      Object.defineProperty(document, "hidden", {
+        value: hidden,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+
+    loadBuiltDocument(desktopHtml);
+    setHidden(false);
+    const stopDesktop = initDesktop();
+    try {
+      const row0 = document.querySelector<HTMLElement>(
+        '[data-marquee-row="0"]',
+      );
+      const track0 = row0?.querySelector<HTMLElement>(
+        '[data-marquee-track="true"]',
+      );
+      const copy0 = row0?.querySelector<HTMLElement>('[data-marquee-copy="0"]');
+      expect(row0).not.toBeNull();
+      expect(copy0).not.toBeNull();
+
+      const rectSpy = vi.spyOn(copy0 as HTMLElement, "getBoundingClientRect");
+      stepRaf(0);
+      stepRaf(1000);
+      expect(rectSpy).not.toHaveBeenCalled();
+
+      const xAfter1s = Number(
+        (track0?.style.transform ?? "").match(/translate3d\(([-\d.]+)px/u)?.[1],
+      );
+      expect(Math.abs(xAfter1s)).toBeCloseTo(MARQUEE_SPEED_PX_PER_SEC, 1);
+
+      setHidden(true);
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("true");
+      const frozen = track0?.style.transform ?? "";
+      stepRaf(2000);
+      expect(track0?.style.transform).toBe(frozen);
+
+      setHidden(false);
+      expect(row0?.getAttribute("data-marquee-paused")).toBe("false");
+    } finally {
+      setHidden(false);
+      stopDesktop();
+    }
   });
 });

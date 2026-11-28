@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { GET as getDesktop } from "@/app/(site)/desktop/route";
 import { GET as getPricing } from "@/app/(site)/pricing/route";
 import { GET as getRecipeDetail } from "@/app/(site)/recipes/[slug]/route";
 import { GET as getRecipeTry } from "@/app/(site)/recipes/[slug]/try/route";
@@ -54,10 +55,11 @@ describe("public site static route handlers", () => {
     rmSync(TMP_PARENT, { recursive: true, force: true });
   });
 
-  it("serves /, /pricing, and /recipes with private no-cache, Vary: Cookie, and locale selection", async () => {
+  it("serves /, /pricing, /desktop, and /recipes with private no-cache, Vary: Cookie, and locale selection", async () => {
     for (const [handler, url] of [
       [getHome, "http://127.0.0.1:3239/"],
       [getPricing, "http://127.0.0.1:3239/pricing"],
+      [getDesktop, "http://127.0.0.1:3239/desktop"],
       [getRecipes, "http://127.0.0.1:3239/recipes"],
     ] as const) {
       const itRes = await handler(makeRequest(url));

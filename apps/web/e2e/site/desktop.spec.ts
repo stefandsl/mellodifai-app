@@ -1,0 +1,570 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Page, test } from "@playwright/test";
+import { SITE_COPY } from "../../lib/site/copy";
+import {
+  DESKTOP_DOWNLOADS,
+  DESKTOP_PLATFORMS,
+  type DesktopPlatformId,
+  WINDOWS_INSTALLER_GUIDE_URL,
+} from "../../lib/site/downloads";
+import { cleanRoom } from "../../lib/site/judge/clean-room";
+import {
+  compareLayout,
+  type LayoutRef,
+  measureLayoutInPage,
+} from "../../lib/site/judge/likeness";
+import { collectPageText } from "../../lib/site/judge/page-text";
+import { diffPngPixels } from "../../lib/site/judge/png-diff";
+
+// Desktop app page (C07) on Chromium, Firefox and WebKit at 1440, 1024 and 390.
+const WIDTHS = [
+  [1440, 900],
+  [1024, 768],
+  [390, 844],
+] as const;
+
+const en = SITE_COPY.en;
+
+const FAKE_PLATFORM_ENV: Record<
+  DesktopPlatformId,
+  { uadPlatform: string; platform: string; userAgent: string }
+> = {
+  windows: {
+    uadPlatform: "Windows",
+    platform: "Win32",
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0",
+  },
+  macos: {
+    uadPlatform: "macOS",
+    platform: "MacIntel",
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15",
+  },
+  linux: {
+    uadPlatform: "Linux",
+    platform: "Linux x86_64",
+    userAgent:
+      "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0",
+  },
+};
+
+async function fakeClientPlatform(page: Page, target: DesktopPlatformId) {
+  const env = FAKE_PLATFORM_ENV[target];
+  await page.addInitScript((spec) => {
+    try {
+      Object.defineProperty(Navigator.prototype, "userAgentData", {
+        get: () => ({ platform: spec.uadPlatform, brands: [], mobile: false }),
+        configurable: true,
+      });
+    } catch {
+      // Fallback to instance override.
+    }
+    try {
+      Object.defineProperty(navigator, "userAgentData", {
+        get: () => ({ platform: spec.uadPlatform, brands: [], mobile: false }),
+        configurable: true,
+      });
+    } catch {
+      // Ignore if non-configurable.
+    }
+    try {
+      Object.defineProperty(Navigator.prototype, "platform", {
+        get: () => spec.platform,
+        configurable: true,
+      });
+    } catch {
+      // Fallback to instance override.
+    }
+    try {
+      Object.defineProperty(navigator, "platform", {
+        get: () => spec.platform,
+        configurable: true,
+      });
+    } catch {
+      // Ignore if non-configurable.
+    }
+    try {
+      Object.defineProperty(Navigator.prototype, "userAgent", {
+        get: () => spec.userAgent,
+        configurable: true,
+      });
+    } catch {
+      // Fallback to instance override.
+    }
+  }, env);
+}
+
+async function open(page: Page) {
+  await page.goto("/desktop");
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator(".site-header")).toHaveAttribute(
+    "data-scrolled",
+    "false",
+  );
+}
+
+async function noSideways(page: Page) {
+  const out = await page.evaluate(() => {
+    const main = document.querySelector("main") as HTMLElement;
+    const parts = [
+      ...document.querySelectorAll<HTMLElement>("[data-ref-section]"),
+    ].map((s) => {
+      const r = s.getBoundingClientRect();
+      return {
+        left: r.left,
+        right: r.right,
+        inner: s.scrollWidth - s.clientWidth,
+      };
+    });
+    return {
+      width: window.innerWidth,
+      main: main.scrollWidth - main.clientWidth,
+      parts,
+    };
+  });
+  expect(out.main).toBeLessThanOrEqual(0);
+  for (const p of out.parts) {
+    expect(p.left).toBeGreaterThanOrEqual(-0.5);
+    expect(p.right).toBeLessThanOrEqual(out.width + 0.5);
+    expect(p.inner).toBeLessThanOrEqual(0);
+  }
+}
+
+test.beforeEach(async ({ context, baseURL }) => {
+  await context.addCookies([
+    {
+      name: "mellodifai_lang",
+      value: "en",
+      url: baseURL ?? "http://127.0.0.1",
+    },
+  ]);
+});
+
+for (const [width, height] of WIDTHS) {
+  test(`at ${width}: header action is the download button, all 3 platforms reachable, no sideways scroll`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await fakeClientPlatform(page, "windows");
+    await open(page);
+
+    await expect(page.locator("h1")).toHaveCount(1);
+    await expect(page.locator("h1")).toHaveText(en.desktop.hero.title);
+
+    // Header action is the desktop download button.
+    const headerCta = page.locator(
+      '.site-header__cta[data-desktop-download-cta="true"]',
+    );
+    await expect(headerCta).toHaveCount(1);
+    await expect(headerCta).toHaveAttribute(
+      "href",
+      WINDOWS_INSTALLER_GUIDE_URL,
+    );
+    await expect(headerCta).toContainText(en.desktop.ctaLabel.windows);
+
+    // All three platforms are always present and reachable in the table.
+    const table = page.getByRole("table", { name: en.desktop.platforms.title });
+    await expect(table).toHaveCount(1);
+    for (const id of DESKTOP_PLATFORMS) {
+      const row = page.locator(`[data-platform-row="${id}"]`);
+      await expect(row).toHaveCount(1);
+      await expect(row).toContainText(en.desktop.platforms.names[id]);
+    }
+
+    // Planned platforms (macOS, Linux) show "planned" with zero download link and offer browser.
+    for (const plannedId of ["macos", "linux"] as const) {
+      const row = page.locator(`[data-platform-row="${plannedId}"]`);
+      await expect(row).toHaveAttribute("data-platform-status", "planned");
+      await expect(row).toContainText(/planned/iu);
+      await expect(
+        row.locator(`[data-platform-link="${plannedId}"]`),
+      ).toHaveCount(0);
+      await expect(
+        row.locator(`[data-platform-browser-link="${plannedId}"]`),
+      ).toHaveAttribute("href", "/create");
+    }
+
+    await noSideways(page);
+  });
+}
+
+for (const platform of DESKTOP_PLATFORMS) {
+  test(`client platform detection for ${platform}: updates download CTAs and highlights row cleanly`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await fakeClientPlatform(page, platform);
+    await open(page);
+
+    const spec = DESKTOP_DOWNLOADS[platform];
+    const expectedHref = spec.downloadUrl ?? "#platforms";
+
+    const headerCta = page.locator(
+      '.site-header__cta[data-desktop-download-cta="true"]',
+    );
+    await expect(headerCta).toHaveAttribute("data-detected-platform", platform);
+    await expect(headerCta).toHaveAttribute(
+      "data-platform-status",
+      spec.status,
+    );
+    await expect(headerCta).toHaveAttribute("href", expectedHref);
+    await expect(headerCta).toContainText(en.desktop.ctaLabel[platform]);
+
+    // Hero note reflects detected platform honestly.
+    await expect(
+      page.locator('[data-desktop-platform-note="true"]'),
+    ).toHaveText(en.desktop.heroNote[platform]);
+
+    // Detected row is highlighted; all 3 rows stay visible.
+    for (const id of DESKTOP_PLATFORMS) {
+      const row = page.locator(`[data-platform-row="${id}"]`);
+      await expect(row).toHaveAttribute(
+        "data-current-platform",
+        String(id === platform),
+      );
+      const badge = row.locator(`[data-platform-current-badge="${id}"]`);
+      if (id === platform) {
+        await expect(badge).toBeVisible();
+      } else {
+        await expect(badge).toBeHidden();
+      }
+    }
+
+    // For planned platforms, clicking the header download CTA scrolls to #platforms (no dead link).
+    if (!spec.downloadUrl) {
+      await headerCta.click();
+      await expect(page).toHaveURL(/\/desktop#platforms$/u);
+      await expect(page.locator("#platforms")).toBeVisible();
+    }
+  });
+}
+
+test("C07 showcase marquee: moves at 32 px/s +/- 4 in opposite directions and pauses on hover and focus", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const fixedTime = Date.UTC(2026, 10, 28, 12, 0, 0);
+  await page.clock.install({ time: fixedTime });
+  await page.goto("/desktop");
+  await expect(page.locator('[data-marquee-row="0"]')).toHaveAttribute(
+    "data-marquee-paused",
+    "false",
+  );
+
+  const readX = (rowIdx: number) =>
+    page.evaluate((idx) => {
+      const card = document.querySelector(
+        `[data-marquee-row="${idx}"] [data-marquee-copy="0"] .site-show__card`,
+      );
+      return {
+        x: card ? card.getBoundingClientRect().left : Number.NaN,
+        t: performance.now(),
+      };
+    }, rowIdx);
+
+  await page.clock.runFor(50);
+  const a0 = await readX(0);
+  const a1 = await readX(1);
+  await page.clock.runFor(1500);
+  const b0 = await readX(0);
+  const b1 = await readX(1);
+
+  const dx0 = b0.x - a0.x;
+  const dx1 = b1.x - a1.x;
+  expect(Math.sign(dx0)).toBe(-Math.sign(dx1));
+  expect(dx0).toBeLessThan(0);
+  expect(dx1).toBeGreaterThan(0);
+
+  const speed0 = Math.abs(dx0) / ((b0.t - a0.t) / 1000);
+  const speed1 = Math.abs(dx1) / ((b1.t - a1.t) / 1000);
+  expect(speed0).toBeGreaterThanOrEqual(28);
+  expect(speed0).toBeLessThanOrEqual(36);
+  expect(speed1).toBeGreaterThanOrEqual(28);
+  expect(speed1).toBeLessThanOrEqual(36);
+
+  // Hover pauses row 0.
+  const row0 = page.locator('[data-marquee-row="0"]');
+  await row0.scrollIntoViewIfNeeded();
+  await row0.hover();
+  await expect(row0).toHaveAttribute("data-marquee-paused", "true");
+  const h0 = await readX(0);
+  await page.clock.runFor(1000);
+  const h1 = await readX(0);
+  expect(Math.abs(h1.x - h0.x)).toBeLessThan(0.5);
+
+  // Keyboard focus inside row 1 pauses it and keeps the focused card in view.
+  const row1 = page.locator('[data-marquee-row="1"]');
+  const row1Link = row1.locator('[data-marquee-copy="0"] a').first();
+  await page.keyboard.press("Tab");
+  await row1Link.focus();
+  await expect(row1).toHaveAttribute("data-marquee-paused", "true");
+  const f0 = await readX(1);
+  await page.clock.runFor(1000);
+  const f1 = await readX(1);
+  expect(Math.abs(f1.x - f0.x)).toBeLessThan(0.5);
+  await row1Link.evaluate((el: HTMLElement) => el.blur());
+  await expect(row1).toHaveAttribute("data-marquee-paused", "false");
+});
+
+test("C07 reduced motion: no loop runs and 0 changed pixels in the hero over 2 s after deferred fonts settle", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page);
+
+  await expect(page.locator('[data-marquee-row="0"]')).toHaveAttribute(
+    "data-marquee-paused",
+    "true",
+  );
+  await expect(page.locator('[data-marquee-row="1"]')).toHaveAttribute(
+    "data-marquee-paused",
+    "true",
+  );
+
+  // Wait for deferred post-LCP web fonts stylesheet and faces to settle before pixel comparison.
+  await page.waitForFunction(() => {
+    const link = document.querySelector<HTMLLinkElement>(
+      'link[data-site-fonts="true"]',
+    );
+    return Boolean(link?.sheet);
+  });
+  await page.evaluate(async () => {
+    const nextFrame = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await nextFrame();
+    await document.fonts.ready;
+    await nextFrame();
+    await document.fonts.ready;
+    await nextFrame();
+  });
+
+  const hero = page.locator(".site-desk-hero");
+  const t0 = await page.evaluate(() => performance.now());
+  const shotBefore = await hero.screenshot({ animations: "allow" });
+  await page.waitForFunction((start) => performance.now() - start >= 2000, t0);
+  const shotAfter = await hero.screenshot({ animations: "allow" });
+  const diff = diffPngPixels(shotBefore, shotAfter);
+  expect(
+    diff.changedPixels,
+    `changedPixels=${diff.changedPixels}/${diff.totalPixels}`,
+  ).toBe(0);
+});
+
+test("FAQ accordion: 10 questions open one at a time, each answer is a region and closes inert", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page);
+  const faq = page.locator("#faq");
+  const q = (i: number) =>
+    faq.getByRole("button", { name: en.desktop.faq[i].q });
+
+  await expect(faq.locator(".site-faq__item")).toHaveCount(10);
+  await expect(q(0)).toHaveAttribute("aria-expanded", "true");
+  await expect(q(1)).toHaveAttribute("aria-expanded", "false");
+
+  const panel0 = page.locator(
+    `[id="${await q(0).getAttribute("aria-controls")}"]`,
+  );
+  await expect(panel0).toHaveAttribute("role", "region");
+  await expect(panel0).toContainText(en.desktop.faq[0].a);
+
+  await q(1).click();
+  await expect(q(1)).toHaveAttribute("aria-expanded", "true");
+  await expect(q(0)).toHaveAttribute("aria-expanded", "false");
+  await expect
+    .poll(() =>
+      panel0.evaluate((el) => Math.round(el.getBoundingClientRect().height)),
+    )
+    .toBe(0);
+});
+
+test("link check: every href on /desktop answers 200 in the lab and real release/guide URL answers 200/302", async ({
+  page,
+  request,
+  browserName,
+}) => {
+  await open(page);
+  const links = await page.locator("a[href]").evaluateAll((as) =>
+    as.map((a) => ({
+      href: (a as HTMLAnchorElement).getAttribute("href") ?? "",
+      rel: (a as HTMLAnchorElement).getAttribute("rel") ?? "",
+    })),
+  );
+  const hrefs = [...new Set(links.map((l) => l.href))];
+  expect(hrefs.length).toBeGreaterThan(0);
+  expect(hrefs.filter((h) => h === "#" || h === "#top")).toEqual([]);
+  expect(hrefs).toContain(WINDOWS_INSTALLER_GUIDE_URL);
+
+  for (const h of hrefs) {
+    if (h.startsWith("#")) {
+      expect(await page.locator(h).count(), h).toBe(1);
+    } else if (h.startsWith("/")) {
+      const [pathPart, hash] = h.split("#");
+      const res = await request.get(pathPart || "/", { maxRedirects: 5 });
+      expect(res.status(), h).toBe(200);
+      if (hash && pathPart === "/desktop") {
+        expect(await page.locator(`#${hash}`).count(), h).toBe(1);
+      }
+    } else if (h.startsWith("https://")) {
+      expect(h).toBe(WINDOWS_INSTALLER_GUIDE_URL);
+      for (const l of links.filter((x) => x.href === h)) {
+        expect(l.rel).toContain("noopener");
+        expect(l.rel).toContain("noreferrer");
+      }
+      if (!process.env.CI && browserName === "chromium") {
+        const res = await request.head(h, { maxRedirects: 0 });
+        expect([200, 301, 302], h).toContain(res.status());
+      }
+    }
+  }
+});
+
+test("Italian page: same 11 sections, Italian words and honest platform states", async ({
+  page,
+  baseURL,
+}) => {
+  await page.context().addCookies([
+    {
+      name: "mellodifai_lang",
+      value: "it",
+      url: baseURL ?? "http://127.0.0.1",
+    },
+  ]);
+  await fakeClientPlatform(page, "macos");
+  await open(page);
+  await expect(page.locator("h1")).toHaveText(SITE_COPY.it.desktop.hero.title);
+  await expect(page.locator("[data-ref-section]")).toHaveCount(10);
+  await expect(page.locator("[data-ref-footer]")).toHaveCount(1);
+  await expect(
+    page.locator('.site-header__cta[data-desktop-download-cta="true"]'),
+  ).toContainText(SITE_COPY.it.desktop.ctaLabel.macos);
+});
+
+for (const theme of ["dark", "light"] as const) {
+  for (const width of [1440, 390]) {
+    test(`axe: zero serious or critical issues, ${theme} theme at ${width}, default and open FAQ`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      if (theme === "light") {
+        await page.addInitScript(() =>
+          localStorage.setItem("mellodifai-theme", "light"),
+        );
+      }
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await open(page);
+      await page.waitForTimeout(300);
+
+      const bad = async () =>
+        (await new AxeBuilder({ page }).analyze()).violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map(
+            (v) =>
+              `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
+          );
+      expect(await bad()).toEqual([]);
+
+      await page
+        .locator("#faq")
+        .getByRole("button", { name: en.desktop.faq[1].q })
+        .click();
+      await page.waitForTimeout(200);
+      expect(await bad()).toEqual([]);
+    });
+  }
+}
+
+test("likeness judge (J1): section order and grid within 4 px across 1440, 1024 and 390", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "the reference was measured in Chromium",
+  );
+  const reference = JSON.parse(
+    readFileSync(join(import.meta.dirname, "layout-ref/desktop.json"), "utf8"),
+  ) as LayoutRef;
+  const candidate: LayoutRef = { sections: reference.sections, widths: {} };
+  for (const [w, h] of WIDTHS) {
+    await page.setViewportSize({ width: w, height: h });
+    await open(page);
+    candidate.widths[String(w)] = await page.evaluate(measureLayoutInPage, {
+      names: reference.sections,
+      width: w,
+    });
+  }
+  const step = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.width = "var(--spacing-1)";
+    document.querySelector("[data-astryx-theme]")?.append(probe);
+    const px = probe.getBoundingClientRect().width;
+    probe.remove();
+    return px;
+  });
+  expect(step).toBe(4);
+  const result = compareLayout(reference, candidate, { stepPx: step });
+  console.log(
+    `desktop likeness: ${result.checked} values, worst ${result.worstSteps} steps`,
+  );
+  expect(result.failures).toEqual([]);
+});
+
+const CAPTURE =
+  process.env.SITE_TEXT_CAPTURE ??
+  "E:/mellodifai/research/2026-11-20/cardboard/text-capture";
+test("clean-room judge (J6): no shared sentence and no equal string with the reference", async ({
+  page,
+  baseURL,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium" || !existsSync(CAPTURE),
+    "needs the captured reference text",
+  );
+  const reference = readdirSync(CAPTURE).flatMap(
+    (f) =>
+      (
+        JSON.parse(readFileSync(join(CAPTURE, f), "utf8")) as {
+          strings: string[];
+        }
+      ).strings,
+  );
+  const ours: string[] = [];
+  for (const lang of ["en", "it"] as const) {
+    await page.context().addCookies([
+      {
+        name: "mellodifai_lang",
+        value: lang,
+        url: baseURL ?? "http://127.0.0.1",
+      },
+    ]);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await open(page);
+      ours.push(...(await page.evaluate(collectPageText, undefined)));
+      for (const item of SITE_COPY[lang].desktop.faq.slice(1)) {
+        await page
+          .locator("#faq")
+          .getByRole("button", { name: item.q })
+          .click();
+        ours.push(...(await page.evaluate(collectPageText, undefined)));
+      }
+    }
+  }
+  const result = cleanRoom({
+    ours,
+    reference,
+    allow: ["Notifications alt+T"],
+  });
+  expect(
+    [...result.sharedRuns, ...result.equalStrings].map(
+      (h) => `${h.ours} = ${h.reference}`,
+    ),
+  ).toEqual([]);
+});
