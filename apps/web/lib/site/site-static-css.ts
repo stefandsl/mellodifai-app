@@ -613,6 +613,7 @@ export function buildMinifiedPageCss(options: {
     | "recipes"
     | "recipe-detail"
     | "changelog"
+    | "agents"
     | "not-found";
   bodyHtml: string;
   extraClasses?: readonly string[];
@@ -668,6 +669,21 @@ export function buildMinifiedPageCss(options: {
       path.join(WEB_DIR, "components/site/changelog.css"),
       "utf8",
     );
+  } else if (options.page === "agents") {
+    const rawPartsCss = fs.readFileSync(
+      path.join(WEB_DIR, "components/site/parts.css"),
+      "utf8",
+    );
+    const prunedPartsCss = pruneUnusedSiteCss(
+      rawPartsCss,
+      options.bodyHtml,
+      options.extraClasses,
+    );
+    const agentsCss = fs.readFileSync(
+      path.join(WEB_DIR, "components/site/agents.css"),
+      "utf8",
+    );
+    extraPageCss = `${prunedPartsCss}\n${agentsCss}`;
   }
 
   const nonAstryxCss = [prunedSiteCss, extraPageCss, AGENTS_MENU_CSS].join(

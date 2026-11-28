@@ -21,6 +21,8 @@ export const SITE_STATIC_SOURCES = [
   "apps/web/scripts/build-site-static.mjs",
   "apps/web/scripts/site-study/changelog-data.mjs",
   "apps/web/lib/site",
+  "apps/web/lib/ops",
+  "apps/web/app/actions/schemas.ts",
   "apps/web/lib/theme.ts",
   "apps/web/components/site",
   "apps/web/app/(site)/site.css",
@@ -34,6 +36,7 @@ export const SITE_STATIC_SOURCES = [
   "apps/web/public/site/recipes",
   "content/changelog",
   "content/recipes",
+  "ops/lib/auth-origins.ts",
   // The whole package, not only recipes/: the prerender bundles its index barrel.
   "packages/shared/src",
 ] as const;

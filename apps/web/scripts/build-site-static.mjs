@@ -18,6 +18,16 @@ export const EXPECTED_STATIC_PAGES = [
   "pricing-it.html",
   "changelog-en.html",
   "changelog-it.html",
+  "agents-claude-en.html",
+  "agents-claude-it.html",
+  "agents-chatgpt-en.html",
+  "agents-chatgpt-it.html",
+  "agents-gemini-en.html",
+  "agents-gemini-it.html",
+  "agents-codex-en.html",
+  "agents-codex-it.html",
+  "agents-cursor-en.html",
+  "agents-cursor-it.html",
   "not-found-en.html",
   "not-found-it.html",
   "recipes-canvas-en.html",
@@ -36,6 +46,7 @@ export const EXPECTED_STATIC_ISLANDS = [
   "recipes",
   "recipe-detail",
   "changelog",
+  "agents",
 ];
 
 function listPublishedRecipeSlugs() {
@@ -376,21 +387,23 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
   let fontsCss = "";
   let fontsFile = "";
   let fontsUrl = "";
-  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string; changelog: string }} */
+  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string; changelog: string; agents: string }} */
   const islandFiles = {
     home: "",
     pricing: "",
     recipes: "",
     "recipe-detail": "",
     changelog: "",
+    agents: "",
   };
-  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string; changelog: string }} */
+  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string; changelog: string; agents: string }} */
   const islandUrls = {
     home: "",
     pricing: "",
     recipes: "",
     "recipe-detail": "",
     changelog: "",
+    agents: "",
   };
 
   try {
@@ -430,7 +443,7 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
 
     for (const outputFile of islandBuild.outputFiles) {
       const base =
-        /** @type {"home" | "pricing" | "recipes" | "recipe-detail" | "changelog"} */ (
+        /** @type {"home" | "pricing" | "recipes" | "recipe-detail" | "changelog" | "agents"} */ (
           path.basename(outputFile.path, ".js")
         );
       const hash = contentHash(outputFile.contents);

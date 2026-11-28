@@ -10,13 +10,14 @@ import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Cover, type CoverKind } from "@/components/site/art";
+import { AgentMark } from "@/components/site/agent-switch";
+import { AgentsPage } from "@/components/site/agents-page";
 import { ChangelogPage } from "@/components/site/changelog-page";
+import { ClosingBand } from "@/components/site/closing-band";
 import { CompareTable } from "@/components/site/compare-table";
 import { Faq } from "@/components/site/faq";
 import { Home } from "@/components/site/home";
 import {
-  ArrowGlyph,
   CloseGlyph,
   ExitFullscreenGlyph,
   FullscreenGlyph,
@@ -34,6 +35,7 @@ import {
 } from "@/components/site/recipes-index";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
+import { AGENTS, type AgentName, getAllAgentProfiles } from "@/lib/site/agents";
 import type { ChangelogEntry } from "@/lib/site/changelog-types";
 import { SITE_COPY, type SiteLang } from "@/lib/site/copy";
 import { href } from "@/lib/site/nav";
@@ -45,13 +47,7 @@ import {
   type LoadedRecipe,
 } from "@/lib/site/recipes";
 import { getRecipeTestFixture } from "@/lib/site/recipes.fixture";
-import {
-  SiteButtonLink,
-  SiteHeading,
-  SiteIcon,
-  SiteLink,
-  SiteText,
-} from "@/src/site-primitives";
+import { SiteHeading, SiteIcon, SiteLink } from "@/src/site-primitives";
 import { buildMinifiedFontsCss, buildMinifiedPageCss } from "./site-static-css";
 
 export type StaticAssetUrls = {
@@ -62,6 +58,7 @@ export type StaticAssetUrls = {
     recipes: string;
     "recipe-detail": string;
     changelog: string;
+    agents: string;
   };
 };
 
@@ -73,6 +70,7 @@ const DEFAULT_ASSET_URLS: StaticAssetUrls = {
     recipes: "/site/islands/recipes.js",
     "recipe-detail": "/site/islands/recipe-detail.js",
     changelog: "/site/islands/changelog.js",
+    agents: "/site/islands/agents.js",
   },
 };
 
@@ -85,15 +83,6 @@ const WEB_DIR =
 
 const THEME_INIT_SCRIPT =
   'try{if(localStorage.getItem("mellodifai-theme")==="light")document.documentElement.setAttribute("data-theme","light")}catch{}';
-
-const CLOSING_ART: CoverKind[] = [
-  "remix",
-  "cover",
-  "satire",
-  "translation",
-  "karaoke",
-  "video",
-];
 
 // Ring 1 covers (slots 0..11) are tiny 2-4 KB JPEGs. Inlining them on canvas SSR avoids
 // saturating HTTP/1.1 connection slots on Slow 4G and paints the LCP cover synchronously.
@@ -165,6 +154,7 @@ function renderDocument(options: {
     | "recipes"
     | "recipe-detail"
     | "changelog"
+    | "agents"
     | "not-found";
   title: string;
   description: string;
@@ -438,46 +428,13 @@ export function renderHomeStatic(
 function renderRecipesClosingBand(lang: SiteLang): ReactNode {
   const copy = SITE_COPY[lang];
   return (
-    <VStack
-      as="section"
-      className="site-close"
-      data-ref-section="2"
-      aria-labelledby="recipes-close-title"
-    >
-      <VStack className="site-close__band">
-        <HStack className="site-close__mosaic" aria-hidden="true">
-          {CLOSING_ART.map((k) => (
-            <Cover key={k} kind={k} className="site-close__cover" />
-          ))}
-        </HStack>
-        <VStack
-          className="site-close__column"
-          data-ref-content
-          gap={8}
-          hAlign="center"
-        >
-          <SiteHeading
-            level={2}
-            id="recipes-close-title"
-            type="display-2"
-            justify="center"
-            className="site-close__title"
-          >
-            {copy.closing.title}
-          </SiteHeading>
-          <SiteButtonLink
-            label={copy.closing.action}
-            href={href("start")}
-            variant="primary"
-            size="lg"
-            icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
-          />
-          <SiteText type="supporting" color="secondary" justify="center">
-            {copy.closing.note}
-          </SiteText>
-        </VStack>
-      </VStack>
-    </VStack>
+    <ClosingBand
+      sectionIndex="2"
+      titleId="recipes-close-title"
+      title={copy.closing.title}
+      primaryAction={{ label: copy.closing.action, href: href("start") }}
+      note={copy.closing.note}
+    />
   );
 }
 
@@ -660,6 +617,47 @@ export function renderChangelogStatic(
   });
 }
 
+function renderAgentsTemplates(agent: AgentName, lang: SiteLang): string {
+  const copy = SITE_COPY[lang].agents;
+  const profiles = getAllAgentProfiles(lang);
+  const markTemplates = AGENTS.map((id) => {
+    const markup = renderToStaticMarkup(
+      <AgentMark agent={id} className="site-agents-hero__mark" />,
+    );
+    return `<template data-agent-mark="${id}">${markup}</template>`;
+  }).join("");
+  const payload = {
+    activeAgent: agent,
+    profiles,
+    copy: {
+      copyButton: copy.copyButton,
+      copiedButton: copy.copiedButton,
+      copyStatus: copy.copiedStatus,
+      copyFailed: copy.copyFailedStatus,
+      switchedStatus: copy.agentSelectedStatus,
+    },
+  };
+  return `${markTemplates}<script type="application/json" id="site-agents-data">${safeJsonForScript(payload)}</script>`;
+}
+
+export function renderAgentsStatic(
+  agent: AgentName,
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): { html: string; fontsCss: string; bodyHtml: string } {
+  const copy = SITE_COPY[lang];
+  return renderDocument({
+    lang,
+    page: "agents",
+    title: copy.agents.meta.title,
+    description: copy.agents.meta.description,
+    fontsUrl: assets.fontsUrl,
+    extraBodyTail: renderAgentsTemplates(agent, lang),
+    scripts: [assets.islandUrls.agents],
+    children: <AgentsPage agent={agent} lang={lang} copy={copy} />,
+  });
+}
+
 export function renderNotFoundStatic(
   lang: SiteLang,
   assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
@@ -699,6 +697,11 @@ export function renderAllStaticPages(
 
     const changelog = renderChangelogStatic(changelogEntries, lang, assets);
     pages[`changelog-${lang}.html`] = changelog.html;
+
+    for (const agent of AGENTS) {
+      const agentsPage = renderAgentsStatic(agent, lang, assets);
+      pages[`agents-${agent}-${lang}.html`] = agentsPage.html;
+    }
 
     const notFound = renderNotFoundStatic(lang, assets);
     pages[`not-found-${lang}.html`] = notFound.html;
