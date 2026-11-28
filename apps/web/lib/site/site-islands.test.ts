@@ -907,6 +907,12 @@ describe("public site vanilla islands on built static HTML", () => {
         sticky as HTMLElement,
         "getBoundingClientRect",
       );
+      const computedStyleSpy = vi.spyOn(window, "getComputedStyle");
+      const lineEl = document.querySelector<HTMLElement>(
+        '[data-kind-line="true"]',
+      );
+      expect(lineEl).not.toBeNull();
+      expect(lineEl?.hasAttribute("aria-live")).toBe(false);
 
       // Scroll through the 2700 px sticky travel (start at 6000 - 73 = 5927) across all 7 kinds.
       const seenIndices: string[] = [];
@@ -916,11 +922,13 @@ describe("public site vanilla islands on built static HTML", () => {
         window.dispatchEvent(new Event("scroll"));
         flushRaf();
         seenIndices.push(body?.getAttribute("data-kind-active") ?? "");
+        expect(lineEl?.hasAttribute("aria-live")).toBe(false);
       }
       expect(seenIndices).toEqual(["0", "1", "2", "3", "4", "5", "6"]);
-      // Zero per-frame layout reads during scroll!
+      // Zero per-frame layout reads or style lookups during scroll.
       expect(trackSpy).not.toHaveBeenCalled();
       expect(stickySpy).not.toHaveBeenCalled();
+      expect(computedStyleSpy).not.toHaveBeenCalled();
 
       // Active slide and button match kind 6.
       expect(
@@ -954,6 +962,7 @@ describe("public site vanilla islands on built static HTML", () => {
       );
       btn4?.click();
       expect(body?.getAttribute("data-kind-active")).toBe("4");
+      expect(lineEl?.getAttribute("aria-live")).toBe("polite");
       setScrollY(5927 + 2600);
       window.dispatchEvent(new Event("scroll"));
       flushRaf();
@@ -962,6 +971,226 @@ describe("public site vanilla islands on built static HTML", () => {
       setHidden(false);
       setScrollY(0);
       stopKinds();
+    }
+  });
+
+  it("kind stage: desktop sticky click scrolls to step and keeps choice after 40 px scroll, uses aria-live only on click/key, observes only track and sticky, and reads header token", () => {
+    let reducedMotion = false;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        get matches() {
+          if (query === KIND_STAGE_DESKTOP_QUERY) return true;
+          if (query.includes("prefers-reduced-motion")) return reducedMotion;
+          return false;
+        },
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const flushRaf = () => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(0);
+    };
+    const setScrollY = (y: number) => {
+      Object.defineProperty(window, "scrollY", {
+        value: y,
+        configurable: true,
+      });
+    };
+    const scrollCalls: ScrollToOptions[] = [];
+    vi.stubGlobal(
+      "scrollTo",
+      vi.fn((opts: ScrollToOptions | number, y?: number) => {
+        if (typeof opts === "number") {
+          setScrollY(y ?? 0);
+          scrollCalls.push({ top: y ?? 0 });
+        } else {
+          setScrollY(opts.top ?? 0);
+          scrollCalls.push(opts);
+        }
+      }),
+    );
+
+    const observedTargets: Element[] = [];
+    class FakeResizeObserver {
+      observe(target: Element) {
+        observedTargets.push(target);
+      }
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+
+    const makeRect = (top: number, height: number): DOMRect =>
+      ({
+        top,
+        bottom: top + height,
+        height,
+        left: 80,
+        right: 1360,
+        width: 1280,
+        x: 80,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    loadBuiltDocument(homeHtml);
+    setScrollY(0);
+
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    const body = document.querySelector<HTMLElement>("[data-kinds-stage]");
+    const lineEl = document.querySelector<HTMLElement>(
+      '[data-kind-line="true"]',
+    );
+    expect(track).not.toBeNull();
+    expect(sticky).not.toBeNull();
+    expect(body).not.toBeNull();
+    expect(lineEl).not.toBeNull();
+
+    if (track && sticky) {
+      track.getBoundingClientRect = () => makeRect(6000 - window.scrollY, 3400);
+      sticky.getBoundingClientRect = () => makeRect(73, 700);
+      sticky.style.top = "73px";
+    }
+
+    const stopKinds = initKindsStage();
+    try {
+      // ResizeObserver watches only track and sticky, never document.body.
+      expect(observedTargets).toEqual([track, sticky]);
+      expect(observedTargets).not.toContain(document.body);
+
+      // Start on kind 0.
+      const startY = 6000 - 73;
+      setScrollY(startY + 190);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("0");
+      expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+
+      // Click kind 5 in desktop sticky mode: scrolls to kind 5 step, marks it active with aria-live,
+      // and a +40 px scroll keeps kind 5 active while removing aria-live.
+      const btn5 = document.querySelector<HTMLButtonElement>(
+        '.site-kinds__name[data-kind-index="5"]',
+      );
+      btn5?.click();
+      const expectedKind5Y = Math.round(startY + (5.5 / 7) * 2700);
+      expect(scrollCalls.at(-1)).toEqual({
+        top: expectedKind5Y,
+        behavior: "smooth",
+      });
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+      expect(lineEl?.getAttribute("aria-live")).toBe("polite");
+
+      setScrollY(window.scrollY + 40);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Scrolling to a different step (kind 6) removes aria-live so scroll updates do not speak.
+      setScrollY(Math.round(startY + (6.5 / 7) * 2700));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("6");
+      expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+
+      // Under reduced motion, choosing a kind scrolls with behavior: "auto" and keeps the choice.
+      reducedMotion = true;
+      const btn2 = document.querySelector<HTMLButtonElement>(
+        '.site-kinds__name[data-kind-index="2"]',
+      );
+      btn2?.click();
+      const expectedKind2Y = Math.round(startY + (2.5 / 7) * 2700);
+      expect(scrollCalls.at(-1)).toEqual({
+        top: expectedKind2Y,
+        behavior: "auto",
+      });
+      expect(body?.getAttribute("data-kind-active")).toBe("2");
+      expect(lineEl?.getAttribute("aria-live")).toBe("polite");
+
+      setScrollY(window.scrollY + 40);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("2");
+    } finally {
+      stopKinds();
+    }
+
+    // Header height token fallback: when sticky.top is unset, reads --site-header-height (no hardcoded 73),
+    // and falls back to 0 when neither token nor header height is present.
+    loadBuiltDocument(homeHtml);
+    setScrollY(0);
+    scrollCalls.length = 0;
+    document.documentElement.style.setProperty("--site-header-height", "120px");
+    const track2 = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky2 = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    if (track2 && sticky2) {
+      track2.getBoundingClientRect = () =>
+        makeRect(6000 - window.scrollY, 3400);
+      sticky2.getBoundingClientRect = () => makeRect(120, 700);
+      sticky2.style.top = "";
+    }
+    const stopTokenKinds = initKindsStage();
+    try {
+      document
+        .querySelector<HTMLButtonElement>(
+          '.site-kinds__name[data-kind-index="5"]',
+        )
+        ?.click();
+      expect(scrollCalls.at(-1)?.top).toBe(
+        Math.round(6000 - 120 + (5.5 / 7) * 2700),
+      );
+    } finally {
+      stopTokenKinds();
+      document.documentElement.style.removeProperty("--site-header-height");
+    }
+
+    loadBuiltDocument(homeHtml);
+    setScrollY(0);
+    scrollCalls.length = 0;
+    const track3 = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky3 = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    if (track3 && sticky3) {
+      track3.getBoundingClientRect = () =>
+        makeRect(6000 - window.scrollY, 3400);
+      sticky3.getBoundingClientRect = () => makeRect(0, 700);
+      sticky3.style.top = "";
+    }
+    const stopZeroKinds = initKindsStage();
+    try {
+      document
+        .querySelector<HTMLButtonElement>(
+          '.site-kinds__name[data-kind-index="5"]',
+        )
+        ?.click();
+      expect(scrollCalls.at(-1)?.top).toBe(Math.round(6000 + (5.5 / 7) * 2700));
+    } finally {
+      stopZeroKinds();
+      setScrollY(0);
     }
   });
 

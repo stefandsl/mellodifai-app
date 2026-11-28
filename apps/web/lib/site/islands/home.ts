@@ -40,6 +40,42 @@ export type HomeInitOptions = {
 };
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const KIND_SCROLL_LOCK_IDLE_MS = 180;
+const KIND_SCROLL_LOCK_NO_EVENT_FALLBACK_MS = 450;
+const KIND_SCROLL_LOCK_MAX_MS = 2000;
+
+function parseCssLengthPx(raw: string): number {
+  const trimmed = raw.trim();
+  if (!trimmed) return Number.NaN;
+  const value = Number.parseFloat(trimmed);
+  if (!Number.isFinite(value)) return Number.NaN;
+  if (trimmed.endsWith("rem")) {
+    const rootSize = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    return value * (Number.isFinite(rootSize) && rootSize > 0 ? rootSize : 16);
+  }
+  return value;
+}
+
+function readStickyTopPx(stickyEl: HTMLElement): number {
+  const stickyStyle = getComputedStyle(stickyEl);
+  const parsedTop = Number.parseFloat(stickyStyle.top);
+  if (Number.isFinite(parsedTop)) return parsedTop;
+  const tokenValue =
+    stickyStyle.getPropertyValue("--site-header-height") ||
+    getComputedStyle(document.documentElement).getPropertyValue(
+      "--site-header-height",
+    );
+  const parsedToken = parseCssLengthPx(tokenValue);
+  if (Number.isFinite(parsedToken)) return parsedToken;
+  const header = document.querySelector<HTMLElement>(".site-header");
+  if (header) {
+    const measured = header.getBoundingClientRect().height;
+    if (Number.isFinite(measured) && measured > 0) return measured;
+  }
+  return 0;
+}
 
 function prefersReducedMotion(): boolean {
   return (
@@ -667,9 +703,9 @@ export function initKindsStage(): () => void {
     body.querySelectorAll<HTMLElement>("[data-kind-slide]"),
   );
   const titleEl = body.querySelector<HTMLElement>(".site-kinds__title");
-  const lineEl = body.querySelector<HTMLElement>(
-    '.site-kinds__caption [aria-live="polite"]',
-  );
+  const lineEl =
+    body.querySelector<HTMLElement>("[data-kind-line]") ??
+    body.querySelector<HTMLElement>(".site-kinds__caption p");
   if (!buttons.length || !titleEl || !lineEl) return () => {};
 
   const { pressedOnly, unpressedOnly } = diffToggleClasses(buttons);
@@ -678,8 +714,14 @@ export function initKindsStage(): () => void {
   let disposed = false;
   let rafId: number | null = null;
   let trackDocTop = 0;
-  let stickyTop = 73;
+  let stickyTop = 0;
   let travel = 0;
+
+  let scrollLocked = false;
+  let lockedTargetTop: number | null = null;
+  let lockStartedAt = 0;
+  let maxLockTimer: number | null = null;
+  let idleLockTimer: number | null = null;
 
   const desktopMq =
     typeof window.matchMedia === "function"
@@ -688,8 +730,9 @@ export function initKindsStage(): () => void {
   let desktopMatches = desktopMq ? desktopMq.matches : true;
 
   const isDesktopSticky = () => Boolean(track && sticky && desktopMatches);
+  const supportsScrollEnd = () => "onscrollend" in window;
 
-  const setActive = (nextIdx: number) => {
+  const setActive = (nextIdx: number, announce = false) => {
     const clamped = Math.max(0, Math.min(items.length - 1, nextIdx));
     const item = items[clamped];
     if (!item) return;
@@ -698,6 +741,11 @@ export function initKindsStage(): () => void {
       body.getAttribute("data-kind-active") === String(clamped)
     ) {
       return;
+    }
+    if (announce) {
+      lineEl.setAttribute("aria-live", "polite");
+    } else {
+      lineEl.removeAttribute("aria-live");
     }
     activeIdx = clamped;
     body.setAttribute("data-kind-active", String(activeIdx));
@@ -716,15 +764,20 @@ export function initKindsStage(): () => void {
     }
     const trackRect = track.getBoundingClientRect();
     const stickyRect = sticky.getBoundingClientRect();
-    const parsedTop = Number.parseFloat(getComputedStyle(sticky).top);
-    stickyTop = Number.isFinite(parsedTop) ? parsedTop : 73;
+    stickyTop = readStickyTopPx(sticky);
     trackDocTop = trackRect.top + window.scrollY;
     travel = Math.max(0, trackRect.height - stickyRect.height);
   };
 
   const syncFromScroll = () => {
     rafId = null;
-    if (disposed || document.hidden || !isDesktopSticky() || travel <= 0) {
+    if (
+      disposed ||
+      document.hidden ||
+      scrollLocked ||
+      !isDesktopSticky() ||
+      travel <= 0
+    ) {
       return;
     }
     const scrolled = window.scrollY + stickyTop - trackDocTop;
@@ -733,7 +786,7 @@ export function initKindsStage(): () => void {
       items.length - 1,
       Math.floor(progress * items.length),
     );
-    setActive(nextIdx);
+    setActive(nextIdx, false);
   };
 
   const cancelPendingFrame = () => {
@@ -743,8 +796,92 @@ export function initKindsStage(): () => void {
     }
   };
 
+  const unlockScroll = () => {
+    if (!scrollLocked) return;
+    scrollLocked = false;
+    lockedTargetTop = null;
+    if (maxLockTimer !== null) {
+      window.clearTimeout(maxLockTimer);
+      maxLockTimer = null;
+    }
+    if (idleLockTimer !== null) {
+      window.clearTimeout(idleLockTimer);
+      idleLockTimer = null;
+    }
+    window.removeEventListener("scrollend", onScrollEnd);
+    document.removeEventListener("scrollend", onScrollEnd);
+    window.removeEventListener("wheel", onUserInterrupt);
+    window.removeEventListener("touchstart", onUserInterrupt);
+  };
+
+  const onScrollEnd = () => {
+    if (!scrollLocked) return;
+    const expectedTop = lockedTargetTop;
+    // Ignore a stale scrollend emitted by a scroll that finished just before our smooth scroll started.
+    if (
+      expectedTop !== null &&
+      Math.abs(window.scrollY - expectedTop) > 20 &&
+      Date.now() - lockStartedAt < 200
+    ) {
+      return;
+    }
+    unlockScroll();
+    if (
+      !disposed &&
+      expectedTop !== null &&
+      Math.abs(window.scrollY - expectedTop) > 20
+    ) {
+      onScroll();
+    }
+  };
+
+  const onUserInterrupt = () => {
+    unlockScroll();
+  };
+
+  const lockScrollUntilEnd = (targetTop: number) => {
+    unlockScroll();
+    scrollLocked = true;
+    lockedTargetTop = targetTop;
+    lockStartedAt = Date.now();
+    window.addEventListener("scrollend", onScrollEnd);
+    document.addEventListener("scrollend", onScrollEnd);
+    window.addEventListener("wheel", onUserInterrupt, {
+      passive: true,
+      once: true,
+    });
+    window.addEventListener("touchstart", onUserInterrupt, {
+      passive: true,
+      once: true,
+    });
+    maxLockTimer = window.setTimeout(onScrollEnd, KIND_SCROLL_LOCK_MAX_MS);
+    if (!supportsScrollEnd()) {
+      idleLockTimer = window.setTimeout(
+        onScrollEnd,
+        KIND_SCROLL_LOCK_NO_EVENT_FALLBACK_MS,
+      );
+    }
+  };
+
   const onScroll = () => {
     if (document.hidden || !isDesktopSticky() || travel <= 0) return;
+    if (scrollLocked) {
+      if (!supportsScrollEnd()) {
+        if (
+          lockedTargetTop !== null &&
+          Math.abs(window.scrollY - lockedTargetTop) <= 4
+        ) {
+          unlockScroll();
+          return;
+        }
+        if (idleLockTimer !== null) window.clearTimeout(idleLockTimer);
+        idleLockTimer = window.setTimeout(
+          onScrollEnd,
+          KIND_SCROLL_LOCK_IDLE_MS,
+        );
+      }
+      return;
+    }
     if (rafId !== null) return;
     rafId = window.requestAnimationFrame(syncFromScroll);
   };
@@ -768,7 +905,32 @@ export function initKindsStage(): () => void {
   const buttonCleanups: (() => void)[] = [];
   for (let i = 0; i < buttons.length; i++) {
     const onClick = () => {
-      setActive(i);
+      if (isDesktopSticky()) {
+        measureGeometry();
+        if (travel > 0) {
+          const rawTarget = Math.max(
+            0,
+            Math.round(
+              trackDocTop - stickyTop + ((i + 0.5) / items.length) * travel,
+            ),
+          );
+          const maxScrollY = Math.max(
+            0,
+            document.documentElement.scrollHeight - window.innerHeight,
+          );
+          const targetY =
+            maxScrollY > 0 ? Math.min(maxScrollY, rawTarget) : rawTarget;
+          const reduced = prefersReducedMotion();
+          const behavior: ScrollBehavior = reduced ? "auto" : "smooth";
+          unlockScroll();
+          cancelPendingFrame();
+          window.scrollTo({ top: targetY, behavior });
+          if (!reduced && Math.abs(window.scrollY - targetY) > 2) {
+            lockScrollUntilEnd(targetY);
+          }
+        }
+      }
+      setActive(i, true);
     };
     buttons[i].addEventListener("click", onClick);
     buttonCleanups.push(() => buttons[i].removeEventListener("click", onClick));
@@ -782,7 +944,6 @@ export function initKindsStage(): () => void {
       : null;
   if (track) resizeObserver?.observe(track);
   if (sticky) resizeObserver?.observe(sticky);
-  if (document.body) resizeObserver?.observe(document.body);
 
   document.fonts?.ready
     ?.then(() => {
@@ -812,6 +973,7 @@ export function initKindsStage(): () => void {
 
   return () => {
     disposed = true;
+    unlockScroll();
     cancelPendingFrame();
     resizeObserver?.disconnect();
     window.removeEventListener("scroll", onScroll);
