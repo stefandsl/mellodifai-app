@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Button } from "@astryxdesign/core/Button";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -10,13 +9,13 @@ import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Cover, type CoverKind } from "@/components/site/art";
+import type { CoverKind } from "@/components/site/art";
 import { ChangelogPage } from "@/components/site/changelog-page";
+import { ClosingBand } from "@/components/site/closing-band";
 import { CompareTable } from "@/components/site/compare-table";
 import { Faq } from "@/components/site/faq";
 import { Home } from "@/components/site/home";
 import {
-  ArrowGlyph,
   CloseGlyph,
   ExitFullscreenGlyph,
   FullscreenGlyph,
@@ -36,7 +35,6 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import type { ChangelogEntry } from "@/lib/site/changelog-types";
 import { SITE_COPY, type SiteLang } from "@/lib/site/copy";
-import { href } from "@/lib/site/nav";
 import { COMPARE } from "@/lib/site/plans";
 import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
 import {
@@ -45,13 +43,7 @@ import {
   type LoadedRecipe,
 } from "@/lib/site/recipes";
 import { getRecipeTestFixture } from "@/lib/site/recipes.fixture";
-import {
-  SiteButtonLink,
-  SiteHeading,
-  SiteIcon,
-  SiteLink,
-  SiteText,
-} from "@/src/site-primitives";
+import { SiteHeading, SiteIcon, SiteLink } from "@/src/site-primitives";
 import { buildMinifiedFontsCss, buildMinifiedPageCss } from "./site-static-css";
 
 export type StaticAssetUrls = {
@@ -310,11 +302,6 @@ export function renderPricingStatic(
 }
 
 export type HomeAstryxStateClasses = {
-  disabledButton: string[];
-  panelClosed: string[];
-  panelOpen: string[];
-  chevronOpen: string[];
-  chevronClosed: string[];
   chipPressed: string[];
   chipUnpressed: string[];
 };
@@ -336,14 +323,6 @@ let cachedHomeClasses: HomeAstryxStateClasses | null = null;
 export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
   if (cachedHomeClasses) return cachedHomeClasses;
 
-  const enabledBtn = renderToStaticMarkup(<Button label="x" />);
-  const disabledBtn = renderToStaticMarkup(<Button label="x" isDisabled />);
-  const enabledClasses = extractElementClasses(enabledBtn, /<button\b[^>]*>/u);
-  const disabledClasses = extractElementClasses(
-    disabledBtn,
-    /<button\b[^>]*>/u,
-  );
-
   const pressedToggle = renderToStaticMarkup(
     <ToggleButton label="x" isPressed={true} />,
   );
@@ -359,41 +338,7 @@ export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
     /<button\b[^>]*>/u,
   );
 
-  const closedCollapsible = renderToStaticMarkup(
-    <Collapsible trigger="x" defaultIsOpen={false}>
-      y
-    </Collapsible>,
-  );
-  const openCollapsible = renderToStaticMarkup(
-    <Collapsible trigger="x" defaultIsOpen={true}>
-      y
-    </Collapsible>,
-  );
-
-  const closedPanelClasses = extractElementClasses(
-    closedCollapsible,
-    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
-  );
-  const openPanelClasses = extractElementClasses(
-    openCollapsible,
-    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
-  );
-
-  const closedChevronClasses = extractElementClasses(
-    closedCollapsible,
-    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
-  );
-  const openChevronClasses = extractElementClasses(
-    openCollapsible,
-    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
-  );
-
   cachedHomeClasses = {
-    disabledButton: diffClassSets(disabledClasses, enabledClasses),
-    panelClosed: diffClassSets(closedPanelClasses, openPanelClasses),
-    panelOpen: diffClassSets(openPanelClasses, closedPanelClasses),
-    chevronOpen: diffClassSets(openChevronClasses, closedChevronClasses),
-    chevronClosed: diffClassSets(closedChevronClasses, openChevronClasses),
     chipPressed: diffClassSets(pressedToggleClasses, unpressedToggleClasses),
     chipUnpressed: diffClassSets(unpressedToggleClasses, pressedToggleClasses),
   };
@@ -414,11 +359,6 @@ export function renderHomeStatic(
   const copy = SITE_COPY[lang];
   const stateClasses = deriveHomeAstryxStateClasses();
   const extraCssClasses = [
-    ...stateClasses.disabledButton,
-    ...stateClasses.panelClosed,
-    ...stateClasses.panelOpen,
-    ...stateClasses.chevronOpen,
-    ...stateClasses.chevronClosed,
     ...stateClasses.chipPressed,
     ...stateClasses.chipUnpressed,
   ];
@@ -438,46 +378,12 @@ export function renderHomeStatic(
 function renderRecipesClosingBand(lang: SiteLang): ReactNode {
   const copy = SITE_COPY[lang];
   return (
-    <VStack
-      as="section"
-      className="site-close"
-      data-ref-section="2"
-      aria-labelledby="recipes-close-title"
-    >
-      <VStack className="site-close__band">
-        <HStack className="site-close__mosaic" aria-hidden="true">
-          {CLOSING_ART.map((k) => (
-            <Cover key={k} kind={k} className="site-close__cover" />
-          ))}
-        </HStack>
-        <VStack
-          className="site-close__column"
-          data-ref-content
-          gap={8}
-          hAlign="center"
-        >
-          <SiteHeading
-            level={2}
-            id="recipes-close-title"
-            type="display-2"
-            justify="center"
-            className="site-close__title"
-          >
-            {copy.closing.title}
-          </SiteHeading>
-          <SiteButtonLink
-            label={copy.closing.action}
-            href={href("start")}
-            variant="primary"
-            size="lg"
-            icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
-          />
-          <SiteText type="supporting" color="secondary" justify="center">
-            {copy.closing.note}
-          </SiteText>
-        </VStack>
-      </VStack>
-    </VStack>
+    <ClosingBand
+      copy={copy.closing}
+      art={CLOSING_ART}
+      sectionIndex="2"
+      titleId="recipes-close-title"
+    />
   );
 }
 

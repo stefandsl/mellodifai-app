@@ -1,9 +1,9 @@
 import { Card } from "@astryxdesign/core/Card";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { SiteCopy } from "@/lib/site/copy";
 import { AGENTS, agentHref, href } from "@/lib/site/nav";
+import { RECOMMENDED_PLAN } from "@/lib/site/plans";
 import {
   SiteButtonLink,
   SiteHeading,
@@ -12,12 +12,16 @@ import {
   SiteText,
 } from "@/src/site-primitives";
 import { Cover, type CoverKind, Rule, Wave } from "./art";
+import { ClosingBand } from "./closing-band";
+import { Faq } from "./faq";
 import { FeatureReel } from "./feature-reel";
 import { HeroComposer } from "./hero-composer";
-import { KindsStage } from "./home-client";
-import { ArrowGlyph, CheckGlyph } from "./icons";
-import { PeriodProvider, PlanUnits } from "./period-context";
+import { CheckGlyph } from "./icons";
+import { KindStage } from "./kind-stage";
+import { PeriodProvider } from "./period-context";
 import { PeriodSwitch } from "./period-switch";
+import { PlanCard } from "./plan-card";
+import { StudioShot } from "./studio-shot";
 
 const AGENT_TITLES = {
   claude: "Claude",
@@ -358,40 +362,39 @@ export function Home({ copy }: { copy: SiteCopy }) {
               className="site-platform__shot"
               aria-label={copy.platform.shot}
             >
-              <StudioPicture copy={copy} />
+              <StudioShot copy={copy} />
             </VStack>
             <VStack as="ul" className="site-platform__notes" gap={6}>
               {copy.platform.notes.map((n) => (
-                <VStack as="li" key={n.title} gap={1}>
-                  <SiteText weight="medium">{n.title}</SiteText>
-                  <SiteText type="supporting" color="secondary">
-                    {n.line}
-                  </SiteText>
-                </VStack>
+                <HStack as="li" key={n.title} gap={3} align="start">
+                  <SiteIcon
+                    icon={CheckGlyph}
+                    size="sm"
+                    color="inherit"
+                    className="site-platform__note-icon"
+                  />
+                  <VStack gap={1}>
+                    <SiteText weight="medium">{n.title}</SiteText>
+                    <SiteText type="supporting" color="secondary">
+                      {n.line}
+                    </SiteText>
+                  </VStack>
+                </HStack>
               ))}
             </VStack>
           </HStack>
         </VStack>
       </VStack>
 
-      {/* 8. Category stage: seven recipe kinds and a stage */}
+      {/* 8. Category stage: sticky on desktop (2700 px travel), static on phones */}
       <VStack
         as="section"
         id="kinds"
         className="site-kinds"
         data-ref-section="8"
         aria-labelledby="kinds-title"
-        gap={10}
       >
-        <VStack gap={3}>
-          <SiteHeading level={2} id="kinds-title" className="site-title">
-            {copy.kinds.title}
-          </SiteHeading>
-          <SiteText as="p" type="large" color="secondary">
-            {copy.kinds.line}
-          </SiteText>
-        </VStack>
-        <KindsStage copy={copy.kinds} />
+        <KindStage copy={copy.kinds} />
       </VStack>
 
       {/* 9. Plans */}
@@ -414,7 +417,7 @@ export function Home({ copy }: { copy: SiteCopy }) {
         <HomePlans copy={copy.plans} />
       </VStack>
 
-      {/* 10. FAQ: title left, five questions right */}
+      {/* 10. FAQ: title left, five questions right (shared C03 accordion) */}
       <HStack
         as="section"
         id="faq"
@@ -430,67 +433,16 @@ export function Home({ copy }: { copy: SiteCopy }) {
         >
           {copy.faq.title}
         </SiteHeading>
-        <VStack className="site-faq__list">
-          {copy.faq.items.map((item) => (
-            <Collapsible
-              key={item.q}
-              defaultIsOpen={false}
-              className="site-faq__item"
-              trigger={
-                <SiteText weight="medium" className="site-faq__q">
-                  {item.q}
-                </SiteText>
-              }
-            >
-              <SiteText as="p" color="secondary" className="site-faq__a">
-                {item.a}
-              </SiteText>
-            </Collapsible>
-          ))}
-        </VStack>
+        <Faq items={copy.faq.items} />
       </HStack>
 
       {/* 11. Closing band: covers around a centred title and the main action */}
-      <VStack
-        as="section"
-        className="site-close"
-        data-ref-section="11"
-        aria-labelledby="close-title"
-      >
-        <VStack className="site-close__band">
-          <HStack className="site-close__mosaic" aria-hidden="true">
-            {SHOW_ART.map((k) => (
-              <Cover key={k} kind={k} className="site-close__cover" />
-            ))}
-          </HStack>
-          <VStack
-            className="site-close__column"
-            data-ref-content
-            gap={8}
-            hAlign="center"
-          >
-            <SiteHeading
-              level={2}
-              id="close-title"
-              type="display-2"
-              justify="center"
-              className="site-close__title"
-            >
-              {copy.closing.title}
-            </SiteHeading>
-            <SiteButtonLink
-              label={copy.closing.action}
-              href={href("start")}
-              variant="primary"
-              size="lg"
-              icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
-            />
-            <SiteText type="supporting" color="secondary" justify="center">
-              {copy.closing.note}
-            </SiteText>
-          </VStack>
-        </VStack>
-      </VStack>
+      <ClosingBand
+        copy={copy.closing}
+        art={SHOW_ART}
+        sectionIndex="11"
+        titleId="close-title"
+      />
     </>
   );
 }
@@ -512,45 +464,20 @@ function HomePlans({ copy }: { copy: SiteCopy["plans"] }) {
           data-ref-grid-widths="1440,1024"
         >
           {copy.items.map((plan, i) => (
-            <Card
+            <PlanCard
               key={plan.name}
-              className={`site-plan ${i === 2 ? "site-plan--chosen" : ""}`}
-              padding={6}
-            >
-              <VStack gap={4}>
-                <HStack justify="between" align="center" gap={2} wrap="wrap">
-                  <SiteHeading level={3} className="site-plan__name">
-                    {plan.name}
-                  </SiteHeading>
-                  {i === 2 ? (
-                    <SiteText type="code" className="site-tag site-tag--accent">
-                      {copy.recommended}
-                    </SiteText>
-                  ) : null}
-                </HStack>
-                <VStack gap={1}>
-                  <SiteText className="site-plan__price">{copy.price}</SiteText>
-                  <PlanUnits units={copy.period} stacked={false} />
-                </VStack>
-                <SiteText as="p" color="secondary">
-                  {plan.line}
-                </SiteText>
-                <SiteButtonLink
-                  label={plan.action}
-                  href={href("start")}
-                  variant={i === 2 ? "primary" : "secondary"}
-                  width="100%"
-                />
-                <VStack as="ul" gap={2} className="site-plan__list">
-                  {plan.items.map((item) => (
-                    <HStack as="li" key={item} gap={2} align="start">
-                      <SiteIcon icon={CheckGlyph} size="sm" color="secondary" />
-                      <SiteText type="supporting">{item}</SiteText>
-                    </HStack>
-                  ))}
-                </VStack>
-              </VStack>
-            </Card>
+              name={plan.name}
+              line={plan.line}
+              items={plan.items}
+              action={plan.action}
+              href={href("start")}
+              price={copy.price}
+              units={copy.period}
+              recommended={
+                i === RECOMMENDED_PLAN ? copy.recommended : undefined
+              }
+              headingLevel={3}
+            />
           ))}
         </HStack>
         <SiteLink href={href("plans")} className="site-link">
@@ -558,38 +485,5 @@ function HomePlans({ copy }: { copy: SiteCopy["plans"] }) {
         </SiteLink>
       </VStack>
     </PeriodProvider>
-  );
-}
-
-function StudioPicture({ copy }: { copy: SiteCopy }) {
-  return (
-    <HStack className="site-shot" aria-hidden="true">
-      <VStack className="site-shot__side" gap={2}>
-        {copy.showcase.songs.slice(0, 5).map((s, i) => (
-          <HStack
-            key={s.title}
-            gap={2}
-            align="center"
-            className={`site-shot__song ${i === 0 ? "is-open" : ""}`}
-          >
-            <Cover kind={SHOW_ART[i]} className="site-shot__cover" />
-            <SiteText type="supporting" maxLines={1}>
-              {s.title}
-            </SiteText>
-          </HStack>
-        ))}
-      </VStack>
-      <VStack className="site-shot__main" gap={3}>
-        <SiteText type="code" color="secondary" className="site-eyebrow">
-          {copy.features.sheet.bar}
-        </SiteText>
-        {copy.features.sheet.lines.map((line) => (
-          <SiteText key={line} className="site-shot__line">
-            {line}
-          </SiteText>
-        ))}
-        <Wave seed={77} phrases={4} take={[0.5, 0.66]} />
-      </VStack>
-    </HStack>
   );
 }
