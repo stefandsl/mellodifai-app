@@ -3,9 +3,10 @@
 // showcase marquee (32 px/s, keyboard-safe, pauses on hover/focus/hidden/reduced-motion),
 // and exclusive FAQ accordion.
 import {
+  DEFAULT_DESKTOP_PLATFORM,
   type DesktopCtaLabels,
   type DesktopPlatformId,
-  detectDesktopPlatform,
+  detectMatchedDesktopPlatform,
   type NavigatorPlatformHints,
   resolveDesktopCta,
 } from "../downloads";
@@ -41,8 +42,9 @@ function readDesktopData(): DesktopCtaLabels | null {
 }
 
 function setButtonLinkLabel(anchor: HTMLAnchorElement, label: string): void {
-  // SiteButtonLink renders its text inside the last span inside the content wrapper.
-  const labelSpan = anchor.querySelector<HTMLElement>(".xb3r6kr");
+  const labelSpan = anchor.querySelector<HTMLElement>(
+    '[data-site-button-label="true"]',
+  );
   if (labelSpan) {
     labelSpan.textContent = label;
   } else {
@@ -56,7 +58,8 @@ function setButtonLinkLabel(anchor: HTMLAnchorElement, label: string): void {
 export function initDesktopPlatform(
   navOverride?: NavigatorPlatformHints | null,
 ): DesktopPlatformId {
-  const platform = detectDesktopPlatform(navOverride);
+  const matched = detectMatchedDesktopPlatform(navOverride);
+  const platform = matched ?? DEFAULT_DESKTOP_PLATFORM;
   const data = readDesktopData();
   if (!data) return platform;
 
@@ -87,7 +90,7 @@ export function initDesktopPlatform(
   const rows = document.querySelectorAll<HTMLElement>("[data-platform-row]");
   for (const row of rows) {
     const rowId = row.getAttribute("data-platform-row");
-    const isCurrent = rowId === platform;
+    const isCurrent = matched !== null && rowId === matched;
     row.setAttribute("data-current-platform", String(isCurrent));
     const badge = row.querySelector<HTMLElement>(
       "[data-platform-current-badge]",

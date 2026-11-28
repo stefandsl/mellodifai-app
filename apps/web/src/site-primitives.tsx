@@ -529,7 +529,9 @@ export function SiteButtonLink({
         {icon != null ? (
           <span className={iconBoxProps.className}>{icon}</span>
         ) : null}
-        <span className="xb3r6kr xlyipyv xeuugli">{children ?? label}</span>
+        <span className="xb3r6kr xlyipyv xeuugli" data-site-button-label="true">
+          {children ?? label}
+        </span>
       </span>
     </a>
   );
@@ -606,7 +608,9 @@ export function SiteButton({
         {icon != null ? (
           <span className={iconBoxProps.className}>{icon}</span>
         ) : null}
-        <span className="xb3r6kr xlyipyv xeuugli">{children ?? label}</span>
+        <span className="xb3r6kr xlyipyv xeuugli" data-site-button-label="true">
+          {children ?? label}
+        </span>
       </span>
     </button>
   );

@@ -100,11 +100,13 @@ function matchPlatformHint(raw: string): DesktopPlatformId | null {
 
 /**
  * Detects the visitor's desktop platform on the client from Navigator User-Agent Client Hints,
- * falling back to navigator.platform and navigator.userAgent, with a safe default ("windows").
+ * falling back to navigator.platform and navigator.userAgent.
+ * Returns null for mobile OSes (e.g. Android with platform "Linux armv8l") or when no real
+ * desktop platform hint matched.
  */
-export function detectDesktopPlatform(
+export function detectMatchedDesktopPlatform(
   nav?: NavigatorPlatformHints | null,
-): DesktopPlatformId {
+): DesktopPlatformId | null {
   const source: NavigatorPlatformHints | null =
     nav !== undefined
       ? nav
@@ -112,7 +114,7 @@ export function detectDesktopPlatform(
         ? (navigator as NavigatorPlatformHints)
         : null;
 
-  if (!source) return DEFAULT_DESKTOP_PLATFORM;
+  if (!source) return null;
 
   const candidates = [
     source.userAgentData?.platform ?? "",
@@ -120,9 +122,9 @@ export function detectDesktopPlatform(
     source.userAgent ?? "",
   ];
 
-  // Mobile OSes (e.g. Android with platform "Linux armv8l") fall back to the safe default.
+  // Mobile OSes (e.g. Android with platform "Linux armv8l") do not match any desktop platform.
   if (candidates.some((hint) => MOBILE_HINT_RE.test(hint.toLowerCase()))) {
-    return DEFAULT_DESKTOP_PLATFORM;
+    return null;
   }
 
   for (const hint of candidates) {
@@ -130,7 +132,16 @@ export function detectDesktopPlatform(
     if (matched) return matched;
   }
 
-  return DEFAULT_DESKTOP_PLATFORM;
+  return null;
+}
+
+/**
+ * Detects the visitor's desktop platform with a safe default ("windows") for CTA fallback.
+ */
+export function detectDesktopPlatform(
+  nav?: NavigatorPlatformHints | null,
+): DesktopPlatformId {
+  return detectMatchedDesktopPlatform(nav) ?? DEFAULT_DESKTOP_PLATFORM;
 }
 
 export type DesktopCtaLabels = {

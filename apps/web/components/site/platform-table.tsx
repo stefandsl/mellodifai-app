@@ -1,10 +1,7 @@
 import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { SiteCopy } from "@/lib/site/copy";
-import {
-  DEFAULT_DESKTOP_PLATFORM,
-  DESKTOP_PLATFORM_LIST,
-} from "@/lib/site/downloads";
+import { DESKTOP_PLATFORM_LIST } from "@/lib/site/downloads";
 import { SiteHeading, SiteLink, SiteText } from "@/src/site-primitives";
 import {
   SiteTable,
@@ -65,7 +62,6 @@ export function PlatformTable({ copy, id = "platforms" }: PlatformTableProps) {
         </SiteTableHeader>
         <SiteTableBody>
           {DESKTOP_PLATFORM_LIST.map((platform) => {
-            const isDefault = platform.id === DEFAULT_DESKTOP_PLATFORM;
             const statusText = copy.statusLabels[platform.status];
             return (
               <SiteTableRow
@@ -73,7 +69,7 @@ export function PlatformTable({ copy, id = "platforms" }: PlatformTableProps) {
                 className="site-desk-table__row"
                 data-platform-row={platform.id}
                 data-platform-status={platform.status}
-                data-current-platform={isDefault ? "true" : "false"}
+                data-current-platform="false"
               >
                 <SiteTableHeaderCell
                   scope="row"
@@ -88,7 +84,7 @@ export function PlatformTable({ copy, id = "platforms" }: PlatformTableProps) {
                         type="code"
                         className="site-tag site-tag--accent site-desk-table__current"
                         data-platform-current-badge={platform.id}
-                        hidden={!isDefault}
+                        hidden
                       >
                         {copy.currentBadge}
                       </SiteText>
