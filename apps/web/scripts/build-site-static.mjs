@@ -15,6 +15,8 @@ export const EXPECTED_STATIC_PAGES = [
   "home-it.html",
   "pricing-en.html",
   "pricing-it.html",
+  "desktop-en.html",
+  "desktop-it.html",
   "not-found-en.html",
   "not-found-it.html",
   "recipes-canvas-en.html",
@@ -30,6 +32,7 @@ export const EXPECTED_STATIC_PAGES = [
 export const EXPECTED_STATIC_ISLANDS = [
   "home",
   "pricing",
+  "desktop",
   "recipes",
   "recipe-detail",
 ];
@@ -372,17 +375,19 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
   let fontsCss = "";
   let fontsFile = "";
   let fontsUrl = "";
-  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string }} */
+  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string }} */
   const islandFiles = {
     home: "",
     pricing: "",
+    desktop: "",
     recipes: "",
     "recipe-detail": "",
   };
-  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string }} */
+  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string }} */
   const islandUrls = {
     home: "",
     pricing: "",
+    desktop: "",
     recipes: "",
     "recipe-detail": "",
   };
@@ -424,7 +429,7 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
 
     for (const outputFile of islandBuild.outputFiles) {
       const base =
-        /** @type {"home" | "pricing" | "recipes" | "recipe-detail"} */ (
+        /** @type {"home" | "pricing" | "desktop" | "recipes" | "recipe-detail"} */ (
           path.basename(outputFile.path, ".js")
         );
       const hash = contentHash(outputFile.contents);

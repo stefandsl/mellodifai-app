@@ -10,13 +10,14 @@ import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Cover, type CoverKind } from "@/components/site/art";
+import type { CoverKind } from "@/components/site/art";
 import { CompareTable } from "@/components/site/compare-table";
+import { DesktopPage } from "@/components/site/desktop-page";
 import { Faq } from "@/components/site/faq";
 import { Home } from "@/components/site/home";
 import {
-  ArrowGlyph,
   CloseGlyph,
+  DownloadGlyph,
   ExitFullscreenGlyph,
   FullscreenGlyph,
   PauseGlyph,
@@ -31,9 +32,17 @@ import {
   RecipesIndex,
   type RecipesViewMode,
 } from "@/components/site/recipes-index";
+import { ClosingBand } from "@/components/site/shared-sections";
 import { SiteFooter } from "@/components/site/site-footer";
-import { SiteHeader } from "@/components/site/site-header";
+import {
+  SiteHeader,
+  type SiteHeaderPrimaryAction,
+} from "@/components/site/site-header";
 import { SITE_COPY, type SiteLang } from "@/lib/site/copy";
+import {
+  DEFAULT_DESKTOP_PLATFORM,
+  resolveDesktopCta,
+} from "@/lib/site/downloads";
 import { href } from "@/lib/site/nav";
 import { COMPARE } from "@/lib/site/plans";
 import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
@@ -43,13 +52,7 @@ import {
   type LoadedRecipe,
 } from "@/lib/site/recipes";
 import { getRecipeTestFixture } from "@/lib/site/recipes.fixture";
-import {
-  SiteButtonLink,
-  SiteHeading,
-  SiteIcon,
-  SiteLink,
-  SiteText,
-} from "@/src/site-primitives";
+import { SiteHeading, SiteIcon, SiteLink } from "@/src/site-primitives";
 import { buildMinifiedFontsCss, buildMinifiedPageCss } from "./site-static-css";
 
 export type StaticAssetUrls = {
@@ -57,6 +60,7 @@ export type StaticAssetUrls = {
   islandUrls: {
     home: string;
     pricing: string;
+    desktop: string;
     recipes: string;
     "recipe-detail": string;
   };
@@ -67,6 +71,7 @@ const DEFAULT_ASSET_URLS: StaticAssetUrls = {
   islandUrls: {
     home: "/site/islands/home.js",
     pricing: "/site/islands/pricing.js",
+    desktop: "/site/islands/desktop.js",
     recipes: "/site/islands/recipes.js",
     "recipe-detail": "/site/islands/recipe-detail.js",
   },
@@ -155,10 +160,17 @@ function coverToDataUri(coverUrl: string): string {
 
 function renderDocument(options: {
   lang: SiteLang;
-  page: "home" | "pricing" | "recipes" | "recipe-detail" | "not-found";
+  page:
+    | "home"
+    | "pricing"
+    | "desktop"
+    | "recipes"
+    | "recipe-detail"
+    | "not-found";
   title: string;
   description: string;
   fontsUrl: string;
+  headerPrimaryAction?: SiteHeaderPrimaryAction;
   extraHead?: string;
   extraBodyTail?: string;
   extraCssClasses?: readonly string[];
@@ -174,7 +186,7 @@ function renderDocument(options: {
         <SiteLink href="#main" className="site-skip" color="inherit">
           {copy.skip}
         </SiteLink>
-        <SiteHeader copy={copy} />
+        <SiteHeader copy={copy} primaryAction={options.headerPrimaryAction} />
         <VStack as="main" id="main" className="site-main" tabIndex={-1}>
           {options.children}
         </VStack>
@@ -428,47 +440,48 @@ export function renderHomeStatic(
 function renderRecipesClosingBand(lang: SiteLang): ReactNode {
   const copy = SITE_COPY[lang];
   return (
-    <VStack
-      as="section"
-      className="site-close"
-      data-ref-section="2"
-      aria-labelledby="recipes-close-title"
-    >
-      <VStack className="site-close__band">
-        <HStack className="site-close__mosaic" aria-hidden="true">
-          {CLOSING_ART.map((k) => (
-            <Cover key={k} kind={k} className="site-close__cover" />
-          ))}
-        </HStack>
-        <VStack
-          className="site-close__column"
-          data-ref-content
-          gap={8}
-          hAlign="center"
-        >
-          <SiteHeading
-            level={2}
-            id="recipes-close-title"
-            type="display-2"
-            justify="center"
-            className="site-close__title"
-          >
-            {copy.closing.title}
-          </SiteHeading>
-          <SiteButtonLink
-            label={copy.closing.action}
-            href={href("start")}
-            variant="primary"
-            size="lg"
-            icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
-          />
-          <SiteText type="supporting" color="secondary" justify="center">
-            {copy.closing.note}
-          </SiteText>
-        </VStack>
-      </VStack>
-    </VStack>
+    <ClosingBand
+      sectionIndex={2}
+      titleId="recipes-close-title"
+      title={copy.closing.title}
+      actionLabel={copy.closing.action}
+      actionHref={href("start")}
+      note={copy.closing.note}
+      covers={CLOSING_ART}
+    />
   );
+}
+
+export function renderDesktopStatic(
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): { html: string; fontsCss: string; bodyHtml: string } {
+  const copy = SITE_COPY[lang];
+  const d = copy.desktop;
+  const defaultCta = resolveDesktopCta(DEFAULT_DESKTOP_PLATFORM, d);
+  const payload = {
+    ctaLabel: d.ctaLabel,
+    heroNote: d.heroNote,
+  };
+  return renderDocument({
+    lang,
+    page: "desktop",
+    title: d.meta.title,
+    description: d.meta.description,
+    fontsUrl: assets.fontsUrl,
+    headerPrimaryAction: {
+      label: defaultCta.label,
+      href: defaultCta.href,
+      external: defaultCta.external,
+      icon: <SiteIcon icon={DownloadGlyph} size="sm" color="inherit" />,
+      isDesktopDownload: true,
+      platform: defaultCta.platform,
+      status: defaultCta.status,
+    },
+    extraBodyTail: `<script type="application/json" id="site-desktop-data">${safeJsonForScript(payload)}</script>`,
+    scripts: [assets.islandUrls.desktop],
+    children: <DesktopPage copy={copy} />,
+  });
 }
 
 function renderRecipesTemplates(lang: SiteLang): string {
@@ -658,6 +671,9 @@ export function renderAllStaticPages(
     const pricing = renderPricingStatic(lang, assets);
     pages[`pricing-${lang}.html`] = pricing.html;
     if (!fontsCss) fontsCss = pricing.fontsCss;
+
+    const desktop = renderDesktopStatic(lang, assets);
+    pages[`desktop-${lang}.html`] = desktop.html;
 
     const notFound = renderNotFoundStatic(lang, assets);
     pages[`not-found-${lang}.html`] = notFound.html;
