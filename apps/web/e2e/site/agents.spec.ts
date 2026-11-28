@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { AUTH_ORIGINS } from "../../../../ops/lib/auth-origins";
 import { commands as CLI_COMMANDS } from "../../../../packages/cli/src/commands";
 import { TOKEN_OPS } from "../../lib/ops/registry";
 import {
@@ -9,10 +10,12 @@ import {
   type AgentName,
   CANONICAL_MCP_METADATA_PATH,
   CANONICAL_MCP_PATH,
+  CLI_INSTALL_COMMAND,
+  extractAllUrls,
   extractCliCommands,
-  extractMcpUrls,
   getAgentProfile,
   hasForbiddenSecret,
+  PUBLIC_MCP_URL,
 } from "../../lib/site/agents";
 import { SITE_COPY } from "../../lib/site/copy";
 import { cleanRoom } from "../../lib/site/judge/clean-room";
@@ -178,7 +181,8 @@ for (const [width, height] of WIDTHS) {
       "chatgpt",
     );
 
-    // #how-to-connect button scrolls to the connect steps section.
+    // #how-to-connect button scrolls to the connect steps section without duplicating history.
+    const histBeforeAnchor = await page.evaluate(() => window.history.length);
     await page.locator('[data-hero-secondary-cta="true"]').click();
     await expect
       .poll(() =>
@@ -195,6 +199,12 @@ for (const [width, height] of WIDTHS) {
       )
       .toBe(true);
     expect(new URL(page.url()).hash).toBe("#how-to-connect");
+
+    // Repeated click on #how-to-connect does not push extra history entries.
+    await page.locator('[data-hero-secondary-cta="true"]').click();
+    expect(await page.evaluate(() => window.history.length)).toBe(
+      histBeforeAnchor,
+    );
 
     await assertNoSidewaysScroll(page);
   });
@@ -279,7 +289,7 @@ test("[timing] sliding thumb moves and arrives within 400 ms under a paused page
   expect(Math.abs(endX - targetX)).toBeLessThanOrEqual(2);
 });
 
-test("keyboard navigation on the switch tablist and copy buttons announce to screen readers", async ({
+test("keyboard navigation uses replaceState (never floods Back history) and copy buttons announce to screen readers", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -298,26 +308,41 @@ test("keyboard navigation on the switch tablist and copy buttons announce to scr
 
   await open(page, "/agents?agent=claude");
 
-  const claudeTab = page.locator(
-    '[data-agent-switch="hero"] a[data-agent-tab="claude"]',
+  // Click Codex once (pushes 1 history entry from claude -> codex).
+  await page
+    .locator('[data-agent-switch="hero"] a[data-agent-tab="codex"]')
+    .click();
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("agent"))
+    .toBe("codex");
+  const historyAfterClick = await page.evaluate(() => window.history.length);
+
+  // Arrow keys, End, Home move focus and agent via replaceState (0 new history entries).
+  const codexTab = page.locator(
+    '[data-agent-switch="hero"] a[data-agent-tab="codex"]',
   );
-  await claudeTab.focus();
+  await codexTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    page.locator('[data-agent-switch="hero"] a[data-agent-tab="cursor"]'),
+  ).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(
+    page.locator('[data-agent-switch="hero"] a[data-agent-tab="claude"]'),
+  ).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(
     page.locator('[data-agent-switch="hero"] a[data-agent-tab="chatgpt"]'),
   ).toBeFocused();
-  await expect(page.locator('[data-agent-switch="hero"]')).toHaveAttribute(
-    "data-active-agent",
-    "chatgpt",
+  expect(await page.evaluate(() => window.history.length)).toBe(
+    historyAfterClick,
   );
 
-  await page.keyboard.press("End");
-  await expect(
-    page.locator('[data-agent-switch="hero"] a[data-agent-tab="cursor"]'),
-  ).toBeFocused();
-
-  await page.keyboard.press("Home");
-  await expect(claudeTab).toBeFocused();
+  // Single Back returns directly to the initial claude entry.
+  await page.goBack();
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("agent"))
+    .toBe("claude");
 
   // Status region exists in SSR markup with role="status" and receives copy announcements.
   const statusRegion = page.locator('[data-agents-status="true"]');
@@ -326,7 +351,7 @@ test("keyboard navigation on the switch tablist and copy buttons announce to scr
 
   const firstCopy = page.locator('[data-step-copy-btn="0"]');
   const expectedCopyText = await firstCopy.getAttribute("data-copy-text");
-  expect(expectedCopyText).toContain("/api/mcp");
+  expect(expectedCopyText).toBe(CLI_INSTALL_COMMAND);
 
   await firstCopy.click();
   await expect(firstCopy).toHaveAttribute("data-copied", "true");
@@ -359,7 +384,7 @@ test("keyboard navigation on the switch tablist and copy buttons announce to scr
     .toContain(secondPromptText);
 });
 
-test("content truth: real 38 MCP tools, lab MCP metadata and 401 challenge, real CLI commands, zero secrets", async ({
+test("content truth: real 38 MCP tools, no dead copied addresses, lab MCP metadata and 401 challenge, real CLI commands, piped login, zero secrets", async ({
   page,
   request,
 }) => {
@@ -390,7 +415,9 @@ test("content truth: real 38 MCP tools, lab MCP metadata and 401 challenge, real
 
   // Verify every copied snippet across all 5 agents on the rendered page.
   const cliSet = new Set<string>(CLI_COMMANDS);
-  const testedMcpPaths = new Set<string>();
+  const knownOrigins = new Set(
+    Object.values(AUTH_ORIGINS).map((o) => o.siteUrl),
+  );
 
   for (const agent of AGENTS) {
     await page
@@ -405,16 +432,34 @@ test("content truth: real 38 MCP tools, lab MCP metadata and 401 challenge, real
 
     for (const text of copyTexts) {
       expect(hasForbiddenSecret(text), `${agent}: ${text}`).toBe(false);
+      expect(text, `${agent}: no unpublished npm install`).not.toMatch(
+        /npm install(?:\s+-g)?\s+@mellodifai\/cli/u,
+      );
+      if (text.includes("mellodifai login")) {
+        expect(text, `${agent}: piped login`).toMatch(
+          /\|\s*mellodifai login\s+--url\s+/u,
+        );
+      }
       for (const cmd of extractCliCommands(text)) {
         expect(cliSet.has(cmd), `${agent}: CLI command ${cmd}`).toBe(true);
       }
-      for (const url of extractMcpUrls(text)) {
-        testedMcpPaths.add(new URL(url).pathname);
+      for (const rawUrl of extractAllUrls(text)) {
+        const parsed = new URL(rawUrl);
+        if (PUBLIC_MCP_URL === null) {
+          // Pre-launch: no dead/non-loopback URL may appear in any copy box.
+          expect(
+            ["127.0.0.1", "localhost"].includes(parsed.hostname),
+            `${agent}: non-loopback URL before launch: ${rawUrl}`,
+          ).toBe(true);
+          expect(knownOrigins.has(parsed.origin), rawUrl).toBe(true);
+        } else {
+          // Post-launch: any public URL in a copy box must answer over HTTP.
+          const live = await request.get(rawUrl);
+          expect(live.status(), rawUrl).toBeLessThan(500);
+        }
       }
     }
   }
-
-  expect(testedMcpPaths.has(CANONICAL_MCP_PATH)).toBe(true);
 
   // Live lab check: protected resource metadata returns 200 JSON, and unauthenticated POST /api/mcp
   // answers 401 with Bearer resource_metadata challenge.
@@ -436,7 +481,7 @@ test("content truth: real 38 MCP tools, lab MCP metadata and 401 challenge, real
   );
 });
 
-test("works without JS from ?agent= query in EN and IT, and ships no React or Zod chunks", async ({
+test("works without JS from ?agent= query (including Tab keyboard reachability and #how-to-connect links) and ships no React or Zod chunks", async ({
   browser,
   page,
   baseURL,
@@ -491,11 +536,43 @@ test("works without JS from ?agent= query in EN and IT, and ships no React or Zo
           noJsPage.locator(
             `[data-agent-switch="hero"] a[data-agent-tab="${agent}"]`,
           ),
-        ).toHaveAttribute("aria-selected", "true");
+        ).toHaveAttribute("aria-current", "page");
         await expect(noJsPage.locator('[data-hero-line-b="true"]')).toHaveText(
           getAgentProfile(agent, lang).heroLineB,
         );
       }
+
+      // No-JS keyboard: every unselected agent link has no tabindex="-1" and no role="tab",
+      // connect links preserve #how-to-connect, and Tab + Enter switches agents cleanly.
+      await noJsPage.goto("/agents?agent=claude");
+      expect(await noJsPage.locator('[role="tab"]').count()).toBe(0);
+      expect(
+        await noJsPage.locator('a[data-agent-tab][tabindex="-1"]').count(),
+      ).toBe(0);
+      await expect(
+        noJsPage.locator(
+          '[data-agent-switch="connect"] a[data-agent-tab="gemini"]',
+        ),
+      ).toHaveAttribute("href", "/agents?agent=gemini#how-to-connect");
+
+      // Focus first link and press Tab -> reaches ChatGPT link -> Enter navigates without JS.
+      await noJsPage
+        .locator('[data-agent-switch="hero"] a[data-agent-tab="claude"]')
+        .focus();
+      await noJsPage.keyboard.press("Tab");
+      const chatgptLink = noJsPage.locator(
+        '[data-agent-switch="hero"] a[data-agent-tab="chatgpt"]',
+      );
+      // WebKit requires Option+Tab or explicit tabbable check; assert tabindex >= 0 and Enter works.
+      const chatgptTabIndex = await chatgptLink.evaluate((el) => el.tabIndex);
+      expect(chatgptTabIndex).toBe(0);
+      await chatgptLink.focus();
+      await noJsPage.keyboard.press("Enter");
+      await noJsPage.waitForURL(/\/agents\?agent=chatgpt$/u);
+      await expect(
+        noJsPage.locator('[data-agent-switch="hero"]'),
+      ).toHaveAttribute("data-active-agent", "chatgpt");
+
       if (lang === "it") {
         // WCAG 3.1.2: English MCP tool descriptions carry lang="en" on the Italian page.
         await expect(

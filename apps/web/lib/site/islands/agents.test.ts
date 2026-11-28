@@ -8,6 +8,7 @@ import { TOKEN_OPS } from "@/lib/ops/registry";
 import {
   AGENTS,
   type AgentName,
+  CLI_INSTALL_COMMAND,
   getAgentProfile,
   getAllAgentProfiles,
 } from "../agents";
@@ -154,7 +155,71 @@ describe("agents island (lib/site/islands/agents.ts)", () => {
     document.body.innerHTML = "";
   });
 
-  it("switches agents without reload, updates URL via pushState, handles popstate, syncs both switches, and updates steps and FAQ", () => {
+  it("renders plain Tab-reachable links with #how-to-connect on connect switch in SSR, then promotes to ARIA tablist after initAgents", () => {
+    createFakeRaf();
+    installAgentsDom("claude");
+
+    // Before JS: zero role="tab", zero role="tablist", zero role="tabpanel", zero tabindex="-1".
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(0);
+    expect(document.querySelectorAll('[role="tablist"]')).toHaveLength(0);
+    expect(document.querySelectorAll('[role="tabpanel"]')).toHaveLength(0);
+    const ssrLinks = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("a[data-agent-tab]"),
+    );
+    expect(ssrLinks).toHaveLength(AGENTS.length * 2);
+    for (const link of ssrLinks) {
+      expect(link.getAttribute("tabindex")).toBeNull();
+    }
+    const heroActive = must(
+      document.querySelector<HTMLAnchorElement>(
+        '[data-agent-switch="hero"] a[data-agent-tab="claude"]',
+      ),
+      "hero active link",
+    );
+    expect(heroActive.getAttribute("aria-current")).toBe("page");
+    expect(heroActive.getAttribute("href")).toBe("/agents?agent=claude");
+
+    // Connect switch links preserve #how-to-connect for no-JS reloads.
+    const connectLinks = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>(
+        '[data-agent-switch="connect"] a[data-agent-tab]',
+      ),
+    );
+    for (const link of connectLinks) {
+      const id = link.getAttribute("data-agent-tab");
+      expect(link.getAttribute("href")).toBe(
+        `/agents?agent=${id}#how-to-connect`,
+      );
+    }
+
+    // After initAgents(): promoted to ARIA tablist with roving tabIndex.
+    mockSwitchRects();
+    destroy = initAgents();
+    expect(document.querySelectorAll('[role="tablist"]')).toHaveLength(2);
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(
+      AGENTS.length * 2,
+    );
+    expect(document.querySelectorAll('[role="tabpanel"]')).toHaveLength(2);
+    expect(heroActive.getAttribute("aria-current")).toBeNull();
+    expect(heroActive.getAttribute("aria-selected")).toBe("true");
+    expect(heroActive.tabIndex).toBe(0);
+    const unselected = must(
+      document.querySelector<HTMLAnchorElement>(
+        '[data-agent-switch="hero"] a[data-agent-tab="chatgpt"]',
+      ),
+      "chatgpt link",
+    );
+    expect(unselected.tabIndex).toBe(-1);
+
+    // destroy() restores plain links cleanly.
+    destroy();
+    destroy = null;
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(0);
+    expect(unselected.getAttribute("tabindex")).toBeNull();
+    expect(heroActive.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("switches agents without reload, updates URL via pushState, handles popstate, syncs both switches, and updates steps, badges, docs, and FAQ", () => {
     const raf = createFakeRaf();
     installAgentsDom("claude");
     mockSwitchRects();
@@ -192,8 +257,23 @@ describe("agents island (lib/site/islands/agents.ts)", () => {
       chatgpt.connectSteps[0].title,
     );
     expect(
-      document.querySelector('[data-step-copy-code="0"]')?.textContent,
-    ).toBe(chatgpt.connectSteps[0].copyText);
+      must(
+        document.querySelector<HTMLElement>('[data-step-copy-box="0"]'),
+        "step 0 copy box",
+      ).hidden,
+    ).toBe(true);
+    expect(
+      must(
+        document.querySelector<HTMLElement>('[data-step-badge="0"]'),
+        "step 0 badge",
+      ).hidden,
+    ).toBe(false);
+    expect(document.querySelector('[data-step-badge="0"]')?.textContent).toBe(
+      chatgpt.connectSteps[0].statusBadge,
+    );
+    expect(
+      document.querySelector('[data-step-copy-code="1"]')?.textContent,
+    ).toBe(chatgpt.connectSteps[1].copyText);
     expect(
       document.querySelector(
         "#faq .site-faq__item:first-child .site-faq__fold p",
@@ -216,6 +296,81 @@ describe("agents island (lib/site/islands/agents.ts)", () => {
     expect(
       document.querySelector('[data-hero-line-b="true"]')?.textContent,
     ).toBe(getAgentProfile("claude", "en").heroLineB);
+    expect(
+      must(
+        document.querySelector<HTMLElement>('[data-step-copy-box="0"]'),
+        "step 0 copy box restored",
+      ).hidden,
+    ).toBe(false);
+  });
+
+  it("uses replaceState for arrow-key moves and deduplicates #how-to-connect anchor clicks without pushing history entries", () => {
+    createFakeRaf();
+    installAgentsDom("claude");
+    mockSwitchRects();
+    destroy = initAgents();
+
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    const replaceSpy = vi.spyOn(window.history, "replaceState");
+
+    const heroSwitch = must(
+      document.querySelector<HTMLElement>('[data-agent-switch="hero"]'),
+      "hero switch",
+    );
+    const claudeTab = must(
+      heroSwitch.querySelector<HTMLAnchorElement>('a[data-agent-tab="claude"]'),
+      "claude tab",
+    );
+    claudeTab.focus();
+
+    // Stepping across tabs with arrow keys, End, and Home uses replaceState, never pushState.
+    claudeTab.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    expect(heroSwitch.getAttribute("data-active-agent")).toBe("chatgpt");
+    expect(document.activeElement?.getAttribute("data-agent-tab")).toBe(
+      "chatgpt",
+    );
+
+    document.activeElement?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+    );
+    expect(heroSwitch.getAttribute("data-active-agent")).toBe(
+      AGENTS[AGENTS.length - 1],
+    );
+
+    document.activeElement?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
+    );
+    expect(heroSwitch.getAttribute("data-active-agent")).toBe(AGENTS[0]);
+
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).toHaveBeenCalledTimes(3);
+
+    // Clicking a real tab pushes a single history entry.
+    replaceSpy.mockClear();
+    must(
+      heroSwitch.querySelector<HTMLAnchorElement>('a[data-agent-tab="gemini"]'),
+      "gemini tab",
+    ).click();
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(replaceSpy).not.toHaveBeenCalled();
+
+    // Clicking #how-to-connect twice never pushes history and skips the second replaceState.
+    pushSpy.mockClear();
+    replaceSpy.mockClear();
+    const anchor = must(
+      document.querySelector<HTMLAnchorElement>('a[href="#how-to-connect"]'),
+      "how-to-connect anchor",
+    );
+    anchor.click();
+    expect(window.location.hash).toBe("#how-to-connect");
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).toHaveBeenCalledTimes(1);
+
+    anchor.click();
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).toHaveBeenCalledTimes(1);
   });
 
   it("animates the sliding thumb within 400ms with zero per-frame layout reads and pauses when tab is hidden", () => {
@@ -306,44 +461,7 @@ describe("agents island (lib/site/islands/agents.ts)", () => {
     expect(raf.pendingCount()).toBe(0);
   });
 
-  it("supports keyboard navigation on the tablist (ArrowRight, ArrowLeft, Home, End)", () => {
-    createFakeRaf();
-    installAgentsDom("claude");
-    mockSwitchRects();
-    destroy = initAgents();
-
-    const heroSwitch = must(
-      document.querySelector<HTMLElement>('[data-agent-switch="hero"]'),
-      "hero switch",
-    );
-    const claudeTab = must(
-      heroSwitch.querySelector<HTMLAnchorElement>('a[data-agent-tab="claude"]'),
-      "claude tab",
-    );
-    claudeTab.focus();
-
-    claudeTab.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
-    );
-    expect(heroSwitch.getAttribute("data-active-agent")).toBe("chatgpt");
-    expect(document.activeElement?.getAttribute("data-agent-tab")).toBe(
-      "chatgpt",
-    );
-
-    document.activeElement?.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "End", bubbles: true }),
-    );
-    expect(heroSwitch.getAttribute("data-active-agent")).toBe(
-      AGENTS[AGENTS.length - 1],
-    );
-
-    document.activeElement?.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
-    );
-    expect(heroSwitch.getAttribute("data-active-agent")).toBe(AGENTS[0]);
-  });
-
-  it("copies step command/URL, updates button label, resets after timeout, and announces to the SSR status region", async () => {
+  it("copies step command, updates button label, resets after timeout, and announces to the SSR status region", async () => {
     vi.useFakeTimers();
     const raf = createFakeRaf();
     installAgentsDom("claude");
@@ -372,7 +490,7 @@ describe("agents island (lib/site/islands/agents.ts)", () => {
       copyBtn.getAttribute("data-copy-text"),
       "copy text",
     );
-    expect(expectedText).toContain("/api/mcp");
+    expect(expectedText).toBe(CLI_INSTALL_COMMAND);
 
     copyBtn.click();
     await Promise.resolve();

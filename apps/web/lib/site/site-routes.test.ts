@@ -102,7 +102,11 @@ describe("public site static route handlers", () => {
         `data-active-agent="${expected}"`,
       );
       expect(html, query || "default").toContain(
-        `aria-labelledby="agent-tab-hero-${expected}"`,
+        `id="agent-tab-hero-${expected}" aria-current="page"`,
+      );
+      expect(html, query || "default").not.toContain('role="tab"');
+      expect(html, query || "default").not.toMatch(
+        /<a\b[^>]*data-agent-tab=[^>]*tabindex="-1"|<a\b[^>]*tabindex="-1"[^>]*data-agent-tab=/u,
       );
     }
   });
