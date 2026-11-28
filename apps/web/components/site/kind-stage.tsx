@@ -84,7 +84,8 @@ export function KindStage({ copy }: { copy: SiteCopy["kinds"] }) {
                 {first.line}
               </SiteText>
             </VStack>
-            <p
+            <SiteText
+              as="p"
               role="status"
               aria-live="polite"
               aria-atomic="true"
