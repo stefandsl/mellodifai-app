@@ -1,0 +1,696 @@
+{
+  "slug": "desktop",
+  "route": "/desktop",
+  "sections": [
+    "Hero: title, one line, 2 buttons, 2 notes, app screenshot, watch pill",
+    "Ruler divider",
+    "Included plan: text left, plan card right",
+    "Benefits panel: title, 4 columns",
+    "Showcase: title, moving rows, button",
+    "Ruler divider",
+    "Three steps: title, 3 cards, note row",
+    "Own agents panel: text and picture, then 3 connect steps",
+    "Closing band",
+    "FAQ: title left, 10 questions right",
+    "Footer"
+  ],
+  "repairs": [
+    {
+      "width": 390,
+      "section": 2,
+      "field": "h",
+      "old": 3420,
+      "new": 986,
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Section 2 box[3] is 985.8 in outline-390.json; raw layout-ref merged section 4 Showcase into section 2."
+    },
+    {
+      "width": 390,
+      "section": 2,
+      "field": "bottomInset",
+      "old": 0,
+      "new": 96,
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Section 2 layout.pad is [96, 16, 96, 16] in outline-390.json."
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "present",
+      "old": false,
+      "new": true,
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Section 4 Showcase exists in outline-390.json at box [0, 2880.8, 390, 1184] with container [16, 3095.1, 358, 786.7] and padX [8, 8]; raw layout-ref auto-matcher missed it."
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "y,h,blocks,contentLeft,contentRight,topInset,bottomInset,grid",
+      "old": null,
+      "new": {
+        "y": 2881,
+        "h": 1184,
+        "blocks": 1,
+        "contentLeft": 24,
+        "contentRight": 24,
+        "topInset": 96,
+        "bottomInset": 96,
+        "grid": null
+      },
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Derived directly from outline-390.json section 4 (box [0, 2880.8, 390, 1184], layout.pad [96, 16, 96, 16], container [16, 3095.1, 358, 786.7] with padX [8, 8] -> 16 + 8 = 24, matching the 1024 and 1440 container + padX rule) and STUDY.md section 4 (390 no grid)."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "h",
+      "old": 2373,
+      "new": 724,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 2 box[3] is 724.4 in outline-1024.json; raw layout-ref merged section 4 Showcase into section 2."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "contentLeft",
+      "old": 68,
+      "new": 80,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 2 layout.pad is [96, 80, 96, 80] in outline-1024.json (68 came from the merged Showcase container)."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "contentRight",
+      "old": 68,
+      "new": 80,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 2 layout.pad is [96, 80, 96, 80] in outline-1024.json (68 came from the merged Showcase container)."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "grid",
+      "old": {
+        "items": 2,
+        "perRow": 1,
+        "colGap": 8,
+        "rowGap": 8,
+        "itemW": 886,
+        "x": 60,
+        "w": 904
+      },
+      "new": null,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "The [60, 2588.5, 904, 720] gap-8 grid belongs to section 4 Showcase (outline-1024.json section 4 grids[1]), not section 2."
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "present",
+      "old": false,
+      "new": true,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 4 Showcase exists in outline-1024.json at box [0, 2400.5, 1024, 1091]; raw layout-ref auto-matcher missed it."
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "y,h,blocks,contentLeft,contentRight,topInset,bottomInset,grid",
+      "old": null,
+      "new": {
+        "y": 2401,
+        "h": 1091,
+        "blocks": 1,
+        "contentLeft": 68,
+        "contentRight": 68,
+        "topInset": 96,
+        "bottomInset": 96,
+        "grid": null
+      },
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Derived directly from outline-1024.json section 4 (box [0, 2400.5, 1024, 1091], layout.pad [96, 60, 96, 60], container [60, 2588.5, 904, 720] with padX [8, 8] -> 60 + 8 = 68) and STUDY.md section 4 (1024 no grid)."
+    },
+    {
+      "width": 1024,
+      "section": 7,
+      "field": "grid.itemW",
+      "old": 171,
+      "new": 862,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Outer stack of Own agents blocks (outline-1024.json section 7 [81, 4519.1, 862, 779] and section 8 [81, 5358.1, 862, 274.5]) has item width 862 at x=81."
+    },
+    {
+      "width": 1024,
+      "section": 7,
+      "field": "grid.colGap",
+      "old": 80,
+      "new": 60,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Consistent with the outer stack of outline-1024.json sections 7 and 8 whose gap is 5358.1 - (4519.1 + 779) = 60 (80 belonged to the inner flex row)."
+    },
+    {
+      "width": 1024,
+      "section": 7,
+      "field": "grid.rowGap",
+      "old": 80,
+      "new": 60,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Consistent with the outer stack of outline-1024.json sections 7 and 8 whose vertical gap is 5358.1 - (4519.1 + 779) = 60 (80 belonged to the inner flex row)."
+    }
+  ],
+  "widths": {
+    "390": {
+      "pageHeight": 9801,
+      "sections": [
+        {
+          "name": "Hero: title, one line, 2 buttons, 2 notes, app screenshot, watch pill",
+          "present": true,
+          "y": 0,
+          "h": 776,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 112,
+          "bottomInset": 64,
+          "grid": null
+        },
+        {
+          "name": "Ruler divider",
+          "present": true,
+          "y": 776,
+          "h": 55,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Included plan: text left, plan card right",
+          "present": true,
+          "y": 831,
+          "h": 986,
+          "blocks": 3,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 48,
+            "rowGap": 48,
+            "itemW": 358,
+            "x": 16,
+            "w": 358
+          }
+        },
+        {
+          "name": "Benefits panel: title, 4 columns",
+          "present": true,
+          "y": 1817,
+          "h": 1064,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 16,
+          "bottomInset": 16,
+          "grid": null
+        },
+        {
+          "name": "Showcase: title, moving rows, button",
+          "present": true,
+          "y": 2881,
+          "h": 1184,
+          "blocks": 1,
+          "contentLeft": 24,
+          "contentRight": 24,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": null
+        },
+        {
+          "name": "Ruler divider",
+          "present": true,
+          "y": 4065,
+          "h": 55,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Three steps: title, 3 cards, note row",
+          "present": true,
+          "y": 4299,
+          "h": 1654,
+          "blocks": 4,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Own agents panel: text and picture, then 3 connect steps",
+          "present": true,
+          "y": 6090,
+          "h": 1313,
+          "blocks": 2,
+          "contentLeft": 41,
+          "contentRight": 41,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 40,
+            "rowGap": 40,
+            "itemW": 308,
+            "x": 41,
+            "w": 308
+          }
+        },
+        {
+          "name": "Closing band",
+          "present": false,
+          "reason": "Desktop study outline-390.json has no Closing band element between Own agents (y 6090..7403) and FAQ (y 7444); STUDY.md marks 390 as not found."
+        },
+        {
+          "name": "FAQ: title left, 10 questions right",
+          "present": true,
+          "y": 7444,
+          "h": 1083,
+          "blocks": 1,
+          "contentLeft": 16,
+          "contentRight": 16,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 40,
+            "rowGap": 40,
+            "itemW": 358,
+            "x": 0,
+            "w": 390
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 8526,
+          "h": 1275,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 42,
+            "rowGap": 42,
+            "itemW": 348,
+            "x": 21,
+            "w": 348
+          }
+        }
+      ]
+    },
+    "1024": {
+      "pageHeight": 8406,
+      "sections": [
+        {
+          "name": "Hero: title, one line, 2 buttons, 2 notes, app screenshot, watch pill",
+          "present": true,
+          "y": 0,
+          "h": 1063,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 173,
+          "bottomInset": 80,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 710,
+            "x": 157,
+            "w": 710
+          }
+        },
+        {
+          "name": "Ruler divider",
+          "present": true,
+          "y": 1063,
+          "h": 55,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Included plan: text left, plan card right",
+          "present": true,
+          "y": 1118,
+          "h": 724,
+          "blocks": 2,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": null
+        },
+        {
+          "name": "Benefits panel: title, 4 columns",
+          "present": true,
+          "y": 1843,
+          "h": 558,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "Showcase: title, moving rows, button",
+          "present": true,
+          "y": 2401,
+          "h": 1091,
+          "blocks": 1,
+          "contentLeft": 68,
+          "contentRight": 68,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": null
+        },
+        {
+          "name": "Ruler divider",
+          "present": true,
+          "y": 3492,
+          "h": 55,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Three steps: title, 3 cards, note row",
+          "present": true,
+          "y": 3547,
+          "h": 892,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 280,
+            "x": 80,
+            "w": 864
+          }
+        },
+        {
+          "name": "Own agents panel: text and picture, then 3 connect steps",
+          "present": true,
+          "y": 4519,
+          "h": 1114,
+          "blocks": 2,
+          "contentLeft": 81,
+          "contentRight": 81,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 862,
+            "x": 81,
+            "w": 862
+          }
+        },
+        {
+          "name": "Closing band",
+          "present": true,
+          "y": 5714,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 292,
+          "contentRight": 292,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "FAQ: title left, 10 questions right",
+          "present": true,
+          "y": 6534,
+          "h": 933,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 96,
+            "rowGap": 96,
+            "itemW": 354,
+            "x": 0,
+            "w": 1024
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 7467,
+          "h": 939,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 324,
+            "x": 35,
+            "w": 954
+          }
+        }
+      ]
+    },
+    "1440": {
+      "pageHeight": 8067,
+      "sections": [
+        {
+          "name": "Hero: title, one line, 2 buttons, 2 notes, app screenshot, watch pill",
+          "present": true,
+          "y": 0,
+          "h": 1263,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 173,
+          "bottomInset": 80,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 775,
+            "x": 191,
+            "w": 1057
+          }
+        },
+        {
+          "name": "Ruler divider",
+          "present": true,
+          "y": 1263,
+          "h": 55,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Included plan: text left, plan card right",
+          "present": true,
+          "y": 1318,
+          "h": 724,
+          "blocks": 1,
+          "contentLeft": 140,
+          "contentRight": 761,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 60,
+            "rowGap": 60,
+            "itemW": 252,
+            "x": 865,
+            "w": 462
+          }
+        },
+        {
+          "name": "Benefits panel: title, 4 columns",
+          "present": true,
+          "y": 2043,
+          "h": 512,
+          "blocks": 1,
+          "contentLeft": 20,
+          "contentRight": 20,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": null
+        },
+        {
+          "name": "Showcase: title, moving rows, button",
+          "present": true,
+          "y": 2554,
+          "h": 1091,
+          "blocks": 1,
+          "contentLeft": 68,
+          "contentRight": 68,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": null
+        },
+        {
+          "name": "Ruler divider",
+          "present": true,
+          "y": 3645,
+          "h": 55,
+          "blocks": 1,
+          "contentLeft": 0,
+          "contentRight": 0,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": null
+        },
+        {
+          "name": "Three steps: title, 3 cards, note row",
+          "present": true,
+          "y": 3700,
+          "h": 832,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 3,
+            "perRow": 3,
+            "colGap": 12,
+            "rowGap": 12,
+            "itemW": 419,
+            "x": 80,
+            "w": 1280
+          }
+        },
+        {
+          "name": "Own agents panel: text and picture, then 3 connect steps",
+          "present": true,
+          "y": 4532,
+          "h": 874,
+          "blocks": 1,
+          "contentLeft": 748,
+          "contentRight": 81,
+          "topInset": 20,
+          "bottomInset": 20,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 80,
+            "rowGap": 80,
+            "itemW": 587,
+            "x": 81,
+            "w": 1278
+          }
+        },
+        {
+          "name": "Closing band",
+          "present": true,
+          "y": 5405,
+          "h": 820,
+          "blocks": 1,
+          "contentLeft": 500,
+          "contentRight": 500,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 20,
+            "rowGap": 12,
+            "itemW": 299,
+            "x": 443,
+            "w": 554
+          }
+        },
+        {
+          "name": "FAQ: title left, 10 questions right",
+          "present": true,
+          "y": 6225,
+          "h": 884,
+          "blocks": 1,
+          "contentLeft": 80,
+          "contentRight": 80,
+          "topInset": 96,
+          "bottomInset": 96,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 216,
+            "rowGap": 216,
+            "itemW": 354,
+            "x": 0,
+            "w": 1440
+          }
+        },
+        {
+          "name": "Footer",
+          "present": true,
+          "y": 7109,
+          "h": 957,
+          "blocks": 1,
+          "contentLeft": 115,
+          "contentRight": 115,
+          "topInset": 0,
+          "bottomInset": 0,
+          "grid": {
+            "items": 2,
+            "perRow": 2,
+            "colGap": 0,
+            "rowGap": 0,
+            "itemW": 411,
+            "x": 115,
+            "w": 1210
+          }
+        }
+      ]
+    }
+  }
+}

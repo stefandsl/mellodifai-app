@@ -249,6 +249,8 @@ describe("buildSiteStatic prerender pipeline", () => {
           "home-it.html",
           "pricing-en.html",
           "pricing-it.html",
+          "desktop-en.html",
+          "desktop-it.html",
           "changelog-en.html",
           "changelog-it.html",
           "not-found-en.html",
@@ -271,10 +273,11 @@ describe("buildSiteStatic prerender pipeline", () => {
       // Island and fonts filenames are content-hashed.
       expect(result.fontsFile).toMatch(/^fonts\.[0-9a-f]{12}\.css$/u);
       expect(result.fontsUrl).toBe(`/site/styles/${result.fontsFile}`);
-      expect(result.islands).toHaveLength(5);
+      expect(result.islands).toHaveLength(6);
       for (const base of [
         "home",
         "pricing",
+        "desktop",
         "recipes",
         "recipe-detail",
         "changelog",
@@ -314,13 +317,15 @@ describe("buildSiteStatic prerender pipeline", () => {
           ? result.islandUrls.home
           : page.startsWith("pricing-")
             ? result.islandUrls.pricing
-            : page.startsWith("changelog-")
-              ? result.islandUrls.changelog
-              : page.startsWith("recipe-")
-                ? result.islandUrls["recipe-detail"]
-                : page.startsWith("not-found-")
-                  ? null
-                  : result.islandUrls.recipes;
+            : page.startsWith("desktop-")
+              ? result.islandUrls.desktop
+              : page.startsWith("changelog-")
+                ? result.islandUrls.changelog
+                : page.startsWith("recipe-")
+                  ? result.islandUrls["recipe-detail"]
+                  : page.startsWith("not-found-")
+                    ? null
+                    : result.islandUrls.recipes;
         if (expectedIsland) {
           expect(html, page).toContain(expectedIsland);
         }
@@ -541,6 +546,7 @@ describe("buildSiteStatic prerender pipeline", () => {
       islandUrls: {
         home: "/site/islands/home.000000000000.js",
         pricing: "/site/islands/pricing.000000000000.js",
+        desktop: "/site/islands/desktop.000000000000.js",
         recipes: "/site/islands/recipes.000000000000.js",
         "recipe-detail": "/site/islands/recipe-detail.000000000000.js",
         changelog: "/site/islands/changelog.000000000000.js",

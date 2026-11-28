@@ -1,4 +1,5 @@
 import { HStack } from "@astryxdesign/core/HStack";
+import type { ReactNode } from "react";
 import type { SiteCopy } from "@/lib/site/copy";
 import { AGENTS, agentHref, HEADER_LINKS, href } from "@/lib/site/nav";
 import {
@@ -18,10 +19,26 @@ const AGENT_TITLES = {
   cursor: "Cursor",
 } as const;
 
+export type SiteHeaderPrimaryAction = {
+  label: string;
+  href: string;
+  external?: boolean;
+  icon?: ReactNode;
+  isDesktopDownload?: boolean;
+  platform?: string;
+  status?: string;
+};
+
 // Fixed header, 73 px. Clear at the top of the page; glass after the page scrolls.
 // Wide: logo, five links (the third opens the agents menu on hover or focus), two actions.
 // Narrow (under 48em, so a larger text size gets it sooner): logo, main action, menu button.
-export function SiteHeader({ copy }: { copy: SiteCopy }) {
+export function SiteHeader({
+  copy,
+  primaryAction,
+}: {
+  copy: SiteCopy;
+  primaryAction?: SiteHeaderPrimaryAction;
+}) {
   const links = HEADER_LINKS.map((name) =>
     name === "agents" ? (
       <SiteAgentsMenu
@@ -37,6 +54,9 @@ export function SiteHeader({ copy }: { copy: SiteCopy }) {
       <SiteTopNavItem key={name} label={copy.nav[name]} href={href(name)} />
     ),
   );
+
+  const ctaLabel = primaryAction?.label ?? copy.nav.start;
+  const ctaHref = primaryAction?.href ?? href("start");
 
   return (
     <SiteHeaderScroll>
@@ -54,12 +74,19 @@ export function SiteHeader({ copy }: { copy: SiteCopy }) {
               className="site-header__signin"
             />
             <SiteButtonLink
-              label={copy.nav.start}
-              href={href("start")}
+              label={ctaLabel}
+              href={ctaHref}
+              rel={primaryAction?.external ? "noopener noreferrer" : undefined}
+              icon={primaryAction?.icon}
               variant="secondary"
               className="site-header__cta site-button--inverted"
+              data-desktop-download-cta={
+                primaryAction?.isDesktopDownload ? "true" : undefined
+              }
+              data-detected-platform={primaryAction?.platform}
+              data-platform-status={primaryAction?.status}
             />
-            <SiteMenu copy={copy} />
+            <SiteMenu copy={copy} primaryAction={primaryAction} />
           </HStack>
         }
       />

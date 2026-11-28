@@ -14,11 +14,18 @@ import {
 } from "@/src/site-primitives";
 import { Brand } from "./brand";
 import { CloseGlyph, MenuGlyph } from "./icons";
+import type { SiteHeaderPrimaryAction } from "./site-header";
 
 // The small-screen menu: a full-screen modal dialog. The browser keeps focus inside it and
 // closes it on Escape; while it is open the page behind it does not scroll, and focus goes back
 // to the menu button when it closes.
-export function SiteMenu({ copy }: { copy: SiteCopy }) {
+export function SiteMenu({
+  copy,
+  primaryAction,
+}: {
+  copy: SiteCopy;
+  primaryAction?: SiteHeaderPrimaryAction;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -116,10 +123,17 @@ export function SiteMenu({ copy }: { copy: SiteCopy }) {
               size="lg"
             />
             <SiteButtonLink
-              label={copy.nav.start}
-              href={href("start")}
+              label={primaryAction?.label ?? copy.nav.start}
+              href={primaryAction?.href ?? href("start")}
+              rel={primaryAction?.external ? "noopener noreferrer" : undefined}
+              icon={primaryAction?.icon}
               variant="primary"
               size="lg"
+              data-desktop-download-cta={
+                primaryAction?.isDesktopDownload ? "true" : undefined
+              }
+              data-detected-platform={primaryAction?.platform}
+              data-platform-status={primaryAction?.status}
             />
           </VStack>
         </VStack>

@@ -132,3 +132,28 @@ export function ExitFullscreenGlyph(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function DownloadGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M8 2.5v7.5M5 7.25 8 10.25l3-3M3 12.75h10" />
+    </svg>
+  );
+}
+
+export function WindowsGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <path d="M2.5 3.5h4.75v3.75H2.5zM8.75 3.5h4.75v3.75H8.75zM2.5 8.75h4.75v3.75H2.5zM8.75 8.75h4.75v3.75H8.75z" />
+    </svg>
+  );
+}
+
+export function MonitorGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" {...base} {...props}>
+      <rect x="2.25" y="3" width="11.5" height="7.75" rx="1.25" />
+      <path d="M5.5 13h5M8 10.75V13" />
+    </svg>
+  );
+}

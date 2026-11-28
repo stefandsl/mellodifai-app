@@ -1,0 +1,407 @@
+/* Desktop app page (C07, STUDY.md "Desktop app page", MAPPING.md 3.5).
+   Every colour, size and spacing value reads a mesh theme token (tokens.ts checks this file). */
+
+/* ---------- 0. Hero ---------- */
+.site-desk-hero {
+  position: relative;
+  overflow: clip;
+  padding: var(--site-desk-hero-top) var(--site-gutter)
+    var(--site-section-y-show);
+}
+
+.site-desk-hero__inner {
+  position: relative;
+  z-index: var(--layer-raised);
+  width: 100%;
+  max-width: var(--layout-content-width);
+  margin-inline: auto;
+}
+
+.site-desk-hero__copy {
+  max-width: var(--site-measure);
+  text-align: center;
+}
+
+.site-desk-hero__title {
+  max-width: var(--site-hero-measure);
+  font-family: var(--font-family-heading);
+  font-size: var(--text-display-1-size);
+  line-height: var(--text-display-1-leading);
+  letter-spacing: var(--type-tracking-display);
+  text-wrap: balance;
+}
+
+.site-desk-hero__actions {
+  margin-top: var(--spacing-2);
+}
+
+.site-desk-hero__note-slot {
+  display: grid;
+  width: 100%;
+  max-width: var(--site-measure);
+}
+
+.site-desk-hero__platform-note {
+  grid-area: 1 / 1;
+  max-width: var(--site-measure);
+}
+
+.site-desk-hero__platform-note--sizer {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.site-desk-hero__frame {
+  display: grid;
+  grid-template-columns: var(--site-desk-shot) minmax(0, 1fr);
+  gap: 0;
+  width: 100%;
+  max-width: var(--site-desk-frame-w);
+  margin-inline: auto;
+  border: var(--border-width) solid var(--color-border-emphasized);
+  border-radius: var(--radius-page);
+  background: var(--color-background-surface);
+  overflow: hidden;
+  box-shadow: var(--shadow-high);
+}
+
+.site-desk-hero__shot {
+  min-width: 0;
+}
+
+.site-desk-hero__shot .site-shot {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+}
+
+.site-desk-hero__side {
+  min-width: 0;
+  padding: var(--spacing-6);
+  border-inline-start: var(--border-width) solid var(--color-border);
+  background-image: var(--mesh-halo-cool);
+}
+
+.site-desk-hero__side-title {
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-2xl);
+  line-height: var(--text-display-2-leading);
+  font-weight: var(--font-weight-normal);
+}
+
+.site-desk-hero__pill {
+  align-self: flex-start;
+}
+
+/* ---------- 1 & 5. Ruler divider ---------- */
+.site-desk-rule {
+  padding: 0;
+}
+
+/* ---------- 2. Included plan + honest platform table ---------- */
+.site-desk-included {
+  padding: var(--site-section-y) var(--site-gutter);
+}
+
+.site-desk-included__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-10);
+  width: 100%;
+  max-width: var(--layout-content-width);
+  margin-inline: auto;
+  padding-inline-start: var(--site-desk-included-offset);
+  padding-inline-end: var(--site-desk-included-end);
+}
+
+.site-desk-included__copy {
+  flex: none;
+  width: var(--site-desk-included-copy);
+  max-width: 100%;
+}
+
+.site-desk-included__card {
+  flex: none;
+  width: var(--site-desk-included-card);
+  max-width: 100%;
+  padding: var(--site-desk-included-pad);
+  border: var(--border-width) solid var(--color-border-emphasized);
+  background-image: var(--mesh-halo-warm);
+}
+
+.site-desk-included__card-head {
+  display: grid;
+  grid-template-columns: var(--site-desk-included-col) minmax(0, 1fr);
+  gap: var(--site-feature-gap);
+  align-items: start;
+}
+
+/* Platform table inside section 2 */
+.site-desk-platforms {
+  width: 100%;
+  max-width: var(--layout-content-width);
+  margin-inline: auto;
+  padding-top: var(--spacing-6);
+}
+
+.site-desk-platforms__title {
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--text-display-2-leading);
+}
+
+.site-desk-table {
+  width: 100%;
+  min-width: var(--site-desk-platform-min);
+}
+
+.site .site-desk-table :is(th, td) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: start;
+}
+
+.site-desk-table__row[data-current-platform="true"] {
+  background: var(--color-overlay-hover);
+}
+
+.site-desk-table__os {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.site-desk-table__current[hidden] {
+  display: none;
+}
+
+.site-desk-table__cmd {
+  display: inline-block;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-inner);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+  word-break: break-word;
+}
+
+/* ---------- 3. Benefits panel ---------- */
+.site-desk-benefits {
+  padding: var(--site-gutter-inset);
+}
+
+.site-desk-panel {
+  padding: var(--site-section-y) var(--site-gutter-panel);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-page);
+  background-color: var(--color-background-surface);
+  background-image: var(--mesh-halo-warm);
+}
+
+.site-desk-benefits__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-8);
+  width: 100%;
+}
+
+.site-desk-benefits__item {
+  min-width: 0;
+}
+
+/* ---------- 4. Showcase desktop variant ---------- */
+.site-show--desktop {
+  padding-block: var(--site-section-y);
+}
+
+/* ---------- 6. Three steps desktop variant ---------- */
+.site-steps--desktop .site-steps__grid {
+  gap: var(--site-title-gap);
+}
+
+.site-desk-steps__note {
+  max-width: var(--layout-content-width);
+}
+
+/* ---------- 7. Own agents panel ---------- */
+.site-desk-agents {
+  padding: var(--site-gutter-inset);
+}
+
+.site-desk-agents__surface {
+  padding: var(--site-section-y) var(--site-gutter-panel);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-page);
+  background-color: var(--color-background-surface);
+  background-image: var(--mesh-halo-cool);
+}
+
+.site-desk-agents__panel {
+  gap: var(--spacing-10);
+  width: 100%;
+}
+
+.site-desk-agents__top {
+  display: grid;
+  grid-template-columns: var(--site-desk-agents-text) minmax(0, 1fr);
+  gap: var(--site-gutter-lg);
+  align-items: start;
+  width: 100%;
+}
+
+.site-desk-agents__copy,
+.site-desk-agents__shot-wrap {
+  min-width: 0;
+}
+
+.site-desk-agents__shot {
+  min-width: 0;
+  border: var(--border-width) solid var(--color-border-emphasized);
+  background: var(--color-background-body);
+}
+
+.site-desk-agents__cmd {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-inner);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-background-surface);
+  word-break: break-word;
+}
+
+.site-desk-agents__connect {
+  padding-top: var(--spacing-6);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.site-desk-agents__sub {
+  font-size: var(--text-large-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.site-desk-agents__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-10);
+  width: 100%;
+}
+
+.site-desk-agents__step {
+  min-width: 0;
+}
+
+/* ---------- 8. Closing band desktop variant ---------- */
+.site-close--desktop {
+  padding: 0;
+}
+
+.site-close__notes {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--site-desk-close-col) minmax(0, 1fr);
+  column-gap: var(--spacing-5);
+  row-gap: var(--spacing-3);
+  width: 100%;
+  max-width: var(--site-desk-close-notes);
+  margin-top: var(--spacing-6);
+}
+
+.site-close__note-item {
+  min-width: 0;
+}
+
+/* ---------- Under 80em (1024 to 1279 px) ---------- */
+@media (max-width: 79.9375em) {
+  .site-desk-hero__frame {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: var(--site-desk-frame-w-md);
+  }
+  .site-desk-hero__side {
+    border-inline-start: 0;
+    border-top: var(--border-width) solid var(--color-border);
+  }
+  .site-desk-included__row {
+    flex-direction: column;
+    align-items: stretch;
+    padding-inline: 0;
+    gap: var(--site-block-gap);
+  }
+  .site-desk-included__copy,
+  .site-desk-included__card {
+    width: 100%;
+  }
+  .site-desk-included__card-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-4);
+  }
+  .site-desk-benefits__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .site-desk-agents {
+    padding-block: 0;
+    margin-block: var(--site-gutter-inset);
+  }
+  .site-desk-agents__panel {
+    gap: var(--site-feature-gap);
+  }
+  .site-desk-agents__top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--site-gutter-lg);
+  }
+}
+
+/* ---------- Under 48em (phones) ---------- */
+@media (max-width: 47.9375em) {
+  .site-desk-hero {
+    padding: var(--site-page-top-sm) var(--site-gutter-sm)
+      var(--site-desk-hero-end-sm);
+  }
+  .site-desk-hero__actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .site-desk-hero__actions > * {
+    width: 100%;
+  }
+  .site-desk-hero__frame {
+    max-width: 100%;
+  }
+  .site-desk-included {
+    padding: var(--site-section-y) var(--site-gutter-sm);
+  }
+  .site-desk-benefits {
+    padding: var(--site-gutter-inset-sm);
+  }
+  .site-desk-panel {
+    padding: var(--spacing-10) var(--site-gutter-panel-sm);
+  }
+  .site-desk-benefits__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-6);
+  }
+  .site-desk-agents {
+    padding: 0 var(--site-gutter-inset-sm);
+    margin-block: var(--site-gutter-inset-sm);
+  }
+  .site-desk-agents__surface {
+    padding: var(--spacing-10) var(--site-gutter-panel-sm);
+  }
+  .site-desk-agents__top {
+    gap: var(--spacing-10);
+  }
+  .site-desk-agents__steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-6);
+  }
+  .site-close--desktop {
+    display: none;
+  }
+  .site-close__notes {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 100%;
+  }
+}

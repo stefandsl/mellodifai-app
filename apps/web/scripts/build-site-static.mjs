@@ -16,6 +16,8 @@ export const EXPECTED_STATIC_PAGES = [
   "home-it.html",
   "pricing-en.html",
   "pricing-it.html",
+  "desktop-en.html",
+  "desktop-it.html",
   "changelog-en.html",
   "changelog-it.html",
   "not-found-en.html",
@@ -33,6 +35,7 @@ export const EXPECTED_STATIC_PAGES = [
 export const EXPECTED_STATIC_ISLANDS = [
   "home",
   "pricing",
+  "desktop",
   "recipes",
   "recipe-detail",
   "changelog",
@@ -376,18 +379,20 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
   let fontsCss = "";
   let fontsFile = "";
   let fontsUrl = "";
-  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string; changelog: string }} */
+  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string; changelog: string }} */
   const islandFiles = {
     home: "",
     pricing: "",
+    desktop: "",
     recipes: "",
     "recipe-detail": "",
     changelog: "",
   };
-  /** @type {{ home: string; pricing: string; recipes: string; "recipe-detail": string; changelog: string }} */
+  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string; changelog: string }} */
   const islandUrls = {
     home: "",
     pricing: "",
+    desktop: "",
     recipes: "",
     "recipe-detail": "",
     changelog: "",
@@ -430,7 +435,7 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
 
     for (const outputFile of islandBuild.outputFiles) {
       const base =
-        /** @type {"home" | "pricing" | "recipes" | "recipe-detail" | "changelog"} */ (
+        /** @type {"home" | "pricing" | "desktop" | "recipes" | "recipe-detail" | "changelog"} */ (
           path.basename(outputFile.path, ".js")
         );
       const hash = contentHash(outputFile.contents);

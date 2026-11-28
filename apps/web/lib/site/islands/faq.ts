@@ -1,4 +1,4 @@
-// Shared interactive FAQ accordion island (used by home and pricing).
+// Shared interactive FAQ accordion island (used by home, pricing, and desktop).
 // Single-open exclusive accordion: each button toggles aria-expanded, data-open,
 // and panel inert state. Mouse click, Enter, and Space toggle via native button click;
 // ArrowDown/ArrowUp/Home/End move keyboard focus across triggers.

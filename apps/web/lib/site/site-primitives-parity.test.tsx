@@ -258,11 +258,20 @@ describe("server-safe site primitives match real Astryx SSR output", () => {
       // Children inside content wrapper (optional icon wrapper + label span)
       expect(siteContent.children.length).toBe(astryxContent.children.length);
       for (let i = 0; i < siteContent.children.length; i++) {
+        const isLabelSpan = i === siteContent.children.length - 1;
         assertElementParity(
           siteContent.children[i],
           astryxContent.children[i],
           `ButtonLink child[${i}](${c.label})`,
+          isLabelSpan
+            ? { ignoreDataAttrs: ["data-site-button-label"] }
+            : undefined,
         );
+        if (isLabelSpan) {
+          expect(
+            siteContent.children[i].getAttribute("data-site-button-label"),
+          ).toBe("true");
+        }
       }
     }
   });

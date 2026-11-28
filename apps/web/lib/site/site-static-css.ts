@@ -109,6 +109,8 @@ const DYNAMIC_SITE_CLASSES = [
   "site-cover--pantomime",
   "site-recipes-empty",
   "site-recipe-card__video",
+  "site-desk-table__row",
+  "site-desk-table__current",
 ] as const;
 
 function selectorHasMissingSiteClass(
@@ -616,6 +618,7 @@ export function buildMinifiedPageCss(options: {
   page:
     | "home"
     | "pricing"
+    | "desktop"
     | "recipes"
     | "recipe-detail"
     | "changelog"
@@ -668,6 +671,25 @@ export function buildMinifiedPageCss(options: {
     extraPageCss = fs.readFileSync(
       path.join(WEB_DIR, "components/site/parts.css"),
       "utf8",
+    );
+  } else if (options.page === "desktop") {
+    const tableAstryx = fs.readFileSync(
+      path.join(WEB_DIR, "src/site-astryx-table.css"),
+      "utf8",
+    );
+    combinedAstryx = `${siteAstryx}\n${tableAstryx}`;
+    const partsCss = fs.readFileSync(
+      path.join(WEB_DIR, "components/site/parts.css"),
+      "utf8",
+    );
+    const desktopCss = fs.readFileSync(
+      path.join(WEB_DIR, "components/site/desktop.css"),
+      "utf8",
+    );
+    extraPageCss = pruneUnusedSiteCss(
+      `${partsCss}\n${desktopCss}`,
+      options.bodyHtml,
+      options.extraClasses,
     );
   } else if (options.page === "recipes") {
     extraPageCss = fs.readFileSync(

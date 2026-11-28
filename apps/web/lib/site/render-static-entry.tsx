@@ -13,10 +13,12 @@ import type { CoverKind } from "@/components/site/art";
 import { ChangelogPage } from "@/components/site/changelog-page";
 import { ClosingBand } from "@/components/site/closing-band";
 import { CompareTable } from "@/components/site/compare-table";
+import { DesktopPage } from "@/components/site/desktop-page";
 import { Faq } from "@/components/site/faq";
 import { Home } from "@/components/site/home";
 import {
   CloseGlyph,
+  DownloadGlyph,
   ExitFullscreenGlyph,
   FullscreenGlyph,
   PauseGlyph,
@@ -32,9 +34,16 @@ import {
   type RecipesViewMode,
 } from "@/components/site/recipes-index";
 import { SiteFooter } from "@/components/site/site-footer";
-import { SiteHeader } from "@/components/site/site-header";
+import {
+  SiteHeader,
+  type SiteHeaderPrimaryAction,
+} from "@/components/site/site-header";
 import type { ChangelogEntry } from "@/lib/site/changelog-types";
 import { SITE_COPY, type SiteLang } from "@/lib/site/copy";
+import {
+  DEFAULT_DESKTOP_PLATFORM,
+  resolveDesktopCta,
+} from "@/lib/site/downloads";
 import { COMPARE } from "@/lib/site/plans";
 import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
 import {
@@ -51,6 +60,7 @@ export type StaticAssetUrls = {
   islandUrls: {
     home: string;
     pricing: string;
+    desktop: string;
     recipes: string;
     "recipe-detail": string;
     changelog: string;
@@ -62,6 +72,7 @@ const DEFAULT_ASSET_URLS: StaticAssetUrls = {
   islandUrls: {
     home: "/site/islands/home.js",
     pricing: "/site/islands/pricing.js",
+    desktop: "/site/islands/desktop.js",
     recipes: "/site/islands/recipes.js",
     "recipe-detail": "/site/islands/recipe-detail.js",
     changelog: "/site/islands/changelog.js",
@@ -154,6 +165,7 @@ function renderDocument(options: {
   page:
     | "home"
     | "pricing"
+    | "desktop"
     | "recipes"
     | "recipe-detail"
     | "changelog"
@@ -161,6 +173,7 @@ function renderDocument(options: {
   title: string;
   description: string;
   fontsUrl: string;
+  headerPrimaryAction?: SiteHeaderPrimaryAction;
   extraHead?: string;
   extraBodyTail?: string;
   extraCssClasses?: readonly string[];
@@ -176,7 +189,7 @@ function renderDocument(options: {
         <SiteLink href="#main" className="site-skip" color="inherit">
           {copy.skip}
         </SiteLink>
-        <SiteHeader copy={copy} />
+        <SiteHeader copy={copy} primaryAction={options.headerPrimaryAction} />
         <VStack as="main" id="main" className="site-main" tabIndex={-1}>
           {options.children}
         </VStack>
@@ -385,6 +398,38 @@ function renderRecipesClosingBand(lang: SiteLang): ReactNode {
       titleId="recipes-close-title"
     />
   );
+}
+
+export function renderDesktopStatic(
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): { html: string; fontsCss: string; bodyHtml: string } {
+  const copy = SITE_COPY[lang];
+  const d = copy.desktop;
+  const defaultCta = resolveDesktopCta(DEFAULT_DESKTOP_PLATFORM, d);
+  const payload = {
+    ctaLabel: d.ctaLabel,
+    heroNote: d.heroNote,
+  };
+  return renderDocument({
+    lang,
+    page: "desktop",
+    title: d.meta.title,
+    description: d.meta.description,
+    fontsUrl: assets.fontsUrl,
+    headerPrimaryAction: {
+      label: defaultCta.label,
+      href: defaultCta.href,
+      external: defaultCta.external,
+      icon: <SiteIcon icon={DownloadGlyph} size="sm" color="inherit" />,
+      isDesktopDownload: true,
+      platform: defaultCta.platform,
+      status: defaultCta.status,
+    },
+    extraBodyTail: `<script type="application/json" id="site-desktop-data">${safeJsonForScript(payload)}</script>`,
+    scripts: [assets.islandUrls.desktop],
+    children: <DesktopPage copy={copy} />,
+  });
 }
 
 function renderRecipesTemplates(lang: SiteLang): string {
@@ -602,6 +647,9 @@ export function renderAllStaticPages(
     const pricing = renderPricingStatic(lang, assets);
     pages[`pricing-${lang}.html`] = pricing.html;
     if (!fontsCss) fontsCss = pricing.fontsCss;
+
+    const desktop = renderDesktopStatic(lang, assets);
+    pages[`desktop-${lang}.html`] = desktop.html;
 
     const changelog = renderChangelogStatic(changelogEntries, lang, assets);
     pages[`changelog-${lang}.html`] = changelog.html;

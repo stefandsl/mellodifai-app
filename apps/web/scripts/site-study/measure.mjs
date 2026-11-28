@@ -274,29 +274,33 @@ export function measureLayoutInPage(input) {
     const right = Math.min(input.width, Math.max(...cols.map((c) => c[1])));
     let grid = null;
     for (const b of blocks) {
-      const g = b.matches("[data-ref-grid]")
-        ? b
-        : b.querySelector("[data-ref-grid]");
-      if (!g || !visible(g)) continue;
-      const only = g.getAttribute("data-ref-grid-widths");
-      if (only && !only.split(",").map(Number).includes(input.width)) continue;
-      const kids = [...g.children].filter(visible);
-      if (kids.length < 2) continue;
-      const boxes = kids.map((k) => k.getBoundingClientRect());
-      const s = getComputedStyle(g);
-      const gap = (v) => (v === "normal" ? 0 : px(v));
-      const gr = g.getBoundingClientRect();
-      grid = {
-        items: kids.length,
-        perRow: boxes.filter((box) => Math.abs(box.top - boxes[0].top) <= 4)
-          .length,
-        colGap: round(gap(s.columnGap)),
-        rowGap: round(gap(s.rowGap)),
-        itemW: round(boxes[0].width),
-        x: round(gr.left),
-        w: round(gr.width),
-      };
-      break;
+      const candidates = b.matches("[data-ref-grid]")
+        ? [b, ...b.querySelectorAll("[data-ref-grid]")]
+        : [...b.querySelectorAll("[data-ref-grid]")];
+      for (const g of candidates) {
+        if (!visible(g)) continue;
+        const only = g.getAttribute("data-ref-grid-widths");
+        if (only && !only.split(",").map(Number).includes(input.width))
+          continue;
+        const kids = [...g.children].filter(visible);
+        if (kids.length < 2) continue;
+        const boxes = kids.map((k) => k.getBoundingClientRect());
+        const s = getComputedStyle(g);
+        const gap = (v) => (v === "normal" ? 0 : px(v));
+        const gr = g.getBoundingClientRect();
+        grid = {
+          items: kids.length,
+          perRow: boxes.filter((box) => Math.abs(box.top - boxes[0].top) <= 4)
+            .length,
+          colGap: round(gap(s.columnGap)),
+          rowGap: round(gap(s.rowGap)),
+          itemW: round(boxes[0].width),
+          x: round(gr.left),
+          w: round(gr.width),
+        };
+        break;
+      }
+      if (grid) break;
     }
     const first = getComputedStyle(blocks[0]);
     const last = getComputedStyle(blocks[blocks.length - 1]);

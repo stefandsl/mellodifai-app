@@ -126,9 +126,9 @@
   src:
     local("Times New Roman"), local("Liberation Serif"), local("Tinos"),
     local("Nimbus Roman");
-  size-adjust: 83%;
-  ascent-override: 119.3%;
-  descent-override: 37.3%;
+  size-adjust: 82%;
+  ascent-override: 120.7%;
+  descent-override: 37.8%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -137,26 +137,26 @@
   src:
     local("Times New Roman Italic"), local("Liberation Serif Italic"),
     local("Tinos Italic");
-  size-adjust: 89%;
-  ascent-override: 111.2%;
-  descent-override: 34.8%;
+  size-adjust: 88%;
+  ascent-override: 112.5%;
+  descent-override: 35.2%;
   line-gap-override: 0%;
 }
 @font-face {
   font-family: "Instrument Serif Fallback Georgia";
   font-style: normal;
   src: local("Georgia");
-  size-adjust: 76%;
-  ascent-override: 130.3%;
-  descent-override: 40.8%;
+  size-adjust: 75%;
+  ascent-override: 132%;
+  descent-override: 41.3%;
   line-gap-override: 0%;
 }
 @font-face {
   font-family: "Instrument Serif Fallback Noto";
   src: local("Noto Serif"), local("Droid Serif"), local("DejaVu Serif");
-  size-adjust: 70%;
-  ascent-override: 141.4%;
-  descent-override: 44.3%;
+  size-adjust: 69%;
+  ascent-override: 143.5%;
+  descent-override: 44.9%;
   line-gap-override: 0%;
 }
 @font-face {
