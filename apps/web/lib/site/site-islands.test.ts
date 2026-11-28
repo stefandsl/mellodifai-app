@@ -908,10 +908,21 @@ describe("public site vanilla islands on built static HTML", () => {
         "getBoundingClientRect",
       );
       const computedStyleSpy = vi.spyOn(window, "getComputedStyle");
+      const titleEl = document.querySelector<HTMLElement>(".site-kinds__title");
       const lineEl = document.querySelector<HTMLElement>(
         '[data-kind-line="true"]',
       );
+      const statusEl = document.querySelector<HTMLElement>(
+        '[data-kind-status="true"]',
+      );
+      expect(titleEl).not.toBeNull();
       expect(lineEl).not.toBeNull();
+      expect(statusEl).not.toBeNull();
+      expect(statusEl?.getAttribute("role")).toBe("status");
+      expect(statusEl?.getAttribute("aria-live")).toBe("polite");
+      expect(statusEl?.getAttribute("aria-atomic")).toBe("true");
+      expect(statusEl?.classList.contains("site-sr-only")).toBe(true);
+      expect(statusEl?.textContent).toBe("");
       expect(lineEl?.hasAttribute("aria-live")).toBe(false);
 
       // Scroll through the 2700 px sticky travel (start at 6000 - 73 = 5927) across all 7 kinds.
@@ -923,6 +934,7 @@ describe("public site vanilla islands on built static HTML", () => {
         flushRaf();
         seenIndices.push(body?.getAttribute("data-kind-active") ?? "");
         expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+        expect(statusEl?.textContent).toBe("");
       }
       expect(seenIndices).toEqual(["0", "1", "2", "3", "4", "5", "6"]);
       // Zero per-frame layout reads or style lookups during scroll.
@@ -962,7 +974,10 @@ describe("public site vanilla islands on built static HTML", () => {
       );
       btn4?.click();
       expect(body?.getAttribute("data-kind-active")).toBe("4");
-      expect(lineEl?.getAttribute("aria-live")).toBe("polite");
+      expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+      expect(statusEl?.textContent).toBe(
+        `${titleEl?.textContent}: ${lineEl?.textContent}`,
+      );
       setScrollY(5927 + 2600);
       window.dispatchEvent(new Event("scroll"));
       flushRaf();
@@ -974,7 +989,7 @@ describe("public site vanilla islands on built static HTML", () => {
     }
   });
 
-  it("kind stage: desktop sticky click scrolls to step and keeps choice after 40 px scroll, uses aria-live only on click/key, observes only track and sticky, and reads header token", () => {
+  it("kind stage: desktop sticky click scrolls to step and keeps choice after 40 px scroll, announces via SSR status region only on click/key, observes only track and sticky, and reads header token", () => {
     let reducedMotion = false;
     vi.stubGlobal(
       "matchMedia",
@@ -1056,13 +1071,19 @@ describe("public site vanilla islands on built static HTML", () => {
       '[data-kinds-sticky="true"]',
     );
     const body = document.querySelector<HTMLElement>("[data-kinds-stage]");
+    const titleEl = document.querySelector<HTMLElement>(".site-kinds__title");
     const lineEl = document.querySelector<HTMLElement>(
       '[data-kind-line="true"]',
+    );
+    const statusEl = document.querySelector<HTMLElement>(
+      '[data-kind-status="true"]',
     );
     expect(track).not.toBeNull();
     expect(sticky).not.toBeNull();
     expect(body).not.toBeNull();
+    expect(titleEl).not.toBeNull();
     expect(lineEl).not.toBeNull();
+    expect(statusEl).not.toBeNull();
 
     if (track && sticky) {
       track.getBoundingClientRect = () => makeRect(6000 - window.scrollY, 3400);
@@ -1076,16 +1097,17 @@ describe("public site vanilla islands on built static HTML", () => {
       expect(observedTargets).toEqual([track, sticky]);
       expect(observedTargets).not.toContain(document.body);
 
-      // Start on kind 0.
+      // Start on kind 0: visible line never has aria-live and status region stays empty on scroll.
       const startY = 6000 - 73;
       setScrollY(startY + 190);
       window.dispatchEvent(new Event("scroll"));
       flushRaf();
       expect(body?.getAttribute("data-kind-active")).toBe("0");
       expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+      expect(statusEl?.textContent).toBe("");
 
-      // Click kind 5 in desktop sticky mode: scrolls to kind 5 step, marks it active with aria-live,
-      // and a +40 px scroll keeps kind 5 active while removing aria-live.
+      // Click kind 5 in desktop sticky mode: scrolls to kind 5 step, writes title + line to status region,
+      // never adds aria-live to the visible line, and a +40 px scroll keeps kind 5 active.
       const btn5 = document.querySelector<HTMLButtonElement>(
         '.site-kinds__name[data-kind-index="5"]',
       );
@@ -1096,21 +1118,24 @@ describe("public site vanilla islands on built static HTML", () => {
         behavior: "smooth",
       });
       expect(body?.getAttribute("data-kind-active")).toBe("5");
-      expect(lineEl?.getAttribute("aria-live")).toBe("polite");
+      expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+      const kind5Announcement = `${titleEl?.textContent}: ${lineEl?.textContent}`;
+      expect(statusEl?.textContent).toBe(kind5Announcement);
 
       setScrollY(window.scrollY + 40);
       window.dispatchEvent(new Event("scroll"));
       flushRaf();
       expect(body?.getAttribute("data-kind-active")).toBe("5");
 
-      // Scrolling to a different step (kind 6) removes aria-live so scroll updates do not speak.
+      // Scrolling to a different step (kind 6) never writes to the status region or adds aria-live.
       setScrollY(Math.round(startY + (6.5 / 7) * 2700));
       window.dispatchEvent(new Event("scroll"));
       flushRaf();
       expect(body?.getAttribute("data-kind-active")).toBe("6");
       expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+      expect(statusEl?.textContent).toBe(kind5Announcement);
 
-      // Under reduced motion, choosing a kind scrolls with behavior: "auto" and keeps the choice.
+      // Under reduced motion, choosing a kind scrolls with behavior: "auto", keeps the choice, and announces via status region.
       reducedMotion = true;
       const btn2 = document.querySelector<HTMLButtonElement>(
         '.site-kinds__name[data-kind-index="2"]',
@@ -1122,7 +1147,10 @@ describe("public site vanilla islands on built static HTML", () => {
         behavior: "auto",
       });
       expect(body?.getAttribute("data-kind-active")).toBe("2");
-      expect(lineEl?.getAttribute("aria-live")).toBe("polite");
+      expect(lineEl?.hasAttribute("aria-live")).toBe(false);
+      expect(statusEl?.textContent).toBe(
+        `${titleEl?.textContent}: ${lineEl?.textContent}`,
+      );
 
       setScrollY(window.scrollY + 40);
       window.dispatchEvent(new Event("scroll"));

@@ -138,8 +138,8 @@ describe("public site renders static parts on the server", () => {
     expect(body).toContain('data-ref-section="7"');
     expect(body).toContain("site-shot__takes");
 
-    // Section 8: sticky kind stage with 7 kind buttons, 7 stacked slides, and runway.
-    // The caption line has no aria-live in SSR HTML so scrolling never triggers live announcements.
+    // Section 8: sticky kind stage with 7 kind buttons, 7 stacked slides, runway, and SSR live status region.
+    // The visible caption line never carries aria-live; a visually hidden role="status" region exists from SSR.
     expect(body).toContain('data-ref-section="8"');
     expect(body).toContain('data-kinds-sticky="true"');
     expect(body).toContain('data-kinds-runway="true"');
@@ -148,6 +148,15 @@ describe("public site renders static parts on the server", () => {
     const kindLineTag = body.match(/<p\b[^>]*data-kind-line="true"[^>]*>/u);
     expect(kindLineTag).not.toBeNull();
     expect(kindLineTag?.[0]).not.toContain("aria-live");
+    const kindStatusEl = body.match(
+      /<p\b[^>]*data-kind-status="true"[^>]*>([\s\S]*?)<\/p>/u,
+    );
+    expect(kindStatusEl).not.toBeNull();
+    expect(kindStatusEl?.[0]).toContain('role="status"');
+    expect(kindStatusEl?.[0]).toContain('aria-live="polite"');
+    expect(kindStatusEl?.[0]).toContain('aria-atomic="true"');
+    expect(kindStatusEl?.[0]).toContain("site-sr-only");
+    expect(kindStatusEl?.[1]).toBe("");
 
     // Section 9: 4 C03 PlanCards with placeholder prices and stacked units.
     expect(body).toContain('data-ref-section="9"');

@@ -706,6 +706,9 @@ export function initKindsStage(): () => void {
   const lineEl =
     body.querySelector<HTMLElement>("[data-kind-line]") ??
     body.querySelector<HTMLElement>(".site-kinds__caption p");
+  const statusEl =
+    body.querySelector<HTMLElement>("[data-kind-status]") ??
+    body.querySelector<HTMLElement>('[role="status"]');
   if (!buttons.length || !titleEl || !lineEl) return () => {};
 
   const { pressedOnly, unpressedOnly } = diffToggleClasses(buttons);
@@ -742,11 +745,6 @@ export function initKindsStage(): () => void {
     ) {
       return;
     }
-    if (announce) {
-      lineEl.setAttribute("aria-live", "polite");
-    } else {
-      lineEl.removeAttribute("aria-live");
-    }
     activeIdx = clamped;
     body.setAttribute("data-kind-active", String(activeIdx));
     setTogglePressed(buttons, activeIdx, pressedOnly, unpressedOnly);
@@ -755,6 +753,9 @@ export function initKindsStage(): () => void {
     }
     titleEl.textContent = item.name;
     lineEl.textContent = item.line;
+    if (announce && statusEl) {
+      statusEl.textContent = `${item.name}: ${item.line}`;
+    }
   };
 
   const measureGeometry = () => {

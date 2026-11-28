@@ -84,6 +84,13 @@ export function KindStage({ copy }: { copy: SiteCopy["kinds"] }) {
                 {first.line}
               </SiteText>
             </VStack>
+            <p
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="site-sr-only"
+              data-kind-status="true"
+            />
           </VStack>
         </HStack>
       </VStack>

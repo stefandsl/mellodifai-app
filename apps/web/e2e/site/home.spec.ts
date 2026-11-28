@@ -1136,6 +1136,11 @@ test("C04 kind stage at 1440x900: sticky for 2700 px +/- 100 and scroll drives a
 
   // Scroll through each of the 7 steps and verify active kind, button state, title, and cross-fade slide opacity.
   const body = page.locator("[data-kinds-stage]");
+  const statusEl = page.locator('[data-kind-status="true"]');
+  await expect(statusEl).toHaveAttribute("role", "status");
+  await expect(statusEl).toHaveAttribute("aria-live", "polite");
+  await expect(statusEl).toHaveAttribute("aria-atomic", "true");
+  await expect(statusEl).toHaveText("");
   for (let i = 0; i < en.kinds.items.length; i++) {
     const stepY = Math.round(
       startY + ((i + 0.5) / en.kinds.items.length) * travel,
@@ -1151,6 +1156,7 @@ test("C04 kind stage at 1440x900: sticky for 2700 px +/- 100 and scroll drives a
     await expect(page.locator('[data-kind-line="true"]')).not.toHaveAttribute(
       "aria-live",
     );
+    await expect(statusEl).toHaveText("");
     await expect
       .poll(
         () =>
@@ -1208,22 +1214,32 @@ test("C04 kind stage at 1440x900: mouse and keyboard selection scrolls to step a
 
   const body = page.locator("[data-kinds-stage]");
   const captionLine = page.locator('[data-kind-line="true"]');
+  const statusEl = page.locator('[data-kind-status="true"]');
   const btn0 = page.locator('.site-kinds__name[data-kind-index="0"]');
   const btn5 = page.locator('.site-kinds__name[data-kind-index="5"]');
+  const expectedKind5Announcement = `${en.kinds.items[5].name}: ${en.kinds.items[5].line}`;
+
+  await expect(statusEl).toHaveAttribute("role", "status");
+  await expect(statusEl).toHaveAttribute("aria-live", "polite");
+  await expect(statusEl).toHaveAttribute("aria-atomic", "true");
+  await expect(statusEl).toHaveText("");
 
   // Start inside step 0.
   await page.evaluate((y) => window.scrollTo(0, y), kind0Y);
   await expect(body).toHaveAttribute("data-kind-active", "0");
   await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText("");
 
-  // Mouse selection of kind 5 scrolls to kind 5 step, enables aria-live, and stays active after +40 px scroll.
+  // Mouse selection of kind 5 scrolls to kind 5 step, announces via SSR status region (never aria-live on caption),
+  // and stays active after +40 px scroll.
   await btn5.click();
   await expect(body).toHaveAttribute("data-kind-active", "5");
   await expect(btn5).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".site-kinds__title")).toHaveText(
     en.kinds.items[5].name,
   );
-  await expect(captionLine).toHaveAttribute("aria-live", "polite");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
   await expect
     .poll(
       () =>
@@ -1247,10 +1263,11 @@ test("C04 kind stage at 1440x900: mouse and keyboard selection scrolls to step a
   await expect(body).toHaveAttribute("data-kind-active", "5");
   await expect(btn5).toHaveAttribute("aria-pressed", "true");
 
-  // Scroll to step 6: scroll-driven change clears aria-live.
+  // Scroll to step 6: scroll-driven change never writes to status region or sets aria-live.
   await page.evaluate((y) => window.scrollTo(0, y), kind6Y);
   await expect(body).toHaveAttribute("data-kind-active", "6");
   await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
 
   // Return to step 0 and test keyboard selection (Tab to kind 5, press Space, then scroll 40 px).
   await page.evaluate((y) => window.scrollTo(0, y), kind0Y);
@@ -1274,7 +1291,8 @@ test("C04 kind stage at 1440x900: mouse and keyboard selection scrolls to step a
   await expect(page.locator(".site-kinds__title")).toHaveText(
     en.kinds.items[5].name,
   );
-  await expect(captionLine).toHaveAttribute("aria-live", "polite");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
   await expect
     .poll(
       () =>
@@ -1298,10 +1316,11 @@ test("C04 kind stage at 1440x900: mouse and keyboard selection scrolls to step a
   await expect(body).toHaveAttribute("data-kind-active", "5");
   await expect(btn5).toHaveAttribute("aria-pressed", "true");
 
-  // Scroll to step 6 again: scroll-driven change clears aria-live.
+  // Scroll to step 6 again: scroll-driven change never writes to status region or sets aria-live.
   await page.evaluate((y) => window.scrollTo(0, y), kind6Y);
   await expect(body).toHaveAttribute("data-kind-active", "6");
   await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
 });
 
 test("C04 kind stage at 390x844: not sticky and supports mouse and keyboard selection", async ({
