@@ -415,6 +415,88 @@ for (const lang of ["en", "it"] as const) {
   }
 }
 
+for (const lang of ["it", "en"] as const) {
+  test(`at 390 (${lang}): delayed web fonts keep hero heading height and lede position stable with CLS < 0.05`, async ({
+    page,
+    baseURL,
+    browserName,
+  }) => {
+    const origin = baseURL ?? "http://127.0.0.1";
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page
+      .context()
+      .addCookies([{ name: "mellodifai_lang", value: lang, url: origin }]);
+    await page.route(/\/site\/fonts\//u, async (route) => {
+      await new Promise((r) => setTimeout(r, 800));
+      await route.continue();
+    });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __clsFontDelay?: number };
+      w.__clsFontDelay = 0;
+      try {
+        if (
+          typeof PerformanceObserver !== "undefined" &&
+          PerformanceObserver.supportedEntryTypes?.includes("layout-shift")
+        ) {
+          new PerformanceObserver((list) => {
+            for (const entry of list.getEntries() as Array<
+              PerformanceEntry & { hadRecentInput?: boolean; value?: number }
+            >) {
+              if (!entry.hadRecentInput && typeof entry.value === "number") {
+                w.__clsFontDelay = (w.__clsFontDelay ?? 0) + entry.value;
+              }
+            }
+          }).observe({ type: "layout-shift", buffered: true });
+        }
+      } catch {
+        // Non-Chromium engines may not expose layout-shift entries.
+      }
+    });
+
+    await page.goto("/desktop");
+    const titleBefore = await page.locator("#desktop-hero-title").boundingBox();
+    const ledeBefore = await page
+      .locator(".site-desk-hero .site-lede")
+      .boundingBox();
+
+    await page.waitForFunction(() => {
+      const link = document.querySelector<HTMLLinkElement>(
+        'link[data-site-fonts="true"]',
+      );
+      return Boolean(link?.sheet);
+    });
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(300);
+
+    const titleAfter = await page.locator("#desktop-hero-title").boundingBox();
+    const ledeAfter = await page
+      .locator(".site-desk-hero .site-lede")
+      .boundingBox();
+
+    expect(titleBefore).not.toBeNull();
+    expect(titleAfter).not.toBeNull();
+    expect(ledeBefore).not.toBeNull();
+    expect(ledeAfter).not.toBeNull();
+    expect(
+      Math.abs((titleAfter?.height ?? 0) - (titleBefore?.height ?? 0)),
+      `${lang} title height shifted from ${titleBefore?.height} to ${titleAfter?.height}`,
+    ).toBeLessThanOrEqual(4);
+    expect(
+      Math.abs((ledeAfter?.y ?? 0) - (ledeBefore?.y ?? 0)),
+      `${lang} lede top shifted from ${ledeBefore?.y} to ${ledeAfter?.y}`,
+    ).toBeLessThanOrEqual(4);
+    if (browserName === "chromium") {
+      const cls = await page.evaluate(
+        () =>
+          (window as unknown as { __clsFontDelay?: number }).__clsFontDelay ??
+          0,
+      );
+      expect(cls, `${lang} delayed-font CLS`).toBeLessThan(0.05);
+    }
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  });
+}
+
 test("phone visitor (Android): CTA falls back to Windows guide and no 'Your system' badge is shown", async ({
   page,
 }) => {

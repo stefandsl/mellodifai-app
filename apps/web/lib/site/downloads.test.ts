@@ -143,6 +143,7 @@ describe("desktop downloads catalog (single source of truth)", () => {
         section: number;
         field: string;
         source: string;
+        reason?: string;
       }>;
       widths: Record<
         string,
@@ -189,9 +190,32 @@ describe("desktop downloads catalog (single source of truth)", () => {
       w: 358,
     });
 
-    // 390 #4 Showcase uses desktop outline contentLeft/Right 16 (not home's 24).
-    expect(ref.widths["390"].sections[4].contentLeft).toBe(16);
-    expect(ref.widths["390"].sections[4].contentRight).toBe(16);
+    // 390 #4 Showcase uses desktop outline container x=16 + padX=8 -> 24 (matching 1024 and 1440).
+    expect(ref.widths["390"].sections[4].contentLeft).toBe(24);
+    expect(ref.widths["390"].sections[4].contentRight).toBe(24);
+    const showcase390Repair = ref.repairs?.find(
+      (r) =>
+        r.width === 390 && r.section === 4 && r.field.includes("contentLeft"),
+    );
+    expect(showcase390Repair?.reason).toContain("padX");
+
+    // 1024 #7 Own agents grid uses the outer stack consistently (itemW 862, colGap/rowGap 60),
+    // with every repaired field recorded in repairs.
+    expect(ref.widths["1024"].sections[7].grid).toEqual({
+      items: 2,
+      perRow: 1,
+      colGap: 60,
+      rowGap: 60,
+      itemW: 862,
+      x: 81,
+      w: 862,
+    });
+    const repaired1024Sec7Fields = (ref.repairs ?? [])
+      .filter((r) => r.width === 1024 && r.section === 7)
+      .map((r) => r.field);
+    expect(repaired1024Sec7Fields).toEqual(
+      expect.arrayContaining(["grid.itemW", "grid.colGap", "grid.rowGap"]),
+    );
 
     // Study blocks values preserved.
     expect(ref.widths["390"].sections[6].blocks).toBe(4);
