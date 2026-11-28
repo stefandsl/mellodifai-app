@@ -1148,6 +1148,9 @@ test("C04 kind stage at 1440x900: sticky for 2700 px +/- 100 and scroll drives a
     await expect(page.locator(".site-kinds__title")).toHaveText(
       en.kinds.items[i].name,
     );
+    await expect(page.locator('[data-kind-line="true"]')).not.toHaveAttribute(
+      "aria-live",
+    );
     await expect
       .poll(
         () =>
@@ -1168,6 +1171,137 @@ test("C04 kind stage at 1440x900: sticky for 2700 px +/- 100 and scroll drives a
       )
       .toEqual({ active: "1", other: "0" });
   }
+});
+
+test("C04 kind stage at 1440x900: mouse and keyboard selection scrolls to step and stays active after 40 px scroll", async ({
+  page,
+  browserName,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page);
+
+  const geom = await page.evaluate(() => {
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    if (!track || !sticky) return null;
+    const tRect = track.getBoundingClientRect();
+    const sRect = sticky.getBoundingClientRect();
+    const stickyTopCss = Number.parseFloat(getComputedStyle(sticky).top);
+    return {
+      trackDocTop: tRect.top + window.scrollY,
+      stickyTopCss,
+      travel: tRect.height - sRect.height,
+    };
+  });
+  expect(geom).not.toBeNull();
+  const startY = Math.round(
+    (geom?.trackDocTop ?? 0) - (geom?.stickyTopCss ?? 0),
+  );
+  const travel = geom?.travel ?? 2700;
+  const kind0Y = Math.round(startY + (0.5 / en.kinds.items.length) * travel);
+  const kind5Y = Math.round(startY + (5.5 / en.kinds.items.length) * travel);
+  const kind6Y = Math.round(startY + (6.5 / en.kinds.items.length) * travel);
+
+  const body = page.locator("[data-kinds-stage]");
+  const captionLine = page.locator('[data-kind-line="true"]');
+  const btn0 = page.locator('.site-kinds__name[data-kind-index="0"]');
+  const btn5 = page.locator('.site-kinds__name[data-kind-index="5"]');
+
+  // Start inside step 0.
+  await page.evaluate((y) => window.scrollTo(0, y), kind0Y);
+  await expect(body).toHaveAttribute("data-kind-active", "0");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+
+  // Mouse selection of kind 5 scrolls to kind 5 step, enables aria-live, and stays active after +40 px scroll.
+  await btn5.click();
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".site-kinds__title")).toHaveText(
+    en.kinds.items[5].name,
+  );
+  await expect(captionLine).toHaveAttribute("aria-live", "polite");
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          (target) => Math.abs(Math.round(window.scrollY) - target),
+          kind5Y,
+        ),
+      { timeout: 5000 },
+    )
+    .toBeLessThanOrEqual(2);
+
+  await page.evaluate(() =>
+    window.scrollTo(0, Math.round(window.scrollY) + 40),
+  );
+  await page.evaluate(
+    () =>
+      new Promise<void>((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => r())),
+      ),
+  );
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+
+  // Scroll to step 6: scroll-driven change clears aria-live.
+  await page.evaluate((y) => window.scrollTo(0, y), kind6Y);
+  await expect(body).toHaveAttribute("data-kind-active", "6");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+
+  // Return to step 0 and test keyboard selection (Tab to kind 5, press Space, then scroll 40 px).
+  await page.evaluate((y) => window.scrollTo(0, y), kind0Y);
+  await expect(body).toHaveAttribute("data-kind-active", "0");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+
+  if (browserName === "webkit") {
+    // Safari default keyboard settings skip buttons on plain Tab, so focus kind 5 directly before Space.
+    await btn5.focus();
+  } else {
+    await btn0.focus();
+    for (let step = 0; step < 5; step++) {
+      await page.keyboard.press("Tab");
+    }
+  }
+  await expect(btn5).toBeFocused();
+  await page.keyboard.press("Space");
+
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".site-kinds__title")).toHaveText(
+    en.kinds.items[5].name,
+  );
+  await expect(captionLine).toHaveAttribute("aria-live", "polite");
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          (target) => Math.abs(Math.round(window.scrollY) - target),
+          kind5Y,
+        ),
+      { timeout: 5000 },
+    )
+    .toBeLessThanOrEqual(2);
+
+  await page.evaluate(() =>
+    window.scrollTo(0, Math.round(window.scrollY) + 40),
+  );
+  await page.evaluate(
+    () =>
+      new Promise<void>((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => r())),
+      ),
+  );
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+
+  // Scroll to step 6 again: scroll-driven change clears aria-live.
+  await page.evaluate((y) => window.scrollTo(0, y), kind6Y);
+  await expect(body).toHaveAttribute("data-kind-active", "6");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
 });
 
 test("C04 kind stage at 390x844: not sticky and supports mouse and keyboard selection", async ({
