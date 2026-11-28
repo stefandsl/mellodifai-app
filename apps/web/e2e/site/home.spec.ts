@@ -472,7 +472,11 @@ test("C04 rotating hero line changes every 6.0 s +/- 0.3 s and keeps one fixed t
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.clock.install();
+  // Paused clock, as in the feature reel test: no real time leaks into the
+  // measured interval between page load and the first sample.
+  const fixedTime = Date.UTC(2026, 10, 26, 12, 0, 0);
+  await page.clock.install({ time: fixedTime });
+  await page.clock.pauseAt(fixedTime);
   await page.goto("/");
   await expect(page.locator('[data-hero-rotator="true"]')).toHaveAttribute(
     "data-rotator-running",
@@ -813,7 +817,11 @@ for (const [width, height] of [
     page,
   }) => {
     await page.setViewportSize({ width, height });
-    await page.clock.install();
+    // Paused clock: real time between page load and the first sample must not
+    // shorten the measured step (CI saw 4579 ms under load with a running clock).
+    const fixedTime = Date.UTC(2026, 10, 26, 12, 0, 0);
+    await page.clock.install({ time: fixedTime });
+    await page.clock.pauseAt(fixedTime);
     await page.goto("/");
     const reel0 = page.locator('[data-feature-reel="0"]');
     await expect(reel0).toHaveAttribute("data-reel-paused", "false");
