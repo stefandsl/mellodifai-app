@@ -40,7 +40,7 @@
       "old": false,
       "new": true,
       "source": "pages/desktop/outline-390.json",
-      "reason": "Section 4 Showcase exists in outline-390.json at box [0, 2880.8, 390, 1184] with layout.pad [96, 16, 96, 16] and container x=16 w=358; raw layout-ref auto-matcher missed it."
+      "reason": "Section 4 Showcase exists in outline-390.json at box [0, 2880.8, 390, 1184] with container [16, 3095.1, 358, 786.7] and padX [8, 8]; raw layout-ref auto-matcher missed it."
     },
     {
       "width": 390,
@@ -51,14 +51,14 @@
         "y": 2881,
         "h": 1184,
         "blocks": 1,
-        "contentLeft": 16,
-        "contentRight": 16,
+        "contentLeft": 24,
+        "contentRight": 24,
         "topInset": 96,
         "bottomInset": 96,
         "grid": null
       },
       "source": "pages/desktop/outline-390.json",
-      "reason": "Derived directly from outline-390.json section 4 (box [0, 2880.8, 390, 1184], layout.pad [96, 16, 96, 16], container [16, 3095.1, 358, 786.7]) and STUDY.md section 4 (390 no grid)."
+      "reason": "Derived directly from outline-390.json section 4 (box [0, 2880.8, 390, 1184], layout.pad [96, 16, 96, 16], container [16, 3095.1, 358, 786.7] with padX [8, 8] -> 16 + 8 = 24, matching the 1024 and 1440 container + padX rule) and STUDY.md section 4 (390 no grid)."
     },
     {
       "width": 1024,
@@ -138,7 +138,25 @@
       "old": 171,
       "new": 862,
       "source": "pages/desktop/outline-1024.json",
-      "reason": "Section 7 panel width is 862 at x=81 in outline-1024.json (section 7 box[2]=862, section 8 childBoxes[0][2]=862); 171 was the squished left column of the vertically offset flex row."
+      "reason": "Outer stack of Own agents blocks (outline-1024.json section 7 [81, 4519.1, 862, 779] and section 8 [81, 5358.1, 862, 274.5]) has item width 862 at x=81."
+    },
+    {
+      "width": 1024,
+      "section": 7,
+      "field": "grid.colGap",
+      "old": 80,
+      "new": 60,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Consistent with the outer stack of outline-1024.json sections 7 and 8 whose gap is 5358.1 - (4519.1 + 779) = 60 (80 belonged to the inner flex row)."
+    },
+    {
+      "width": 1024,
+      "section": 7,
+      "field": "grid.rowGap",
+      "old": 80,
+      "new": 60,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Consistent with the outer stack of outline-1024.json sections 7 and 8 whose vertical gap is 5358.1 - (4519.1 + 779) = 60 (80 belonged to the inner flex row)."
     }
   ],
   "widths": {
@@ -207,8 +225,8 @@
           "y": 2881,
           "h": 1184,
           "blocks": 1,
-          "contentLeft": 16,
-          "contentRight": 16,
+          "contentLeft": 24,
+          "contentRight": 24,
           "topInset": 96,
           "bottomInset": 96,
           "grid": null
@@ -420,8 +438,8 @@
           "grid": {
             "items": 2,
             "perRow": 1,
-            "colGap": 80,
-            "rowGap": 80,
+            "colGap": 60,
+            "rowGap": 60,
             "itemW": 862,
             "x": 81,
             "w": 862

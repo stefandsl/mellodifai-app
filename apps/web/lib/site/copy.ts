@@ -1636,7 +1636,7 @@ const it: SiteCopy = {
         "Usa MellodifAI in locale sul tuo computer: installer Windows dal repository, macOS e Linux in programma, studio browser sempre aperto.",
     },
     hero: {
-      title: "Lo studio MellodifAI sul tuo computer",
+      title: "MellodifAI sul tuo computer",
       line: "Tieni canzoni, take e motori locali sul tuo disco, con lo stesso studio che apri nel browser.",
       browserAction: "Usa nel browser",
       allPlatforms: "Vedi tutte le piattaforme",

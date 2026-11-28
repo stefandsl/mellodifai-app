@@ -342,7 +342,7 @@
   }
   .site-desk-agents__top {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--site-gutter-lg);
+    gap: var(--site-feature-gap);
   }
 }
 
@@ -351,6 +351,16 @@
   .site-desk-hero {
     padding: var(--site-page-top-sm) var(--site-gutter-sm)
       var(--site-desk-hero-end-sm);
+  }
+  .site-desk-hero__title {
+    /* Reserve two lines on narrow screens so heading font swap never shifts elements below. */
+    min-height: calc(
+      var(--text-display-1-size) *
+      var(--text-display-1-leading) *
+      2
+    );
+    display: grid;
+    align-content: center;
   }
   .site-desk-hero__actions {
     flex-direction: column;
@@ -388,9 +398,6 @@
   .site-desk-agents__steps {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--spacing-6);
-  }
-  .site-show--desktop {
-    padding-inline: var(--site-gutter-sm);
   }
   .site-close--desktop {
     display: none;
