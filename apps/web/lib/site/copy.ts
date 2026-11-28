@@ -6,6 +6,7 @@ import type {
   RecipeKind,
   RecipeOutput,
 } from "@mellodifai/shared";
+import type { DesktopPlatformId, DesktopPlatformStatus } from "./downloads";
 import type { AgentName, RouteName } from "./nav";
 import type { CellText, CompareGroup, CompareRow } from "./plans";
 
@@ -198,6 +199,68 @@ export type SiteCopy = {
       pausedStatus: string;
       of: string;
     };
+  };
+  desktop: {
+    meta: { title: string; description: string };
+    hero: {
+      title: string;
+      line: string;
+      browserAction: string;
+      allPlatforms: string;
+      notes: [string, string];
+      shotLabel: string;
+      watchPill: string;
+    };
+    ctaLabel: Record<DesktopPlatformId, string>;
+    heroNote: Record<DesktopPlatformId, string>;
+    platforms: {
+      title: string;
+      line: string;
+      currentBadge: string;
+      colPlatform: string;
+      colStatus: string;
+      colPackage: string;
+      colAction: string;
+      names: Record<DesktopPlatformId, string>;
+      statusLabels: Record<DesktopPlatformStatus, string>;
+      details: Record<DesktopPlatformId, string>;
+      windowsAction: string;
+      browserAction: string;
+      plannedNote: string;
+    };
+    included: {
+      title: string;
+      line: string;
+      cardName: string;
+      cardPrice: string;
+      cardSubtitle: string;
+      items: string[];
+    };
+    benefits: {
+      title: string;
+      items: { title: string; line: string }[];
+    };
+    showcaseTitle: string;
+    steps: {
+      title: string;
+      items: { title: string; line: string }[];
+      note: string;
+    };
+    agents: {
+      title: string;
+      line: string;
+      link: string;
+      connectTitle: string;
+      shotTitle: string;
+      shotLines: string[];
+      steps: { title: string; line: string }[];
+    };
+    closing: {
+      title: string;
+      notes: [string, string];
+    };
+    faqTitle: string;
+    faq: Question[];
   };
   footer: {
     tagline: string;
@@ -762,6 +825,195 @@ const en: SiteCopy = {
       pausedStatus: "Clip paused",
       of: "of",
     },
+  },
+  desktop: {
+    meta: {
+      title: "Desktop app - MellodifAI",
+      description:
+        "Run MellodifAI locally on your computer: Windows installer from the repository, macOS and Linux planned, browser studio always open.",
+    },
+    hero: {
+      title: "MellodifAI on your computer",
+      line: "Keep songs, takes and local engines on your own disk, with the same studio you open in the browser.",
+      browserAction: "Use in the browser",
+      allPlatforms: "See all platforms",
+      notes: ["Your own engine or the cloud", "Free local mode"],
+      shotLabel:
+        "MellodifAI local desktop window showing the song list, open verse lyrics and stem waveform.",
+      watchPill: "Compare platforms",
+    },
+    ctaLabel: {
+      windows: "Windows installer guide",
+      macos: "macOS planned - see platforms",
+      linux: "Linux planned - see platforms",
+    },
+    heroNote: {
+      windows:
+        "Windows 10 and 11 (x64): NSIS installer built from the repository (no hosted GitHub release binary yet).",
+      macos:
+        "macOS package (Apple Silicon and Intel) is planned. Open the browser studio now.",
+      linux:
+        "Linux package (x64 and ARM64) is planned. Open the browser studio now.",
+    },
+    platforms: {
+      title: "Platforms and honest release state",
+      line: "We only show a download or installer link where a real package build exists in this repository.",
+      currentBadge: "Your system",
+      colPlatform: "Platform",
+      colStatus: "Status",
+      colPackage: "Package",
+      colAction: "Next step",
+      names: {
+        windows: "Windows",
+        macos: "macOS",
+        linux: "Linux",
+      },
+      statusLabels: {
+        release: "Available",
+        source: "Build from source",
+        planned: "Planned",
+      },
+      details: {
+        windows:
+          "Per-user NSIS installer in apps/windows (no admin rights, no Docker, no WSL). Built locally from docs/windows-app.md; zero hosted GitHub releases yet.",
+        macos:
+          "Apple Silicon and Intel builds are planned. No macOS installer exists in the repository yet.",
+        linux:
+          "Linux desktop packages are planned. No Linux installer exists in the repository yet.",
+      },
+      windowsAction: "Read Windows build guide",
+      browserAction: "Use in the browser",
+      plannedNote: "Planned - no package link yet",
+    },
+    included: {
+      title: "Local mode is included with the studio",
+      line: "Run the database, studio window and local audio pipeline on your own machine without spending cloud credits.",
+      cardName: "Local",
+      cardPrice: "0 credits",
+      cardSubtitle: "Everything that runs on your own machine",
+      items: [
+        "Per-user install on Windows 10 and 11 (x64)",
+        "No administrator rights, Docker or WSL needed",
+        "Songs, stems and backups stay in your chosen folder",
+        "Connect your own API keys or local audio worker",
+        "Automatic local backup before every update",
+        "Same editor and recipes as the browser studio",
+        "Local MCP and CLI access for your coding agents",
+      ],
+    },
+    benefits: {
+      title: "Why run MellodifAI on your own machine",
+      items: [
+        {
+          title: "Drive it with your own agent",
+          line: "Pair Claude, ChatGPT, Gemini, Codex or Cursor directly with your local studio through MCP or the CLI.",
+        },
+        {
+          title: "Files stay on your disk",
+          line: "Drafts, takes, backups and keys live inside your installation folder until you decide to export or publish.",
+        },
+        {
+          title: "Spend fewer cloud credits",
+          line: "Trimming, alignment, local worker runs and database storage run on your computer with zero credit burn.",
+        },
+        {
+          title: "Built for full albums",
+          line: "Work through long tracks, dozens of takes and lyric videos without uploading raw stems over slow links.",
+        },
+      ],
+    },
+    showcaseTitle: "Songs edited with MellodifAI",
+    steps: {
+      title: "Up and running in three steps",
+      items: [
+        {
+          title: "Build or open the app",
+          line: "Follow docs/windows-app.md to build MellodifAI-Setup.exe on Windows, or open the studio directly in your browser.",
+        },
+        {
+          title: "Open your studio window",
+          line: "Launch from the Start menu or desktop icon. The local stack starts on port 46300 and signs you in.",
+        },
+        {
+          title: "Paste a song link",
+          line: "Bring a link or audio file, rewrite any line or swap the voice, and export stems or a lyric video.",
+        },
+      ],
+      note: "macOS and Linux desktop packages are planned. The browser studio works on every recent Chromium, Firefox and WebKit browser.",
+    },
+    agents: {
+      title: "Bring your own agents",
+      line: "Every editing tool in the desktop studio is exposed through our Model Context Protocol server and the mellodifai command line.",
+      link: "See agent setup",
+      connectTitle: "Three steps to connect an agent",
+      shotTitle: "Local agent bridge",
+      shotLines: [
+        "mellodifai studio status --json -> ok (127.0.0.1:46300)",
+        "mcp tool: rewrite_section verse=2 rhyme=keep",
+        "take 04 saved locally - 0 cloud credits used",
+      ],
+      steps: [
+        {
+          title: "Create a local token",
+          line: "Open Settings > Agents inside the desktop window and mint a scoped personal token for your assistant.",
+        },
+        {
+          title: "Point your agent at MCP",
+          line: "Add the local MCP server address or run the mellodifai CLI from Claude, ChatGPT, Gemini, Codex or Cursor.",
+        },
+        {
+          title: "Ask for a song edit",
+          line: "Review every take in the waveform editor; publishing stays off until you explicitly turn it on.",
+        },
+      ],
+    },
+    closing: {
+      title: "Your studio, right on your desk",
+      notes: ["Local Windows installer in repo", "Browser studio on every OS"],
+    },
+    faqTitle: "Desktop app, asked and answered",
+    faq: [
+      {
+        q: "Which Windows versions are supported today?",
+        a: "Windows 10 and Windows 11 on x64. The per-user NSIS installer in apps/windows runs without administrator rights, Docker or WSL.",
+      },
+      {
+        q: "Is there a ready-to-download installer on GitHub Releases?",
+        a: "Not yet. Zero GitHub Releases are published today, so the Windows button opens docs/windows-app.md with the build command for MellodifAI-Setup.exe.",
+      },
+      {
+        q: "When do macOS Apple Silicon and Intel packages arrive?",
+        a: "macOS packages for Apple Silicon and Intel are planned. Until they ship, every feature of the web studio works in Safari, Firefox and Chromium on macOS.",
+      },
+      {
+        q: "Is there a Linux package yet?",
+        a: "Linux packages for x64 and ARM64 are planned. Today there is no Linux installer in the repository, and the browser studio works across Linux browsers.",
+      },
+      {
+        q: "Does the desktop app require Docker or WSL?",
+        a: "No. On Windows the installer prepares its own native local stack inside your chosen data folder without Docker or WSL.",
+      },
+      {
+        q: "Where are my songs, keys and backups stored?",
+        a: "Everything stays inside the data directory under your installation folder, kept off drive C: and separate from any other environment.",
+      },
+      {
+        q: "Do local edits use cloud credits?",
+        a: "Work that runs locally on your machine uses zero credits. Paid cloud providers are called only when you add your own keys and start a cloud job.",
+      },
+      {
+        q: "How do updates work on Windows?",
+        a: "Running a newer MellodifAI-Setup installer stops the app, saves a verified backup of your data, updates the files and restarts with your songs intact.",
+      },
+      {
+        q: "Can I uninstall without losing my songs?",
+        a: "Yes. The uninstaller asks whether to keep or remove your data folder, and defaults to keeping your database, songs and backups.",
+      },
+      {
+        q: "Can my AI agents control the desktop studio?",
+        a: "Yes. The local desktop origin supports personal access tokens for our MCP server and the mellodifai CLI.",
+      },
+    ],
   },
   footer: {
     tagline: "Every song is a draft.",
@@ -1356,6 +1608,195 @@ const it: SiteCopy = {
       pausedStatus: "Clip in pausa",
       of: "di",
     },
+  },
+  desktop: {
+    meta: {
+      title: "App desktop - MellodifAI",
+      description:
+        "Usa MellodifAI in locale sul tuo computer: installer Windows dal repository, macOS e Linux in programma, studio browser sempre aperto.",
+    },
+    hero: {
+      title: "MellodifAI sul tuo computer",
+      line: "Tieni canzoni, take e motori locali sul tuo disco, con lo stesso studio che apri nel browser.",
+      browserAction: "Usa nel browser",
+      allPlatforms: "Vedi tutte le piattaforme",
+      notes: ["Il tuo motore o il cloud", "Modalità locale gratuita"],
+      shotLabel:
+        "Finestra desktop locale di MellodifAI con elenco brani, testo aperto e forma d'onda delle tracce.",
+      watchPill: "Confronta le piattaforme",
+    },
+    ctaLabel: {
+      windows: "Guida installer Windows",
+      macos: "macOS in programma - vedi piattaforme",
+      linux: "Linux in programma - vedi piattaforme",
+    },
+    heroNote: {
+      windows:
+        "Windows 10 e 11 (x64): installer NSIS generato dal repository (nessuna release binaria pubblicata su GitHub).",
+      macos:
+        "Il pacchetto macOS (Apple Silicon e Intel) è in programma. Apri subito lo studio nel browser.",
+      linux:
+        "Il pacchetto Linux (x64 e ARM64) è in programma. Apri subito lo studio nel browser.",
+    },
+    platforms: {
+      title: "Piattaforme e stato reale delle release",
+      line: "Mostriamo un link di installazione solo dove esiste davvero un pacchetto nel repository.",
+      currentBadge: "Il tuo sistema",
+      colPlatform: "Piattaforma",
+      colStatus: "Stato",
+      colPackage: "Pacchetto",
+      colAction: "Prossimo passo",
+      names: {
+        windows: "Windows",
+        macos: "macOS",
+        linux: "Linux",
+      },
+      statusLabels: {
+        release: "Disponibile",
+        source: "Compila dai sorgenti",
+        planned: "In programma",
+      },
+      details: {
+        windows:
+          "Installer NSIS per utente in apps/windows (senza diritti di amministratore, senza Docker né WSL). Compilabile da docs/windows-app.md; nessuna release GitHub pubblicata.",
+        macos:
+          "I pacchetti Apple Silicon e Intel sono in programma. Non esiste ancora alcun installer macOS nel repository.",
+        linux:
+          "I pacchetti desktop Linux sono in programma. Non esiste ancora alcun installer Linux nel repository.",
+      },
+      windowsAction: "Apri la guida Windows",
+      browserAction: "Usa nel browser",
+      plannedNote: "In programma - nessun pacchetto disponibile",
+    },
+    included: {
+      title: "La modalità locale è inclusa nello studio",
+      line: "Esegui database, finestra studio e pipeline audio locale sul tuo computer senza consumare crediti cloud.",
+      cardName: "Locale",
+      cardPrice: "0 crediti",
+      cardSubtitle: "Tutto quello che gira sul tuo computer",
+      items: [
+        "Installazione per utente su Windows 10 e 11 (x64)",
+        "Nessun diritto di amministratore, Docker o WSL richiesto",
+        "Brani, stem e backup restano nella cartella scelta da te",
+        "Collega le tue chiavi API o il worker audio locale",
+        "Backup locale automatico prima di ogni aggiornamento",
+        "Stesso editor e stesse ricette dello studio nel browser",
+        "Accesso locale MCP e CLI per i tuoi agenti",
+      ],
+    },
+    benefits: {
+      title: "Perché usare MellodifAI sul tuo computer",
+      items: [
+        {
+          title: "Guidalo con il tuo agente",
+          line: "Collega Claude, ChatGPT, Gemini, Codex o Cursor allo studio locale tramite MCP o la riga di comando.",
+        },
+        {
+          title: "I file restano sul disco",
+          line: "Bozze, take, backup e chiavi vivono nella tua cartella di installazione finché non decidi di esportare.",
+        },
+        {
+          title: "Consuma meno crediti cloud",
+          line: "Taglio, allineamento, worker locale e database girano sul tuo computer senza usare crediti.",
+        },
+        {
+          title: "Pensato per album interi",
+          line: "Lavora su brani lunghi, decine di take e video del testo senza caricare stem pesanti in rete.",
+        },
+      ],
+    },
+    showcaseTitle: "Canzoni modificate con MellodifAI",
+    steps: {
+      title: "Pronto in tre passaggi",
+      items: [
+        {
+          title: "Compila o apri l'app",
+          line: "Segui docs/windows-app.md per creare MellodifAI-Setup.exe su Windows, oppure apri lo studio nel browser.",
+        },
+        {
+          title: "Apri la finestra studio",
+          line: "Avvia dal menu Start o dall'icona sul desktop. Lo stack locale parte sulla porta 46300 e ti fa accedere.",
+        },
+        {
+          title: "Incolla il link di un brano",
+          line: "Porta un link o un file audio, riscrivi un verso o cambia voce ed esporta stem o video del testo.",
+        },
+      ],
+      note: "I pacchetti desktop per macOS e Linux sono in programma. Lo studio browser funziona su ogni browser moderno Chromium, Firefox e WebKit.",
+    },
+    agents: {
+      title: "Porta i tuoi agenti",
+      line: "Ogni strumento di modifica dello studio desktop è disponibile tramite il nostro server MCP e il comando mellodifai.",
+      link: "Vedi configurazione agenti",
+      connectTitle: "Tre passaggi per collegare un agente",
+      shotTitle: "Ponte locale per agenti",
+      shotLines: [
+        "mellodifai studio status --json -> ok (127.0.0.1:46300)",
+        "mcp tool: rewrite_section verse=2 rhyme=keep",
+        "take 04 salvata in locale - 0 crediti cloud usati",
+      ],
+      steps: [
+        {
+          title: "Crea un token locale",
+          line: "Apri Impostazioni > Agenti nella finestra desktop e genera un token personale per il tuo assistente.",
+        },
+        {
+          title: "Collega il server MCP",
+          line: "Inserisci l'indirizzo MCP locale oppure usa la CLI mellodifai da Claude, ChatGPT, Gemini, Codex o Cursor.",
+        },
+        {
+          title: "Chiedi una modifica al brano",
+          line: "Ascolta ogni take nell'editor a forma d'onda; la pubblicazione resta spenta finché non la attivi tu.",
+        },
+      ],
+    },
+    closing: {
+      title: "Il tuo studio, direttamente sulla scrivania",
+      notes: ["Installer Windows nel repo", "Studio browser su ogni sistema"],
+    },
+    faqTitle: "App desktop, domande e risposte",
+    faq: [
+      {
+        q: "Quali versioni di Windows sono supportate oggi?",
+        a: "Windows 10 e Windows 11 a 64 bit. L'installer NSIS per utente in apps/windows funziona senza diritti di amministratore, Docker o WSL.",
+      },
+      {
+        q: "Esiste già un installer pronto su GitHub Releases?",
+        a: "Non ancora. Oggi non ci sono release pubblicate su GitHub, quindi il pulsante Windows apre docs/windows-app.md con il comando per generare MellodifAI-Setup.exe.",
+      },
+      {
+        q: "Quando arrivano i pacchetti macOS Apple Silicon e Intel?",
+        a: "I pacchetti macOS per Apple Silicon e Intel sono in programma. Finché non escono, tutte le funzioni dello studio web funzionano su Safari, Firefox e Chromium.",
+      },
+      {
+        q: "Esiste già un pacchetto per Linux?",
+        a: "I pacchetti Linux per x64 e ARM64 sono in programma. Oggi nel repository non c'è un installer Linux, ma lo studio browser gira su tutti i browser Linux.",
+      },
+      {
+        q: "L'app desktop richiede Docker o WSL?",
+        a: "No. Su Windows l'installer prepara il proprio stack locale nativo nella cartella dati scelta da te, senza Docker né WSL.",
+      },
+      {
+        q: "Dove vengono salvati brani, chiavi e backup?",
+        a: "Tutto resta nella cartella dati dentro la directory di installazione, fuori dal disco C: e separato dagli altri ambienti.",
+      },
+      {
+        q: "Le modifiche locali consumano crediti cloud?",
+        a: "Il lavoro che gira sul tuo computer usa zero crediti. I motori cloud a pagamento intervengono solo quando inserisci le tue chiavi e avvii un lavoro cloud.",
+      },
+      {
+        q: "Come funzionano gli aggiornamenti su Windows?",
+        a: "Avviare un installer MellodifAI-Setup più recente ferma l'app, salva un backup verificato dei dati, aggiorna i file e riavvia mantenendo i tuoi brani.",
+      },
+      {
+        q: "Posso disinstallare senza perdere le mie canzoni?",
+        a: "Sì. Il programma di disinstallazione chiede se conservare o eliminare la cartella dati e mantiene database, brani e backup per impostazione predefinita.",
+      },
+      {
+        q: "I miei agenti AI possono usare lo studio desktop?",
+        a: "Sì. L'origine desktop locale supporta token personali per il nostro server MCP e per la CLI mellodifai.",
+      },
+    ],
   },
   footer: {
     tagline: "Ogni canzone è una bozza.",

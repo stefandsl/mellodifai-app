@@ -9,7 +9,7 @@ export const ROUTES = {
   start: { route: "/create", built: true, fallback: "/create" },
   signIn: { route: "/login", built: true, fallback: "/login" },
   songbook: { route: "/recipes", built: true, fallback: "/#kinds" },
-  desktop: { route: "/desktop", built: false, fallback: "/#studio" },
+  desktop: { route: "/desktop", built: true, fallback: "/#studio" },
   agents: { route: "/agents", built: false, fallback: "/#agents" },
   plans: { route: "/pricing", built: true, fallback: "/#plans" },
   changelog: { route: "/changelog", built: false, fallback: "/#steps" },
