@@ -615,6 +615,7 @@ export function buildMinifiedPageCss(options: {
     | "desktop"
     | "recipes"
     | "recipe-detail"
+    | "changelog"
     | "not-found";
   bodyHtml: string;
   extraClasses?: readonly string[];
@@ -682,6 +683,11 @@ export function buildMinifiedPageCss(options: {
   } else if (options.page === "recipe-detail") {
     extraPageCss = fs.readFileSync(
       path.join(WEB_DIR, "components/site/recipe-detail.css"),
+      "utf8",
+    );
+  } else if (options.page === "changelog") {
+    extraPageCss = fs.readFileSync(
+      path.join(WEB_DIR, "components/site/changelog.css"),
       "utf8",
     );
   }

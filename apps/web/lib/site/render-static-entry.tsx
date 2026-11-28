@@ -11,6 +11,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CoverKind } from "@/components/site/art";
+import { ChangelogPage } from "@/components/site/changelog-page";
 import { CompareTable } from "@/components/site/compare-table";
 import { DesktopPage } from "@/components/site/desktop-page";
 import { Faq } from "@/components/site/faq";
@@ -38,6 +39,7 @@ import {
   SiteHeader,
   type SiteHeaderPrimaryAction,
 } from "@/components/site/site-header";
+import type { ChangelogEntry } from "@/lib/site/changelog-types";
 import { SITE_COPY, type SiteLang } from "@/lib/site/copy";
 import {
   DEFAULT_DESKTOP_PLATFORM,
@@ -63,6 +65,7 @@ export type StaticAssetUrls = {
     desktop: string;
     recipes: string;
     "recipe-detail": string;
+    changelog: string;
   };
 };
 
@@ -74,6 +77,7 @@ const DEFAULT_ASSET_URLS: StaticAssetUrls = {
     desktop: "/site/islands/desktop.js",
     recipes: "/site/islands/recipes.js",
     "recipe-detail": "/site/islands/recipe-detail.js",
+    changelog: "/site/islands/changelog.js",
   },
 };
 
@@ -166,6 +170,7 @@ function renderDocument(options: {
     | "desktop"
     | "recipes"
     | "recipe-detail"
+    | "changelog"
     | "not-found";
   title: string;
   description: string;
@@ -641,6 +646,28 @@ export function renderRecipeDetailStatic(
   });
 }
 
+export function renderChangelogStatic(
+  entries: readonly ChangelogEntry[],
+  lang: SiteLang,
+  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+): { html: string; fontsCss: string; bodyHtml: string } {
+  if (entries.length === 0) {
+    throw new Error(
+      "renderChangelogStatic: changelog entries must not be empty",
+    );
+  }
+  const copy = SITE_COPY[lang];
+  return renderDocument({
+    lang,
+    page: "changelog",
+    title: copy.changelog.meta.title,
+    description: copy.changelog.meta.description,
+    fontsUrl: assets.fontsUrl,
+    scripts: [assets.islandUrls.changelog],
+    children: <ChangelogPage entries={entries} lang={lang} copy={copy} />,
+  });
+}
+
 export function renderNotFoundStatic(
   lang: SiteLang,
   assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
@@ -658,8 +685,14 @@ export function renderNotFoundStatic(
 }
 
 export function renderAllStaticPages(
-  assets: StaticAssetUrls = DEFAULT_ASSET_URLS,
+  assets: StaticAssetUrls,
+  changelogEntries: readonly ChangelogEntry[],
 ) {
+  if (!Array.isArray(changelogEntries) || changelogEntries.length === 0) {
+    throw new Error(
+      "renderAllStaticPages: changelogEntries is required and must be non-empty",
+    );
+  }
   const pages: Record<string, string> = {};
   let fontsCss = "";
   const publishedRecipes = getPublishedRecipes();
@@ -674,6 +707,9 @@ export function renderAllStaticPages(
 
     const desktop = renderDesktopStatic(lang, assets);
     pages[`desktop-${lang}.html`] = desktop.html;
+
+    const changelog = renderChangelogStatic(changelogEntries, lang, assets);
+    pages[`changelog-${lang}.html`] = changelog.html;
 
     const notFound = renderNotFoundStatic(lang, assets);
     pages[`not-found-${lang}.html`] = notFound.html;

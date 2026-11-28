@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadChangelogEntries } from "./site-study/changelog-data.mjs";
 
 const SCRIPT_DIR = import.meta.dirname;
 const WEB_DIR = path.resolve(SCRIPT_DIR, "..");
@@ -17,6 +18,8 @@ export const EXPECTED_STATIC_PAGES = [
   "pricing-it.html",
   "desktop-en.html",
   "desktop-it.html",
+  "changelog-en.html",
+  "changelog-it.html",
   "not-found-en.html",
   "not-found-it.html",
   "recipes-canvas-en.html",
@@ -35,6 +38,7 @@ export const EXPECTED_STATIC_ISLANDS = [
   "desktop",
   "recipes",
   "recipe-detail",
+  "changelog",
 ];
 
 function listPublishedRecipeSlugs() {
@@ -375,21 +379,23 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
   let fontsCss = "";
   let fontsFile = "";
   let fontsUrl = "";
-  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string }} */
+  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string; changelog: string }} */
   const islandFiles = {
     home: "",
     pricing: "",
     desktop: "",
     recipes: "",
     "recipe-detail": "",
+    changelog: "",
   };
-  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string }} */
+  /** @type {{ home: string; pricing: string; desktop: string; recipes: string; "recipe-detail": string; changelog: string }} */
   const islandUrls = {
     home: "",
     pricing: "",
     desktop: "",
     recipes: "",
     "recipe-detail": "",
+    changelog: "",
   };
 
   try {
@@ -429,7 +435,7 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
 
     for (const outputFile of islandBuild.outputFiles) {
       const base =
-        /** @type {"home" | "pricing" | "desktop" | "recipes" | "recipe-detail"} */ (
+        /** @type {"home" | "pricing" | "desktop" | "recipes" | "recipe-detail" | "changelog"} */ (
           path.basename(outputFile.path, ".js")
         );
       const hash = contentHash(outputFile.contents);
@@ -442,11 +448,17 @@ export async function buildSiteStatic(outDir = OUT_DIR, options = {}) {
       islandUrls[base] = `/site/islands/${hashedName}`;
     }
 
-    // 3. Render all 12 static HTML documents referencing the hashed URLs.
-    ({ pages } = mod.renderAllStaticPages({
-      fontsUrl,
-      islandUrls,
-    }));
+    // 3. Load git-tag changelog entries at build time (never needs git at request time).
+    const changelogEntries = loadChangelogEntries({ repoRoot: REPO_ROOT });
+
+    // 4. Render all static HTML documents referencing the hashed URLs.
+    ({ pages } = mod.renderAllStaticPages(
+      {
+        fontsUrl,
+        islandUrls,
+      },
+      changelogEntries,
+    ));
   } finally {
     if (prevWebDir === undefined) delete process.env.SITE_STATIC_WEB_DIR;
     else process.env.SITE_STATIC_WEB_DIR = prevWebDir;

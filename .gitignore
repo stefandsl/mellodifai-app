@@ -15,5 +15,8 @@ packages/*/src/**/*.js
 # throwaway output of the static site build tests and its prerender runner
 .tmp-site-*
 
+# generated from live git tags when copying/archiving without .git
+content/changelog/tags.json
+
 # agent worktrees (each is a full checkout with its own biome.json)
 .claude/worktrees/

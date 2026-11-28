@@ -262,6 +262,14 @@ export type SiteCopy = {
     faqTitle: string;
     faq: Question[];
   };
+  changelog: {
+    meta: { title: string; description: string };
+    title: string;
+    line: string;
+    rulerLabel: string;
+    rulerNavLabel: string;
+    entriesLabel: string;
+  };
   footer: {
     tagline: string;
     heads: { make: string; learn: string; legal: string };
@@ -1014,6 +1022,18 @@ const en: SiteCopy = {
         a: "Yes. The local desktop origin supports personal access tokens for our MCP server and the mellodifai CLI.",
       },
     ],
+  },
+  changelog: {
+    meta: {
+      title: "Release notes - MellodifAI",
+      description:
+        "Every tagged MellodifAI release in chronological order, generated from repository git tags and release notes.",
+    },
+    title: "Release notes",
+    line: "Every tagged MellodifAI milestone, in order from newest to oldest.",
+    rulerLabel: "Release timeline",
+    rulerNavLabel: "Jump to a release",
+    entriesLabel: "Tagged releases",
   },
   footer: {
     tagline: "Every song is a draft.",
@@ -1797,6 +1817,18 @@ const it: SiteCopy = {
         a: "Sì. L'origine desktop locale supporta token personali per il nostro server MCP e per la CLI mellodifai.",
       },
     ],
+  },
+  changelog: {
+    meta: {
+      title: "Note di rilascio - MellodifAI",
+      description:
+        "Ogni rilascio di MellodifAI in ordine cronologico, generato dai tag git e dalle note di rilascio.",
+    },
+    title: "Note di rilascio",
+    line: "Ogni traguardo di MellodifAI con tag git, dal più recente al primo.",
+    rulerLabel: "Linea temporale dei rilasci",
+    rulerNavLabel: "Vai a un rilascio",
+    entriesLabel: "Rilasci con tag",
   },
   footer: {
     tagline: "Ogni canzone è una bozza.",
