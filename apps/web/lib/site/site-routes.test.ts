@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { GET as getAgents } from "@/app/(site)/agents/route";
 import { GET as getChangelog } from "@/app/(site)/changelog/route";
 import { GET as getPricing } from "@/app/(site)/pricing/route";
 import { GET as getRecipeDetail } from "@/app/(site)/recipes/[slug]/route";
@@ -60,6 +61,7 @@ describe("public site static route handlers", () => {
       [getHome, "http://127.0.0.1:3239/"],
       [getPricing, "http://127.0.0.1:3239/pricing"],
       [getChangelog, "http://127.0.0.1:3239/changelog"],
+      [getAgents, "http://127.0.0.1:3239/agents"],
       [getRecipes, "http://127.0.0.1:3239/recipes"],
     ] as const) {
       const itRes = await handler(makeRequest(url));
@@ -75,6 +77,33 @@ describe("public site static route handlers", () => {
       );
       expect(enRes.headers.get("vary"), `${url} en`).toBe("Cookie");
       expect(await enRes.text(), `${url} en`).toContain('<html lang="en"');
+    }
+  });
+
+  it("serves prerendered /agents?agent=<id> for all 5 agents and defaults invalid values to claude", async () => {
+    for (const [query, expected] of [
+      ["", "claude"],
+      ["?agent=claude", "claude"],
+      ["?agent=chatgpt", "chatgpt"],
+      ["?agent=gemini", "gemini"],
+      ["?agent=codex", "codex"],
+      ["?agent=cursor", "cursor"],
+      ["?agent=unknown", "claude"],
+    ] as const) {
+      const res = await getAgents(
+        makeRequest(
+          `http://127.0.0.1:3239/agents${query}`,
+          "mellodifai_lang=en",
+        ),
+      );
+      expect(res.status, query || "default").toBe(200);
+      const html = await res.text();
+      expect(html, query || "default").toContain(
+        `data-active-agent="${expected}"`,
+      );
+      expect(html, query || "default").toContain(
+        `aria-labelledby="agent-tab-hero-${expected}"`,
+      );
     }
   });
 
@@ -139,6 +168,19 @@ describe("public site static route handlers", () => {
       "public, max-age=31536000, immutable",
     );
     expect(okChangelogIsland.headers.get("content-type")).toContain(
+      "text/javascript",
+    );
+
+    const agentsIsland = built.islandFiles.agents;
+    const okAgentsIsland = await getIsland(
+      makeRequest(`http://127.0.0.1:3239/site/islands/${agentsIsland}`),
+      { params: Promise.resolve({ name: agentsIsland }) },
+    );
+    expect(okAgentsIsland.status).toBe(200);
+    expect(okAgentsIsland.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
+    expect(okAgentsIsland.headers.get("content-type")).toContain(
       "text/javascript",
     );
 

@@ -238,6 +238,16 @@ describe("buildSiteStatic prerender pipeline", () => {
           "pricing-it.html",
           "changelog-en.html",
           "changelog-it.html",
+          "agents-claude-en.html",
+          "agents-claude-it.html",
+          "agents-chatgpt-en.html",
+          "agents-chatgpt-it.html",
+          "agents-gemini-en.html",
+          "agents-gemini-it.html",
+          "agents-codex-en.html",
+          "agents-codex-it.html",
+          "agents-cursor-en.html",
+          "agents-cursor-it.html",
           "not-found-en.html",
           "not-found-it.html",
           "recipes-canvas-en.html",
@@ -258,13 +268,14 @@ describe("buildSiteStatic prerender pipeline", () => {
       // Island and fonts filenames are content-hashed.
       expect(result.fontsFile).toMatch(/^fonts\.[0-9a-f]{12}\.css$/u);
       expect(result.fontsUrl).toBe(`/site/styles/${result.fontsFile}`);
-      expect(result.islands).toHaveLength(5);
+      expect(result.islands).toHaveLength(6);
       for (const base of [
         "home",
         "pricing",
         "recipes",
         "recipe-detail",
         "changelog",
+        "agents",
       ] as const) {
         const hashed = result.islandFiles[base];
         expect(hashed).toMatch(
@@ -303,11 +314,13 @@ describe("buildSiteStatic prerender pipeline", () => {
             ? result.islandUrls.pricing
             : page.startsWith("changelog-")
               ? result.islandUrls.changelog
-              : page.startsWith("recipe-")
-                ? result.islandUrls["recipe-detail"]
-                : page.startsWith("not-found-")
-                  ? null
-                  : result.islandUrls.recipes;
+              : page.startsWith("agents-")
+                ? result.islandUrls.agents
+                : page.startsWith("recipe-")
+                  ? result.islandUrls["recipe-detail"]
+                  : page.startsWith("not-found-")
+                    ? null
+                    : result.islandUrls.recipes;
         if (expectedIsland) {
           expect(html, page).toContain(expectedIsland);
         }
@@ -354,6 +367,21 @@ describe("buildSiteStatic prerender pipeline", () => {
         /site-ruler__chip-date[^>]*>\d{4}-\d{2}-\d{2}</u,
       );
       expect(changelogIt).toMatch(/site-release__body[^>]*lang="en"/u);
+
+      // Agents HTML checks: SSR role="status" live region present, and WCAG 3.1.2
+      // lang="en" on English MCP tool descriptions when the page is Italian.
+      const agentsEn = readFileSync(
+        join(outDir, "agents-claude-en.html"),
+        "utf8",
+      );
+      const agentsIt = readFileSync(
+        join(outDir, "agents-claude-it.html"),
+        "utf8",
+      );
+      expect(agentsEn).toContain('role="status"');
+      expect(agentsEn).toContain('data-agents-status="true"');
+      expect(agentsEn).not.toMatch(/site-tool-card__desc[^>]*lang="en"/u);
+      expect(agentsIt).toMatch(/site-tool-card__desc[^>]*lang="en"/u);
 
       for (const island of result.islands) {
         const full = join(outDir, "islands", island);
@@ -531,6 +559,7 @@ describe("buildSiteStatic prerender pipeline", () => {
         recipes: "/site/islands/recipes.000000000000.js",
         "recipe-detail": "/site/islands/recipe-detail.000000000000.js",
         changelog: "/site/islands/changelog.000000000000.js",
+        agents: "/site/islands/agents.000000000000.js",
       },
     };
 
