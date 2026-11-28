@@ -43,6 +43,16 @@ const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const KIND_SCROLL_LOCK_IDLE_MS = 180;
 const KIND_SCROLL_LOCK_NO_EVENT_FALLBACK_MS = 450;
 const KIND_SCROLL_LOCK_MAX_MS = 2000;
+const KIND_SCROLL_INTERRUPT_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "PageUp",
+  "PageDown",
+  "Home",
+  "End",
+  " ",
+  "Spacebar",
+]);
 
 function parseCssLengthPx(raw: string): number {
   const trimmed = raw.trim();
@@ -797,6 +807,20 @@ export function initKindsStage(): () => void {
     }
   };
 
+  const computeStepTargetY = (index: number): number => {
+    const rawTarget = Math.max(
+      0,
+      Math.round(
+        trackDocTop - stickyTop + ((index + 0.5) / items.length) * travel,
+      ),
+    );
+    const maxScrollY = Math.max(
+      0,
+      document.documentElement.scrollHeight - window.innerHeight,
+    );
+    return maxScrollY > 0 ? Math.min(maxScrollY, rawTarget) : rawTarget;
+  };
+
   const unlockScroll = () => {
     if (!scrollLocked) return;
     scrollLocked = false;
@@ -813,6 +837,8 @@ export function initKindsStage(): () => void {
     document.removeEventListener("scrollend", onScrollEnd);
     window.removeEventListener("wheel", onUserInterrupt);
     window.removeEventListener("touchstart", onUserInterrupt);
+    window.removeEventListener("pointerdown", onUserInterrupt);
+    window.removeEventListener("keydown", onKeyInterrupt);
   };
 
   const onScrollEnd = () => {
@@ -840,6 +866,12 @@ export function initKindsStage(): () => void {
     unlockScroll();
   };
 
+  const onKeyInterrupt = (event: KeyboardEvent) => {
+    if (KIND_SCROLL_INTERRUPT_KEYS.has(event.key)) {
+      unlockScroll();
+    }
+  };
+
   const lockScrollUntilEnd = (targetTop: number) => {
     unlockScroll();
     scrollLocked = true;
@@ -855,12 +887,29 @@ export function initKindsStage(): () => void {
       passive: true,
       once: true,
     });
+    window.addEventListener("pointerdown", onUserInterrupt, {
+      passive: true,
+      once: true,
+    });
+    window.addEventListener("keydown", onKeyInterrupt, { passive: true });
     maxLockTimer = window.setTimeout(onScrollEnd, KIND_SCROLL_LOCK_MAX_MS);
     if (!supportsScrollEnd()) {
       idleLockTimer = window.setTimeout(
         onScrollEnd,
         KIND_SCROLL_LOCK_NO_EVENT_FALLBACK_MS,
       );
+    }
+  };
+
+  const scrollToStep = (index: number) => {
+    const targetY = computeStepTargetY(index);
+    const reduced = prefersReducedMotion();
+    const behavior: ScrollBehavior = reduced ? "auto" : "smooth";
+    unlockScroll();
+    cancelPendingFrame();
+    window.scrollTo({ top: targetY, behavior });
+    if (!reduced && Math.abs(window.scrollY - targetY) > 2) {
+      lockScrollUntilEnd(targetY);
     }
   };
 
@@ -890,6 +939,14 @@ export function initKindsStage(): () => void {
   const onResize = () => {
     if (disposed) return;
     measureGeometry();
+    if (scrollLocked) {
+      if (!isDesktopSticky() || travel <= 0) {
+        unlockScroll();
+        return;
+      }
+      scrollToStep(activeIdx);
+      return;
+    }
     if (!document.hidden && isDesktopSticky() && travel > 0) {
       syncFromScroll();
     }
@@ -909,26 +966,7 @@ export function initKindsStage(): () => void {
       if (isDesktopSticky()) {
         measureGeometry();
         if (travel > 0) {
-          const rawTarget = Math.max(
-            0,
-            Math.round(
-              trackDocTop - stickyTop + ((i + 0.5) / items.length) * travel,
-            ),
-          );
-          const maxScrollY = Math.max(
-            0,
-            document.documentElement.scrollHeight - window.innerHeight,
-          );
-          const targetY =
-            maxScrollY > 0 ? Math.min(maxScrollY, rawTarget) : rawTarget;
-          const reduced = prefersReducedMotion();
-          const behavior: ScrollBehavior = reduced ? "auto" : "smooth";
-          unlockScroll();
-          cancelPendingFrame();
-          window.scrollTo({ top: targetY, behavior });
-          if (!reduced && Math.abs(window.scrollY - targetY) > 2) {
-            lockScrollUntilEnd(targetY);
-          }
+          scrollToStep(i);
         }
       }
       setActive(i, true);

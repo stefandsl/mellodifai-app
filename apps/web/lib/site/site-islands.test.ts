@@ -1222,6 +1222,494 @@ describe("public site vanilla islands on built static HTML", () => {
     }
   });
 
+  it("kind stage: smooth scroll lock skips intermediate scrolls and syncFromScroll, ignores stale scrollend, unlocks on real scrollend, 2 s timer, and wheel", () => {
+    vi.useFakeTimers();
+    const hadScrollEnd = "onscrollend" in window;
+    const origScrollEndDesc = Object.getOwnPropertyDescriptor(
+      window,
+      "onscrollend",
+    );
+    Object.defineProperty(window, "onscrollend", {
+      value: null,
+      configurable: true,
+      writable: true,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        get matches() {
+          return query === KIND_STAGE_DESKTOP_QUERY;
+        },
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const flushRaf = () => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(0);
+    };
+    const setScrollY = (y: number) => {
+      Object.defineProperty(window, "scrollY", {
+        value: y,
+        configurable: true,
+      });
+    };
+    const setHidden = (hidden: boolean) => {
+      Object.defineProperty(document, "hidden", {
+        value: hidden,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    // Smooth scrollTo does NOT move window.scrollY immediately, keeping the scroll lock active.
+    const scrollCalls: ScrollToOptions[] = [];
+    vi.stubGlobal(
+      "scrollTo",
+      vi.fn((opts: ScrollToOptions | number, y?: number) => {
+        if (typeof opts === "number") {
+          setScrollY(y ?? 0);
+          scrollCalls.push({ top: y ?? 0 });
+        } else {
+          scrollCalls.push(opts);
+          if (opts.behavior !== "smooth") {
+            setScrollY(opts.top ?? 0);
+          }
+        }
+      }),
+    );
+
+    const makeRect = (top: number, height: number): DOMRect =>
+      ({
+        top,
+        bottom: top + height,
+        height,
+        left: 80,
+        right: 1360,
+        width: 1280,
+        x: 80,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    loadBuiltDocument(homeHtml);
+    setScrollY(0);
+    setHidden(false);
+
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    const body = document.querySelector<HTMLElement>("[data-kinds-stage]");
+    expect(track).not.toBeNull();
+    expect(sticky).not.toBeNull();
+    expect(body).not.toBeNull();
+
+    if (track && sticky) {
+      track.getBoundingClientRect = () => makeRect(6000 - window.scrollY, 3400);
+      sticky.getBoundingClientRect = () => makeRect(73, 700);
+      sticky.style.top = "73px";
+    }
+
+    const startY = 6000 - 73;
+    const stepY = (idx: number) =>
+      Math.round(startY + ((idx + 0.5) / 7) * 2700);
+    const stopKinds = initKindsStage();
+    try {
+      // Start on kind 0.
+      setScrollY(stepY(0));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("0");
+
+      // Click kind 5: smooth scrollTo does not move scrollY, so the lock is taken.
+      const btn5 = document.querySelector<HTMLButtonElement>(
+        '.site-kinds__name[data-kind-index="5"]',
+      );
+      btn5?.click();
+      expect(scrollCalls.at(-1)).toEqual({
+        top: stepY(5),
+        behavior: "smooth",
+      });
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Three intermediate scroll events while locked keep kind 5 active.
+      for (const midStep of [1, 2, 3]) {
+        setScrollY(stepY(midStep));
+        window.dispatchEvent(new Event("scroll"));
+        flushRaf();
+        expect(body?.getAttribute("data-kind-active")).toBe("5");
+      }
+
+      // Direct syncFromScroll path (via visibilitychange) also skips while locked.
+      setHidden(true);
+      setHidden(false);
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Stale scrollend within 200 ms while far from target does not unlock.
+      vi.advanceTimersByTime(100);
+      window.dispatchEvent(new Event("scrollend"));
+      setScrollY(stepY(1));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Real scrollend after arrival (>= 200 ms) unlocks; subsequent scroll syncs.
+      vi.advanceTimersByTime(150);
+      setScrollY(stepY(5));
+      window.dispatchEvent(new Event("scrollend"));
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+      setScrollY(stepY(1));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("1");
+
+      // 2000 ms max timer ends the lock when scrollend never fires.
+      btn5?.click();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+      vi.advanceTimersByTime(1999);
+      setScrollY(stepY(1));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      vi.advanceTimersByTime(1);
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("1");
+
+      // Wheel event ends the lock immediately so the next scroll syncs.
+      btn5?.click();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+      setScrollY(stepY(2));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      window.dispatchEvent(new Event("wheel"));
+      setScrollY(stepY(2));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("2");
+    } finally {
+      stopKinds();
+      setHidden(false);
+      setScrollY(0);
+      if (hadScrollEnd && origScrollEndDesc) {
+        Object.defineProperty(window, "onscrollend", origScrollEndDesc);
+      } else {
+        delete (window as unknown as Record<string, unknown>).onscrollend;
+      }
+      vi.useRealTimers();
+    }
+  });
+
+  it("kind stage: smooth scroll lock unlocks on scroll keydown and pointerdown", () => {
+    vi.useFakeTimers();
+    const hadScrollEnd = "onscrollend" in window;
+    const origScrollEndDesc = Object.getOwnPropertyDescriptor(
+      window,
+      "onscrollend",
+    );
+    Object.defineProperty(window, "onscrollend", {
+      value: null,
+      configurable: true,
+      writable: true,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        get matches() {
+          return query === KIND_STAGE_DESKTOP_QUERY;
+        },
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const flushRaf = () => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(0);
+    };
+    const setScrollY = (y: number) => {
+      Object.defineProperty(window, "scrollY", {
+        value: y,
+        configurable: true,
+      });
+    };
+    vi.stubGlobal(
+      "scrollTo",
+      vi.fn((opts: ScrollToOptions | number, y?: number) => {
+        if (typeof opts === "number") {
+          setScrollY(y ?? 0);
+        } else if (opts.behavior !== "smooth") {
+          setScrollY(opts.top ?? 0);
+        }
+      }),
+    );
+
+    const makeRect = (top: number, height: number): DOMRect =>
+      ({
+        top,
+        bottom: top + height,
+        height,
+        left: 80,
+        right: 1360,
+        width: 1280,
+        x: 80,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    loadBuiltDocument(homeHtml);
+    setScrollY(0);
+
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    const body = document.querySelector<HTMLElement>("[data-kinds-stage]");
+    if (track && sticky) {
+      track.getBoundingClientRect = () => makeRect(6000 - window.scrollY, 3400);
+      sticky.getBoundingClientRect = () => makeRect(73, 700);
+      sticky.style.top = "73px";
+    }
+
+    const startY = 6000 - 73;
+    const stepY = (idx: number) =>
+      Math.round(startY + ((idx + 0.5) / 7) * 2700);
+    const stopKinds = initKindsStage();
+    try {
+      const btn5 = document.querySelector<HTMLButtonElement>(
+        '.site-kinds__name[data-kind-index="5"]',
+      );
+
+      // Start on kind 0, click kind 5 to take lock.
+      setScrollY(stepY(0));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      btn5?.click();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Non-scroll key does not unlock (and does not consume the keydown listener).
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
+      setScrollY(stepY(1));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Scroll key (PageDown) ends the lock so the next scroll syncs.
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown" }));
+      setScrollY(stepY(1));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("1");
+
+      // ArrowDown and Home also end the lock.
+      for (const key of ["ArrowDown", "Home"]) {
+        btn5?.click();
+        expect(body?.getAttribute("data-kind-active")).toBe("5");
+        window.dispatchEvent(new KeyboardEvent("keydown", { key }));
+        setScrollY(stepY(2));
+        window.dispatchEvent(new Event("scroll"));
+        flushRaf();
+        expect(body?.getAttribute("data-kind-active")).toBe("2");
+      }
+
+      // pointerdown (e.g. dragging the scrollbar) ends the lock so the next scroll syncs.
+      btn5?.click();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+      setScrollY(stepY(3));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      window.dispatchEvent(new Event("pointerdown"));
+      setScrollY(stepY(3));
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("3");
+    } finally {
+      stopKinds();
+      setScrollY(0);
+      if (hadScrollEnd && origScrollEndDesc) {
+        Object.defineProperty(window, "onscrollend", origScrollEndDesc);
+      } else {
+        delete (window as unknown as Record<string, unknown>).onscrollend;
+      }
+      vi.useRealTimers();
+    }
+  });
+
+  it("kind stage: resize during smooth scroll lock recomputes target for active kind", () => {
+    vi.useFakeTimers();
+    const hadScrollEnd = "onscrollend" in window;
+    const origScrollEndDesc = Object.getOwnPropertyDescriptor(
+      window,
+      "onscrollend",
+    );
+    Object.defineProperty(window, "onscrollend", {
+      value: null,
+      configurable: true,
+      writable: true,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        get matches() {
+          return query === KIND_STAGE_DESKTOP_QUERY;
+        },
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue.delete(id);
+    });
+    const flushRaf = () => {
+      const batch = [...rafQueue.entries()];
+      rafQueue.clear();
+      for (const [, cb] of batch) cb(0);
+    };
+    const setScrollY = (y: number) => {
+      Object.defineProperty(window, "scrollY", {
+        value: y,
+        configurable: true,
+      });
+    };
+    const scrollCalls: ScrollToOptions[] = [];
+    vi.stubGlobal(
+      "scrollTo",
+      vi.fn((opts: ScrollToOptions | number, y?: number) => {
+        if (typeof opts === "number") {
+          setScrollY(y ?? 0);
+          scrollCalls.push({ top: y ?? 0 });
+        } else {
+          scrollCalls.push(opts);
+          if (opts.behavior !== "smooth") {
+            setScrollY(opts.top ?? 0);
+          }
+        }
+      }),
+    );
+
+    const makeRect = (top: number, height: number): DOMRect =>
+      ({
+        top,
+        bottom: top + height,
+        height,
+        left: 80,
+        right: 1360,
+        width: 1280,
+        x: 80,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    loadBuiltDocument(homeHtml);
+    setScrollY(0);
+
+    let trackTopDoc = 6000;
+    let trackHeight = 3400;
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    const body = document.querySelector<HTMLElement>("[data-kinds-stage]");
+    if (track && sticky) {
+      track.getBoundingClientRect = () =>
+        makeRect(trackTopDoc - window.scrollY, trackHeight);
+      sticky.getBoundingClientRect = () => makeRect(73, 700);
+      sticky.style.top = "73px";
+    }
+
+    const stopKinds = initKindsStage();
+    try {
+      const initialTarget = Math.round(6000 - 73 + (5.5 / 7) * 2700);
+      setScrollY(6000 - 73 + 100);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("0");
+
+      const btn5 = document.querySelector<HTMLButtonElement>(
+        '.site-kinds__name[data-kind-index="5"]',
+      );
+      btn5?.click();
+      expect(scrollCalls).toEqual([{ top: initialTarget, behavior: "smooth" }]);
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Window resizes during the smooth scroll lock, shifting track position and runway travel.
+      trackTopDoc = 6400;
+      trackHeight = 3700;
+      const resizedTarget = Math.round(6400 - 73 + (5.5 / 7) * 3000);
+      window.dispatchEvent(new Event("resize"));
+
+      expect(scrollCalls.at(-1)).toEqual({
+        top: resizedTarget,
+        behavior: "smooth",
+      });
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      // Lock remains active for the new target until scrollend arrives at resizedTarget.
+      setScrollY(6400 - 73 + 100);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+
+      vi.advanceTimersByTime(250);
+      setScrollY(resizedTarget);
+      window.dispatchEvent(new Event("scrollend"));
+      setScrollY(resizedTarget + 40);
+      window.dispatchEvent(new Event("scroll"));
+      flushRaf();
+      expect(body?.getAttribute("data-kind-active")).toBe("5");
+    } finally {
+      stopKinds();
+      setScrollY(0);
+      if (hadScrollEnd && origScrollEndDesc) {
+        Object.defineProperty(window, "onscrollend", origScrollEndDesc);
+      } else {
+        delete (window as unknown as Record<string, unknown>).onscrollend;
+      }
+      vi.useRealTimers();
+    }
+  });
+
   it("pricing: switches billing period and toggles exclusive FAQ accordion with inert panels", () => {
     loadBuiltDocument(pricingHtml);
     initPricing();
