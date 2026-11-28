@@ -5,10 +5,13 @@ import { initShell } from "./shell";
 
 export { initFaq as initPricingFaq };
 
-export function initPricing(): void {
+export function initPricing(): () => void {
   initShell();
   initPeriodSwitch();
-  initFaq();
+  const stopFaq = initFaq();
+  return () => {
+    stopFaq();
+  };
 }
 
 if (

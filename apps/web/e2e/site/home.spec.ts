@@ -472,7 +472,11 @@ test("C04 rotating hero line changes every 6.0 s +/- 0.3 s and keeps one fixed t
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.clock.install();
+  // Paused clock, as in the feature reel test: no real time leaks into the
+  // measured interval between page load and the first sample.
+  const fixedTime = Date.UTC(2026, 10, 26, 12, 0, 0);
+  await page.clock.install({ time: fixedTime });
+  await page.clock.pauseAt(fixedTime);
   await page.goto("/");
   await expect(page.locator('[data-hero-rotator="true"]')).toHaveAttribute(
     "data-rotator-running",
@@ -813,7 +817,11 @@ for (const [width, height] of [
     page,
   }) => {
     await page.setViewportSize({ width, height });
-    await page.clock.install();
+    // Paused clock: real time between page load and the first sample must not
+    // shorten the measured step (CI saw 4579 ms under load with a running clock).
+    const fixedTime = Date.UTC(2026, 10, 26, 12, 0, 0);
+    await page.clock.install({ time: fixedTime });
+    await page.clock.pauseAt(fixedTime);
     await page.goto("/");
     const reel0 = page.locator('[data-feature-reel="0"]');
     await expect(reel0).toHaveAttribute("data-reel-paused", "false");
@@ -1017,6 +1025,544 @@ test("C04 reduced motion: no loop runs and 0 changed pixels in the hero over 3 s
   expect(Math.abs(endRow0X - startState.row0X)).toBe(0);
 });
 
+for (const [width, height] of [
+  [1440, 900],
+  [1024, 768],
+  [390, 844],
+] as const) {
+  test(`C04 platform panel, closing band, and footer at ${width}x${height}: complete content and no sideways scroll`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+
+    // Section 7: platform/studio panel (title, link, studio shot, 3 notes).
+    const studio = page.locator('[data-ref-section="7"]');
+    await expect(studio.locator("#platform-title")).toHaveText(
+      en.platform.title,
+    );
+    await expect(
+      studio.getByRole("link", { name: en.platform.link }),
+    ).toBeVisible();
+    await expect(
+      studio.locator(`figure[aria-label="${en.platform.shot}"]`),
+    ).toBeVisible();
+    await expect(studio.locator(".site-platform__notes > li")).toHaveCount(3);
+    for (const note of en.platform.notes) {
+      await expect(studio.locator(".site-platform__notes")).toContainText(
+        note.title,
+      );
+    }
+
+    // Section 11: closing band (7 covers, title, CTA, note).
+    const closing = page.locator('[data-ref-section="11"]');
+    await expect(closing.locator("#close-title")).toHaveText(en.closing.title);
+    await expect(closing.locator(".site-close__cover")).toHaveCount(7);
+    await expect(
+      closing.getByRole("link", { name: en.closing.action }),
+    ).toHaveAttribute("href", "/create");
+    await expect(closing).toContainText(en.closing.note);
+
+    // Section 12: footer (3 columns, wordmark, copyright, signoff).
+    const footer = page.locator("[data-ref-footer]");
+    await expect(footer.locator(".site-footer__column")).toHaveCount(3);
+    await expect(footer.locator(".site-footer__wordmark")).toBeVisible();
+    await expect(footer).toContainText(en.footer.copyright);
+    await expect(footer).toContainText(en.footer.signoff);
+
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  });
+}
+
+test("C04 kind stage at 1440x900: sticky for 2700 px +/- 100 and scroll drives all 7 kinds", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page);
+
+  const geom = await page.evaluate(() => {
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    if (!track || !sticky) return null;
+    const tRect = track.getBoundingClientRect();
+    const sRect = sticky.getBoundingClientRect();
+    const sStyle = getComputedStyle(sticky);
+    return {
+      position: sStyle.position,
+      stickyTopCss: Number.parseFloat(sStyle.top),
+      trackDocTop: tRect.top + window.scrollY,
+      trackHeight: tRect.height,
+      stickyHeight: sRect.height,
+      travel: tRect.height - sRect.height,
+    };
+  });
+  expect(geom).not.toBeNull();
+  expect(geom?.position).toBe("sticky");
+  expect(geom?.stickyTopCss).toBeCloseTo(73, 0);
+  // Sticky travel must be 2700 px +/- 100 px at 1440.
+  expect(geom?.travel ?? 0).toBeGreaterThanOrEqual(2600);
+  expect(geom?.travel ?? 0).toBeLessThanOrEqual(2800);
+
+  const trackDocTop = geom?.trackDocTop ?? 0;
+  const stickyTopCss = geom?.stickyTopCss ?? 73;
+  const travel = geom?.travel ?? 2700;
+  const startY = Math.round(trackDocTop - stickyTopCss);
+  const endY = Math.round(startY + travel);
+
+  const readStickyTop = () =>
+    page.evaluate(
+      () =>
+        document
+          .querySelector<HTMLElement>('[data-kinds-sticky="true"]')
+          ?.getBoundingClientRect().top ?? Number.NaN,
+    );
+
+  // Before sticky range: sits below header.
+  await page.evaluate((y) => window.scrollTo(0, y), Math.max(0, startY - 220));
+  expect(await readStickyTop()).toBeGreaterThan(stickyTopCss + 100);
+
+  // Inside sticky range: pinned at top = 73 px across start, middle, and end of the 2700 px runway.
+  for (const offset of [60, Math.round(travel / 2), Math.round(travel - 60)]) {
+    await page.evaluate((y) => window.scrollTo(0, y), startY + offset);
+    await expect
+      .poll(() => readStickyTop(), { timeout: 3000 })
+      .toBeGreaterThanOrEqual(stickyTopCss - 2);
+    expect(await readStickyTop()).toBeLessThanOrEqual(stickyTopCss + 2);
+  }
+
+  // Past sticky range: scrolls away above the header.
+  await page.evaluate((y) => window.scrollTo(0, y), endY + 220);
+  expect(await readStickyTop()).toBeLessThan(stickyTopCss - 100);
+
+  // Scroll through each of the 7 steps and verify active kind, button state, title, and cross-fade slide opacity.
+  const body = page.locator("[data-kinds-stage]");
+  const statusEl = page.locator('[data-kind-status="true"]');
+  await expect(statusEl).toHaveAttribute("role", "status");
+  await expect(statusEl).toHaveAttribute("aria-live", "polite");
+  await expect(statusEl).toHaveAttribute("aria-atomic", "true");
+  await expect(statusEl).toHaveText("");
+  for (let i = 0; i < en.kinds.items.length; i++) {
+    const stepY = Math.round(
+      startY + ((i + 0.5) / en.kinds.items.length) * travel,
+    );
+    await page.evaluate((y) => window.scrollTo(0, y), stepY);
+    await expect(body).toHaveAttribute("data-kind-active", String(i));
+    await expect(
+      page.locator(`.site-kinds__name[data-kind-index="${i}"]`),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".site-kinds__title")).toHaveText(
+      en.kinds.items[i].name,
+    );
+    await expect(page.locator('[data-kind-line="true"]')).not.toHaveAttribute(
+      "aria-live",
+    );
+    await expect(statusEl).toHaveText("");
+    await expect
+      .poll(
+        () =>
+          page.evaluate((idx) => {
+            const activeSlide = document.querySelector<HTMLElement>(
+              `[data-kind-slide="${idx}"]`,
+            );
+            const otherIdx = idx === 0 ? 1 : 0;
+            const otherSlide = document.querySelector<HTMLElement>(
+              `[data-kind-slide="${otherIdx}"]`,
+            );
+            return {
+              active: activeSlide ? getComputedStyle(activeSlide).opacity : "",
+              other: otherSlide ? getComputedStyle(otherSlide).opacity : "",
+            };
+          }, i),
+        { timeout: 3000 },
+      )
+      .toEqual({ active: "1", other: "0" });
+  }
+});
+
+test("C04 kind stage at 1440x900: mouse and keyboard selection scrolls to step and stays active after 40 px scroll", async ({
+  page,
+  browserName,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page);
+
+  const geom = await page.evaluate(() => {
+    const track = document.querySelector<HTMLElement>(
+      '[data-kinds-track="true"]',
+    );
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    if (!track || !sticky) return null;
+    const tRect = track.getBoundingClientRect();
+    const sRect = sticky.getBoundingClientRect();
+    const stickyTopCss = Number.parseFloat(getComputedStyle(sticky).top);
+    return {
+      trackDocTop: tRect.top + window.scrollY,
+      stickyTopCss,
+      travel: tRect.height - sRect.height,
+    };
+  });
+  expect(geom).not.toBeNull();
+  const startY = Math.round(
+    (geom?.trackDocTop ?? 0) - (geom?.stickyTopCss ?? 0),
+  );
+  const travel = geom?.travel ?? 2700;
+  const kind0Y = Math.round(startY + (0.5 / en.kinds.items.length) * travel);
+  const kind5Y = Math.round(startY + (5.5 / en.kinds.items.length) * travel);
+  const kind6Y = Math.round(startY + (6.5 / en.kinds.items.length) * travel);
+
+  const body = page.locator("[data-kinds-stage]");
+  const captionLine = page.locator('[data-kind-line="true"]');
+  const statusEl = page.locator('[data-kind-status="true"]');
+  const btn0 = page.locator('.site-kinds__name[data-kind-index="0"]');
+  const btn5 = page.locator('.site-kinds__name[data-kind-index="5"]');
+  const expectedKind5Announcement = `${en.kinds.items[5].name}: ${en.kinds.items[5].line}`;
+
+  await expect(statusEl).toHaveAttribute("role", "status");
+  await expect(statusEl).toHaveAttribute("aria-live", "polite");
+  await expect(statusEl).toHaveAttribute("aria-atomic", "true");
+  await expect(statusEl).toHaveText("");
+
+  // Start inside step 0.
+  await page.evaluate((y) => window.scrollTo(0, y), kind0Y);
+  await expect(body).toHaveAttribute("data-kind-active", "0");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText("");
+
+  // Mouse selection of kind 5 scrolls to kind 5 step, announces via SSR status region (never aria-live on caption),
+  // and stays active after +40 px scroll.
+  await btn5.click();
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".site-kinds__title")).toHaveText(
+    en.kinds.items[5].name,
+  );
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          (target) => Math.abs(Math.round(window.scrollY) - target),
+          kind5Y,
+        ),
+      { timeout: 5000 },
+    )
+    .toBeLessThanOrEqual(2);
+
+  await page.evaluate(() =>
+    window.scrollTo(0, Math.round(window.scrollY) + 40),
+  );
+  await page.evaluate(
+    () =>
+      new Promise<void>((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => r())),
+      ),
+  );
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+
+  // Scroll to step 6: scroll-driven change never writes to status region or sets aria-live.
+  await page.evaluate((y) => window.scrollTo(0, y), kind6Y);
+  await expect(body).toHaveAttribute("data-kind-active", "6");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
+
+  // Return to step 0 and test keyboard selection (Tab to kind 5, press Space, then scroll 40 px).
+  await page.evaluate((y) => window.scrollTo(0, y), kind0Y);
+  await expect(body).toHaveAttribute("data-kind-active", "0");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+
+  if (browserName === "webkit") {
+    // Safari default keyboard settings skip buttons on plain Tab, so focus kind 5 directly before Space.
+    await btn5.focus();
+  } else {
+    await btn0.focus();
+    for (let step = 0; step < 5; step++) {
+      await page.keyboard.press("Tab");
+    }
+  }
+  await expect(btn5).toBeFocused();
+  await page.keyboard.press("Space");
+
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".site-kinds__title")).toHaveText(
+    en.kinds.items[5].name,
+  );
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          (target) => Math.abs(Math.round(window.scrollY) - target),
+          kind5Y,
+        ),
+      { timeout: 5000 },
+    )
+    .toBeLessThanOrEqual(2);
+
+  await page.evaluate(() =>
+    window.scrollTo(0, Math.round(window.scrollY) + 40),
+  );
+  await page.evaluate(
+    () =>
+      new Promise<void>((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => r())),
+      ),
+  );
+  await expect(body).toHaveAttribute("data-kind-active", "5");
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+
+  // Scroll to step 6 again: scroll-driven change never writes to status region or sets aria-live.
+  await page.evaluate((y) => window.scrollTo(0, y), kind6Y);
+  await expect(body).toHaveAttribute("data-kind-active", "6");
+  await expect(captionLine).not.toHaveAttribute("aria-live");
+  await expect(statusEl).toHaveText(expectedKind5Announcement);
+});
+
+test("C04 kind stage at 390x844: not sticky and supports mouse and keyboard selection", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+
+  const mobileState = await page.evaluate(() => {
+    const sticky = document.querySelector<HTMLElement>(
+      '[data-kinds-sticky="true"]',
+    );
+    const runway = document.querySelector<HTMLElement>(
+      '[data-kinds-runway="true"]',
+    );
+    return {
+      position: sticky ? getComputedStyle(sticky).position : "",
+      runwayHeight: runway ? runway.getBoundingClientRect().height : -1,
+    };
+  });
+  expect(mobileState.position).toBe("static");
+  expect(mobileState.runwayHeight).toBe(0);
+
+  // Mouse click selects kind 2.
+  const btn2 = page.locator('.site-kinds__name[data-kind-index="2"]');
+  await btn2.scrollIntoViewIfNeeded();
+  await btn2.click();
+  await expect(page.locator("[data-kinds-stage]")).toHaveAttribute(
+    "data-kind-active",
+    "2",
+  );
+  await expect(btn2).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".site-kinds__title")).toHaveText(
+    en.kinds.items[2].name,
+  );
+
+  // Keyboard activation selects kind 5.
+  const btn5 = page.locator('.site-kinds__name[data-kind-index="5"]');
+  await btn5.focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator("[data-kinds-stage]")).toHaveAttribute(
+    "data-kind-active",
+    "5",
+  );
+  await expect(btn5).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".site-kinds__title")).toHaveText(
+    en.kinds.items[5].name,
+  );
+});
+
+for (const [width, height, perRow] of [
+  [1440, 900, 4],
+  [1024, 768, 2],
+  [390, 844, 1],
+] as const) {
+  test(`C04 plans block at ${width}x${height}: ${perRow} per row, placeholder prices only, period switch has 0 px shift`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+
+    const plansSection = page.locator('[data-ref-section="9"]');
+    const planCards = plansSection.locator(".site-plans__grid > *");
+    await expect(planCards).toHaveCount(4);
+
+    const tops = await planCards.evaluateAll((els) =>
+      els.map((e) => Math.round(e.getBoundingClientRect().top)),
+    );
+    expect(tops.filter((t) => Math.abs(t - tops[0]) <= 1)).toHaveLength(perRow);
+
+    // Placeholder prices match C03 and contain no currency symbols or fake numbers.
+    await expect(plansSection.locator(".site-plan-card__price")).toHaveText([
+      en.plans.price,
+      en.plans.price,
+      en.plans.price,
+      en.plans.price,
+    ]);
+    const plansText = (await plansSection.textContent()) ?? "";
+    expect(plansText).not.toMatch(/[$€£]|\d+[.,]\d{2}/u);
+    await expect(
+      plansSection.getByRole("link", { name: en.plans.compare }),
+    ).toHaveAttribute("href", "/pricing");
+
+    // Period switch: radio group with 1 tab stop, 0 px layout shift on switch, works by click and arrow keys.
+    const group = plansSection.getByRole("radiogroup", {
+      name: en.plans.switchLabel,
+    });
+    const radios = group.getByRole("radio");
+    await expect(radios).toHaveCount(2);
+    await expect(radios.first()).toHaveAttribute("aria-checked", "true");
+    const tabStops = await radios.evaluateAll(
+      (els) => els.filter((e) => (e as HTMLElement).tabIndex === 0).length,
+    );
+    expect(tabStops).toBe(1);
+
+    const urlBefore = page.url();
+    const readBoxes = () =>
+      planCards.evaluateAll((els) =>
+        els.map((e) => {
+          const r = e.getBoundingClientRect();
+          return [r.width, r.height].map((v) => Math.round(v * 2));
+        }),
+      );
+    const boxesBefore = await readBoxes();
+
+    await radios.nth(1).click();
+    await expect(radios.nth(1)).toHaveAttribute("aria-checked", "true");
+    await expect(
+      plansSection.locator('.site-plan-card__unit[data-shown="true"]').first(),
+    ).toHaveText(en.plans.period.yearly);
+    expect(await readBoxes()).toEqual(boxesBefore);
+    expect(page.url()).toBe(urlBefore);
+
+    // Arrow key switches back to monthly.
+    await radios.nth(1).focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(radios.first()).toHaveAttribute("aria-checked", "true");
+    await expect(radios.first()).toBeFocused();
+    await expect(
+      plansSection.locator('.site-plan-card__unit[data-shown="true"]').first(),
+    ).toHaveText(en.plans.period.monthly);
+    expect(await readBoxes()).toEqual(boxesBefore);
+  });
+
+  test(`C04 FAQ at ${width}x${height}: opens and closes by mouse and keyboard with correct aria-expanded and regions`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+
+    const faq = page.locator("#faq");
+    const q = (i: number) =>
+      faq.getByRole("button", { name: en.faq.items[i].q });
+    const answer = (i: number) =>
+      faq.getByRole("region", { name: en.faq.items[i].q });
+
+    // First question starts open, rest closed, each panel is a labelled region.
+    await expect(q(0)).toHaveAttribute("aria-expanded", "true");
+    await expect(answer(0)).toBeVisible();
+    await expect(answer(0)).toContainText(en.faq.items[0].a);
+    for (let i = 1; i < en.faq.items.length; i++) {
+      await expect(q(i)).toHaveAttribute("aria-expanded", "false");
+    }
+
+    for (const i of [0, 1, 2]) {
+      const panelId = (await q(i).getAttribute("aria-controls")) ?? "";
+      const btnId = (await q(i).getAttribute("id")) ?? "";
+      const panel = page.locator(`[id="${panelId}"]`);
+      await expect(panel).toHaveAttribute("role", "region");
+      await expect(panel).toHaveAttribute("aria-labelledby", btnId);
+    }
+
+    // Mouse: click Q2 opens Q2 and closes Q1 (panel height folds to 0 and becomes inert).
+    await q(1).scrollIntoViewIfNeeded();
+    await q(1).click();
+    await expect(q(1)).toHaveAttribute("aria-expanded", "true");
+    await expect(q(0)).toHaveAttribute("aria-expanded", "false");
+    await expect(answer(1)).toBeVisible();
+    await expect(answer(0)).toBeHidden();
+    const closedPanel0 = page.locator(
+      `[id="${await q(0).getAttribute("aria-controls")}"]`,
+    );
+    await expect
+      .poll(() =>
+        closedPanel0.evaluate((e) =>
+          Math.round(e.getBoundingClientRect().height),
+        ),
+      )
+      .toBe(0);
+
+    // Mouse: second click closes Q2.
+    await q(1).click();
+    await expect(q(1)).toHaveAttribute("aria-expanded", "false");
+    await expect(answer(1)).toBeHidden();
+
+    // Keyboard: Enter opens Q3, Space closes Q3, ArrowDown moves focus to Q4 and Space opens Q4.
+    await q(2).focus();
+    await page.keyboard.press("Enter");
+    await expect(q(2)).toHaveAttribute("aria-expanded", "true");
+    await expect(answer(2)).toBeVisible();
+
+    await page.keyboard.press("Space");
+    await expect(q(2)).toHaveAttribute("aria-expanded", "false");
+    await expect(answer(2)).toBeHidden();
+
+    await page.keyboard.press("ArrowDown");
+    await expect(q(3)).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(q(3)).toHaveAttribute("aria-expanded", "true");
+    await expect(answer(3)).toBeVisible();
+  });
+}
+
+test("C04 reduced motion on sections 8 to 10: kind stage cross-fade, FAQ fold, and plan unit rise have zero duration", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page);
+
+  await page.locator('.site-kinds__name[data-kind-index="2"]').click();
+  await page
+    .locator('[data-ref-section="9"]')
+    .getByRole("radio")
+    .nth(1)
+    .click();
+  await page
+    .locator("#faq")
+    .getByRole("button", { name: en.faq.items[1].q })
+    .click();
+
+  const check = await page.evaluate(() => {
+    const zero = (v: string) =>
+      v.split(",").every((d) => Number.parseFloat(d) === 0);
+    const bad: string[] = [];
+    for (const el of document.querySelectorAll(
+      ".site-kinds__slide, .site-kinds__name, .site-faq__panel, .site-faq__icon",
+    )) {
+      const s = getComputedStyle(el);
+      if (!zero(s.transitionDuration)) {
+        bad.push(`${el.className}: transition ${s.transitionDuration}`);
+      }
+    }
+    for (const el of document.querySelectorAll(".site-plan-card__unit")) {
+      const s = getComputedStyle(el);
+      if (s.animationName !== "none" && !zero(s.animationDuration)) {
+        bad.push(`${el.className}: animation ${s.animationDuration}`);
+      }
+    }
+    return bad;
+  });
+  expect(check).toEqual([]);
+});
+
 for (const [scale, width, lang] of [
   [150, 390, "en"],
   [150, 390, "it"],
@@ -1174,6 +1720,28 @@ for (const theme of ["dark", "light"] as const) {
       );
       expect(
         bad.map(
+          (v) =>
+            `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
+        ),
+      ).toEqual([]);
+
+      // Also verify opened interactive states (FAQ item 2 open, yearly period active, kind 2 active).
+      await page.locator('.site-kinds__name[data-kind-index="2"]').click();
+      await page
+        .locator('[data-ref-section="9"]')
+        .getByRole("radio")
+        .nth(1)
+        .click();
+      await page
+        .locator("#faq")
+        .getByRole("button", { name: en.faq.items[1].q })
+        .click();
+      const openResult = await new AxeBuilder({ page }).analyze();
+      const openBad = openResult.violations.filter(
+        (v) => v.impact === "serious" || v.impact === "critical",
+      );
+      expect(
+        openBad.map(
           (v) =>
             `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
         ),

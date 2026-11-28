@@ -15,6 +15,8 @@ const STATIC_FILES = [
   "app/(site)/recipes/[slug]/route.ts",
   "app/(site)/recipes/[slug]/try/route.ts",
   "components/site/home.tsx",
+  "components/site/studio-shot.tsx",
+  "components/site/kind-stage.tsx",
   "components/site/agents-page.tsx",
   "components/site/agent-switch.tsx",
   "components/site/connect-steps.tsx",
@@ -70,7 +72,7 @@ describe("public site renders static parts on the server", () => {
     const islands = [
       "components/site/hero-composer.tsx",
       "components/site/feature-reel.tsx",
-      "components/site/home-client.tsx",
+      "components/site/kind-stage.tsx",
       "components/site/site-menu.tsx",
       "components/site/site-theme.tsx",
       "components/site/faq.tsx",
@@ -120,8 +122,80 @@ describe("public site renders static parts on the server", () => {
     );
     expect(agents).toContain("@astryxdesign/core/TopNav");
 
+    const kindStage = readFileSync(
+      join(WEB, "components/site/kind-stage.tsx"),
+      "utf8",
+    );
+    expect(kindStage).toContain("@astryxdesign/core/ToggleButton");
+
     const home = readFileSync(join(WEB, "components/site/home.tsx"), "utf8");
-    expect(home).toContain("@astryxdesign/core/Collapsible");
+    expect(home).toContain("./faq");
+    expect(home).toContain("./plan-card");
+    expect(home).toContain("./studio-shot");
+    expect(home).toContain("./kind-stage");
+    expect(home).toContain("./closing-band");
+  });
+
+  it("renders home sections 7 to 12 with sticky kind stage, C03 plans, exclusive FAQ, closing mosaic, and footer", () => {
+    const { html } = renderHomeStatic("en");
+    const body = html.slice(html.indexOf("<body>"));
+
+    // Section 7: studio shot figure + 3 platform notes.
+    expect(body).toContain('data-ref-section="7"');
+    expect(body).toContain("site-shot__takes");
+
+    // Section 8: sticky kind stage with 7 kind buttons, 7 stacked slides, runway, and SSR live status region.
+    // The visible caption line never carries aria-live; a visually hidden role="status" region exists from SSR.
+    expect(body).toContain('data-ref-section="8"');
+    expect(body).toContain('data-kinds-sticky="true"');
+    expect(body).toContain('data-kinds-runway="true"');
+    expect([...body.matchAll(/data-kind-index="\d+"/gu)]).toHaveLength(7);
+    expect([...body.matchAll(/data-kind-slide="\d+"/gu)]).toHaveLength(7);
+    const kindLineTag = body.match(/<p\b[^>]*data-kind-line="true"[^>]*>/u);
+    expect(kindLineTag).not.toBeNull();
+    expect(kindLineTag?.[0]).not.toContain("aria-live");
+    const kindStatusEl = body.match(
+      /<p\b[^>]*data-kind-status="true"[^>]*>([\s\S]*?)<\/p>/u,
+    );
+    expect(kindStatusEl).not.toBeNull();
+    expect(kindStatusEl?.[0]).toContain('role="status"');
+    expect(kindStatusEl?.[0]).toContain('aria-live="polite"');
+    expect(kindStatusEl?.[0]).toContain('aria-atomic="true"');
+    expect(kindStatusEl?.[0]).toContain("site-sr-only");
+    expect(kindStatusEl?.[1]).toBe("");
+
+    // Section 9: 4 C03 PlanCards with placeholder prices and stacked units.
+    expect(body).toContain('data-ref-section="9"');
+    expect([...body.matchAll(/site-plan-card__units/gu)]).toHaveLength(4);
+    expect([...body.matchAll(/Owner decides prices/gu)]).toHaveLength(4);
+
+    // Section 10: 5 C03 FAQ triggers + region panels (item 0 open, items 1-4 closed/inert).
+    expect(body).toContain('data-ref-section="10"');
+    const faqTriggers = [
+      ...body.matchAll(/<button\b[^>]*site-faq__trigger[^>]*>/gu),
+    ].map((m) => m[0]);
+    expect(faqTriggers).toHaveLength(5);
+    expect(faqTriggers[0]).toContain('aria-expanded="true"');
+    for (const trigger of faqTriggers.slice(1)) {
+      expect(trigger).toContain('aria-expanded="false"');
+    }
+    const faqPanels = [
+      ...body.matchAll(/<div\b[^>]*site-faq__panel[^>]*>/gu),
+    ].map((m) => m[0]);
+    expect(faqPanels).toHaveLength(5);
+    for (const panel of faqPanels) {
+      expect(panel).toContain('role="region"');
+    }
+    expect(faqPanels[0]).not.toContain("inert");
+    for (const panel of faqPanels.slice(1)) {
+      expect(panel).toContain("inert");
+    }
+
+    // Section 11 & 12: closing band (7 covers) and footer wordmark.
+    expect(body).toContain('data-ref-section="11"');
+    expect([...body.matchAll(/site-close__cover/gu)]).toHaveLength(7);
+    expect(body).toContain("data-ref-footer");
+    expect(body).toContain("site-footer__wordmark");
   });
 
   it("renders feature reel bullets without aria-current and exposes only slide 0 in SSR HTML", () => {

@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Button } from "@astryxdesign/core/Button";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -300,11 +299,6 @@ export function renderPricingStatic(
 }
 
 export type HomeAstryxStateClasses = {
-  disabledButton: string[];
-  panelClosed: string[];
-  panelOpen: string[];
-  chevronOpen: string[];
-  chevronClosed: string[];
   chipPressed: string[];
   chipUnpressed: string[];
 };
@@ -326,14 +320,6 @@ let cachedHomeClasses: HomeAstryxStateClasses | null = null;
 export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
   if (cachedHomeClasses) return cachedHomeClasses;
 
-  const enabledBtn = renderToStaticMarkup(<Button label="x" />);
-  const disabledBtn = renderToStaticMarkup(<Button label="x" isDisabled />);
-  const enabledClasses = extractElementClasses(enabledBtn, /<button\b[^>]*>/u);
-  const disabledClasses = extractElementClasses(
-    disabledBtn,
-    /<button\b[^>]*>/u,
-  );
-
   const pressedToggle = renderToStaticMarkup(
     <ToggleButton label="x" isPressed={true} />,
   );
@@ -349,41 +335,7 @@ export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
     /<button\b[^>]*>/u,
   );
 
-  const closedCollapsible = renderToStaticMarkup(
-    <Collapsible trigger="x" defaultIsOpen={false}>
-      y
-    </Collapsible>,
-  );
-  const openCollapsible = renderToStaticMarkup(
-    <Collapsible trigger="x" defaultIsOpen={true}>
-      y
-    </Collapsible>,
-  );
-
-  const closedPanelClasses = extractElementClasses(
-    closedCollapsible,
-    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
-  );
-  const openPanelClasses = extractElementClasses(
-    openCollapsible,
-    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
-  );
-
-  const closedChevronClasses = extractElementClasses(
-    closedCollapsible,
-    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
-  );
-  const openChevronClasses = extractElementClasses(
-    openCollapsible,
-    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
-  );
-
   cachedHomeClasses = {
-    disabledButton: diffClassSets(disabledClasses, enabledClasses),
-    panelClosed: diffClassSets(closedPanelClasses, openPanelClasses),
-    panelOpen: diffClassSets(openPanelClasses, closedPanelClasses),
-    chevronOpen: diffClassSets(openChevronClasses, closedChevronClasses),
-    chevronClosed: diffClassSets(closedChevronClasses, openChevronClasses),
     chipPressed: diffClassSets(pressedToggleClasses, unpressedToggleClasses),
     chipUnpressed: diffClassSets(unpressedToggleClasses, pressedToggleClasses),
   };
@@ -404,11 +356,6 @@ export function renderHomeStatic(
   const copy = SITE_COPY[lang];
   const stateClasses = deriveHomeAstryxStateClasses();
   const extraCssClasses = [
-    ...stateClasses.disabledButton,
-    ...stateClasses.panelClosed,
-    ...stateClasses.panelOpen,
-    ...stateClasses.chevronOpen,
-    ...stateClasses.chevronClosed,
     ...stateClasses.chipPressed,
     ...stateClasses.chipUnpressed,
   ];

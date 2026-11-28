@@ -1069,6 +1069,11 @@ html.site-menu-open {
 .site-platform__notes {
   padding: var(--spacing-6);
 }
+.site-platform__note-icon {
+  margin-top: var(--spacing-1);
+  color: var(--color-text-accent);
+  flex: none;
+}
 
 .site-shot {
   align-items: stretch;
@@ -1107,20 +1112,50 @@ html.site-menu-open {
   font-family: var(--font-family-heading);
   font-size: var(--font-size-lg);
 }
+.site-shot__takes {
+  flex: none;
+  width: var(--site-shot-takes);
+  padding: var(--spacing-4);
+  border-inline-start: var(--border-width) solid var(--color-border);
+}
+.site-shot__take {
+  padding: var(--spacing-2);
+  border-radius: var(--radius-inner);
+  border: var(--border-width) solid var(--color-border);
+}
+.site-shot__take.is-open {
+  border-color: var(--color-accent);
+  background: var(--color-overlay-hover);
+}
 
 /* 8. Recipe kinds */
 .site-kinds {
   padding: var(--site-section-y-stage) var(--site-gutter)
     var(--site-section-y-stage-end);
 }
+.site-kinds__track {
+  position: relative;
+  width: 100%;
+  max-width: var(--layout-content-width);
+  margin-inline: auto;
+}
+.site-kinds__sticky {
+  position: sticky;
+  top: var(--site-header-height);
+  width: 100%;
+  padding-top: var(--spacing-4);
+}
+.site-kinds__runway {
+  height: var(--site-kinds-travel);
+  pointer-events: none;
+}
 .site-kinds__body {
   gap: var(--site-block-gap);
   align-items: start;
+  width: 100%;
 }
 .site-kinds__list {
-  position: sticky;
-  top: calc(var(--site-header-height) + var(--spacing-6));
-  flex: none;
+  flex: 0 1 var(--site-kinds-list);
   gap: var(--spacing-1);
 }
 
@@ -1129,6 +1164,9 @@ html.site-menu-open {
   min-height: var(--size-element-lg);
   background: transparent;
   color: var(--color-text-secondary);
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
 }
 
 .site-kinds__name[aria-pressed="true"] {
@@ -1142,6 +1180,21 @@ html.site-menu-open {
 .site-kinds__stage {
   flex: 1 1 auto;
   min-width: 0;
+}
+.site-kinds__media {
+  display: grid;
+  width: 100%;
+  max-width: var(--site-kinds-cover);
+}
+.site-kinds__slide {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity var(--duration-medium) var(--ease-move);
+  pointer-events: none;
+}
+.site-kinds__slide[data-active="true"] {
+  opacity: 1;
+  pointer-events: auto;
 }
 .site-kinds__cover {
   width: 100%;
@@ -1426,18 +1479,27 @@ html.site-menu-open {
   .site-platform__panel {
     padding-inline: var(--site-gutter-panel-sm);
   }
-  .site-shot__side {
+  .site-shot__side,
+  .site-shot__takes {
     display: none;
   }
   .site-kinds {
     padding: var(--site-section-y-stage-sm) var(--site-gutter)
       var(--site-section-y-stage-end-sm);
   }
+  .site-kinds__sticky {
+    position: static;
+    padding-top: 0;
+  }
+  .site-kinds__runway {
+    display: none;
+  }
   .site-kinds__body {
     flex-direction: column;
   }
   .site-kinds__list {
     position: static;
+    min-width: 0;
     flex-direction: row;
     flex-wrap: wrap;
   }
@@ -1523,6 +1585,10 @@ html.site-menu-open {
     transform: none;
   }
   .site-feature__track {
+    transition: none;
+  }
+  .site-kinds__slide,
+  .site-kinds__name {
     transition: none;
   }
 }

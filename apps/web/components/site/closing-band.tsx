@@ -25,7 +25,7 @@ export type ClosingBandAction = {
   dataAttr?: string;
 };
 
-// Shared closing call-to-action band reused across Home, Recipes and Agents.
+// Shared closing call-to-action band reused across Home, Recipes, and Agents.
 export function ClosingBand({
   sectionIndex,
   titleId,

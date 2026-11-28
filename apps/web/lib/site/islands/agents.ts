@@ -376,14 +376,16 @@ function readAgentsData(): AgentsIslandData | null {
 
 export function initAgents(): () => void {
   initShell();
-  initFaq();
+  const stopFaq = initFaq();
 
   const data = readAgentsData();
   if (!data) {
-    return () => {};
+    return () => {
+      stopFaq();
+    };
   }
 
-  const cleanups: Array<() => void> = [];
+  const cleanups: Array<() => void> = [stopFaq];
   const status = createStatusAnnouncer();
   cleanups.push(status.destroy);
 
