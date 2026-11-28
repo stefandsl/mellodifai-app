@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Button } from "@astryxdesign/core/Button";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -12,6 +11,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CoverKind } from "@/components/site/art";
 import { ChangelogPage } from "@/components/site/changelog-page";
+import { ClosingBand } from "@/components/site/closing-band";
 import { CompareTable } from "@/components/site/compare-table";
 import { DesktopPage } from "@/components/site/desktop-page";
 import { Faq } from "@/components/site/faq";
@@ -33,7 +33,6 @@ import {
   RecipesIndex,
   type RecipesViewMode,
 } from "@/components/site/recipes-index";
-import { ClosingBand } from "@/components/site/shared-sections";
 import { SiteFooter } from "@/components/site/site-footer";
 import {
   SiteHeader,
@@ -45,7 +44,6 @@ import {
   DEFAULT_DESKTOP_PLATFORM,
   resolveDesktopCta,
 } from "@/lib/site/downloads";
-import { href } from "@/lib/site/nav";
 import { COMPARE } from "@/lib/site/plans";
 import type { RecipeIndexItem } from "@/lib/site/recipe-canvas-layout";
 import {
@@ -317,11 +315,6 @@ export function renderPricingStatic(
 }
 
 export type HomeAstryxStateClasses = {
-  disabledButton: string[];
-  panelClosed: string[];
-  panelOpen: string[];
-  chevronOpen: string[];
-  chevronClosed: string[];
   chipPressed: string[];
   chipUnpressed: string[];
 };
@@ -343,14 +336,6 @@ let cachedHomeClasses: HomeAstryxStateClasses | null = null;
 export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
   if (cachedHomeClasses) return cachedHomeClasses;
 
-  const enabledBtn = renderToStaticMarkup(<Button label="x" />);
-  const disabledBtn = renderToStaticMarkup(<Button label="x" isDisabled />);
-  const enabledClasses = extractElementClasses(enabledBtn, /<button\b[^>]*>/u);
-  const disabledClasses = extractElementClasses(
-    disabledBtn,
-    /<button\b[^>]*>/u,
-  );
-
   const pressedToggle = renderToStaticMarkup(
     <ToggleButton label="x" isPressed={true} />,
   );
@@ -366,41 +351,7 @@ export function deriveHomeAstryxStateClasses(): HomeAstryxStateClasses {
     /<button\b[^>]*>/u,
   );
 
-  const closedCollapsible = renderToStaticMarkup(
-    <Collapsible trigger="x" defaultIsOpen={false}>
-      y
-    </Collapsible>,
-  );
-  const openCollapsible = renderToStaticMarkup(
-    <Collapsible trigger="x" defaultIsOpen={true}>
-      y
-    </Collapsible>,
-  );
-
-  const closedPanelClasses = extractElementClasses(
-    closedCollapsible,
-    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
-  );
-  const openPanelClasses = extractElementClasses(
-    openCollapsible,
-    /<div\b[^>]*\bastryx-collapsible-content\b[^>]*>/u,
-  );
-
-  const closedChevronClasses = extractElementClasses(
-    closedCollapsible,
-    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
-  );
-  const openChevronClasses = extractElementClasses(
-    openCollapsible,
-    /<span\b[^>]*\bastryx-icon\b[^>]*>/u,
-  );
-
   cachedHomeClasses = {
-    disabledButton: diffClassSets(disabledClasses, enabledClasses),
-    panelClosed: diffClassSets(closedPanelClasses, openPanelClasses),
-    panelOpen: diffClassSets(openPanelClasses, closedPanelClasses),
-    chevronOpen: diffClassSets(openChevronClasses, closedChevronClasses),
-    chevronClosed: diffClassSets(closedChevronClasses, openChevronClasses),
     chipPressed: diffClassSets(pressedToggleClasses, unpressedToggleClasses),
     chipUnpressed: diffClassSets(unpressedToggleClasses, pressedToggleClasses),
   };
@@ -421,11 +372,6 @@ export function renderHomeStatic(
   const copy = SITE_COPY[lang];
   const stateClasses = deriveHomeAstryxStateClasses();
   const extraCssClasses = [
-    ...stateClasses.disabledButton,
-    ...stateClasses.panelClosed,
-    ...stateClasses.panelOpen,
-    ...stateClasses.chevronOpen,
-    ...stateClasses.chevronClosed,
     ...stateClasses.chipPressed,
     ...stateClasses.chipUnpressed,
   ];
@@ -446,13 +392,10 @@ function renderRecipesClosingBand(lang: SiteLang): ReactNode {
   const copy = SITE_COPY[lang];
   return (
     <ClosingBand
-      sectionIndex={2}
+      copy={copy.closing}
+      art={CLOSING_ART}
+      sectionIndex="2"
       titleId="recipes-close-title"
-      title={copy.closing.title}
-      actionLabel={copy.closing.action}
-      actionHref={href("start")}
-      note={copy.closing.note}
-      covers={CLOSING_ART}
     />
   );
 }

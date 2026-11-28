@@ -1,14 +1,17 @@
 // Interactive islands for pricing (period switch with sliding thumb + FAQ accordion).
-import { initFaqAccordion } from "./faq";
+import { initFaq } from "./faq";
 import { initPeriodSwitch } from "./period-switch";
 import { initShell } from "./shell";
 
-export { initFaqAccordion as initPricingFaq };
+export { initFaq as initPricingFaq };
 
-export function initPricing(): void {
+export function initPricing(): () => void {
   initShell();
   initPeriodSwitch();
-  initFaqAccordion();
+  const stopFaq = initFaq();
+  return () => {
+    stopFaq();
+  };
 }
 
 if (

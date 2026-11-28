@@ -175,13 +175,15 @@ describe("static site CSS helpers", () => {
     ).toThrow(/non-media rules/u);
   });
 
-  it("prunes Astryx StyleX rules to used classes, drops data-astryx-press, and omits shadowed :root vars", () => {
+  it("prunes Astryx StyleX rules to used classes, drops data-astryx-press and absent attribute selectors, and omits shadowed :root vars", () => {
     const astryx = [
       "@layer reset { *, ::before { box-sizing: border-box; } }",
       "@layer astryx-base {",
       ":root{--used-only:1px;--shadowed:2px;--unused:3px}",
       ".x111111{padding:var(--used-only);margin:var(--shadowed)}",
       ".x111111[data-astryx-press=pressed]{opacity:.5}",
+      '.x111111[aria-disabled="true"]{opacity:.4}',
+      '[data-container-corner="top"] .x111111{border-radius:0}',
       ".x222222{color:var(--unused)}",
       "}",
     ].join("\n");
@@ -196,9 +198,20 @@ describe("static site CSS helpers", () => {
     expect(pruned).toContain(".x111111{");
     expect(pruned).not.toContain(".x222222");
     expect(pruned).not.toContain("data-astryx-press");
+    expect(pruned).not.toContain('aria-disabled="true"');
+    expect(pruned).not.toContain("data-container-corner");
     expect(pruned).toContain("--used-only:1px");
     expect(pruned).not.toContain("--shadowed:");
     expect(pruned).not.toContain("--unused:");
+
+    // Rules are preserved when the HTML actually contains those attributes.
+    const kept = pruneAstryxCssForHtml(
+      astryx,
+      '<div class="x111111" aria-disabled="true" data-container-corner="top"></div>',
+      "",
+    );
+    expect(kept).toContain('aria-disabled="true"');
+    expect(kept).toContain("data-container-corner");
   });
 });
 

@@ -104,6 +104,16 @@ describe("composer draft handoff", () => {
     expect(
       consumeComposerDraft(undefined, savedAt + COMPOSER_DRAFT_MAX_AGE_MS),
     ).toBe("Fresh enough prompt");
+
+    // Future clock skew over 60 s is dropped; within 59 s is accepted.
+    saveComposerDraft("Future skew rejected", undefined, savedAt + 61_000);
+    expect(consumeComposerDraft(undefined, savedAt)).toBeNull();
+    expect(window.localStorage.getItem(COMPOSER_DRAFT_KEY)).toBeNull();
+
+    saveComposerDraft("Future skew allowed", undefined, savedAt + 59_000);
+    expect(consumeComposerDraft(undefined, savedAt)).toBe(
+      "Future skew allowed",
+    );
   });
 
   it("removes the draft key when clearComposerDraft is called (sign-out)", () => {

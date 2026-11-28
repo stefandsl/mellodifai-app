@@ -35,13 +35,11 @@ describe("public site loads only the Astryx CSS it uses", () => {
       Buffer.byteLength(fullAstryx) * 0.3,
     );
 
-    // Every derived Home state (disabled button, collapsible panel/chevron) has active rules in pruned CSS.
+    // Every derived Home state (pressed/unpressed toggle chips) has active rules in pruned CSS.
     const derived = deriveHomeAstryxStateClasses();
     for (const [label, classes] of [
-      ["disabledButton", derived.disabledButton],
-      ["panelClosed", derived.panelClosed],
-      ["chevronOpen", derived.chevronOpen],
-      ["chevronClosed", derived.chevronClosed],
+      ["chipPressed", derived.chipPressed],
+      ["chipUnpressed", derived.chipUnpressed],
     ] as const) {
       expect(classes.length, `${label} should derive classes`).toBeGreaterThan(
         0,

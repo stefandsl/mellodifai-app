@@ -10,7 +10,7 @@ import {
   type NavigatorPlatformHints,
   resolveDesktopCta,
 } from "../downloads";
-import { initFaqAccordion } from "./faq";
+import { initFaq } from "./faq";
 import {
   initShowcaseMarquee,
   MARQUEE_FOCUS_INSET_PX,
@@ -107,9 +107,10 @@ export function initDesktop(options?: DesktopInitOptions): () => void {
   initShell();
   initDesktopPlatform(options?.navigator);
   const stopMarquee = initShowcaseMarquee();
-  initFaqAccordion();
+  const stopFaq = initFaq();
   return () => {
     stopMarquee();
+    stopFaq();
   };
 }
 
