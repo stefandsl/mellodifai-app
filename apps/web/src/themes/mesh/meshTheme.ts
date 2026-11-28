@@ -347,6 +347,21 @@ export const meshTheme = defineTheme({
     "--site-plans-end": "7.5rem", // 120, under the plan grid
     "--site-faq-turn": "45deg", // the plus of an open question becomes a cross
     "--site-compare-min": "40rem", // 640: under this width the compare table scrolls inside its box
+    "--site-desk-hero-top": "10.8125rem", // 173: desktop hero top inset
+    "--site-desk-hero-end-sm": "4rem", // 64: desktop hero bottom inset at 390
+    "--site-desk-frame-w": "66.0625rem", // 1057: desktop hero frame width at 1440
+    "--site-desk-frame-w-md": "44.375rem", // 710: desktop hero frame width at 1024
+    "--site-desk-shot": "48.4375rem", // 775: desktop hero screenshot column at 1440
+    "--site-desk-included-copy": "33.6875rem", // 539: desktop included plan text column
+    "--site-desk-included-card": "32.375rem", // 518: desktop included plan card width
+    "--site-desk-included-pad": "1.75rem", // 28: desktop included plan card inner padding
+    "--site-desk-included-col": "15.75rem", // 252: desktop included plan card first column
+    "--site-desk-included-offset": "3.75rem", // 60: desktop included plan left offset (80 + 60 = 140)
+    "--site-desk-included-end": "0.3125rem", // 5: aligns card inner grid left at 865
+    "--site-desk-agents-text": "36.6875rem", // 587: desktop agents left text column at 1440
+    "--site-desk-close-notes": "34.625rem", // 554: desktop closing notes row width at 1440
+    "--site-desk-close-col": "18.6875rem", // 299: desktop closing notes first item width at 1440
+    "--site-desk-platform-min": "36rem", // 576: under this width the platform table scrolls inside its box
     "--motion-step": "100ms",
     "--motion-rise": "0.75rem",
     "--layer-raised": "1",

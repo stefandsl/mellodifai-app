@@ -11,13 +11,19 @@ import {
   SiteLink,
   SiteText,
 } from "@/src/site-primitives";
-import { Cover, type CoverKind, Rule, Wave } from "./art";
+import { Cover, type CoverKind, Rule } from "./art";
 import { FeatureReel } from "./feature-reel";
 import { HeroComposer } from "./hero-composer";
 import { KindsStage } from "./home-client";
-import { ArrowGlyph, CheckGlyph } from "./icons";
+import { CheckGlyph } from "./icons";
 import { PeriodProvider, PlanUnits } from "./period-context";
 import { PeriodSwitch } from "./period-switch";
+import {
+  ClosingBand,
+  ShowcaseSection,
+  StepCard,
+  StudioPicture,
+} from "./shared-sections";
 
 const AGENT_TITLES = {
   claude: "Claude",
@@ -26,15 +32,6 @@ const AGENT_TITLES = {
   codex: "Codex",
   cursor: "Cursor",
 } as const;
-const SHOW_ART: CoverKind[] = [
-  "remix",
-  "cover",
-  "satire",
-  "translation",
-  "karaoke",
-  "video",
-  "pantomime",
-];
 const HERO_CARDS: CoverKind[] = [
   "remix",
   "cover",
@@ -149,104 +146,11 @@ export function Home({ copy }: { copy: SiteCopy }) {
       </VStack>
 
       {/* 1. Showcase: title, two moving rows of song cards, the main action */}
-      <VStack
-        as="section"
-        className="site-show"
-        data-ref-section="1"
-        aria-labelledby="show-title"
-        gap={10}
-        hAlign="center"
-      >
-        <VStack gap={3} hAlign="center">
-          <SiteHeading
-            level={2}
-            id="show-title"
-            justify="center"
-            className="site-title"
-          >
-            {copy.showcase.title}
-          </SiteHeading>
-          <SiteText
-            as="p"
-            type="large"
-            color="secondary"
-            justify="center"
-            className="site-lede"
-          >
-            {copy.showcase.line}
-          </SiteText>
-        </VStack>
-        <VStack
-          className="site-show__rows"
-          gap={4}
-          aria-label={copy.showcase.examples}
-        >
-          {[0, 1].map((row) => {
-            const base = copy.showcase.songs.slice(0, 6);
-            const ordered =
-              row === 0 ? base : [...base.slice(3), ...base.slice(0, 3)];
-            return (
-              <VStack
-                key={row}
-                className="site-show__viewport"
-                data-marquee-row={String(row)}
-                data-marquee-direction={row === 0 ? "-1" : "1"}
-                data-marquee-paused="false"
-              >
-                <HStack className="site-show__track" data-marquee-track="true">
-                  {[0, 1].map((copyIdx) => (
-                    <HStack
-                      key={copyIdx}
-                      className="site-show__copy"
-                      gap={4}
-                      role={copyIdx === 0 ? "list" : undefined}
-                      aria-hidden={copyIdx === 1 ? true : undefined}
-                      data-marquee-copy={String(copyIdx)}
-                    >
-                      {ordered.map((song, i) => (
-                        <VStack
-                          key={`${copyIdx}-${song.title}`}
-                          className="site-show__card"
-                          role={copyIdx === 0 ? "listitem" : undefined}
-                          gap={3}
-                        >
-                          <Cover
-                            kind={
-                              (song.kind as CoverKind) ??
-                              SHOW_ART[(i + row * 3) % SHOW_ART.length]
-                            }
-                          />
-                          <VStack gap={0.5}>
-                            <SiteLink
-                              href={href("songbook")}
-                              color="primary"
-                              weight="medium"
-                              className="site-show__card-link"
-                              tabIndex={copyIdx === 1 ? -1 : undefined}
-                            >
-                              {song.title}
-                            </SiteLink>
-                            <SiteText type="supporting" color="secondary">
-                              {song.meta}
-                            </SiteText>
-                          </VStack>
-                        </VStack>
-                      ))}
-                    </HStack>
-                  ))}
-                </HStack>
-              </VStack>
-            );
-          })}
-        </VStack>
-        <SiteButtonLink
-          label={copy.showcase.action}
-          href={href("start")}
-          variant="secondary"
-          size="lg"
-          className="site-button--inverted"
-        />
-      </VStack>
+      <ShowcaseSection
+        copy={copy.showcase}
+        sectionIndex={1}
+        titleId="show-title"
+      />
 
       {/* 2. Three steps: title, three step cards */}
       <VStack
@@ -270,37 +174,12 @@ export function Home({ copy }: { copy: SiteCopy }) {
           role="list"
         >
           {copy.steps.items.map((step, i) => (
-            <Card
+            <StepCard
               key={step.title}
-              className="site-step"
-              padding={4}
-              role="listitem"
-            >
-              <VStack gap={4}>
-                <VStack className="site-step__art" aria-hidden="true">
-                  <Wave
-                    seed={31 + i * 5}
-                    phrases={i + 2}
-                    take={i === 1 ? [0.55, 0.75] : undefined}
-                  />
-                </VStack>
-                <VStack gap={1}>
-                  <SiteText
-                    type="code"
-                    color="secondary"
-                    className="site-eyebrow"
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </SiteText>
-                  <SiteHeading level={3} className="site-step__title">
-                    {step.title}
-                  </SiteHeading>
-                  <SiteText as="p" color="secondary">
-                    {step.line}
-                  </SiteText>
-                </VStack>
-              </VStack>
-            </Card>
+              index={i}
+              title={step.title}
+              line={step.line}
+            />
           ))}
         </HStack>
       </VStack>
@@ -451,46 +330,14 @@ export function Home({ copy }: { copy: SiteCopy }) {
       </HStack>
 
       {/* 11. Closing band: covers around a centred title and the main action */}
-      <VStack
-        as="section"
-        className="site-close"
-        data-ref-section="11"
-        aria-labelledby="close-title"
-      >
-        <VStack className="site-close__band">
-          <HStack className="site-close__mosaic" aria-hidden="true">
-            {SHOW_ART.map((k) => (
-              <Cover key={k} kind={k} className="site-close__cover" />
-            ))}
-          </HStack>
-          <VStack
-            className="site-close__column"
-            data-ref-content
-            gap={8}
-            hAlign="center"
-          >
-            <SiteHeading
-              level={2}
-              id="close-title"
-              type="display-2"
-              justify="center"
-              className="site-close__title"
-            >
-              {copy.closing.title}
-            </SiteHeading>
-            <SiteButtonLink
-              label={copy.closing.action}
-              href={href("start")}
-              variant="primary"
-              size="lg"
-              icon={<SiteIcon icon={ArrowGlyph} size="sm" color="inherit" />}
-            />
-            <SiteText type="supporting" color="secondary" justify="center">
-              {copy.closing.note}
-            </SiteText>
-          </VStack>
-        </VStack>
-      </VStack>
+      <ClosingBand
+        sectionIndex={11}
+        titleId="close-title"
+        title={copy.closing.title}
+        actionLabel={copy.closing.action}
+        actionHref={href("start")}
+        note={copy.closing.note}
+      />
     </>
   );
 }
@@ -558,38 +405,5 @@ function HomePlans({ copy }: { copy: SiteCopy["plans"] }) {
         </SiteLink>
       </VStack>
     </PeriodProvider>
-  );
-}
-
-function StudioPicture({ copy }: { copy: SiteCopy }) {
-  return (
-    <HStack className="site-shot" aria-hidden="true">
-      <VStack className="site-shot__side" gap={2}>
-        {copy.showcase.songs.slice(0, 5).map((s, i) => (
-          <HStack
-            key={s.title}
-            gap={2}
-            align="center"
-            className={`site-shot__song ${i === 0 ? "is-open" : ""}`}
-          >
-            <Cover kind={SHOW_ART[i]} className="site-shot__cover" />
-            <SiteText type="supporting" maxLines={1}>
-              {s.title}
-            </SiteText>
-          </HStack>
-        ))}
-      </VStack>
-      <VStack className="site-shot__main" gap={3}>
-        <SiteText type="code" color="secondary" className="site-eyebrow">
-          {copy.features.sheet.bar}
-        </SiteText>
-        {copy.features.sheet.lines.map((line) => (
-          <SiteText key={line} className="site-shot__line">
-            {line}
-          </SiteText>
-        ))}
-        <Wave seed={77} phrases={4} take={[0.5, 0.66]} />
-      </VStack>
-    </HStack>
   );
 }
