@@ -14,6 +14,133 @@
     "FAQ: title left, 10 questions right",
     "Footer"
   ],
+  "repairs": [
+    {
+      "width": 390,
+      "section": 2,
+      "field": "h",
+      "old": 3420,
+      "new": 986,
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Section 2 box[3] is 985.8 in outline-390.json; raw layout-ref merged section 4 Showcase into section 2."
+    },
+    {
+      "width": 390,
+      "section": 2,
+      "field": "bottomInset",
+      "old": 0,
+      "new": 96,
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Section 2 layout.pad is [96, 16, 96, 16] in outline-390.json."
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "present",
+      "old": false,
+      "new": true,
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Section 4 Showcase exists in outline-390.json at box [0, 2880.8, 390, 1184] with layout.pad [96, 16, 96, 16] and container x=16 w=358; raw layout-ref auto-matcher missed it."
+    },
+    {
+      "width": 390,
+      "section": 4,
+      "field": "y,h,blocks,contentLeft,contentRight,topInset,bottomInset,grid",
+      "old": null,
+      "new": {
+        "y": 2881,
+        "h": 1184,
+        "blocks": 1,
+        "contentLeft": 16,
+        "contentRight": 16,
+        "topInset": 96,
+        "bottomInset": 96,
+        "grid": null
+      },
+      "source": "pages/desktop/outline-390.json",
+      "reason": "Derived directly from outline-390.json section 4 (box [0, 2880.8, 390, 1184], layout.pad [96, 16, 96, 16], container [16, 3095.1, 358, 786.7]) and STUDY.md section 4 (390 no grid)."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "h",
+      "old": 2373,
+      "new": 724,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 2 box[3] is 724.4 in outline-1024.json; raw layout-ref merged section 4 Showcase into section 2."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "contentLeft",
+      "old": 68,
+      "new": 80,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 2 layout.pad is [96, 80, 96, 80] in outline-1024.json (68 came from the merged Showcase container)."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "contentRight",
+      "old": 68,
+      "new": 80,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 2 layout.pad is [96, 80, 96, 80] in outline-1024.json (68 came from the merged Showcase container)."
+    },
+    {
+      "width": 1024,
+      "section": 2,
+      "field": "grid",
+      "old": {
+        "items": 2,
+        "perRow": 1,
+        "colGap": 8,
+        "rowGap": 8,
+        "itemW": 886,
+        "x": 60,
+        "w": 904
+      },
+      "new": null,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "The [60, 2588.5, 904, 720] gap-8 grid belongs to section 4 Showcase (outline-1024.json section 4 grids[1]), not section 2."
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "present",
+      "old": false,
+      "new": true,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 4 Showcase exists in outline-1024.json at box [0, 2400.5, 1024, 1091]; raw layout-ref auto-matcher missed it."
+    },
+    {
+      "width": 1024,
+      "section": 4,
+      "field": "y,h,blocks,contentLeft,contentRight,topInset,bottomInset,grid",
+      "old": null,
+      "new": {
+        "y": 2401,
+        "h": 1091,
+        "blocks": 1,
+        "contentLeft": 68,
+        "contentRight": 68,
+        "topInset": 96,
+        "bottomInset": 96,
+        "grid": null
+      },
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Derived directly from outline-1024.json section 4 (box [0, 2400.5, 1024, 1091], layout.pad [96, 60, 96, 60], container [60, 2588.5, 904, 720] with padX [8, 8] -> 60 + 8 = 68) and STUDY.md section 4 (1024 no grid)."
+    },
+    {
+      "width": 1024,
+      "section": 7,
+      "field": "grid.itemW",
+      "old": 171,
+      "new": 862,
+      "source": "pages/desktop/outline-1024.json",
+      "reason": "Section 7 panel width is 862 at x=81 in outline-1024.json (section 7 box[2]=862, section 8 childBoxes[0][2]=862); 171 was the squished left column of the vertically offset flex row."
+    }
+  ],
   "widths": {
     "390": {
       "pageHeight": 9801,
@@ -47,12 +174,20 @@
           "present": true,
           "y": 831,
           "h": 986,
-          "blocks": 1,
+          "blocks": 3,
           "contentLeft": 16,
           "contentRight": 16,
           "topInset": 96,
           "bottomInset": 96,
-          "grid": null
+          "grid": {
+            "items": 2,
+            "perRow": 1,
+            "colGap": 48,
+            "rowGap": 48,
+            "itemW": 358,
+            "x": 16,
+            "w": 358
+          }
         },
         {
           "name": "Benefits panel: title, 4 columns",
@@ -72,8 +207,8 @@
           "y": 2881,
           "h": 1184,
           "blocks": 1,
-          "contentLeft": 24,
-          "contentRight": 24,
+          "contentLeft": 16,
+          "contentRight": 16,
           "topInset": 96,
           "bottomInset": 96,
           "grid": null
@@ -95,7 +230,7 @@
           "present": true,
           "y": 4299,
           "h": 1654,
-          "blocks": 1,
+          "blocks": 4,
           "contentLeft": 16,
           "contentRight": 16,
           "topInset": 0,
@@ -107,7 +242,7 @@
           "present": true,
           "y": 6090,
           "h": 1313,
-          "blocks": 1,
+          "blocks": 2,
           "contentLeft": 41,
           "contentRight": 41,
           "topInset": 0,
@@ -124,15 +259,8 @@
         },
         {
           "name": "Closing band",
-          "present": true,
-          "y": 7403,
-          "h": 812,
-          "blocks": 1,
-          "contentLeft": 32,
-          "contentRight": 32,
-          "topInset": 16,
-          "bottomInset": 16,
-          "grid": null
+          "present": false,
+          "reason": "Desktop study outline-390.json has no Closing band element between Own agents (y 6090..7403) and FAQ (y 7444); STUDY.md marks 390 as not found."
         },
         {
           "name": "FAQ: title left, 10 questions right",
@@ -216,7 +344,7 @@
           "present": true,
           "y": 1118,
           "h": 724,
-          "blocks": 1,
+          "blocks": 2,
           "contentLeft": 80,
           "contentRight": 80,
           "topInset": 96,
@@ -284,7 +412,7 @@
           "present": true,
           "y": 4519,
           "h": 1114,
-          "blocks": 1,
+          "blocks": 2,
           "contentLeft": 81,
           "contentRight": 81,
           "topInset": 0,
