@@ -12,6 +12,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { SITE_COPY } from "./copy";
 import {
   computeVisibleCanvasCards,
   DEFAULT_ZOOM,
@@ -1151,16 +1152,43 @@ describe("public site vanilla islands on built static HTML", () => {
     expect(audioEl?.preload).toBe("none");
   });
 
-  it("desktop: detects Windows, macOS, and Linux, updates header and page CTAs, highlights current row, and toggles exclusive FAQ", () => {
+  it("desktop: hides badges in SSR, detects desktop platforms without dropping icons, updates hero note, hides badges on phones, and toggles exclusive FAQ", () => {
     loadBuiltDocument(desktopHtml);
 
-    // Header action is the desktop download CTA.
+    // Server markup shows NO "Your system" badge to avoid false badges before JS or on phones.
+    for (const id of ["windows", "macos", "linux"] as const) {
+      expect(
+        document
+          .querySelector(`[data-platform-row="${id}"]`)
+          ?.getAttribute("data-current-platform"),
+        `SSR row ${id}`,
+      ).toBe("false");
+      expect(
+        document.querySelector<HTMLElement>(
+          `[data-platform-current-badge="${id}"]`,
+        )?.hidden,
+        `SSR badge ${id}`,
+      ).toBe(true);
+    }
+
+    // Header action is the desktop download CTA with a data-site-button-label span and download icon.
     const headerCta = document.querySelector<HTMLAnchorElement>(
       '.site-header__cta[data-desktop-download-cta="true"]',
     );
     expect(headerCta).not.toBeNull();
+    const headerLabel = headerCta?.querySelector<HTMLElement>(
+      '[data-site-button-label="true"]',
+    );
+    expect(headerLabel).not.toBeNull();
+    // Removing the generated StyleX atomic class must not break label selection or wipe the icon.
+    headerLabel?.classList.remove("xb3r6kr");
 
-    // macOS: planned, points to #platforms (no dead link), highlights macOS row only.
+    const heroNote = document.querySelector<HTMLElement>(
+      '[data-desktop-platform-note="true"]',
+    );
+    expect(heroNote).not.toBeNull();
+
+    // macOS: planned, points to #platforms (no dead link), updates hero note, preserves icon, highlights macOS row only.
     const stopMac = initDesktop({
       navigator: { userAgentData: { platform: "macOS" } },
     });
@@ -1175,9 +1203,13 @@ describe("public site vanilla islands on built static HTML", () => {
         expect(cta.getAttribute("href")).toBe("#platforms");
         expect(cta.getAttribute("data-detected-platform")).toBe("macos");
         expect(cta.getAttribute("data-platform-status")).toBe("planned");
-        expect(cta.textContent?.toLowerCase()).toContain("macos");
-        expect(cta.textContent?.toLowerCase()).toContain("planned");
+        expect(
+          cta.querySelector<HTMLElement>('[data-site-button-label="true"]')
+            ?.textContent,
+        ).toBe(SITE_COPY.en.desktop.ctaLabel.macos);
+        expect(cta.querySelector("svg")).not.toBeNull();
       }
+      expect(heroNote?.textContent).toBe(SITE_COPY.en.desktop.heroNote.macos);
       expect(
         document
           .querySelector('[data-platform-row="macos"]')
@@ -1199,20 +1231,29 @@ describe("public site vanilla islands on built static HTML", () => {
         )?.hidden,
       ).toBe(true);
 
-      // Linux: planned, points to #platforms, highlights Linux row only.
+      // Linux: planned, points to #platforms, updates hero note, highlights Linux row only.
       expect(
         initDesktopPlatform({ platform: "Linux x86_64", userAgent: "" }),
       ).toBe("linux");
       expect(headerCta?.getAttribute("href")).toBe("#platforms");
       expect(headerCta?.getAttribute("data-detected-platform")).toBe("linux");
-      expect(headerCta?.textContent?.toLowerCase()).toContain("linux");
+      expect(headerLabel?.textContent).toBe(
+        SITE_COPY.en.desktop.ctaLabel.linux,
+      );
+      expect(headerCta?.querySelector("svg")).not.toBeNull();
+      expect(heroNote?.textContent).toBe(SITE_COPY.en.desktop.heroNote.linux);
       expect(
         document
           .querySelector('[data-platform-row="linux"]')
           ?.getAttribute("data-current-platform"),
       ).toBe("true");
+      expect(
+        document.querySelector<HTMLElement>(
+          '[data-platform-current-badge="linux"]',
+        )?.hidden,
+      ).toBe(false);
 
-      // Windows: real repo installer guide link, highlights Windows row.
+      // Windows: real repo installer guide link, updates hero note, highlights Windows row.
       expect(initDesktopPlatform({ platform: "Win32" })).toBe("windows");
       expect(headerCta?.getAttribute("href")).toBe(
         "https://github.com/stefandsl/mellodifai-app/blob/main/docs/windows-app.md",
@@ -1220,11 +1261,55 @@ describe("public site vanilla islands on built static HTML", () => {
       expect(headerCta?.getAttribute("rel")).toBe("noopener noreferrer");
       expect(headerCta?.getAttribute("data-detected-platform")).toBe("windows");
       expect(headerCta?.getAttribute("data-platform-status")).toBe("source");
+      expect(headerLabel?.textContent).toBe(
+        SITE_COPY.en.desktop.ctaLabel.windows,
+      );
+      expect(heroNote?.textContent).toBe(SITE_COPY.en.desktop.heroNote.windows);
       expect(
         document
           .querySelector('[data-platform-row="windows"]')
           ?.getAttribute("data-current-platform"),
       ).toBe("true");
+      expect(
+        document.querySelector<HTMLElement>(
+          '[data-platform-current-badge="windows"]',
+        )?.hidden,
+      ).toBe(false);
+
+      // Phone visitor (Android / iPhone): CTA keeps safe Windows fallback, NO "Your system" badge shown.
+      for (const phoneNav of [
+        {
+          userAgentData: { platform: "Android" },
+          platform: "Linux armv8l",
+          userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8)",
+        },
+        {
+          platform: "iPhone",
+          userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
+        },
+      ]) {
+        expect(initDesktopPlatform(phoneNav)).toBe("windows");
+        expect(headerCta?.getAttribute("href")).toBe(
+          "https://github.com/stefandsl/mellodifai-app/blob/main/docs/windows-app.md",
+        );
+        expect(heroNote?.textContent).toBe(
+          SITE_COPY.en.desktop.heroNote.windows,
+        );
+        for (const id of ["windows", "macos", "linux"] as const) {
+          expect(
+            document
+              .querySelector(`[data-platform-row="${id}"]`)
+              ?.getAttribute("data-current-platform"),
+            `phone row ${id}`,
+          ).toBe("false");
+          expect(
+            document.querySelector<HTMLElement>(
+              `[data-platform-current-badge="${id}"]`,
+            )?.hidden,
+            `phone badge ${id}`,
+          ).toBe(true);
+        }
+      }
 
       // Exclusive FAQ accordion: 10 questions, opening item 2 closes item 1 and sets inert.
       const faqItems = Array.from(

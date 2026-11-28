@@ -51,12 +51,21 @@ const FAKE_PLATFORM_ENV: Record<
   },
 };
 
-async function fakeClientPlatform(page: Page, target: DesktopPlatformId) {
-  const env = FAKE_PLATFORM_ENV[target];
-  await page.addInitScript((spec) => {
+const FAKE_MOBILE_ENV = {
+  uadPlatform: "Android",
+  platform: "Linux armv8l",
+  userAgent:
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36",
+};
+
+async function fakeClientNavigator(
+  page: Page,
+  spec: { uadPlatform: string; platform: string; userAgent: string },
+) {
+  await page.addInitScript((s) => {
     try {
       Object.defineProperty(Navigator.prototype, "userAgentData", {
-        get: () => ({ platform: spec.uadPlatform, brands: [], mobile: false }),
+        get: () => ({ platform: s.uadPlatform, brands: [], mobile: false }),
         configurable: true,
       });
     } catch {
@@ -64,7 +73,7 @@ async function fakeClientPlatform(page: Page, target: DesktopPlatformId) {
     }
     try {
       Object.defineProperty(navigator, "userAgentData", {
-        get: () => ({ platform: spec.uadPlatform, brands: [], mobile: false }),
+        get: () => ({ platform: s.uadPlatform, brands: [], mobile: false }),
         configurable: true,
       });
     } catch {
@@ -72,7 +81,7 @@ async function fakeClientPlatform(page: Page, target: DesktopPlatformId) {
     }
     try {
       Object.defineProperty(Navigator.prototype, "platform", {
-        get: () => spec.platform,
+        get: () => s.platform,
         configurable: true,
       });
     } catch {
@@ -80,7 +89,7 @@ async function fakeClientPlatform(page: Page, target: DesktopPlatformId) {
     }
     try {
       Object.defineProperty(navigator, "platform", {
-        get: () => spec.platform,
+        get: () => s.platform,
         configurable: true,
       });
     } catch {
@@ -88,13 +97,17 @@ async function fakeClientPlatform(page: Page, target: DesktopPlatformId) {
     }
     try {
       Object.defineProperty(Navigator.prototype, "userAgent", {
-        get: () => spec.userAgent,
+        get: () => s.userAgent,
         configurable: true,
       });
     } catch {
       // Fallback to instance override.
     }
-  }, env);
+  }, spec);
+}
+
+async function fakeClientPlatform(page: Page, target: DesktopPlatformId) {
+  await fakeClientNavigator(page, FAKE_PLATFORM_ENV[target]);
 }
 
 async function open(page: Page) {
@@ -187,6 +200,14 @@ for (const [width, height] of WIDTHS) {
       ).toHaveAttribute("href", "/create");
     }
 
+    // Closing band matches desktop study: hidden at 390 (outline-390.json has no measure), visible at 1024/1440.
+    const closingBand = page.locator('[data-ref-section="8"]');
+    if (width === 390) {
+      await expect(closingBand).toBeHidden();
+    } else {
+      await expect(closingBand).toBeVisible();
+    }
+
     await noSideways(page);
   });
 }
@@ -241,6 +262,194 @@ for (const platform of DESKTOP_PLATFORMS) {
     }
   });
 }
+
+for (const lang of ["en", "it"] as const) {
+  for (const platform of ["macos", "linux"] as const) {
+    test(`at 390 (${lang}, ${platform}): swapped CTA labels never clip and hero height and CLS stay stable`, async ({
+      browser,
+      page,
+      baseURL,
+    }) => {
+      const origin = baseURL ?? "http://127.0.0.1";
+      // Measure pure server-rendered hero height (island script blocked) with fonts ready as the baseline.
+      const ssrContext = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+      });
+      let ssrHeroHeight = 0;
+      try {
+        await ssrContext.addCookies([
+          { name: "mellodifai_lang", value: lang, url: origin },
+        ]);
+        const ssrPage = await ssrContext.newPage();
+        await ssrPage.route("**/site/islands/**", (route) => route.abort());
+        await ssrPage.goto(`${origin}/desktop`);
+        await ssrPage.evaluate(async () => {
+          const fontsUrl = document.documentElement.getAttribute(
+            "data-site-fonts-url",
+          );
+          if (fontsUrl) {
+            await new Promise<void>((resolve) => {
+              const link = document.createElement("link");
+              link.rel = "stylesheet";
+              link.href = fontsUrl;
+              link.onload = () => resolve();
+              link.onerror = () => resolve();
+              document.head.appendChild(link);
+            });
+          }
+          await document.fonts.ready;
+        });
+        ssrHeroHeight = await ssrPage.evaluate(() => {
+          const hero = document.querySelector(".site-desk-hero");
+          return hero ? Math.round(hero.getBoundingClientRect().height) : 0;
+        });
+      } finally {
+        await ssrContext.close();
+      }
+      expect(ssrHeroHeight).toBeGreaterThan(200);
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page
+        .context()
+        .addCookies([{ name: "mellodifai_lang", value: lang, url: origin }]);
+      await fakeClientPlatform(page, platform);
+      await page.addInitScript(() => {
+        const w = window as unknown as { __clsTotal?: number };
+        w.__clsTotal = 0;
+        try {
+          if (
+            typeof PerformanceObserver !== "undefined" &&
+            PerformanceObserver.supportedEntryTypes?.includes("layout-shift")
+          ) {
+            new PerformanceObserver((list) => {
+              for (const entry of list.getEntries() as Array<
+                PerformanceEntry & { hadRecentInput?: boolean; value?: number }
+              >) {
+                if (!entry.hadRecentInput && typeof entry.value === "number") {
+                  w.__clsTotal = (w.__clsTotal ?? 0) + entry.value;
+                }
+              }
+            }).observe({ type: "layout-shift", buffered: true });
+          }
+        } catch {
+          // Non-Chromium engines may not expose layout-shift entries.
+        }
+      });
+
+      await open(page);
+      // Wait for deferred fonts stylesheet too so font metrics match the SSR <noscript> baseline.
+      await page.waitForFunction(() => {
+        const link = document.querySelector<HTMLLinkElement>(
+          'link[data-site-fonts="true"]',
+        );
+        return Boolean(link?.sheet);
+      });
+      await page.evaluate(() => document.fonts.ready);
+
+      const copy = SITE_COPY[lang].desktop;
+      const headerCta = page.locator(
+        '.site-header__cta[data-desktop-download-cta="true"]',
+      );
+      await expect(headerCta).toHaveAttribute(
+        "data-detected-platform",
+        platform,
+      );
+      await expect(
+        page.locator('[data-desktop-platform-note="true"]'),
+      ).toHaveText(copy.heroNote[platform]);
+
+      // Every visible download CTA label (header + hero + included + showcase) must fit without clipping.
+      const labelCheck = await page.evaluate(() => {
+        const out: Array<{
+          inHeader: boolean;
+          text: string;
+          scrollWidth: number;
+          clientWidth: number;
+          hasIcon: boolean;
+        }> = [];
+        for (const a of document.querySelectorAll<HTMLAnchorElement>(
+          'a[data-desktop-download-cta="true"]',
+        )) {
+          const r = a.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) continue;
+          const span = a.querySelector<HTMLElement>(
+            '[data-site-button-label="true"]',
+          );
+          if (!span) continue;
+          out.push({
+            inHeader: a.classList.contains("site-header__cta"),
+            text: span.textContent ?? "",
+            scrollWidth: span.scrollWidth,
+            clientWidth: span.clientWidth,
+            hasIcon: a.querySelector("svg") !== null,
+          });
+        }
+        const hero = document.querySelector(".site-desk-hero");
+        const w = window as unknown as { __clsTotal?: number };
+        return {
+          labels: out,
+          cls: w.__clsTotal ?? 0,
+          heroHeightAfter: hero
+            ? Math.round(hero.getBoundingClientRect().height)
+            : 0,
+        };
+      });
+
+      expect(labelCheck.labels.length).toBeGreaterThanOrEqual(2);
+      expect(labelCheck.labels.some((l) => l.inHeader)).toBe(true);
+      for (const l of labelCheck.labels) {
+        expect(l.text).toBe(copy.ctaLabel[platform]);
+        expect(l.hasIcon).toBe(true);
+        expect(
+          l.scrollWidth,
+          `${lang}/${platform} label "${l.text}" clipped (${l.scrollWidth} > ${l.clientWidth})`,
+        ).toBeLessThanOrEqual(l.clientWidth);
+      }
+      expect(labelCheck.cls).toBeLessThan(0.05);
+      expect(
+        Math.abs(labelCheck.heroHeightAfter - ssrHeroHeight),
+        `hero height shifted from ${ssrHeroHeight} to ${labelCheck.heroHeightAfter}`,
+      ).toBeLessThanOrEqual(1);
+      await noSideways(page);
+    });
+  }
+}
+
+test("phone visitor (Android): CTA falls back to Windows guide and no 'Your system' badge is shown", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeClientNavigator(page, FAKE_MOBILE_ENV);
+  await open(page);
+
+  const headerCta = page.locator(
+    '.site-header__cta[data-desktop-download-cta="true"]',
+  );
+  await expect(headerCta).toHaveAttribute("href", WINDOWS_INSTALLER_GUIDE_URL);
+  for (const id of DESKTOP_PLATFORMS) {
+    const row = page.locator(`[data-platform-row="${id}"]`);
+    await expect(row).toHaveAttribute("data-current-platform", "false");
+    await expect(
+      row.locator(`[data-platform-current-badge="${id}"]`),
+    ).toBeHidden();
+  }
+});
+
+test("server HTML without JS: no 'Your system' badge is pre-shown on any row", async ({
+  request,
+}) => {
+  const res = await request.get("/desktop", {
+    headers: { cookie: "mellodifai_lang=en" },
+  });
+  expect(res.status()).toBe(200);
+  const html = await res.text();
+  expect(html).not.toContain('data-current-platform="true"');
+  for (const id of DESKTOP_PLATFORMS) {
+    expect(html).toMatch(
+      new RegExp(`data-platform-current-badge="${id}"[^>]*\\bhidden`, "u"),
+    );
+  }
+});
 
 test("C07 showcase marquee: moves at 32 px/s +/- 4 in opposite directions and pauses on hover and focus", async ({
   page,
@@ -416,9 +625,21 @@ test("link check: every href on /desktop answers 200 in the lab and real release
         expect(l.rel).toContain("noopener");
         expect(l.rel).toContain("noreferrer");
       }
-      if (!process.env.CI && browserName === "chromium") {
-        const res = await request.head(h, { maxRedirects: 0 });
-        expect([200, 301, 302], h).toContain(res.status());
+      if (browserName === "chromium") {
+        let status = 0;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const res = await request.head(h, { maxRedirects: 0 });
+            status = res.status();
+            if ([200, 301, 302].includes(status)) break;
+          } catch {
+            status = 0;
+          }
+          if (attempt === 0) {
+            await page.waitForTimeout(500);
+          }
+        }
+        expect([200, 301, 302], h).toContain(status);
       }
     }
   }

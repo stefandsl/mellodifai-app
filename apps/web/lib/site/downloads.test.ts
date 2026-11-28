@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SITE_COPY } from "./copy";
 import {
@@ -7,9 +9,12 @@ import {
   DESKTOP_PLATFORM_LIST,
   DESKTOP_PLATFORMS,
   detectDesktopPlatform,
+  detectMatchedDesktopPlatform,
   resolveDesktopCta,
   WINDOWS_INSTALLER_GUIDE_URL,
 } from "./downloads";
+
+const REPO_ROOT = resolve(import.meta.dirname, "../../../..");
 
 describe("desktop downloads catalog (single source of truth)", () => {
   it("lists Windows, macOS, and Linux with honest release states and no invented binary URLs", () => {
@@ -85,22 +90,114 @@ describe("desktop downloads catalog (single source of truth)", () => {
       }),
     ).toBe("linux");
 
-    // Mobile OSes and unknown values fall back to safe default (windows).
-    expect(
-      detectDesktopPlatform({
-        userAgentData: { platform: "Android" },
-        platform: "Linux armv8l",
-        userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8)",
-      }),
-    ).toBe(DEFAULT_DESKTOP_PLATFORM);
-    expect(
-      detectDesktopPlatform({
-        platform: "iPhone",
-        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
-      }),
-    ).toBe(DEFAULT_DESKTOP_PLATFORM);
+    // Mobile OSes and unknown values fall back to safe default (windows) for CTAs,
+    // while detectMatchedDesktopPlatform returns null so no false "Your system" badge is shown.
+    const androidHints = {
+      userAgentData: { platform: "Android" },
+      platform: "Linux armv8l",
+      userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8)",
+    };
+    const iphoneHints = {
+      platform: "iPhone",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
+    };
+    expect(detectDesktopPlatform(androidHints)).toBe(DEFAULT_DESKTOP_PLATFORM);
+    expect(detectDesktopPlatform(iphoneHints)).toBe(DEFAULT_DESKTOP_PLATFORM);
     expect(detectDesktopPlatform({})).toBe(DEFAULT_DESKTOP_PLATFORM);
     expect(detectDesktopPlatform(null)).toBe(DEFAULT_DESKTOP_PLATFORM);
+
+    expect(detectMatchedDesktopPlatform({ platform: "Win32" })).toBe("windows");
+    expect(detectMatchedDesktopPlatform({ platform: "MacIntel" })).toBe(
+      "macos",
+    );
+    expect(detectMatchedDesktopPlatform({ platform: "Linux x86_64" })).toBe(
+      "linux",
+    );
+    expect(detectMatchedDesktopPlatform(androidHints)).toBeNull();
+    expect(detectMatchedDesktopPlatform(iphoneHints)).toBeNull();
+    expect(detectMatchedDesktopPlatform({})).toBeNull();
+    expect(detectMatchedDesktopPlatform(null)).toBeNull();
+  });
+
+  it("points WINDOWS_INSTALLER_GUIDE_URL to a real documentation file in this repository", () => {
+    const match = WINDOWS_INSTALLER_GUIDE_URL.match(
+      /^https:\/\/github\.com\/stefandsl\/mellodifai-app\/blob\/main\/(.+)$/u,
+    );
+    expect(match).not.toBeNull();
+    const relPath = match?.[1] ?? "";
+    const absPath = resolve(REPO_ROOT, relPath);
+    expect(existsSync(absPath), `${relPath} must exist in the repo`).toBe(true);
+    const content = readFileSync(absPath, "utf8");
+    expect(content).toContain("build:installer");
+    expect(content).toContain("apps/windows");
+  });
+
+  it("keeps e2e/site/layout-ref/desktop.json grounded in desktop study measures with an explicit repairs list", () => {
+    const refPath = resolve(
+      REPO_ROOT,
+      "apps/web/e2e/site/layout-ref/desktop.json",
+    );
+    const ref = JSON.parse(readFileSync(refPath, "utf8")) as {
+      repairs?: Array<{
+        width: number;
+        section: number;
+        field: string;
+        source: string;
+      }>;
+      widths: Record<
+        string,
+        {
+          sections: Array<{
+            present: boolean;
+            reason?: string;
+            blocks?: number;
+            contentLeft?: number;
+            contentRight?: number;
+            grid?: {
+              items: number;
+              perRow: number;
+              colGap: number;
+              rowGap: number;
+              itemW: number;
+              x: number;
+              w: number;
+            } | null;
+          }>;
+        }
+      >;
+    };
+
+    expect(Array.isArray(ref.repairs)).toBe(true);
+    expect(ref.repairs?.length).toBeGreaterThanOrEqual(10);
+    for (const r of ref.repairs ?? []) {
+      expect(r.source).toMatch(/^pages\/desktop\/outline-(390|1024)\.json$/u);
+    }
+
+    // 390 #8 Closing band stays present: false with reason (no desktop study measure).
+    expect(ref.widths["390"].sections[8].present).toBe(false);
+    expect(ref.widths["390"].sections[8].reason).toBeTruthy();
+
+    // 390 #2 keeps its desktop study grid and blocks=3.
+    expect(ref.widths["390"].sections[2].blocks).toBe(3);
+    expect(ref.widths["390"].sections[2].grid).toEqual({
+      items: 2,
+      perRow: 1,
+      colGap: 48,
+      rowGap: 48,
+      itemW: 358,
+      x: 16,
+      w: 358,
+    });
+
+    // 390 #4 Showcase uses desktop outline contentLeft/Right 16 (not home's 24).
+    expect(ref.widths["390"].sections[4].contentLeft).toBe(16);
+    expect(ref.widths["390"].sections[4].contentRight).toBe(16);
+
+    // Study blocks values preserved.
+    expect(ref.widths["390"].sections[6].blocks).toBe(4);
+    expect(ref.widths["390"].sections[7].blocks).toBe(2);
+    expect(ref.widths["1024"].sections[2].blocks).toBe(2);
+    expect(ref.widths["1024"].sections[7].blocks).toBe(2);
   });
 
   it("resolves honest CTA hrefs and labels for every platform in EN and IT", () => {

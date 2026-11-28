@@ -308,11 +308,11 @@ describe("buildSiteStatic prerender pipeline", () => {
               ? result.islandUrls.desktop
               : page.startsWith("changelog-")
                 ? result.islandUrls.changelog
-              : page.startsWith("recipe-")
-                ? result.islandUrls["recipe-detail"]
-                : page.startsWith("not-found-")
-                  ? null
-                  : result.islandUrls.recipes;
+                : page.startsWith("recipe-")
+                  ? result.islandUrls["recipe-detail"]
+                  : page.startsWith("not-found-")
+                    ? null
+                    : result.islandUrls.recipes;
         if (expectedIsland) {
           expect(html, page).toContain(expectedIsland);
         }
