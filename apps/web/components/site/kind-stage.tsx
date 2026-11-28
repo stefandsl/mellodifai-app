@@ -1,5 +1,3 @@
-"use client";
-
 import { HStack } from "@astryxdesign/core/HStack";
 import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -82,7 +80,7 @@ export function KindStage({ copy }: { copy: SiteCopy["kinds"] }) {
               <SiteHeading level={3} className="site-kinds__title">
                 {first.name}
               </SiteHeading>
-              <SiteText as="p" color="secondary" aria-live="polite">
+              <SiteText as="p" color="secondary" data-kind-line="true">
                 {first.line}
               </SiteText>
             </VStack>

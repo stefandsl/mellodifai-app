@@ -15,6 +15,7 @@ const STATIC_FILES = [
   "app/(site)/recipes/[slug]/try/route.ts",
   "components/site/home.tsx",
   "components/site/studio-shot.tsx",
+  "components/site/kind-stage.tsx",
   "components/site/closing-band.tsx",
   "components/site/changelog-page.tsx",
   "components/site/release-ruler.tsx",
@@ -138,11 +139,15 @@ describe("public site renders static parts on the server", () => {
     expect(body).toContain("site-shot__takes");
 
     // Section 8: sticky kind stage with 7 kind buttons, 7 stacked slides, and runway.
+    // The caption line has no aria-live in SSR HTML so scrolling never triggers live announcements.
     expect(body).toContain('data-ref-section="8"');
     expect(body).toContain('data-kinds-sticky="true"');
     expect(body).toContain('data-kinds-runway="true"');
     expect([...body.matchAll(/data-kind-index="\d+"/gu)]).toHaveLength(7);
     expect([...body.matchAll(/data-kind-slide="\d+"/gu)]).toHaveLength(7);
+    const kindLineTag = body.match(/<p\b[^>]*data-kind-line="true"[^>]*>/u);
+    expect(kindLineTag).not.toBeNull();
+    expect(kindLineTag?.[0]).not.toContain("aria-live");
 
     // Section 9: 4 C03 PlanCards with placeholder prices and stacked units.
     expect(body).toContain('data-ref-section="9"');
