@@ -905,7 +905,7 @@ const en: SiteCopy = {
     faq: [
       {
         q: "How does this client connect to MellodifAI?",
-        a: "Connect over Streamable HTTP at https://app.mellodifai.com/api/mcp with OAuth, or run the local mellodifai mcp stdio bridge from packages/cli.",
+        a: "Connect locally via the mellodifai mcp stdio bridge from the repository CLI or over Streamable HTTP on your local server; public HTTPS connectors open at launch.",
       },
       {
         q: "Which permissions can an agent request?",
@@ -1620,7 +1620,7 @@ const it: SiteCopy = {
     faq: [
       {
         q: "Come si collega questo client a MellodifAI?",
-        a: "Si collega via Streamable HTTP su https://app.mellodifai.com/api/mcp con OAuth, oppure con il ponte stdio locale mellodifai mcp da packages/cli.",
+        a: "Si collega in locale tramite il ponte stdio mellodifai mcp dalla CLI del repository oppure via Streamable HTTP sul server locale; i connettori HTTPS pubblici aprono al lancio.",
       },
       {
         q: "Quali permessi puo chiedere un agente?",

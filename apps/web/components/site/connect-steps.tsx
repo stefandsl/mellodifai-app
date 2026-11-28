@@ -1,12 +1,13 @@
 import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
-import type { AgentProfile } from "@/lib/site/agents";
+import { type AgentProfile, REPO_AGENTS_DOCS_URL } from "@/lib/site/agents";
 import type { SiteCopy } from "@/lib/site/copy";
 import {
   SiteButton,
   SiteButtonLink,
   SiteHeading,
   SiteIcon,
+  SiteLink,
   SiteText,
 } from "@/src/site-primitives";
 import { AgentSwitch } from "./agent-switch";
@@ -33,7 +34,7 @@ function StepVisual({
           {index === 0
             ? `${agentName} -> /api/mcp`
             : index === 1
-              ? "OAuth / mellodifai login"
+              ? "PAT stdin -> mellodifai login"
               : "tools/list -> 38"}
         </SiteText>
       </HStack>
@@ -93,8 +94,6 @@ export function ConnectSteps({
 
       <VStack
         id="agents-steps-panel"
-        role="tabpanel"
-        aria-labelledby={`agent-tab-connect-${profile.id}`}
         className="site-agents-connect__body"
         gap={10}
         hAlign="center"
@@ -103,6 +102,8 @@ export function ConnectSteps({
         <HStack className="site-agents-connect__grid" data-ref-grid role="list">
           {profile.connectSteps.map((step, i) => {
             const hasCopy = Boolean(step.copyText);
+            const hasBadge = Boolean(step.statusBadge);
+            const hasDoc = Boolean(step.docHref);
             return (
               <StepCard
                 key={step.title}
@@ -114,38 +115,62 @@ export function ConnectSteps({
                 lineAttr={String(i)}
                 art={<StepVisual index={i} agentName={profile.name} />}
                 footer={
-                  <VStack
-                    className="site-copy-box"
-                    gap={2}
-                    data-step-copy-box={String(i)}
-                    hidden={!hasCopy}
-                  >
-                    <VStack className="site-copy-box__code-wrap">
-                      <code
-                        className="site-copy-box__code"
-                        data-step-copy-code={String(i)}
-                      >
-                        {step.copyText ?? ""}
-                      </code>
-                    </VStack>
-                    <SiteButton
-                      label={step.copyLabel ?? copy.copyButton}
-                      variant="secondary"
-                      size="sm"
-                      className="site-copy-box__btn"
-                      icon={
-                        <SiteIcon icon={CopyGlyph} size="sm" color="inherit" />
-                      }
-                      data-copy-button="true"
-                      data-step-copy-btn={String(i)}
-                      data-copy-text={step.copyText ?? ""}
-                      data-copy-label={step.copyLabel ?? copy.copyButton}
-                      data-copy-kind={step.copyKind ?? "cli"}
+                  <VStack className="site-connect-step__footer" gap={2}>
+                    <SiteText
+                      type="code"
+                      className="site-tag site-tag--accent site-connect-step__badge"
+                      data-step-badge={String(i)}
+                      hidden={!hasBadge}
                     >
-                      <SiteText color="inherit" data-btn-label="true">
-                        {copy.copyButton}
-                      </SiteText>
-                    </SiteButton>
+                      {step.statusBadge ?? ""}
+                    </SiteText>
+                    <SiteLink
+                      href={step.docHref ?? REPO_AGENTS_DOCS_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="site-link site-connect-step__doc"
+                      data-step-doc={String(i)}
+                      hidden={!hasDoc}
+                    >
+                      {step.docLabel ?? ""}
+                    </SiteLink>
+                    <VStack
+                      className="site-copy-box"
+                      gap={2}
+                      data-step-copy-box={String(i)}
+                      hidden={!hasCopy}
+                    >
+                      <VStack className="site-copy-box__code-wrap">
+                        <code
+                          className="site-copy-box__code"
+                          data-step-copy-code={String(i)}
+                        >
+                          {step.copyText ?? ""}
+                        </code>
+                      </VStack>
+                      <SiteButton
+                        label={step.copyLabel ?? copy.copyButton}
+                        variant="secondary"
+                        size="sm"
+                        className="site-copy-box__btn"
+                        icon={
+                          <SiteIcon
+                            icon={CopyGlyph}
+                            size="sm"
+                            color="inherit"
+                          />
+                        }
+                        data-copy-button="true"
+                        data-step-copy-btn={String(i)}
+                        data-copy-text={step.copyText ?? ""}
+                        data-copy-label={step.copyLabel ?? copy.copyButton}
+                        data-copy-kind={step.copyKind ?? "cli"}
+                      >
+                        <SiteText color="inherit" data-btn-label="true">
+                          {copy.copyButton}
+                        </SiteText>
+                      </SiteButton>
+                    </VStack>
                   </VStack>
                 }
               />

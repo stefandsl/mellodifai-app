@@ -78,7 +78,40 @@ The studio has two transports: the stdio bridge `mellodifai mcp` (the CLI, with 
 `mellodifai login`) and Streamable HTTP at `<origin>/api/mcp` (Bearer PAT, or OAuth for remote
 clients). `MELLODIFAI_PAT` is an environment variable you set; never paste the token itself into a
 config file. On the owner's PC, set `APPDATA` to the private profile on E: for the CLI process
-(`packages/cli/skill/SKILL.md`). Snippets follow each vendor's docs as read on 2026-11-19.
+(`packages/cli/skill/SKILL.md`).
+
+### Install the CLI from the repository and sign in locally
+
+`@mellodifai/cli` is not yet published on npm. Build and install it from a repository checkout
+(Node >= 22.12), then pipe `MELLODIFAI_PAT` via stdin to `mellodifai login` against your running
+local server (`http://127.0.0.1:3001` for `pnpm --filter @mellodifai/web dev`, or
+`http://127.0.0.1:46300` for the Windows desktop app):
+
+```bash
+pnpm --filter @mellodifai/cli exec pnpm pack && npm install -g ./packages/cli/mellodifai-cli-0.0.0.tgz
+printf %s "$MELLODIFAI_PAT" | mellodifai login --url http://127.0.0.1:3001
+```
+
+Snippets below follow each vendor's docs as read on 2026-11-19 (CLI clients) and 2026-11-28
+(Claude web/desktop and ChatGPT web).
+
+### Claude (web and desktop)
+
+Reviewed 2026-11-28 against Anthropic's remote MCP connector docs. Remote Streamable HTTP
+connectors require a live public HTTPS host (available once MellodifAI launches publicly; not
+active while the domain is parked). On eligible Claude plans, open Settings -> Connectors (exact
+menu label can differ across client rollouts), add a custom connector pointing at
+`https://<origin>/api/mcp`, and complete the MellodifAI OAuth consent prompt. Until public launch,
+use Claude Code with the local `mellodifai mcp` stdio bridge below.
+
+### ChatGPT (web)
+
+Reviewed 2026-11-28 against OpenAI's ChatGPT MCP connector docs. ChatGPT web requires a live
+public HTTPS MCP server (available once MellodifAI launches publicly; not active before launch).
+On eligible plans, open Settings -> Connectors (or Apps & Connectors depending on rollout, with
+Developer Mode enabled where required), add `https://<origin>/api/mcp` with OAuth, approve scopes
+in MellodifAI, and attach the connector in a new chat. Until public launch, run MellodifAI locally
+(`http://127.0.0.1:3001/api/mcp`) and connect via a local MCP client or Codex CLI.
 
 ### Claude Code
 
